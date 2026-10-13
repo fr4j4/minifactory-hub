@@ -1,5 +1,5 @@
 'use server';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -19,7 +19,7 @@ export async function createCollectionAction(name: string, photoIds: string[]) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('galeria', 'C'); const db = await getDb(); if (!name.trim()) throw new Error(t('gallery.giveTheCollectionAName'));
-    const [ex] = await db.select().from(s.collections).where(and(eq(s.collections.name, name.trim()))).limit(1);
+    const [ex] = await db.select().from(s.collections).where(and(eq(s.collections.name, name.trim()), isNull(s.collections.deletedAt))).limit(1);
     const id = ex?.id ?? (await db.insert(s.collections).values({ workspaceId: WORKSPACE_ID, name: name.trim(), createdBy: u.id }).returning({ id: s.collections.id }))[0].id;
     for (const pid of photoIds) await db.insert(s.collectionPhotos).values({ collectionId: id, photoId: pid }).onConflictDoNothing();
     return id;

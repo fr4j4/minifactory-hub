@@ -1,5 +1,5 @@
 'use server';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -34,7 +34,7 @@ export async function importCustomersAction(csv: string) {
     for (const r of rows.slice(1)) {
       const name = r[iN]?.trim(); if (!name) { skipped++; continue; }
       const phone = iP >= 0 ? r[iP]?.trim() : '';
-      const [dup] = await db.select({ id: s.customers.id }).from(s.customers).where(and(eq(s.customers.name, name))).limit(1);
+      const [dup] = await db.select({ id: s.customers.id }).from(s.customers).where(and(eq(s.customers.name, name), isNull(s.customers.deletedAt))).limit(1);
       if (dup) { skipped++; continue; }
       const type = iT >= 0 && ['particular', 'empresa', 'revendedor'].includes(r[iT]?.trim().toLowerCase()) ? r[iT].trim().toLowerCase() : 'particular';
       await db.insert(s.customers).values({ workspaceId: WORKSPACE_ID, name, phone: phone || null, email: iE >= 0 ? r[iE]?.trim() || null : null, taxId: iR >= 0 ? r[iR]?.trim() || null : null, type, tags: iG >= 0 && r[iG] ? r[iG].split(/[;|]/).map((tt) => tt.trim()).filter(Boolean) : [], createdBy: u.id });

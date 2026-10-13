@@ -142,4 +142,5 @@ export const inventory: Shape<typeof es['inventory']> = {
   kindMaterial: 'Material',
   missingSpools_one: '{count} spool (≈ {grams} g)',
   missingSpools_other: '{count} spools (≈ {grams} g)',
+  lotBought: 'batch {lot} · bought {date}',
 };

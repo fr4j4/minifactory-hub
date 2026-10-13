@@ -139,4 +139,5 @@ export const inventory = {
   kindMaterial: 'Material',
   missingSpools_one: '{count} bobina (≈ {grams} g)',
   missingSpools_other: '{count} bobinas (≈ {grams} g)',
+  lotBought: 'lote {lot} · comprada {date}',
 };

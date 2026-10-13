@@ -8,14 +8,15 @@ import { PageHeader, Card, StatusBadge, Table, Stat, Badge } from '@/components/
 import { CustomerForm } from '@/components/customer-form';
 import { dmy, money, pct } from '@/lib/format';
 import { getT } from '@/i18n/server';
+import { RemoveButton } from '@/components/remove-button';
 
 export async function generateMetadata() { return { title: (await getT())('meta.customer') }; }
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
   const user = await pagePerm('clientes', 'V'); const { id } = await params; const db = await getDb();
-  const [c] = await db.select().from(s.customers).where(eq(s.customers.id, id)); if (!c) notFound();
-  const pl = await db.select().from(s.priceLists);
+  const [c] = await db.select().from(s.customers).where(eq(s.customers.id, id)); if (!c || c.deletedAt) notFound();
+  const pl = await db.select().from(s.priceLists).where(isNull(s.priceLists.deletedAt));
   const quotes = await db.select().from(s.quotes).where(and(eq(s.quotes.customerId, id), isNull(s.quotes.deletedAt))).orderBy(desc(s.quotes.createdAt)).limit(30);
   const orders = await db.select().from(s.orders).where(and(eq(s.orders.customerId, id), isNull(s.orders.deletedAt))).orderBy(desc(s.orders.createdAt)).limit(30);
   const files = await db.select().from(s.modelFiles).where(and(eq(s.modelFiles.customerId, id), isNull(s.modelFiles.deletedAt))).limit(12);
@@ -24,7 +25,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const total = orders.filter((o) => o.status !== 'cancelado').reduce((a, o) => a + o.total, 0);
   return (
     <>
-      <PageHeader back={{ href: '/clientes', label: t('nav.customers') }} title={c.name} subtitle={<>{c.phone} {c.email && `· ${c.email}`} {c.taxId && `· ${c.taxId}`}</>} actions={<>{can(user, 'pedidos', 'C') && <Link className="btn-ghost" href={`/pedidos/nuevo?cliente=${c.id}`}>{t('customers.newOrder')}</Link>}{can(user, 'presupuestos', 'C') && <Link className="btn-primary" href={`/presupuestos/nuevo?customer=${c.id}`}>{t('common.newQuote')}</Link>}</>} />
+      <PageHeader back={{ href: '/clientes', label: t('nav.customers') }} title={c.name} subtitle={<>{c.phone} {c.email && `· ${c.email}`} {c.taxId && `· ${c.taxId}`}</>} actions={<>{can(user, 'pedidos', 'C') && <Link className="btn-ghost" href={`/pedidos/nuevo?cliente=${c.id}`}>{t('customers.newOrder')}</Link>}{can(user, 'presupuestos', 'C') && <Link className="btn-primary" href={`/presupuestos/nuevo?customer=${c.id}`}>{t('common.newQuote')}</Link>}{can(user, 'clientes', 'X') && <RemoveButton kind="customer" id={c.id} name={c.name} redirectTo="/clientes" />}</>} />
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"><Stat label={t('common.orders')} value={orders.length} /><Stat label={t('customers.totalPurchased')} value={money(total)} /><Stat label={t('customers.quoteApproval')} value={rate != null ? pct(rate, 0) : '—'} sub={t('customers.sent', { sent: sent.length })} /><Stat label={t('common.lastOrder')} value={orders[0] ? dmy(orders[0].createdAt) : '—'} /></div>
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">

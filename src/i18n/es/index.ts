@@ -34,5 +34,6 @@ import { slicerParam } from './slicerParam';
 import { payMethod } from './payMethod';
 import { taxDoc } from './taxDoc';
 import { audit } from './audit';
+import { remove } from './remove';
 
-export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit };
+export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove };

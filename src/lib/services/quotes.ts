@@ -162,7 +162,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
 export async function loadQuote(id: string) {
   const db = await getDb();
   const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id));
-  if (!q) return null;
+  if (!q || q.deletedAt) return null;
   const items = await db.select().from(s.quoteItems).where(eq(s.quoteItems.quoteId, id)).orderBy(asc(s.quoteItems.position));
   const ids = items.map((i) => i.id);
   const models = ids.length ? await db.select({ qm: s.quoteItemModels, name: s.modelFiles.name, thumb: s.fileVersions.thumbKey, vnum: s.fileVersions.number })

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, asc, desc, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts, canSetFinalPrice } from '@/lib/perm';
@@ -16,6 +16,7 @@ import { fillTemplate, waLink } from '@/lib/messages';
 import { dmy, dmyHm, dur, grams, money, num, pct, sources } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
+import { RemoveButton } from '@/components/remove-button';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quote') }; }
 
@@ -40,12 +41,12 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
     };
     if (initial.items.length === 1) initial.items[0].open = true;
     return (<><PageHeader back={{ href: '/presupuestos', label: t('nav.quotes') }} title={<span>{q.number} <span className="muted text-base">v{q.version}</span> <StatusBadge status={q.status} /></span>} subtitle={t('quotes.draftItIsSavedAutomatically')}
-      actions={<QuoteActions id={q.id} status={q.status} canEdit canOrder={can(user, 'pedidos', 'C')} msg={fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) })} wa={waLink(q.customerPhone ?? customer?.phone, fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) }))} defaultBy={q.customerName ?? ''} depositPct={customer?.depositPct ?? st.minDepositPct} total={q.total} />} />
+      actions={<><QuoteActions id={q.id} status={q.status} canEdit canOrder={can(user, 'pedidos', 'C')} msg={fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) })} wa={waLink(q.customerPhone ?? customer?.phone, fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) }))} defaultBy={q.customerName ?? ''} depositPct={customer?.depositPct ?? st.minDepositPct} total={q.total} />{can(user, 'presupuestos', 'X') && <RemoveButton kind="quote" id={q.id} name={q.number} redirectTo="/presupuestos" />}</>} />
       <QuoteEditor initial={initial} ctx={ctx} customers={customers} models={lib} variants={variants} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} number={q.number} version={q.version} /></>);
   }
   // vista de solo lectura (enviado, aprobado, etc., o sin permiso de edición)
   const costs = canSeeCosts(user);
-  const versions = await db.select().from(s.quotes).where(eq(s.quotes.rootId, q.rootId ?? q.id)).orderBy(desc(s.quotes.version));
+  const versions = await db.select().from(s.quotes).where(and(eq(s.quotes.rootId, q.rootId ?? q.id), isNull(s.quotes.deletedAt))).orderBy(desc(s.quotes.version));
   const adj = await db.select().from(s.priceAdjustments).where(and(eq(s.priceAdjustments.ownerType, 'quote_item'), inArray(s.priceAdjustments.ownerId, items.map((i) => i.id).concat(['00000000-0000-0000-0000-000000000000'])))).orderBy(desc(s.priceAdjustments.createdAt));
   const [order] = await db.select().from(s.orders).where(eq(s.orders.quoteId, q.id)).limit(1);
   const msg = fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) });
@@ -55,7 +56,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader back={{ href: '/presupuestos', label: t('nav.quotes') }} title={<span>{q.number} <span className="muted text-base">v{q.version}</span> <StatusBadge status={q.status} /></span>}
         subtitle={<>{q.customerName ?? t('common.noCustomer')}{q.customerPhone ? ` · ${q.customerPhone}` : ''} · {t('quotes.validUntilOn', { date: dmy(q.validUntil) })}{q.source ? ` · ${t('quotes.sourceOf', { source: sources(t)[q.source] ?? q.source })}` : ''}</>}
-        actions={<QuoteActions id={q.id} status={q.status} canEdit={can(user, 'presupuestos', 'E')} canOrder={can(user, 'pedidos', 'C')} msg={msg} wa={waLink(q.customerPhone ?? customer?.phone, msg)} defaultBy={q.customerName ?? ''} depositPct={customer?.depositPct ?? st.minDepositPct} total={q.total} />} />
+        actions={<><QuoteActions id={q.id} status={q.status} canEdit={can(user, 'presupuestos', 'E')} canOrder={can(user, 'pedidos', 'C')} msg={msg} wa={waLink(q.customerPhone ?? customer?.phone, msg)} defaultBy={q.customerName ?? ''} depositPct={customer?.depositPct ?? st.minDepositPct} total={q.total} />{can(user, 'presupuestos', 'X') && <RemoveButton kind="quote" id={q.id} name={q.number} redirectTo="/presupuestos" />}</>} />
       {order && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 p-3 text-sm mb-4">{t('quotes.approvedLine', { name: q.approvedBy, channel: q.approvedChannel, date: dmyHm(q.approvedAt) })} → {t('quotes.orderWord')} <Link className="underline font-medium" href={`/pedidos/${order.id}`}>{order.number}</Link></div>}
       {q.frozen && q.status !== 'aprobado' && <p className="text-xs muted mb-3">{t('quotes.thisQuoteIsFrozenChanging')}</p>}
       <div className="grid gap-4 xl:grid-cols-3">

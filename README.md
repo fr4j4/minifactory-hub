@@ -38,6 +38,10 @@ npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas
 
 Laminador → **Configurar laminado**: elige qué impresora es cada máquina, la calidad por defecto y el filamento de cada material (se sugieren solos). Puedes **importar tus perfiles de Bambu Studio u OrcaSlicer** subiendo un proyecto `.3mf` (lo más fácil: guarda un proyecto con tu impresora, filamentos y proceso), un paquete `.bbscfg`/`.bbsflmt` (Archivo → Exportar → Exportar paquete de preajustes) o archivos `.json`, y crear **filamentos personalizados** con un formulario. Cada perfil se puede exportar de vuelta a Bambu Studio.
 
+## Eliminar y archivar
+
+Casi todos los registros (materiales, bobinas, repuestos e insumos, productos y variantes, clientes, presupuestos, pedidos cancelados, listas de precios, canales, usuarios, colecciones de fotos, planes de mantenimiento, incidencias, contactos y pagos) se pueden eliminar desde su pantalla con el botón **Eliminar** (permiso «eliminar» del módulo). Es un borrado lógico: el historial, los reportes y los movimientos se conservan. Antes de confirmar, el sistema avisa si hay algo que lo impide (stock, pedidos abiertos, la última cuenta de administrador…). Las reglas están en `src/lib/services/removal.ts`.
+
 ## Idiomas (i18n)
 
 La interfaz está disponible en **español** (idioma por defecto) e **inglés**. El idioma se elige en el selector del menú de cuenta (o en la pantalla de ingreso) y se recuerda en la cookie `mf_lang`; sin cookie se usa `Accept-Language` y, si no coincide, español.
