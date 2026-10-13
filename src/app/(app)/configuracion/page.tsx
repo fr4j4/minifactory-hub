@@ -4,7 +4,10 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { PageHeader, Card, Table, Tabs, Badge } from '@/components/ui';
 import { ChannelDialog, PriceListDialog, RatesForm, ShopForm, TemplatesForm, UserDialog } from '@/components/config-forms';
-import { getSettings } from '@/lib/settings';
+import { getSettings, getSettingsRaw } from '@/lib/settings';
+import { publicAiSettings } from '@/lib/ai/config';
+import { aiUsage } from '@/lib/ai';
+import { AiSettingsForm, AiUsagePanel } from '@/components/ai-settings';
 import { dmyHm, money } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
@@ -26,7 +29,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title={t('settings.settings')} subtitle={t('settings.workshopDetailsRatesTemplatesUse')} />
-      <Tabs current={tab} tabs={[['taller', t('settings.tabShop')], ['tarifas', t('settings.tabRates')], ['plantillas', t('settings.tabTemplates')], ['usuarios', t('settings.tabUsers')], ['canales', t('settings.tabChannels')], ['listas', t('settings.tabPriceLists')], ['auditoria', t('settings.tabAudit')], ['archivados', t('settings.tabArchived')], ['respaldo', t('settings.tabBackup')]].map(([k, l]) => ({ key: k, label: l, href: `/configuracion?tab=${k}` }))} />
+      <Tabs current={tab} tabs={[['taller', t('settings.tabShop')], ['tarifas', t('settings.tabRates')], ['plantillas', t('settings.tabTemplates')], ['usuarios', t('settings.tabUsers')], ['canales', t('settings.tabChannels')], ['listas', t('settings.tabPriceLists')], ['ia', t('ai.tab')], ['auditoria', t('settings.tabAudit')], ['archivados', t('settings.tabArchived')], ['respaldo', t('settings.tabBackup')]].map(([k, l]) => ({ key: k, label: l, href: `/configuracion?tab=${k}` }))} />
+      {tab === 'ia' && <><Card title={t('ai.title')}><AiSettingsForm st={publicAiSettings((await getSettingsRaw()).ai)} canClear={can(user, 'ia', 'X')} /></Card><Card title={t('ai.usageTitle')} className="mt-6"><AiUsagePanel usage={await aiUsage()} budget={st.ai.budget.monthlyUsd} /></Card></>}
       {tab === 'taller' && <Card><ShopForm st={st} /></Card>}
       {tab === 'tarifas' && <Card><RatesForm st={st} /></Card>}
       {tab === 'plantillas' && <Card><TemplatesForm st={st} /></Card>}

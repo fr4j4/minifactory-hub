@@ -1,6 +1,7 @@
 import { eq, and, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import type { Rates } from './pricing';
+import { DEFAULT_AI, type AiSettings } from './ai/types';
 
 export interface AppSettings {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string };
@@ -13,6 +14,7 @@ export interface AppSettings {
   workHours: { start: string; end: string; days: number[]; holidays: string[] };
   defaults: { processProfileId?: string; infillPct: number; failRatePct: number };
   watermark: { enabled: boolean; opacity: number; position: string };
+  ai: AiSettings;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -34,6 +36,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   workHours: { start: '09:00', end: '19:00', days: [1, 2, 3, 4, 5, 6], holidays: [] },
   defaults: { infillPct: 15, failRatePct: 5 },
   watermark: { enabled: false, opacity: 0.4, position: 'abajo-derecha' },
+  ai: DEFAULT_AI,
 };
 
 function merge<T>(base: T, over: any): T {
@@ -46,14 +49,20 @@ function merge<T>(base: T, over: any): T {
   return out;
 }
 
-export async function getSettings(): Promise<AppSettings> {
+/** Ajustes completos, con la clave de IA cifrada. Solo para uso interno del servidor (nunca pasarlos a componentes de cliente). */
+export async function getSettingsRaw(): Promise<AppSettings> {
   const db = await getDb();
   const [row] = await db.select().from(s.settings).where(eq(s.settings.workspaceId, WORKSPACE_ID));
   return merge(DEFAULT_SETTINGS, row?.data ?? {});
 }
+/** Ajustes seguros para páginas y componentes: sin la clave de IA. */
+export async function getSettings(): Promise<AppSettings> {
+  const st = await getSettingsRaw();
+  return { ...st, ai: { ...st.ai, apiKeySealed: '' } };
+}
 export async function saveSettings(patch: Partial<AppSettings>) {
   const db = await getDb();
-  const cur = await getSettings();
+  const cur = await getSettingsRaw();
   const next = merge(cur, patch);
   await db.insert(s.settings).values({ workspaceId: WORKSPACE_ID, data: next as any })
     .onConflictDoUpdate({ target: s.settings.workspaceId, set: { data: next as any, updatedAt: new Date() } });

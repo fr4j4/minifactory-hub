@@ -69,7 +69,7 @@ export function TemplatesForm({ st }: { st: AppSettings }) {
   );
 }
 
-const MODS: Array<[Module, MessageKey]> = [['pedidos', 'nav.orders'], ['presupuestos', 'nav.quotes'], ['clientes', 'nav.customers'], ['archivos', 'nav.files'], ['laminador', 'nav.slicer'], ['catalogo', 'nav.catalog'], ['ventas', 'sales.quickSales'], ['inventario', 'nav.inventory'], ['maquinas', 'nav.machines'], ['cola', 'nav.queue'], ['galeria', 'nav.gallery'], ['pagos', 'settings.modulePayments'], ['reportes', 'nav.reports'], ['config', 'nav.settings']];
+const MODS: Array<[Module, MessageKey]> = [['pedidos', 'nav.orders'], ['presupuestos', 'nav.quotes'], ['clientes', 'nav.customers'], ['archivos', 'nav.files'], ['laminador', 'nav.slicer'], ['catalogo', 'nav.catalog'], ['ventas', 'sales.quickSales'], ['inventario', 'nav.inventory'], ['maquinas', 'nav.machines'], ['cola', 'nav.queue'], ['galeria', 'nav.gallery'], ['pagos', 'settings.modulePayments'], ['reportes', 'nav.reports'], ['config', 'nav.settings'], ['ia', 'ai.moduleName']];
 export function UserDialog({ u, trigger, selfId }: { u?: { id: string; name: string; email: string; role: string; active: boolean; permOverrides: Record<string, string> }; trigger: React.ReactNode; selfId: string }) {
   const t = useT();
   const [open, setOpen] = useState(false); const { run, pending } = useAction(); const [v, setV] = useState({ name: u?.name ?? '', email: u?.email ?? '', role: u?.role ?? 'operador', password: '', active: u?.active ?? true }); const [ov, setOv] = useState<Record<string, string>>(u?.permOverrides ?? {});
