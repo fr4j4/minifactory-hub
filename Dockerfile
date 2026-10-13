@@ -1,6 +1,11 @@
-FROM node:22-bookworm-slim AS base
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates xz-utils libfuse2 file \
-    libgl1 libglu1-mesa libegl1 libgtk-3-0 libwebkit2gtk-4.1-0 libxkbcommon0 libnss3 libatk-bridge2.0-0 libgbm1 libasound2 fonts-liberation \
+FROM ubuntu:24.04 AS base
+# Ubuntu 24.04: misma base para la que Bambu publica el AppImage de OrcaSlicer (evita problemas de glibc/libstdc++).
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates gnupg xz-utils libfuse2 file \
+  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+  && apt-get install -y --no-install-recommends nodejs \
+  && apt-get install -y --no-install-recommends \
+    libgl1 libglu1-mesa libegl1 libgtk-3-0t64 libwebkit2gtk-4.1-0 libxkbcommon0 libnss3 libatk-bridge2.0-0 libgbm1 libasound2t64 fonts-liberation libmspack0 \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package*.json ./
