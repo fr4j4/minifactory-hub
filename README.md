@@ -21,6 +21,8 @@ Sin `DATABASE_URL` se usa PGlite (Postgres embebido en `./data/pgdata`): no hay 
 
 ## Docker
 
+> Guía paso a paso para Windows y Linux (incluye instalar Docker): [INSTALL.md](docs/INSTALACION.md).
+
 ```bash
 SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
 ```

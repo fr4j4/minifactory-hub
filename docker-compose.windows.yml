@@ -1,0 +1,9 @@
+# Ajuste para Windows y macOS (Docker Desktop): no admite el "modo host" de Linux.
+# Se usa junto con el archivo principal:  docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d --build
+# Consecuencia: la detección automática de impresoras Bambu Lab (SSDP) no funciona; se agregan por su IP.
+services:
+  app:
+    network_mode: !reset null
+    ports: ["3000:3000"]
+    environment:
+      DATABASE_URL: postgres://minifactory:minifactory@db:5432/minifactory
