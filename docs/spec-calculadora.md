@@ -18,7 +18,7 @@ Se corrió `calcLine` con los valores por defecto del seed (Bambu A1: compra $48
 
 El caso "200 g / 16 h" cobra ~$963 por hora de máquina ocupada, que no cubre ni un sueldo ni costos fijos. Hallazgos, de mayor a menor impacto:
 
-1. **El IVA se come el margen (bug de fórmula).** `price = cost × (1 + margen)` se trata como precio final con IVA cuando `taxMode = 'incluido'` (el default). El neto real es `precio / 1,19`, así que el "70 %" configurado es en realidad ~42 % de markup y ~30 % de margen sobre venta. El usuario cree que gana 70 % y gana 30 %.
+1. **El IVA se come el margen (bug de fórmula).** `price = cost × (1 + margen)` se trata como precio final con IVA cuando `taxMode = 'incluido'` (el default). El neto real es `precio / 1,19`, así que el "70 %" configurado es en realidad ~42 % de markup y ~30 % de margen sobre venta. El usuario cree que gana 70 % y gana 30 %. **Decisión:** la calculadora deja de conocer el IVA (ver §2 y §3.6); el IVA es una opción del presupuesto.
 2. **"Margen" significa dos cosas.** Se configura como *markup sobre costo* (70 %), pero la alerta `minMarginPct` (25 %) y los semáforos del editor miden *margen sobre precio neto*. No son comparables.
 3. **El descuento por volumen rompe el margen mínimo por defecto.** Con ≥10 unidades (−10 %) el margen real baja a ~21 %, bajo el 25 % de alerta, sin que el costo cambie (la preparación no se amortiza ni se protege).
 4. **La mano de obra casi no existe.** Solo hay `prepMinutes` (10 min fijos por línea, no por placa) y `postMinutes` (default 0). No hay tiempo de supervisión, cambio de placa, retiro, control de calidad, empaque, atención del cliente ni diseño/arreglo de archivo.
@@ -39,7 +39,8 @@ El caso "200 g / 16 h" cobra ~$963 por hora de máquina ocupada, que no cubre ni
 - El motor sigue siendo **puro** (sin BD) y determinista. Todo parámetro nuevo entra por `Rates` ya resuelto.
 - **El precio sugerido es una banda con explicación, no un número.** El usuario sigue decidiendo el precio final (spec original §4.1).
 - **Los pisos mandan sobre el cálculo costo+margen.** Si el costo+margen da menos que el piso de realidad (tarifa por hora, mínimo por pedido), gana el piso y la UI dice cuál.
-- **Margen explícito sobre el neto** y siempre reportado en esa base. El IVA nunca resta margen.
+- **La calculadora trabaja siempre en neto (sin IVA).** Costos, margen, pisos y precio sugerido son netos. El IVA no existe en el motor de líneas: es una opción **del presupuesto** (casilla "Aplicar IVA") que se suma sobre el neto solo si se marca. Así el IVA nunca resta margen ni altera la sugerencia.
+- **Margen explícito sobre el neto** y siempre reportado en esa base.
 - **Compatibilidad:** los presupuestos congelados no cambian. El perfil "Heredado (v1)" reproduce exactamente la fórmula actual.
 - Ningún valor por defecto de mercado se inventa en código: los números de esta spec marcados *(calibrar)* son ejemplos; ver §7.
 
@@ -104,11 +105,20 @@ precio_neto  = costo_total / (1 − margenObjetivo)            # margen sobre ve
 precio_neto *= (1 + urgencia)
 precio_neto  = max(precio_neto, pisoHora × H_ef, pisoGramo × G, minPrecioLinea)
 descuento    = tramo de volumen, pero  precio_neto ≥ costo_total / (1 − margenMinVolumen)   # el descuento nunca baja del margen mínimo
-bruto        = precio_neto × (1 + IVA)  si taxMode = 'incluido' | 'sumado'
-bruto       /= (1 − comisionPasarela − comisionCanal)         # tarifas sobre el valor cobrado
-redondeo     = roundPrice(bruto)                                # una sola implementación, cliente y servidor
+precio_neto /= (1 − comisionPasarela − comisionCanal)         # tarifas sobre lo cobrado
+redondeo     = roundPrice(precio_neto)                          # una sola implementación, cliente y servidor
 ```
+**Sin IVA en la línea.** `suggestedUnit`, `finalUnit` y todos los márgenes son netos. El IVA se calcula solo en los totales del presupuesto (§3.8).
 A nivel de **pedido/presupuesto**: `pisoPedido` (mínimo por pedido) cubre atención + empaque + despacho aunque la suma de líneas sea baja; se reparte proporcional.
+
+### 3.8 IVA en el presupuesto (opcional)
+- `quotes.applyTax` (boolean; valor inicial = `settings.rates.taxDefault`, que parte en **desactivado**) y `taxPct` desde configuración (19 %).
+- Con la casilla marcada: `iva = round(neto_tras_descuento × taxPct/100)` y `total = neto + iva`. Sin marcar: `total = neto`, sin línea de IVA en pantalla ni PDF.
+- Se retira el modo `incluido` (que dividía el precio final por 1,19); `exento` equivale a casilla desmarcada y `sumado` es el único comportamiento con IVA.
+- PDF y WhatsApp indican "+ IVA" o el desglose según la casilla; la calculadora rápida muestra el neto y, si se marca, el total con IVA.
+- Pedidos y ventas heredan `applyTax` del presupuesto; el margen en editor y reportes es siempre sobre el neto.
+- La comisión de pasarela se cobra sobre el total pagado (con IVA si aplica); en la línea se estima sobre el neto y se rotula como estimación.
+- Migración: los presupuestos existentes con `taxMode = 'incluido'` conservan su total congelado (marca `legacyTaxMode` en `calc`) y no se recalculan.
 
 ### 3.7 Banda de sugerencia (salida)
 | Nivel | Definición | Uso |
@@ -133,7 +143,7 @@ tarifas base (settings.rates)  →  perfil de cálculo  →  override por materi
 Se resuelve a un `Rates` completo (`resolveRates(base, perfil, {material, máquina, categoría, línea})`) y se pasa a `calcLine`. El motor no cambia de forma; solo recibe tarifas ya resueltas. Un perfil guarda **solo las diferencias** (`params` parcial).
 
 ### 4.2 Qué puede variar un perfil
-margen objetivo y modo · margen mínimo · tarifa laboral y tiempos (prep/supervisión/post/diseño/atención) · merma y falla · factor de riesgo · pisos ($/h, $/g, mínimo de línea y de pedido) · urgencia · tramos de volumen · redondeo · comisión de canal/pasarela · IVA (modo) · base de costo de material · si aplica `timeFactor` · empaque.
+margen objetivo y modo · margen mínimo · tarifa laboral y tiempos (prep/supervisión/post/diseño/atención) · merma y falla · factor de riesgo · pisos ($/h, $/g, mínimo de línea y de pedido) · urgencia · tramos de volumen · redondeo · comisión de canal/pasarela · base de costo de material · si aplica `timeFactor` · empaque. (El IVA **no** es parte de un perfil: es una casilla del presupuesto.)
 
 ### 4.3 Perfiles predefinidos (sembrados, editables; valores = *calibrar*)
 | Perfil | Intención | Diferencias típicas |
@@ -180,9 +190,10 @@ Al guardar una línea, `costBreakdown` guarda `engineVersion`, `profileId`, un *
 **Esquema (drizzle, migración nueva `0003_*`):**
 - `calc_profiles(id, workspace_id, name, description, kind, tech, params jsonb, is_default, active, ...base)`.
 - `customers.calc_profile_id`, `sales_channels.calc_profile_id`, `quotes.calc_profile_id`, `quote_items.calc_profile_id`.
+- `quotes.apply_tax boolean not null default false` (casilla de IVA, §3.8).
 - `price_benchmarks(...)` (§5.2).
 - `materials.risk_factor`, `materials.waste_pct`, `materials.cost_basis` (nullable → usa el default).
-- `settings.data.rates` crece con: `fixedCostsMonth`, `targetIncomeMonth`, `productiveHoursPerMonth`/utilización, `marginMode`, `floors{perHour, perGram, perOrder}`, `payFeePct`, tiempos de mano de obra, `costsIncludeTax`, `volumeMinMarginPct`, `failShrinkK`. `merge()` ya aplica defaults a lo que falte, así que no requiere migración de datos.
+- `settings.data.rates` crece con: `fixedCostsMonth`, `targetIncomeMonth`, `productiveHoursPerMonth`/utilización, `marginMode`, `floors{perHour, perGram, perOrder}`, `payFeePct`, tiempos de mano de obra, `costsIncludeTax`, `volumeMinMarginPct`, `failShrinkK`. `taxMode` se reemplaza por `taxDefault: boolean` (default false) y se conserva `taxPct`; `taxMode` antiguo solo se lee para presupuestos congelados. `merge()` ya aplica defaults a lo que falte.
 
 **Código:**
 | Archivo | Cambio |
@@ -206,7 +217,7 @@ Ningún número de mercado se asume. Para calibrar:
 2. **Ingreso mensual objetivo** (sueldo del operador/dueño) y utilización realista de las máquinas.
 3. **Tarifa laboral** vigente y cuántos minutos reales toma preparar, supervisar, retirar/post-procesar y empacar un trabajo típico.
 4. **3–5 cotizaciones reales** (tuyas o de la competencia) con g, h y precio, para contrastar la banda.
-5. **Materiales:** ¿costo neto o con IVA? ¿se recupera crédito fiscal? ¿precio de reposición o promedio?
+5. **Materiales:** como la calculadora es sin IVA, los costos se cargan **netos**. ¿Recuperas crédito fiscal? Si no, el IVA de compra es costo y hay que sumarlo al costo por kg. ¿Reposición o promedio?
 6. **Cobros:** pasarela/POS usada y su comisión, canales con comisión, política de mínimo por pedido.
 7. **Margen:** ¿se piensa en markup o en margen sobre venta? (propongo margen sobre neto en toda la UI).
 8. **Qué diferencia a tus tipos de trabajo** (prototipo, funcional, serie, mayorista…) y cuántos perfiles quieres de partida.
@@ -216,7 +227,8 @@ Ningún número de mercado se asume. Para calibrar:
 ## 8. Criterios de aceptación y pruebas
 
 Unitarias (`tests/unit/pricing.test.ts`), por propiedades, no por números mágicos:
-- Para `taxMode = 'incluido'`, el margen real sobre neto de la sugerencia ≥ `margenObjetivo − 1 pp` (hoy 30 % vs 70 % configurado).
+- El margen real sobre neto de la sugerencia ≈ `margenObjetivo` (± redondeo), sin depender de ningún ajuste de IVA.
+- `calcLine` no recibe ni devuelve IVA; `calcQuote` con `applyTax = false` → `total = neto`; con `true` → `total = neto + round(neto × taxPct)`; el descuento se aplica antes del IVA.
 - `precio_neto / H_ef ≥ pisoHora` siempre que `pisoHora > 0`; idem `pisoGramo`, `minPrecioLinea`, `pisoPedido`.
 - El descuento por volumen nunca produce margen < `volumeMinMarginPct`.
 - Falla con 10 éxitos / 0 fallos > 0 y converge a la tasa observada con muchas muestras; con 0 muestras = valor por defecto.
@@ -233,7 +245,7 @@ E2E: calculadora rápida con cambio de perfil actualiza banda, regla ganadora y 
 
 ## 9. Fases propuestas
 
-1. **Corrección sin perfiles (rápida, alto impacto):** margen sobre neto con gross-up de IVA, encogimiento de la tasa de falla, avisos de datos incompletos, redondeo único cliente/servidor, `timeFactor` en modo manual. Perfil `Heredado` para no mover presupuestos viejos.
+1. **Corrección sin perfiles (rápida, alto impacto):** calculadora en neto, IVA como casilla opcional del presupuesto (`applyTax`), margen sobre neto, encogimiento de la tasa de falla, avisos de datos incompletos, redondeo único cliente/servidor, `timeFactor` en modo manual. Perfil `Heredado` para no mover presupuestos viejos.
 2. **Modelo de costos v2:** mano de obra por placa/hora/unidad, costos fijos y tarifa de equilibrio, pisos, material multicolor y costo de reposición, comisión de pasarela.
 3. **Perfiles de cálculo:** tabla, resolución en cascada, selector en calculadora y editor, snapshot al guardar, perfiles sembrados.
 4. **Realismo guiado:** referencias de mercado, asistente de calibración, "tus números reales vs la calculadora", banda Piso/Recomendado/Alto con explicación.
