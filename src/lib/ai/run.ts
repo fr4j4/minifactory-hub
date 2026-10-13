@@ -3,7 +3,7 @@ import { and, isNotNull, lt, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { can, type PermUser } from '../perm';
-import { assertAiUrl, getAiConfig, type AiConfig } from './config';
+import { assertAiUrl, getAiConfig, isLocalHost, type AiConfig } from './config';
 import { assertBudget, costOf, estimateTokens } from './budget';
 import { cacheGet, cacheSet, hashInput } from './cache';
 import { anthropic } from './providers/anthropic';
@@ -125,7 +125,7 @@ export async function runTask<T>(req: AIRequest<T>, ctx: RunContext = {}): Promi
     const t0 = Date.now();
     let res;
     try {
-      res = await withRetries(() => provider.complete({ system: req.system, user: feedback ? appendText(user, feedback) : user, jsonSchema, maxOutputTokens, temperature, timeoutMs }, { model, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }));
+      res = await withRetries(localHost(cfg.baseUrl), () => provider.complete({ system: req.system, user: feedback ? appendText(user, feedback) : user, jsonSchema, maxOutputTokens, temperature, timeoutMs }, { model, apiKey: cfg.apiKey, baseUrl: cfg.baseUrl }));
     } catch (e) {
       const err = e as AIError;
       await logCall({ ...base, model, inTokens: 0, outTokens: 0, costUsd: 0, latencyMs: Date.now() - t0, ok: false, error: String(err.message).slice(0, 300), cacheHit: false }, cfg.retention.logPromptsDays);
@@ -159,10 +159,12 @@ function trip(feature: string) {
   cur.fails += 1; if (cur.fails >= BREAK_FAILS) { cur.openUntil = Date.now() + BREAK_MS; cur.fails = 0; }
   b.set(feature, cur);
 }
-async function withRetries<T>(fn: () => Promise<T>): Promise<T> {
+/** Un timeout en un servidor local suele ser carga en frío del modelo: repetirlo solo multiplica la espera. */
+const localHost = (u: string) => { try { return isLocalHost(new URL(u).hostname); } catch { return false; } };
+async function withRetries<T>(local: boolean, fn: () => Promise<T>): Promise<T> {
   let last: unknown;
   for (let i = 0; i < 3; i++) {
-    try { return await fn(); } catch (e) { last = e; if (!retryable(e) || i === 2) break; await sleep(retryBase() * 2 ** i); }
+    try { return await fn(); } catch (e) { last = e; if (!retryable(e) || (local && (e as AIError).code === 'timeout') || i === 2) break; await sleep(retryBase() * 2 ** i); }
   }
   throw last;
 }
