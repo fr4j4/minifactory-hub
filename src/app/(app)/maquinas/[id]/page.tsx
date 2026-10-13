@@ -5,7 +5,8 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Table, Badge, StatusBadge, Meter, Stat } from '@/components/ui';
-import { IncidentForm, MachineForm, PlanTools, StatusSelect } from '@/components/machine-bits';
+import { ActiveNozzle, IncidentForm, MachineForm, PlanTools, StatusSelect } from '@/components/machine-bits';
+import { rowNozzle } from '@/lib/slicer/catalog';
 import { getSettings } from '@/lib/settings';
 import { machineHourly } from '@/lib/pricing';
 import { dmy, dmyHm, money, num, pct } from '@/lib/format';
@@ -36,12 +37,17 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
       spools={allSpools.filter(({ sp }) => !['agotada', 'descartada'].includes(sp.status)).map(({ sp, m: mm }) => ({ id: sp.id, code: sp.code, type: mm.type, colorName: mm.colorName, hex: mm.hex, remainingG: sp.remainingG, slot: sp.slot, machineId: sp.machineId }))}
       runs={runs} jobs={queued.map((j) => ({ id: j.id, label: `${j.number} · ${j.title ?? ''}` }))} />;
   }
+  const P = (id: string | null | undefined) => (id ? profs.find((p) => p.id === id) ?? null : null);
+  const activeNozzle = P(m.machineProfileId) ? rowNozzle(P(m.machineProfileId)!) : null;
+  const setups: Record<string, { machine: string; process: string | null }> = {};
+  for (const [n, v] of Object.entries(m.nozzleSetups ?? {})) if (P(v.machineProfileId)) setups[n] = { machine: P(v.machineProfileId)!.name, process: P(v.processProfileId)?.name ?? null };
   const hr = machineHourly({ purchaseValue: m.purchaseValue, residualValue: m.residualValue, lifeHours: m.lifeHours, watts: m.watts, maintCostHour: m.maintCostHour }, st.rates.kwh); const done = m.jobsOk + m.jobsFailed;
   const planRows = plans.map((p) => { const remH = p.intervalHours != null ? p.intervalHours - (m.hoursTotal - p.lastDoneHours) : null; const remD = p.intervalDays != null && p.lastDoneAt ? p.intervalDays - (Date.now() - new Date(p.lastDoneAt).getTime()) / 86400_000 : null; const due = (remH != null && remH <= 0) || (remD != null && remD <= 0); return { p, remH, remD, due }; });
   return (
     <>
       <PageHeader back={{ href: '/maquinas', label: 'Máquinas' }} title={<span>{m.name} <StatusBadge status={m.status} /></span>} subtitle={`${m.brand ?? ''} ${m.model ?? ''} · ${m.tech} · ${m.volX}×${m.volY}×${m.volZ} mm`} actions={can(user, 'maquinas', 'E') ? <StatusSelect id={m.id} status={m.status} /> : undefined} />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"><Stat label="Horas totales" value={`${num(m.hoursTotal, 0)} h`} /><Stat label="Trabajos OK / fallidos" value={`${m.jobsOk} / ${m.jobsFailed}`} /><Stat label="Tasa de éxito" value={done ? pct((m.jobsOk / done) * 100, 0) : '—'} />{canSeeCosts(user) && <Stat label="Costo por hora" value={money(Math.round(hr.dep + hr.maint + hr.energy))} />}<Stat label="Factor real/estimado" value={`${num(m.timeFactor, 2)}×`} sub="mediana de los últimos 20 trabajos" /></div>
+      {m.tech === 'FDM' && can(user, 'maquinas', 'E') && <div className="mb-4"><ActiveNozzle machineId={m.id} nozzles={m.nozzles ?? []} active={activeNozzle} setups={setups} /></div>}
       {printer && <div className="mb-4">{printer}</div>}
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
@@ -54,7 +60,7 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
         </div>
         <div className="space-y-4">
           {spools.length > 0 && <Card title="Material cargado">{spools.map(({ sp, m: mm }) => <Link key={sp.id} href={`/inventario/bobinas/${sp.id}`} className="flex justify-between text-sm py-1 hover:underline"><span>{sp.code} · {mm.type} {mm.colorName}</span><span className="tabular">{Math.round(sp.remainingG)} g</span></Link>)}</Card>}
-          {can(user, 'maquinas', 'E') && <Card title="Ficha técnica"><MachineForm m={m} profiles={profs.map((p) => ({ id: p.id, name: p.name, type: p.type }))} kwh={st.rates.kwh} /></Card>}
+          {can(user, 'maquinas', 'E') && <Card title="Ficha técnica"><MachineForm m={m} profiles={profs.map((p) => ({ id: p.id, name: p.name, type: p.type, nozzle: p.type === 'filament' ? null : rowNozzle(p) }))} kwh={st.rates.kwh} /></Card>}
         </div>
       </div>
     </>

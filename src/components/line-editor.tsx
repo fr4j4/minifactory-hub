@@ -12,6 +12,7 @@ import { useRunPolling } from './slice-panel';
 import { Uploader } from './uploader';
 import { Badge, Swatch } from './ui';
 import { useToast } from './client';
+import { NozzleMismatch, ProcessOptions } from './process-options';
 
 export interface ItemState {
   uid: string; id?: string; kind: 'modelo' | 'placa' | 'manual' | 'producto'; description: string; qty: number; optional: boolean; groupName: string;
@@ -153,7 +154,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                 <div className="grid sm:grid-cols-3 gap-3">
                   <label className="block"><span className="label">Material</span><select className="input" value={it.materialId ?? ''} disabled={dis} onChange={(e) => { const m = mats.find((x) => x.id === e.target.value); onChange({ materialId: e.target.value || null, color: m?.colorName ?? it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} data-testid="line-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label} · {money(m.costPerKg)}/kg</option>)}</select></label>
                   <label className="block"><span className="label">Máquina</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select></label>
-                  <label className="block"><span className="label">Perfil de proceso</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option>{ctx.profiles.filter((p) => p.type === 'process').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+                  <label className="block"><span className="label">Calidad (perfil de proceso)</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option><ProcessOptions profiles={ctx.profiles.filter((p) => p.type === 'process')} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle ?? null} /></select><NozzleMismatch processNozzle={ctx.profiles.find((p) => p.id === it.processProfileId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle} /></label>
                 </div>
                 <div>
                   <div className="label">Cómo se obtienen el tiempo y los gramos</div>

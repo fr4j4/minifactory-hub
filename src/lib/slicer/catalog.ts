@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
+import { nozzleFromName, normNozzle } from './nozzle';
+import { SIMPLE_PARAMS } from './params';
+
+export { SIMPLE_PARAMS };
 
 export type ProfileType = 'machine' | 'process' | 'filament';
 export interface FactoryEntry {
@@ -68,7 +72,27 @@ function build(all: FactoryEntry[]): Index {
 }
 
 export function listVendors() { return getIndex().vendors; }
-export function listFactory(type: ProfileType, vendor: string, opts: { machine?: string; q?: string } = {}) {
+/** Boquilla (mm, como texto) a la que apunta un perfil de fábrica: la de la impresora que declara o la que dice su nombre. */
+export function entryNozzle(e: FactoryEntry): string | null {
+  if (e.type === 'machine') return normNozzle(e.nozzle) ?? nozzleFromName(e.name);
+  for (const cp of e.compatiblePrinters) { const m = getIndex().byName.get(`machine|${cp}`)?.[0]; const n = m ? normNozzle(m.nozzle) ?? nozzleFromName(m.name) : nozzleFromName(cp); if (n) return n; }
+  return nozzleFromName(e.name);
+}
+
+/** Boquilla de un perfil del sitio: la de su base de fábrica (en impresoras, la que hayas escrito en los cambios). */
+export function profileNozzle(type: ProfileType, baseName: string, changes?: Record<string, any> | null): string | null {
+  if (type === 'filament') return null;
+  if (type === 'machine') { const v = changes?.nozzle_diameter; const n = normNozzle(Array.isArray(v) ? v[0] : v); if (n) return n; }
+  const e = findEntry(type, baseName); return e ? entryNozzle(e) : nozzleFromName(baseName);
+}
+
+/** Boquilla de una fila de `slicer_profiles`: la guardada o, si falta, la que se deduce de su base de fábrica. */
+export function rowNozzle(p: { type: string; baseName: string; changes?: Record<string, any> | null; nozzle?: string | null }): string | null {
+  const own = normNozzle(p.nozzle); if (own) return own;
+  try { return profileNozzle(p.type as ProfileType, p.baseName, p.changes); } catch { return null; }
+}
+
+export function listFactory(type: ProfileType, vendor: string, opts: { machine?: string; q?: string; nozzle?: string } = {}) {
   const idx = getIndex();
   let rows = idx.all.filter((e) => e.type === type && e.vendor === vendor && e.instantiation);
   if (type !== 'machine' && opts.machine) {
@@ -79,8 +103,9 @@ export function listFactory(type: ProfileType, vendor: string, opts: { machine?:
     const lib = idx.all.filter((e) => e.type === 'filament' && e.vendor === 'OrcaFilamentLibrary' && e.instantiation);
     if (vendor === 'OrcaFilamentLibrary') rows = lib;
   }
+  if (opts.nozzle && type !== 'filament') { const want = normNozzle(opts.nozzle); if (want) rows = rows.filter((e) => { const n = entryNozzle(e); return n == null || Number(n) === Number(want); }); }
   if (opts.q) { const q = opts.q.toLowerCase(); rows = rows.filter((e) => e.name.toLowerCase().includes(q)); }
-  return rows.slice(0, 400).map((e) => ({ name: e.name, vendor: e.vendor, nozzle: e.nozzle, printerModel: e.printerModel }));
+  return rows.slice(0, 400).map((e) => ({ name: e.name, vendor: e.vendor, nozzle: type === 'filament' ? e.nozzle : entryNozzle(e) ?? undefined, printerModel: e.printerModel }));
 }
 
 function readFactory(e: FactoryEntry) { return readJson(path.join(config.orcaProfilesDir, e.file)) ?? {}; }
@@ -138,40 +163,3 @@ export function buildCliProfile(type: ProfileType, o: { name: string; vendor?: s
   if (type === 'filament') { prof.filament_settings_id = [o.name]; if (o.machineName) { prof.compatible_printers = [o.machineName]; prof.compatible_printers_condition = ''; } }
   return prof;
 }
-
-/** Parámetros del editor simple (los que mueven el costo). */
-export const SIMPLE_PARAMS: Record<ProfileType, Array<{ key: string; label: string; kind: 'number' | 'select' | 'text'; unit?: string; options?: string[]; help?: string }>> = {
-  machine: [
-    { key: 'machine_max_acceleration_x', label: 'Aceleración máx. X', kind: 'number', unit: 'mm/s²' },
-    { key: 'machine_max_speed_x', label: 'Velocidad máx. X', kind: 'number', unit: 'mm/s' },
-    { key: 'printable_area', label: 'Área imprimible (lista de puntos)', kind: 'text' },
-    { key: 'printable_height', label: 'Altura imprimible', kind: 'number', unit: 'mm' },
-  ],
-  process: [
-    { key: 'layer_height', label: 'Altura de capa', kind: 'number', unit: 'mm' },
-    { key: 'initial_layer_print_height', label: 'Altura primera capa', kind: 'number', unit: 'mm' },
-    { key: 'wall_loops', label: 'Perímetros (paredes)', kind: 'number' },
-    { key: 'sparse_infill_density', label: 'Relleno', kind: 'text', unit: '%', help: 'Ej. 15%' },
-    { key: 'sparse_infill_pattern', label: 'Patrón de relleno', kind: 'select', options: ['grid', 'gyroid', 'cubic', 'honeycomb', 'triangles', 'lightning', 'rectilinear', 'adaptivecubic', 'line', 'concentric'] },
-    { key: 'top_shell_layers', label: 'Capas superiores', kind: 'number' },
-    { key: 'bottom_shell_layers', label: 'Capas inferiores', kind: 'number' },
-    { key: 'enable_support', label: 'Soportes (0/1)', kind: 'select', options: ['0', '1'] },
-    { key: 'support_type', label: 'Tipo de soporte', kind: 'select', options: ['normal(auto)', 'tree(auto)', 'normal(manual)', 'tree(manual)'] },
-    { key: 'outer_wall_speed', label: 'Velocidad pared exterior', kind: 'number', unit: 'mm/s' },
-    { key: 'inner_wall_speed', label: 'Velocidad pared interior', kind: 'number', unit: 'mm/s' },
-    { key: 'sparse_infill_speed', label: 'Velocidad relleno', kind: 'number', unit: 'mm/s' },
-    { key: 'default_acceleration', label: 'Aceleración por defecto', kind: 'number', unit: 'mm/s²' },
-    { key: 'brim_type', label: 'Borde (brim)', kind: 'select', options: ['no_brim', 'auto_brim', 'outer_only', 'inner_only', 'outer_and_inner'] },
-  ],
-  filament: [
-    { key: 'nozzle_temperature', label: 'Temp. boquilla', kind: 'number', unit: '°C' },
-    { key: 'nozzle_temperature_initial_layer', label: 'Temp. boquilla 1ª capa', kind: 'number', unit: '°C' },
-    { key: 'hot_plate_temp', label: 'Temp. cama (PEI liso)', kind: 'number', unit: '°C' },
-    { key: 'textured_plate_temp', label: 'Temp. cama (PEI texturizado)', kind: 'number', unit: '°C' },
-    { key: 'filament_flow_ratio', label: 'Factor de flujo', kind: 'number' },
-    { key: 'filament_max_volumetric_speed', label: 'Caudal volumétrico máx.', kind: 'number', unit: 'mm³/s' },
-    { key: 'filament_density', label: 'Densidad', kind: 'number', unit: 'g/cm³' },
-    { key: 'filament_cost', label: 'Costo', kind: 'number', unit: '$/kg' },
-    { key: 'fan_min_speed', label: 'Ventilador mín.', kind: 'number', unit: '%' },
-  ],
-};

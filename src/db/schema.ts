@@ -184,6 +184,8 @@ export const machines = pgTable('machines', {
   simulated: boolean('simulated').notNull().default(false),
   machineProfileId: uuid('machine_profile_id'),
   defaultProcessProfileId: uuid('default_process_profile_id'),
+  /** Por boquilla: qué perfil de impresora y qué calidad por defecto usar cuando esa boquilla está puesta (machineProfileId/defaultProcessProfileId reflejan la boquilla activa). */
+  nozzleSetups: jsonb('nozzle_setups').$type<Record<string, { machineProfileId: string; processProfileId: string | null }>>().default({}),
   feedGph: doublePrecision('feed_gph').notNull().default(25), // g/h típicos para estimar sin laminar
   timeFactor: doublePrecision('time_factor').notNull().default(1), // mediana(tiempo real ÷ estimado) de los últimos 20 trabajos
   connection: jsonb('connection').$type<Record<string, any>>().default({}),
@@ -262,6 +264,7 @@ export const slicerProfiles = pgTable('slicer_profiles', {
   name: text('name').notNull(),
   vendor: text('vendor'),
   baseName: text('base_name').notNull(), // perfil de fábrica de OrcaSlicer
+  nozzle: text('nozzle'), // boquilla (mm) para la que sirve: impresoras y calidades; se deduce de la base si está vacío
   changes: jsonb('changes').$type<Record<string, any>>().notNull().default({}),
   version: integer('version').notNull().default(1),
   simulated: boolean('simulated').notNull().default(false),

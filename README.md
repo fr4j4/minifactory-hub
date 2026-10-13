@@ -38,6 +38,8 @@ npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas
 
 Laminador → **Configurar laminado**: elige qué impresora es cada máquina, la calidad por defecto y el filamento de cada material (se sugieren solos). Puedes **importar tus perfiles de Bambu Studio u OrcaSlicer** subiendo un proyecto `.3mf` (lo más fácil: guarda un proyecto con tu impresora, filamentos y proceso), un paquete `.bbscfg`/`.bbsflmt` (Archivo → Exportar → Exportar paquete de preajustes) o archivos `.json`, y crear **filamentos personalizados** con un formulario. Cada perfil se puede exportar de vuelta a Bambu Studio.
 
+**Boquillas y calidades.** Cada máquina puede tener varias boquillas (0,2 · 0,4 · 0,6 · 0,8 · 1,0 · 1,2…); en su ficha se marca la **boquilla puesta** y el laminador usa el perfil de impresora y la calidad de esa boquilla. Laminador → Calidad → *Plantillas por boquilla* crea Borrador / Estándar / Fino / Resistente / Funcional calculados para cualquier diámetro (paredes en múltiplos de la boquilla). Cualquier perfil se puede editar, duplicar con nombre propio y cambiar de base. Guía completa y revisión del módulo: `docs/revision-perfiles-maquinas.md`.
+
 ## Conector Bambu Lab (modo LAN)
 
 Máquinas → **Conectar impresoras**: detecta las Bambu Lab de la red (SSDP), pide el código de acceso de 8 caracteres y muestra en vivo estado, avance por capas, temperaturas, filamento del AMS / bobina externa, avisos HMS y cámara. Permite pausar, reanudar, detener, cambiar velocidad y luz, asociar bobinas del inventario a las bandejas y **enviar a imprimir** un laminado (sube el 3MF por FTPS y lo inicia), verificando antes modelo, boquilla y material.

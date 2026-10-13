@@ -7,7 +7,7 @@ import { cn } from '@/lib/format';
 import { Modal, useAction, useToast } from './client';
 
 export interface SetupData {
-  machines: Array<{ id: string; name: string; brand: string | null; model: string | null; nozzle: string; simulated: boolean; machineProfile: { id: string; name: string; baseName: string } | null; suggestedMachine: string | null; defaultProcess: { id: string; name: string } | null; processes: string[] }>;
+  machines: Array<{ id: string; name: string; brand: string | null; model: string | null; nozzle: string; nozzles: string[]; variants: Array<{ nozzle: string; base: string }>; setups: Array<{ nozzle: string; machineProfile: string; process: string | null }>; simulated: boolean; machineProfile: { id: string; name: string; baseName: string } | null; suggestedMachine: string | null; defaultProcess: { id: string; name: string } | null; processes: string[] }>;
   materials: Array<{ id: string; label: string; type: string; hex: string; filamentProfile: { id: string; name: string } | null; profileType: string | null; mismatch: boolean; suggested: string | null }>;
   machineOptions: Array<{ name: string; vendor: string }>; filamentOptions: Array<{ name: string; group: string }>; filamentProfiles: Array<{ id: string; name: string }>;
   done: { machines: number; materials: number };
@@ -50,6 +50,13 @@ function MachineRow({ m, options }: { m: SetupData['machines'][number]; options:
         <label className="block"><span className="label">Calidad por defecto</span><select className="input" value={proc} onChange={(e) => setProc(e.target.value)} disabled={!procs.length} data-testid="setup-process">{procs.map((p) => <option key={p} value={p}>{pretty(p)}</option>)}</select></label>
         <button className={ready ? 'btn-ghost' : 'btn-primary'} disabled={pending || !base || !proc} onClick={() => run(() => setupMachineAction(m.id, base, proc), { ok: `${m.name} lista para laminar` })} data-testid="setup-machine-save">{ready ? 'Actualizar' : 'Usar'}</button>
       </div>
+      {m.variants.length > 1 && (
+        <div data-testid="setup-nozzles"><span className="label">Boquilla puesta</span>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Boquilla puesta">{m.variants.map((v) => { const on = v.base === base; const done = m.setups.some((x) => x.nozzle === v.nozzle); return (
+            <button key={v.nozzle} type="button" role="radio" aria-checked={on} onClick={() => { setBase(v.base); setPick(false); }} data-testid={`setup-nozzle-${v.nozzle}`}
+              className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{v.nozzle.replace('.', ',')} mm{done ? ' ✓' : ''}</button>); })}</div>
+          <p className="text-xs muted mt-1">Cada boquilla tiene su propia impresora de fábrica y sus propias calidades (0,2 → capas finas · 0,4 → estándar · 0,6/0,8 → rápido y grueso). Lo que ya configuraste queda guardado con ✓ y se cambia después desde la ficha de la máquina.</p>
+        </div>)}
       <p className="text-xs muted">Las calidades son los perfiles de fábrica de OrcaSlicer/Bambu Studio para esa impresora (0,20 mm Standard es el equilibrio habitual). Podrás ajustarlas después en Perfiles.</p>
     </li>
   );
