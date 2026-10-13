@@ -8,6 +8,8 @@ import { assertAiUrl, getAiConfig, type AiConfig } from '@/lib/ai/config';
 import { pingAi } from '@/lib/ai';
 import { clearPromptLogs } from '@/lib/ai/run';
 import { FEATURE_KEYS, type AiSettings } from '@/lib/ai/types';
+import { isPresetId } from '@/lib/ai/presets';
+import { discoverLocalAi, listModels, suggestModels } from '@/lib/ai/discovery';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 import { safe } from './common';
@@ -16,6 +18,7 @@ const Roles = z.array(z.enum(['admin', 'operador', 'ventas']));
 const Input = z.object({
   enabled: z.boolean(),
   provider: z.enum(['none', 'anthropic', 'openai-compat']),
+  preset: z.string().max(40).refine((v) => v === '' || isPresetId(v)),
   baseUrl: z.string().trim().max(300),
   /** Vacío = conservar la clave guardada. */
   apiKey: z.string().trim().max(500).optional(),
@@ -75,4 +78,20 @@ export async function testAiConnectionAction(raw: AiSettingsInput) {
 
 export async function clearAiPromptLogsAction() {
   return safe(async () => { const u = await requirePerm('ia', 'X'); await clearPromptLogs(); await audit('settings', null, 'ia_borrar_prompts', {}, u.id); return true; }, ['/configuracion']);
+}
+
+/** Busca servidores de IA en este equipo y en nombres de servicio habituales; `extra` = otro equipo de la red (IP o host:puerto). */
+export async function discoverAiAction(extra?: string) {
+  return safe(async () => { await requirePerm('config', 'E'); return discoverLocalAi({ extra: extra?.slice(0, 120) }); });
+}
+
+/** Lista los modelos del proveedor con los datos del formulario (la clave en blanco usa la guardada). */
+export async function listAiModelsAction(raw: Pick<AiSettingsInput, 'provider' | 'baseUrl' | 'localOnly'> & { apiKey?: string }) {
+  return safe(async () => {
+    await requirePerm('config', 'E');
+    if (raw.provider === 'none') throw new LocalizedError('ai.err.notConfigured');
+    const saved = await getAiConfig();
+    const models = await listModels({ provider: raw.provider, baseUrl: raw.baseUrl.trim(), apiKey: raw.apiKey?.trim() || saved.apiKey, localOnly: raw.localOnly || saved.localOnly });
+    return { models, suggested: suggestModels(models) };
+  });
 }

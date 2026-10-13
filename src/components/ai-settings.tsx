@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { clearAiPromptLogsAction, saveAiSettingsAction, testAiConnectionAction, type AiSettingsInput } from '@/actions/ai';
+import { clearAiPromptLogsAction, discoverAiAction, listAiModelsAction, saveAiSettingsAction, testAiConnectionAction, type AiSettingsInput } from '@/actions/ai';
+import { PRESETS, PRESET_BY_ID, presetOf } from '@/lib/ai/presets';
+import type { Found } from '@/lib/ai/discovery';
 import { FEATURES, FEATURE_KEYS, featureI18n } from '@/lib/ai/types';
 import type { PublicAiSettings } from '@/lib/ai/config';
 import { useT, useLocale } from '@/i18n/client';
@@ -14,15 +16,44 @@ const featureLabel = (t: ReturnType<typeof useT>, k: string, part: 'label' | 'de
 export function AiSettingsForm({ st, canClear }: { st: PublicAiSettings; canClear: boolean }) {
   const t = useT(); const { run, pending } = useAction(); const toast = useToast();
   const [v, setV] = useState({
-    enabled: st.enabled, provider: st.provider, baseUrl: st.baseUrl, models: st.models, localOnly: st.localOnly,
+    enabled: st.enabled, provider: st.provider, preset: presetOf(st), baseUrl: st.baseUrl, models: st.models, localOnly: st.localOnly,
     features: Object.fromEntries(FEATURE_KEYS.map((k) => [k, st.features[k] === true])) as Record<string, boolean>,
     roles: Object.fromEntries(FEATURE_KEYS.map((k) => [k, st.roles[k] ?? ['admin']])) as Record<string, string[]>,
     privacy: st.privacy, budget: st.budget, retention: st.retention,
   });
   const [key, setKey] = useState(''); const [clearKey, setClearKey] = useState(false);
   const [test, setTest] = useState<null | { ok: boolean; text: string }>(null); const [testing, setTesting] = useState(false);
+  const [modelList, setModelList] = useState<string[]>([]); const [loadingModels, setLoadingModels] = useState(false); const [modelsNote, setModelsNote] = useState('');
+  const [finding, setFinding] = useState(false); const [found, setFound] = useState<Found[] | null>(null); const [extra, setExtra] = useState(''); const [findErr, setFindErr] = useState('');
   const payload = (): AiSettingsInput => ({ ...v, apiKey: key || undefined, clearKey: clearKey || undefined } as AiSettingsInput);
+  const preset = PRESET_BY_ID.get(v.preset);
   const local = v.provider === 'openai-compat';
+
+  function pickPreset(id: string) {
+    const p = PRESET_BY_ID.get(id); setModelList([]); setModelsNote(''); setTest(null);
+    if (!p) return setV({ ...v, preset: '', provider: 'none' });
+    // los genéricos conservan lo que ya escribiste; los demás traen su dirección y modelos
+    setV({ ...v, preset: p.id, provider: p.kind, baseUrl: p.group === 'generic' ? v.baseUrl : p.baseUrl, models: p.group === 'generic' ? v.models : p.models });
+  }
+  const fill = (list: string[], pick: { fast: string; smart: string; vision: string }) =>
+    setV((cur) => ({ ...cur, models: { fast: list.includes(cur.models.fast) ? cur.models.fast : pick.fast, smart: list.includes(cur.models.smart) ? cur.models.smart : pick.smart, vision: list.includes(cur.models.vision) ? cur.models.vision : pick.vision } }));
+  async function loadModels() {
+    setLoadingModels(true); setModelsNote('');
+    const r = await listAiModelsAction({ provider: v.provider as 'anthropic' | 'openai-compat', baseUrl: v.baseUrl, localOnly: v.localOnly, apiKey: key || undefined });
+    setLoadingModels(false);
+    if (!r.ok) return setModelsNote(r.error);
+    setModelList(r.data.models); fill(r.data.models, r.data.suggested); setModelsNote(t('ai.modelsLoaded', { n: r.data.models.length }));
+  }
+  async function find() {
+    setFinding(true); setFindErr(''); setFound(null);
+    const r = await discoverAiAction(extra.trim() || undefined); setFinding(false);
+    if (!r.ok) return setFindErr(r.error); setFound(r.data);
+  }
+  function useFound(f: Found) {
+    const p = PRESET_BY_ID.get(f.presetId);
+    setModelList(f.models); setModelsNote(''); setTest(null);
+    setV((cur) => ({ ...cur, preset: f.presetId, provider: 'openai-compat', baseUrl: f.baseUrl, models: { fast: f.suggested.fast, smart: f.suggested.smart, vision: f.suggested.vision || (p?.models.vision ?? '') } }));
+  }
 
   async function probar() {
     setTesting(true); setTest(null);
@@ -42,8 +73,10 @@ export function AiSettingsForm({ st, canClear }: { st: PublicAiSettings; canClea
         <label className="flex items-center gap-2 text-sm font-medium"><input type="checkbox" checked={v.enabled} onChange={(e) => setV({ ...v, enabled: e.target.checked })} data-testid="ai-enabled" /> {t('ai.enable')}</label>
         <div className="grid sm:grid-cols-2 gap-3">
           <label className="block"><span className="label">{t('ai.provider')}</span>
-            <select className="input" value={v.provider} onChange={(e) => setV({ ...v, provider: e.target.value as any })} data-testid="ai-provider">
-              <option value="none">{t('ai.providerNone')}</option><option value="anthropic">{t('ai.providerAnthropic')}</option><option value="openai-compat">{t('ai.providerOpenai')}</option>
+            <select className="input" value={v.preset} onChange={(e) => pickPreset(e.target.value)} data-testid="ai-provider">
+              <option value="">{t('ai.providerNone')}</option>
+              {(['local', 'cloud', 'generic'] as const).map((g) => <optgroup key={g} label={t(({ local: 'ai.groupLocal', cloud: 'ai.groupCloud', generic: 'ai.groupGeneric' } as const)[g])}>
+                {PRESETS.filter((p) => p.group === g).map((p) => <option key={p.id} value={p.id}>{t(`ai.presets.${p.id}.label` as MessageKey)}</option>)}</optgroup>)}
             </select></label>
           {v.provider !== 'none' && <label className="block"><span className="label">{v.provider === 'anthropic' ? t('ai.baseUrlOptional') : t('ai.baseUrl')}</span>
             <input className="input" value={v.baseUrl} onChange={(e) => setV({ ...v, baseUrl: e.target.value })} placeholder={local ? 'http://ollama:11434/v1' : 'https://api.anthropic.com'} data-testid="ai-base-url" /></label>}
@@ -51,14 +84,34 @@ export function AiSettingsForm({ st, canClear }: { st: PublicAiSettings; canClea
             <input type="password" autoComplete="new-password" className="input" value={key} onChange={(e) => { setKey(e.target.value); setClearKey(false); }} placeholder={st.hasKey && !clearKey ? t('ai.keyStored', { last4: st.keyLast4 }) : st.envKey ? t('ai.keyFromEnv') : ''} data-testid="ai-key" />
             {st.hasKey && <button type="button" className="text-xs underline mt-1" onClick={() => { setClearKey(true); setKey(''); }}>{clearKey ? t('ai.keyWillDelete') : t('ai.keyDelete')}</button>}</label>}
         </div>
+        {preset && <p className="text-xs muted" data-testid="ai-preset-note">{t(`ai.presets.${preset.id}.note` as MessageKey)}{preset.needsKey && !st.hasKey && !key && !st.envKey ? ' ' + t('ai.presetNeedsKey') : ''}</p>}
+        {preset && preset.group === 'cloud' && v.localOnly && <p className="text-xs text-amber-700" role="status">{t('ai.cloudVsLocalOnly')}</p>}
         {v.provider !== 'none' && <div className="grid sm:grid-cols-3 gap-3">
           {(['fast', 'smart', 'vision'] as const).map((m) => <label key={m} className="block"><span className="label">{t(({ fast: 'ai.modelFast', smart: 'ai.modelSmart', vision: 'ai.modelVision' } as const)[m])}</span>
-            <input className="input" value={v.models[m]} onChange={(e) => setV({ ...v, models: { ...v.models, [m]: e.target.value } })} data-testid={`ai-model-${m}`} /></label>)}
+            <input className="input" value={v.models[m]} onChange={(e) => setV({ ...v, models: { ...v.models, [m]: e.target.value } })} list="ai-models" data-testid={`ai-model-${m}`} /></label>)}
+          <datalist id="ai-models">{modelList.map((m) => <option key={m} value={m} />)}</datalist>
         </div>}
+        {v.provider !== 'none' && <div className="flex flex-wrap items-center gap-3"><button type="button" className="btn-ghost btn-sm" onClick={loadModels} disabled={loadingModels} data-testid="ai-load-models">{loadingModels ? t('ai.loadingModels') : t('ai.loadModels')}</button>{modelsNote && <span className="text-xs muted" role="status" data-testid="ai-models-note">{modelsNote}</span>}</div>}
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="btn-ghost" disabled={testing || v.provider === 'none'} onClick={probar} data-testid="ai-test">{testing ? t('ai.testing') : t('ai.test')}</button>
           {test && <span role="status" className={test.ok ? 'text-sm text-emerald-700' : 'text-sm text-red-700'} data-testid="ai-test-result">{test.text}</span>}
         </div>
+      </section>
+
+      <section className="space-y-2" data-testid="ai-discovery">
+        <h3 className="text-sm font-medium">{t('ai.discoverTitle')}</h3>
+        <p className="text-xs muted">{t('ai.discoverHelp')}</p>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="block grow max-w-sm"><span className="label">{t('ai.discoverOther')}</span><input className="input" value={extra} onChange={(e) => setExtra(e.target.value)} placeholder={t('ai.discoverOtherPh')} data-testid="ai-discover-extra" /></label>
+          <button type="button" className="btn-ghost" onClick={find} disabled={finding} data-testid="ai-discover">{finding ? t('ai.discovering') : t('ai.discover')}</button>
+        </div>
+        {findErr && <p className="text-sm text-red-700" role="alert">{findErr}</p>}
+        {found && (found.length === 0 ? <p className="text-sm muted" role="status" data-testid="ai-discover-none">{t('ai.discoverNone')}</p> : (
+          <div role="status"><p className="text-sm">{t('ai.discoverFound', { n: found.length })}</p>
+            <ul className="divide-y divide-[var(--line)] border border-[var(--line)] rounded-xl mt-1" data-testid="ai-discover-list">{found.map((f) => (
+              <li key={f.baseUrl} className="p-2.5 flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span><b>{t(`ai.presets.${f.presetId}.label` as MessageKey)}</b> · <span className="num">{f.baseUrl}</span> · {f.authRequired ? t('ai.discoverAuth') : t('ai.discoverModels', { n: f.models.length })}</span>
+                <button type="button" className="btn-primary btn-sm" onClick={() => useFound(f)} data-testid={`ai-discover-use-${f.port}`}>{t('ai.discoverUse')}</button></li>))}</ul></div>))}
       </section>
 
       <section>

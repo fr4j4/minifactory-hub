@@ -38,6 +38,10 @@ export function startAiSim(port = Number(process.env.AI_SIM_PORT || 18090)) {
       const fail = Number(req.headers['x-sim-fail'] || 0); if (fail) return send(fail, { error: { message: `fallo simulado ${fail}` } });
       const key = String(req.headers['x-api-key'] || req.headers.authorization || '');
       if (/mala/.test(key)) return send(401, { error: { message: 'clave inválida' } });
+      if (req.method === 'GET' && /\/(v1\/)?models(\?|$)/.test(req.url ?? '')) {
+        const ids = ['llama3.1:8b', 'qwen2.5vl:7b', 'gpt-oss:20b', 'nomic-embed-text'];
+        return send(200, { object: 'list', data: ids.map((id) => ({ id, object: 'model' })) });
+      }
       if (req.url?.endsWith('/v1/messages')) {
         const user = JSON.stringify(body.messages?.[0]?.content ?? '');
         return send(200, { model: body.model, content: [{ type: 'tool_use', name: 'responder', input: JSON.parse(scripted(String(body.system ?? ''), user)) }], usage: { input_tokens: 12, output_tokens: 5 } });

@@ -15,7 +15,7 @@ test.describe('Asesor de perfiles con IA (Fase 1)', () => {
   test('configurar IA → proponer → laminar de verdad → comparar → guardar como nueva versión', async ({ page, saveAs }) => {
     await login(page);
     await page.goto('/configuracion?tab=ia');
-    await page.getByTestId('ai-provider').selectOption('openai-compat'); await page.getByTestId('ai-base-url').fill('http://127.0.0.1:18090/v1');
+    await page.getByTestId('ai-provider').selectOption('genericOpenai'); await page.getByTestId('ai-base-url').fill('http://127.0.0.1:18090/v1');
     await page.getByTestId('ai-enabled').check(); await page.getByTestId('ai-feat-profile.advisor').check(); await page.getByTestId('ai-feat-slicer.explain').check();
     await page.getByTestId('ai-save').click(); await expect(page.getByText('Configuración de IA guardada')).toBeVisible();
 
