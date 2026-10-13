@@ -1,0 +1,15 @@
+export const api = {
+  onlyTheAdministratorCanExport: 'Solo el administrador puede exportar',
+  noPermission: 'Sin permiso',
+  unknownExport: 'Exportación desconocida',
+  notAvailable: 'No disponible',
+  invalidPath: 'Ruta inválida',
+  noPhotos: 'Sin fotos',
+  sliceNotAvailable: 'Laminado no disponible',
+  noGCode: 'Sin G-code',
+  uploadNotFound: 'Subida no encontrada',
+  incompleteUpload: 'Subida incompleta',
+  theChunkExceedsTheDeclared: 'El trozo excede el tamaño declarado',
+  invalidData: 'Datos inválidos',
+  theFileExceedsTheMaximum: 'El archivo supera el máximo de {mb} MB',
+};

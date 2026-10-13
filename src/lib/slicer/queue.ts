@@ -7,6 +7,7 @@ import { absPath, newKey, putFile } from '../storage';
 import { buildCliProfile } from './catalog';
 import { cleanup, engineVersion, runOrca } from './run';
 import { extOf } from '../mesh/parse';
+import { getT } from '@/i18n/server';
 
 /**
  * Cola de laminado respaldada por la base de datos (tabla slice_runs) con un worker dentro del proceso.
@@ -26,13 +27,14 @@ async function loadProfiles(db: Awaited<ReturnType<typeof getDb>>, ids: string[]
 }
 
 export async function enqueueSlice(i: EnqueueInput): Promise<string> {
+  const t = await getT();
   const db = await getDb();
   const copies = Math.max(1, Math.min(200, i.copies ?? 1));
   const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, i.fileVersionId));
-  if (!fv) throw new Error('Archivo no encontrado');
+  if (!fv) throw new Error(t('slicer.fileNotFound'));
   const P = await loadProfiles(db, [i.machineProfileId, i.processProfileId, i.filamentProfileId]);
   const m = P[i.machineProfileId], p = P[i.processProfileId], f = P[i.filamentProfileId];
-  if (!m || !p || !f) throw new Error('Faltan perfiles de máquina, proceso o filamento');
+  if (!m || !p || !f) throw new Error(t('slicer.machineProcessOrFilamentProfiles'));
   const engine = await engineVersion();
   const cacheKey = crypto.createHash('sha256').update(JSON.stringify([fv.sha256 ?? fv.id, engine, copies,
     [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes])])).digest('hex');
@@ -59,6 +61,7 @@ export async function enqueueSlice(i: EnqueueInput): Promise<string> {
 }
 
 async function execute(runId: string) {
+  const t = await getT();
   const db = await getDb();
   const [run] = await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, runId));
   if (!run) return;
@@ -67,7 +70,7 @@ async function execute(runId: string) {
     const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, run.fileVersionId));
     const P = await loadProfiles(db, [run.machineProfileId!, run.processProfileId!, run.filamentProfileId!]);
     const m = P[run.machineProfileId!], p = P[run.processProfileId!], f = P[run.filamentProfileId!];
-    if (!fv || !m || !p || !f) throw new Error('Datos incompletos para laminar');
+    if (!fv || !m || !p || !f) throw new Error(t('slicer.incompleteDataForSlicing'));
     const machine = buildCliProfile('machine', { name: m.name, vendor: m.vendor ?? undefined, baseName: m.baseName, changes: m.changes });
     const proc = buildCliProfile('process', { name: p.name, vendor: p.vendor ?? undefined, baseName: p.baseName, changes: p.changes, machineName: m.name });
     const fil = buildCliProfile('filament', { name: f.name, vendor: f.vendor ?? undefined, baseName: f.baseName, changes: f.changes, machineName: m.name });
@@ -126,9 +129,9 @@ export function ensureWorker() {
     // trabajos que quedaron "running" por un reinicio vuelven a la cola
     await db.update(s.sliceRuns).set({ status: 'queued' }).where(eq(s.sliceRuns.status, 'running'));
   }).catch(() => {});
-  const t = setInterval(() => { tick().catch(() => {}); }, 800);
-  t.unref?.();
-  g.__sliceWorker.timer = t;
+  const tt = setInterval(() => { tick().catch(() => {}); }, 800);
+  tt.unref?.();
+  g.__sliceWorker.timer = tt;
 }
 
 export async function waitForRuns(ids: string[], timeoutMs = 120_000) {

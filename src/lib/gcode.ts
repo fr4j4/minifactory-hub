@@ -48,7 +48,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
   if (tTotal) meta.timeS = parseDuration(tTotal);
   else if (tPrusa) meta.timeS = parseDuration(tPrusa);
   else if (tCura) meta.timeS = +tCura;
-  else if (tModel) { meta.timeS = parseDuration(tModel); meta.notes.push('Tiempo del modelo sin calentamiento ni preparación'); }
+  else if (tModel) { meta.timeS = parseDuration(tModel); meta.notes.push('gcodeNote.modelTimeOnly'); }
 
   // filamento (Orca/Bambu/Prusa)
   const mm = g(/^;\s*filament used \[mm\]\s*=\s*(.+)$/im);
@@ -79,7 +79,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
         const m = part.trim().match(/([\d.]+)\s*m/);
         if (m && +m[1] > 0) { const mmv = +m[1] * 1000; meta.filaments.push({ mm: mmv, cm3: (Math.PI * (dm / 2) ** 2 * mmv) / 1000, g: ((Math.PI * (dm / 2) ** 2 * mmv) / 1000) * d }); }
       }
-      meta.notes.push('Cura informa metros: los gramos se calculan con diámetro y densidad del material');
+      meta.notes.push('gcodeNote.curaMeters');
     }
   }
   const tf = g(/^;\s*total filament used \[g\]\s*=\s*([\d.]+)/im) ?? g(/^;\s*total filament weight \[g\]\s*:\s*([\d.]+)/im);
@@ -91,7 +91,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
   meta.machine = g(/^;\s*printer_settings_id\s*=\s*(.+)$/im) ?? g(/^;\s*printer_model\s*=\s*(.+)$/im) ?? null;
   const changes = (hay.match(/^M600|^T[1-9]\s*$|^;\s*CHANGE_LAYER|^;\s*filament change/gim) ?? []).length;
   if (changes > 0 && meta.filaments.length > 1) meta.filamentChanges = changes;
-  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('El G-code no trae resumen del laminador (sin comentarios de tiempo ni filamento)');
+  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('gcodeNote.noSummary');
   return meta;
 }
 
@@ -110,10 +110,10 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
     const hs = hv.find((h: any) => h['@_key'] === 'X-BBL-Client-Version' || h['@_key'] === 'BambuStudio');
     const plates = doc?.config?.plate ?? [];
     meta.plates = plates.length;
-    let t = 0; const fil: Record<string, { g: number; mm: number; color?: string; type?: string }> = {};
+    let tt = 0; const fil: Record<string, { g: number; mm: number; color?: string; type?: string }> = {};
     for (const p of plates) {
       for (const m of p.metadata ?? []) {
-        if (m['@_key'] === 'prediction') t += +m['@_value'];
+        if (m['@_key'] === 'prediction') tt += +m['@_value'];
         if (m['@_key'] === 'printer_model_id') meta.machine = meta.machine ?? m['@_value'];
       }
       for (const f of p.filament ?? []) {
@@ -121,7 +121,7 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
         e.g += +(f['@_used_g'] ?? 0); e.mm += +(f['@_used_m'] ?? 0) * 1000;
       }
     }
-    meta.timeS = t || null;
+    meta.timeS = tt || null;
     meta.filaments = Object.values(fil).map((f) => ({ g: f.g, mm: f.mm, cm3: null, color: f.color, type: f.type }));
     meta.totalG = meta.filaments.reduce((a, f) => a + (f.g ?? 0), 0) || null;
     meta.slicer = hs?.['@_value'] ? `Bambu/Orca ${hs['@_value']}` : 'Bambu Studio / OrcaSlicer';
@@ -133,7 +133,7 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
     if (!meta.filaments.length) { meta.filaments = g0.filaments; meta.totalG = g0.totalG; }
     meta.plates = Math.max(meta.plates ?? 0, gcodes.length);
   }
-  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('3MF sin laminar: no trae tiempo ni gramos. Se puede laminar desde el sitio o ingresar los datos a mano');
+  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('gcodeNote.unsliced3mf');
   return meta;
 }
 
@@ -210,9 +210,9 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
   }
   const flat: number[] = [];
   const layers = perLayer.map((l) => {
-    const t: Array<[number, number, number]> = [];
-    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; t.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); }
-    return { z: l.z, t };
+    const tt: Array<[number, number, number]> = [];
+    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); }
+    return { z: l.z, t: tt };
   });
   if (!isFinite(min[0])) { min.fill(0); max.fill(0); }
   return { bbox: { min, max }, layers, segments: Float32Array.from(flat), total, sampled: stride > 1 };

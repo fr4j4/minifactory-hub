@@ -7,6 +7,7 @@ import { calcLine } from '../pricing';
 import { consumeFromSpool, materialCostPerKg } from './inventory';
 import { machineCostOf } from './quotes';
 import { recomputeOrderStatus } from './orders';
+import { getT } from '@/i18n/server';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -18,6 +19,7 @@ export interface JobSpec {
 
 /** Máquina sugerida: tiene el material cargado, cabe la pieza y queda libre antes. */
 export async function suggestMachine(o: { materialId?: string | null; dims?: [number, number, number] | null; hours: number }, db?: Db) {
+  const t = await getT();
   db = db ?? (await getDb());
   const machines = await db.select().from(s.machines).where(and(isNull(s.machines.deletedAt), ne(s.machines.status, 'fuera_de_servicio'), eq(s.machines.simulated, false)));
   const spools = o.materialId ? await db.select().from(s.spools).where(and(eq(s.spools.materialId, o.materialId), isNull(s.spools.deletedAt))) : [];
@@ -34,7 +36,7 @@ export async function suggestMachine(o: { materialId?: string | null; dims?: [nu
   }).filter((r) => r.fits).sort((a, b) => a.score - b.score);
   const best = rows[0];
   if (!best) return null;
-  return { machineId: best.m.id, name: best.m.name, loaded: best.loaded, freeInH: best.free, reason: `${best.loaded ? 'Tiene el material cargado' : 'Material por cargar'}; ${best.free < 0.1 ? 'libre ahora' : `libre en ${best.free.toFixed(1)} h`}` };
+  return { machineId: best.m.id, name: best.m.name, loaded: best.loaded, freeInH: best.free, reason: `${best.loaded ? t('queue.hasTheMaterialLoaded') : t('queue.materialToLoad')}; ${best.free < 0.1 ? t('queue.freeNow') : t('queue.freeInH', { hours: best.free.toFixed(1) })}` };
 }
 
 export async function createJob(spec: JobSpec): Promise<string> {
@@ -71,9 +73,10 @@ export async function scheduleMachine(machineId: string) {
 }
 
 export async function moveJob(jobId: string, machineId: string, position: number, userId?: string | null) {
+  const t = await getT();
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
-  if (!j || j.status === 'imprimiendo') throw new Error('No se puede mover un trabajo en curso');
+  if (!j || j.status === 'imprimiendo') throw new Error(t('queue.aJobInProgressCannot'));
   const old = j.machineId;
   await db.update(s.printJobs).set({ machineId, position: position - 0.5, updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
   // normalizar posiciones
@@ -92,13 +95,14 @@ export async function pickSpool(materialId: string | null | undefined, grams: nu
 }
 
 export async function startJob(jobId: string, o: { machineId?: string; spoolId?: string; userId?: string | null } = {}) {
+  const t = await getT();
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
-  if (!j) throw new Error('Trabajo no encontrado');
+  if (!j) throw new Error(t('queue.jobNotFound'));
   const machineId = o.machineId ?? j.machineId;
-  if (!machineId) throw new Error('Asigna una máquina antes de iniciar');
+  if (!machineId) throw new Error(t('queue.assignAMachineBeforeStarting'));
   const [busy] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), eq(s.printJobs.status, 'imprimiendo'), ne(s.printJobs.id, jobId))).limit(1);
-  if (busy) throw new Error('La máquina ya está imprimiendo otro trabajo');
+  if (busy) throw new Error(t('queue.theMachineIsAlreadyPrinting'));
   const spool = o.spoolId ? (await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId)))[0] : await pickSpool(j.materialId, j.estG, machineId, db);
   const now = new Date();
   await db.update(s.printJobs).set({ status: 'imprimiendo', machineId, spoolId: spool?.id ?? null, realStart: now, updatedAt: now }).where(eq(s.printJobs.id, jobId));
@@ -115,11 +119,12 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
 export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string }
 
 export async function finishJob(jobId: string, o: FinishInput) {
+  const t = await getT();
   const db = await getDb();
   const st = await getSettings();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
-  if (!j) throw new Error('Trabajo no encontrado');
-  if (j.status === 'terminado' || j.status === 'fallido') throw new Error('El trabajo ya está cerrado');
+  if (!j) throw new Error(t('queue.jobNotFound'));
+  if (j.status === 'terminado' || j.status === 'fallido') throw new Error(t('queue.theJobIsAlreadyClosed'));
   const now = new Date();
   const failed = o.result !== 'exito';
   const realH = o.realH ?? (j.realStart ? Math.max(0.01, (now.getTime() - j.realStart.getTime()) / 3600_000) : j.estH);
@@ -128,7 +133,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   const qtyGood = o.result === 'exito' ? j.qty : o.result === 'falla_total' ? 0 : Math.max(0, Math.min(j.qty, o.qtyGood ?? Math.floor(j.qty / 2)));
   // consumo de material
   const spoolId = o.spoolId ?? j.spoolId ?? (await pickSpool(j.materialId, realG, j.machineId, db))?.id ?? null;
-  if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: `Trabajo ${j.number}`, userId: o.userId }, db);
+  if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
   const costPerKg = j.materialId ? await materialCostPerKg(j.materialId, db) : 0;
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
   const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
@@ -162,9 +167,9 @@ export async function finishJob(jobId: string, o: FinishInput) {
         const newStock = v.stock + qtyGood;
         const avg = newStock > 0 ? Math.round((v.stock * v.avgCost + qtyGood * unitCost) / newStock) : v.avgCost;
         await db.update(s.productVariants).set({ stock: newStock, avgCost: avg, updatedAt: now }).where(eq(s.productVariants.id, v.id));
-        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'produccion', qty: qtyGood, unitCost, productionOrderId: po.id, reason: `Trabajo ${j.number}`, createdBy: o.userId ?? null });
+        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'produccion', qty: qtyGood, unitCost, productionOrderId: po.id, reason: t('queue.job', { job: j.number }), createdBy: o.userId ?? null });
       }
-      if (v && j.qty - qtyGood > 0) await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, reason: `Falla ${j.qty - qtyGood} u. en ${j.number}${o.failCause ? ': ' + o.failCause : ''}`, productionOrderId: po.id, createdBy: o.userId ?? null });
+      if (v && j.qty - qtyGood > 0) await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, reason: t('queue.failureNote', { n: j.qty - qtyGood, job: j.number }) + (o.failCause ? ': ' + o.failCause : ''), productionOrderId: po.id, createdBy: o.userId ?? null });
       await db.update(s.productionOrders).set({ qtyGood: po.qtyGood + qtyGood, qtyFailed: po.qtyFailed + (j.qty - qtyGood), status: o.reprint !== false && failed ? 'en_cola' : 'terminada', updatedAt: now }).where(eq(s.productionOrders.id, po.id));
     }
   }
@@ -176,11 +181,11 @@ export async function finishJob(jobId: string, o: FinishInput) {
   let reprintId: string | null = null;
   if (failed && o.reprint !== false) {
     reprintId = await createJob({
-      kind: j.kind as any, title: `${j.title} (reimpresión)`, materialId: j.materialId, qty: Math.max(1, j.qty - qtyGood), estG: j.estG * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)), estH: j.estH * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)),
-      orderId: j.orderId, orderItemIds: oiIds, productionOrderId: j.productionOrderId, machineId: j.machineId, reprintOfId: jobId, notes: `Reimpresión de ${j.number}`, userId: o.userId,
+      kind: j.kind as any, title: t('queue.reprint2', { job: j.title }), materialId: j.materialId, qty: Math.max(1, j.qty - qtyGood), estG: j.estG * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)), estH: j.estH * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)),
+      orderId: j.orderId, orderItemIds: oiIds, productionOrderId: j.productionOrderId, machineId: j.machineId, reprintOfId: jobId, notes: t('queue.reprintOf', { job: j.number }), userId: o.userId,
     });
-    await notify('trabajo_fallido', `Trabajo fallido: ${j.number}`, o.failCause ?? 'Sin causa indicada', '/cola');
-  } else await notify('trabajo_terminado', `Trabajo terminado: ${j.number}`, j.title ?? '', '/cola');
+    await notify('trabajo_fallido', t('queue.failedJob', { job: j.number }), o.failCause ?? t('queue.noCauseGiven'), '/cola');
+  } else await notify('trabajo_terminado', t('queue.finishedJob', { job: j.number }), j.title ?? '', '/cola');
   if (j.orderId) await recomputeOrderStatus(j.orderId);
   await audit('print_job', jobId, 'finalizar', { result: o.result, realG, realH, qtyGood, reprintId }, o.userId);
   return { reprintId, realG, realH, qtyGood, cost: line.cost };
@@ -212,6 +217,7 @@ export async function cancelJob(jobId: string, userId?: string | null) {
 
 /** Alerta de mantenimiento por horas o por días. */
 export async function checkMaintenance(machineId: string) {
+  const t = await getT();
   const db = await getDb();
   const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId));
   const plans = await db.select().from(s.maintenancePlans).where(and(eq(s.maintenancePlans.machineId, machineId), isNull(s.maintenancePlans.deletedAt)));
@@ -219,15 +225,16 @@ export async function checkMaintenance(machineId: string) {
     const dueH = p.intervalHours != null && m.hoursTotal - p.lastDoneHours >= p.intervalHours;
     const dueD = p.intervalDays != null && p.lastDoneAt && (Date.now() - new Date(p.lastDoneAt).getTime()) / 86400_000 >= p.intervalDays;
     if (dueH || dueD) {
-      const title = `Mantenimiento vencido: ${p.task} (${m.name})`;
+      const title = t('queue.maintenanceOverdue', { task: p.task, machine: m.name });
       const [ex] = await db.select({ id: s.notifications.id }).from(s.notifications).where(and(eq(s.notifications.kind, 'mantenimiento'), eq(s.notifications.title, title), eq(s.notifications.read, false))).limit(1);
-      if (!ex) await notify('mantenimiento', title, dueH ? `Han pasado ${(m.hoursTotal - p.lastDoneHours).toFixed(0)} h desde la última vez.` : 'Se cumplió el plazo en días.', `/maquinas/${m.id}`);
+      if (!ex) await notify('mantenimiento', title, dueH ? t('queue.hHavePassedSinceThe', { hours: (m.hoursTotal - p.lastDoneHours).toFixed(0) }) : t('queue.theDeadlineInDaysHas'), `/maquinas/${m.id}`);
     }
   }
 }
 
 export interface MaintDue { planId: string; task: string; machineId: string; dueBy: 'horas' | 'días'; over: number }
 export async function maintenanceDue(): Promise<MaintDue[]> {
+  const t = await getT();
   const db = await getDb();
   const machines = await db.select().from(s.machines).where(isNull(s.machines.deletedAt));
   const plans = await db.select().from(s.maintenancePlans).where(isNull(s.maintenancePlans.deletedAt));
@@ -241,13 +248,14 @@ export async function maintenanceDue(): Promise<MaintDue[]> {
 }
 
 export async function completeMaintenance(o: { planId: string; cost?: number; downtimeH?: number; notes?: string; parts?: Array<{ itemId: string; qty: number; name: string }>; userId?: string | null }) {
+  const t = await getT();
   const db = await getDb();
   const [p] = await db.select().from(s.maintenancePlans).where(eq(s.maintenancePlans.id, o.planId));
-  if (!p) throw new Error('Plan no encontrado');
+  if (!p) throw new Error(t('queue.planNotFound'));
   const [m] = await db.select().from(s.machines).where(eq(s.machines.id, p.machineId));
   const today = new Date().toISOString().slice(0, 10);
   const { moveItem } = await import('./inventory');
-  for (const part of o.parts ?? []) await moveItem({ itemId: part.itemId, qty: part.qty, kind: 'consumo', note: `Mantenimiento: ${p.task} (${m.name})`, userId: o.userId });
+  for (const part of o.parts ?? []) await moveItem({ itemId: part.itemId, qty: part.qty, kind: 'consumo', note: t('queue.maintenance', { task: p.task, machine: m.name }), userId: o.userId });
   await db.insert(s.maintenanceLogs).values({ workspaceId: WORKSPACE_ID, machineId: m.id, planId: p.id, task: p.task, doneAt: today, atHours: m.hoursTotal, cost: o.cost ?? 0, downtimeH: o.downtimeH ?? 0, parts: o.parts ?? [], notes: o.notes ?? null, createdBy: o.userId ?? null });
   await db.update(s.maintenancePlans).set({ lastDoneHours: m.hoursTotal, lastDoneAt: today }).where(eq(s.maintenancePlans.id, p.id));
   await audit('machine', m.id, 'mantenimiento', { task: p.task }, o.userId);
@@ -255,16 +263,17 @@ export async function completeMaintenance(o: { planId: string; cost?: number; do
 
 /* ───────── producción para stock ───────── */
 export async function createProductionOrder(o: { variantId: string; qty: number; origin?: 'manual' | 'reposicion'; machineId?: string | null; userId?: string | null }) {
+  const t = await getT();
   const db = await getDb();
   const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, o.variantId));
-  if (!v) throw new Error('Variante no encontrada');
+  if (!v) throw new Error(t('queue.variantNotFound'));
   const [p] = await db.select().from(s.products).where(eq(s.products.id, v.productId));
   const number = await nextNumber('production');
   const [po] = await db.insert(s.productionOrders).values({ workspaceId: WORKSPACE_ID, number, variantId: o.variantId, qty: o.qty, status: 'en_cola', origin: o.origin ?? 'manual', createdBy: o.userId ?? null }).returning();
   const [mf] = p?.modelFileId ? await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, p.modelFileId)) : [];
   const dims = mf?.dimX ? ([mf.dimX, mf.dimY!, mf.dimZ!] as [number, number, number]) : null;
   const jobId = await createJob({
-    kind: 'stock', title: `${p?.name ?? 'Producto'} ${Object.values(v.attrs ?? {}).join(' ')} ×${o.qty}`.trim(), materialId: v.materialId, qty: o.qty,
+    kind: 'stock', title: `${p?.name ?? t('queue.product')} ${Object.values(v.attrs ?? {}).join(' ')} ×${o.qty}`.trim(), materialId: v.materialId, qty: o.qty,
     estG: v.weightG * o.qty, estH: v.printH * o.qty, productionOrderId: po.id, machineId: o.machineId, dims, userId: o.userId,
   });
   return { productionOrderId: po.id, jobId, number };

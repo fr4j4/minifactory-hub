@@ -1,5 +1,7 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
+import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 /** Malla como "sopa de triángulos": 9 floats por triángulo. colors (opcional) = 9 floats RGB 0..1 por triángulo. */
 export interface Mesh {
@@ -40,7 +42,7 @@ function parseAsciiSTL(txt: string): Mesh {
   const re = /vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(txt))) out.push(+m[1], +m[2], +m[3]);
-  if (out.length % 9 !== 0) throw new Error('STL ASCII inválido: número de vértices no múltiplo de 3');
+  if (out.length % 9 !== 0) throw new LocalizedError('parse.stlAscii');
   return { positions: Float32Array.from(out) };
 }
 
@@ -66,8 +68,8 @@ export function parseOBJ(buf: Uint8Array, mtl?: string): Mesh {
     if (line.startsWith('v ')) { const p = line.split(/\s+/); v.push(+p[1], +p[2], +p[3]); }
     else if (line.startsWith('usemtl ')) { curMat = mats[line.slice(7).trim()] ?? null; }
     else if (line.startsWith('f ')) {
-      const idx = line.slice(2).trim().split(/\s+/).map((t) => {
-        let i = parseInt(t.split('/')[0], 10);
+      const idx = line.slice(2).trim().split(/\s+/).map((tt) => {
+        let i = parseInt(tt.split('/')[0], 10);
         if (i < 0) i = v.length / 3 + i + 1;
         return i - 1;
       });
@@ -79,14 +81,14 @@ export function parseOBJ(buf: Uint8Array, mtl?: string): Mesh {
       }
     }
   }
-  if (!out.length) throw new Error('OBJ sin caras');
+  if (!out.length) throw new LocalizedError('parse.objNoFaces');
   return { positions: Float32Array.from(out), colors: anyColor ? Float32Array.from(col) : undefined };
 }
 
 /* ───────────────────────── PLY ───────────────────────── */
 export function parsePLY(buf: Uint8Array): Mesh {
   const headEnd = indexOfSeq(buf, new TextEncoder().encode('end_header'));
-  if (headEnd < 0) throw new Error('PLY sin encabezado');
+  if (headEnd < 0) throw new LocalizedError('parse.plyNoHeader');
   let bodyStart = headEnd + 'end_header'.length;
   while (buf[bodyStart] === 13 || buf[bodyStart] === 10) { bodyStart++; if (buf[bodyStart - 1] === 10) break; }
   const header = new TextDecoder().decode(buf.subarray(0, headEnd)).split(/\r?\n/);
@@ -109,13 +111,13 @@ export function parsePLY(buf: Uint8Array): Mesh {
     let li = 0;
     for (const e of elements) {
       for (let i = 0; i < e.count; i++) {
-        const t = lines[li++].trim().split(/\s+/).map(Number);
+        const tt = lines[li++].trim().split(/\s+/).map(Number);
         if (e.name === 'vertex') {
           const px = e.props.findIndex((p) => p.name === 'x');
-          verts.push(t[px], t[px + 1], t[px + 2]);
+          verts.push(tt[px], tt[px + 1], tt[px + 2]);
           const r = e.props.findIndex((p) => p.name === 'red');
-          if (r >= 0) { hasColor = true; vcols.push(t[r] / 255, t[r + 1] / 255, t[r + 2] / 255); } else vcols.push(0.8, 0.8, 0.8);
-        } else if (e.name === 'face') { const n = t[0]; faces.push(t.slice(1, 1 + n)); }
+          if (r >= 0) { hasColor = true; vcols.push(tt[r] / 255, tt[r + 1] / 255, tt[r + 2] / 255); } else vcols.push(0.8, 0.8, 0.8);
+        } else if (e.name === 'face') { const n = tt[0]; faces.push(tt.slice(1, 1 + n)); }
       }
     }
   } else {
@@ -165,9 +167,9 @@ function indexOfSeq(buf: Uint8Array, seq: Uint8Array) {
 /* ───────────────────────── 3MF ───────────────────────── */
 type Mat = number[]; // 4x4 column-major simplificado: usamos 12 valores de 3MF
 const IDENT: Mat = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
-function parseTransform(t?: string): Mat {
-  if (!t) return IDENT;
-  const a = t.trim().split(/\s+/).map(Number);
+function parseTransform(tt?: string): Mat {
+  if (!tt) return IDENT;
+  const a = tt.trim().split(/\s+/).map(Number);
   return a.length === 12 ? a : IDENT;
 }
 function mulMat(a: Mat, b: Mat): Mat { // aplica a y luego b (vectores fila, como define 3MF)
@@ -193,7 +195,7 @@ export function parse3MF(buf: Uint8Array): Mesh {
   const files = unzipSync(buf);
   const xp = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: false, removeNSPrefix: true, isArray: (n) => ['object', 'vertex', 'triangle', 'component', 'item', 'base', 'basematerials', 'color', 'colorgroup'].includes(n) });
   const rootName = Object.keys(files).find((n) => n.toLowerCase() === '3d/3dmodel.model');
-  if (!rootName) throw new Error('3MF sin 3D/3dmodel.model');
+  if (!rootName) throw new LocalizedError('parse.mf3NoModel');
   const palettes: Record<string, Array<[number, number, number]>> = {};
   const loadModel = (name: string) => {
     const doc = xp.parse(strFromU8(files[name])).model;
@@ -208,11 +210,11 @@ export function parse3MF(buf: Uint8Array): Mesh {
       const def: ObjDef = { pid: o['@_pid'], pindex: o['@_pindex'] !== undefined ? +o['@_pindex'] : undefined };
       if (o.mesh) {
         const vs = arr<any>(o.mesh.vertices?.vertex), ts = arr<any>(o.mesh.triangles?.triangle);
-        const v = new Float32Array(vs.length * 3), t = new Uint32Array(ts.length * 3);
+        const v = new Float32Array(vs.length * 3), tt = new Uint32Array(ts.length * 3);
         vs.forEach((q, i) => { v[i * 3] = +q['@_x']; v[i * 3 + 1] = +q['@_y']; v[i * 3 + 2] = +q['@_z']; });
         const tri: Array<{ pid?: string; p1?: number }> = [];
-        ts.forEach((q, i) => { t[i * 3] = +q['@_v1']; t[i * 3 + 1] = +q['@_v2']; t[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined }); });
-        def.mesh = { v, t, tri };
+        ts.forEach((q, i) => { tt[i * 3] = +q['@_v1']; tt[i * 3 + 1] = +q['@_v2']; tt[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined }); });
+        def.mesh = { v, t: tt, tri };
       }
       if (o.components) def.comps = arr<any>(o.components.component).map((c) => ({ id: c['@_objectid'], path: c['@_path'], m: parseTransform(c['@_transform']) }));
       objs[o['@_id']] = def;
@@ -226,9 +228,9 @@ export function parse3MF(buf: Uint8Array): Mesh {
   let anyColor = false;
   const emit = (od: ObjDef, m: Mat) => {
     if (!od.mesh) return;
-    const { v, t, tri } = od.mesh;
-    for (let i = 0; i < t.length / 3; i++) {
-      for (let k = 0; k < 3; k++) { const vi = t[i * 3 + k] * 3; const p = applyMat(m, v[vi], v[vi + 1], v[vi + 2]); pos.push(p[0], p[1], p[2]); }
+    const { v, t: tt, tri } = od.mesh;
+    for (let i = 0; i < tt.length / 3; i++) {
+      for (let k = 0; k < 3; k++) { const vi = tt[i * 3 + k] * 3; const p = applyMat(m, v[vi], v[vi + 1], v[vi + 2]); pos.push(p[0], p[1], p[2]); }
       const pid = tri[i].pid ?? od.pid; const pi = tri[i].p1 ?? od.pindex;
       const c = pid !== undefined && pi !== undefined ? palettes[pid]?.[pi] : undefined;
       if (c) anyColor = true;
@@ -252,7 +254,7 @@ export function parse3MF(buf: Uint8Array): Mesh {
   };
   if (root.items.length) for (const it of root.items) walk(root, it.id, it.m);
   else for (const id of Object.keys(root.objs)) walk(root, id, IDENT);
-  if (!pos.length) throw new Error('3MF sin geometría');
+  if (!pos.length) throw new LocalizedError('parse.mf3NoGeometry');
   return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined };
 }
 function hexToRgb(h?: string): [number, number, number] {
@@ -264,22 +266,22 @@ function hexToRgb(h?: string): [number, number, number] {
 /* ───────────────────────── AMF ───────────────────────── */
 export function parseAMF(buf: Uint8Array): Mesh {
   let xml: string;
-  if (buf[0] === 0x50 && buf[1] === 0x4b) { const f = unzipSync(buf); const n = Object.keys(f).find((k) => k.toLowerCase().endsWith('.amf')); if (!n) throw new Error('AMF vacío'); xml = strFromU8(f[n]); }
+  if (buf[0] === 0x50 && buf[1] === 0x4b) { const f = unzipSync(buf); const n = Object.keys(f).find((k) => k.toLowerCase().endsWith('.amf')); if (!n) throw new LocalizedError('parse.amfEmpty'); xml = strFromU8(f[n]); }
   else xml = new TextDecoder().decode(buf);
   const doc = new XMLParser({ ignoreAttributes: false, isArray: (n) => ['object', 'vertex', 'triangle', 'volume'].includes(n) }).parse(xml).amf;
   const out: number[] = [];
   for (const o of arr<any>(doc?.object)) {
     const vs = arr<any>(o.mesh?.vertices?.vertex).map((v) => [+v.coordinates.x, +v.coordinates.y, +v.coordinates.z]);
-    for (const vol of arr<any>(o.mesh?.volume)) for (const t of arr<any>(vol.triangle)) for (const k of [t.v1, t.v2, t.v3]) out.push(...vs[+k]);
+    for (const vol of arr<any>(o.mesh?.volume)) for (const tt of arr<any>(vol.triangle)) for (const k of [tt.v1, tt.v2, tt.v3]) out.push(...vs[+k]);
   }
-  if (!out.length) throw new Error('AMF sin geometría');
+  if (!out.length) throw new LocalizedError('parse.amfNoGeometry');
   return { positions: Float32Array.from(out) };
 }
 
 /* ───────────────────────── GLB / glTF (binario) ───────────────────────── */
 export function parseGLB(buf: Uint8Array): Mesh {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  if (dv.getUint32(0, true) !== 0x46546c67) throw new Error('GLB inválido (solo se admite .glb binario)');
+  if (dv.getUint32(0, true) !== 0x46546c67) throw new LocalizedError('parse.glbInvalid');
   let o = 12; let json: any; let bin: Uint8Array | undefined;
   while (o < buf.byteLength) {
     const len = dv.getUint32(o, true), type = dv.getUint32(o + 4, true); o += 8;
@@ -287,7 +289,7 @@ export function parseGLB(buf: Uint8Array): Mesh {
     if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(chunk)); else if (type === 0x004e4942) bin = chunk;
     o += len;
   }
-  if (!json || !bin) throw new Error('GLB incompleto');
+  if (!json || !bin) throw new LocalizedError('parse.glbIncomplete');
   const acc = (i: number) => {
     const a = json.accessors[i], bv = json.bufferViews[a.bufferView];
     const comps = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type as string] ?? 1;
@@ -323,7 +325,7 @@ export function parseGLB(buf: Uint8Array): Mesh {
   const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   const scene = json.scenes?.[json.scene ?? 0];
   for (const ni of scene?.nodes ?? json.nodes.map((_: any, i: number) => i)) visit(ni, I);
-  if (!pos.length) throw new Error('GLB sin triángulos');
+  if (!pos.length) throw new LocalizedError('parse.glbNoTriangles');
   // glTF es Y-arriba; el taller trabaja Z-arriba
   const p2 = new Float32Array(pos.length);
   for (let i = 0; i < pos.length; i += 3) { p2[i] = pos[i]; p2[i + 1] = -pos[i + 2]; p2[i + 2] = pos[i + 1]; }
@@ -332,23 +334,25 @@ export function parseGLB(buf: Uint8Array): Mesh {
 
 /* ───────────────────────── STEP (OpenCascade WASM) ───────────────────────── */
 export async function parseSTEP(buf: Uint8Array): Promise<Mesh> {
+  const t = await getT();
   let occt: any;
   try {
     const mod: any = await import(/* webpackIgnore: true */ 'occt-import-js' as string);
     occt = await (mod.default ?? mod)();
-  } catch (e) { throw new Error('Conversión STEP no disponible (instala occt-import-js): ' + (e as Error).message); }
+  } catch (e) { throw new Error(t('viewer.stepConversionIsNotAvailable') + (e as Error).message); }
   const res = occt.ReadStepFile(buf, { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.001, angularDeflection: 0.5 });
-  if (!res.success) throw new Error('STEP no se pudo leer');
+  if (!res.success) throw new Error(t('viewer.theStepFileCouldNot'));
   const pos: number[] = [];
   for (const m of res.meshes) {
     const P = m.attributes.position.array as number[]; const I = m.index.array as number[];
     for (const i of I) pos.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
   }
-  if (!pos.length) throw new Error('STEP sin geometría');
+  if (!pos.length) throw new Error(t('viewer.theStepFileHasNo'));
   return { positions: Float32Array.from(pos) };
 }
 
 export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: string }): Promise<Mesh> {
+  const t = await getT();
   switch (ext) {
     case 'stl': return parseSTL(buf);
     case 'obj': return parseOBJ(buf, extra?.mtl);
@@ -357,6 +361,6 @@ export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: st
     case 'amf': return parseAMF(buf);
     case 'glb': return parseGLB(buf);
     case 'step': case 'stp': return parseSTEP(buf);
-    default: throw new Error(`Formato de modelo no soportado: .${ext}`);
+    default: throw new Error(t('viewer.unsupportedModelFormat', { ext }));
   }
 }

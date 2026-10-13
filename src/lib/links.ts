@@ -1,12 +1,13 @@
 import dns from 'node:dns/promises';
 import net from 'node:net';
+import { LocalizedError } from '@/i18n/errors';
 
 /** Valida un link de referencia: solo http/https. */
 export function normalizeUrl(raw: string): string {
   let u = raw.trim();
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   const url = new URL(u);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Solo se aceptan enlaces http/https');
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new LocalizedError('links.onlyHttp');
   return url.toString();
 }
 
@@ -35,9 +36,9 @@ export async function fetchLinkPreview(rawUrl: string): Promise<{ url: string; t
       const addrs = await dns.lookup(host, { all: true });
       if (addrs.some((a) => isPrivateIp(a.address))) return out;
     } else if (isPrivateIp(host)) return out;
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+    const ctl = new AbortController(); const tt = setTimeout(() => ctl.abort(), 4000);
     const res = await fetch(url, { signal: ctl.signal, redirect: 'follow', headers: { 'user-agent': 'Mozilla/5.0 (compatible; MiniFactoryBot/1.0)', accept: 'text/html' } });
-    clearTimeout(t);
+    clearTimeout(tt);
     if (!res.ok || !(res.headers.get('content-type') ?? '').includes('html')) return out;
     const reader = res.body?.getReader(); let html = ''; let n = 0;
     while (reader && n < 512 * 1024) { const { done, value } = await reader.read(); if (done) break; n += value.length; html += new TextDecoder().decode(value); if (/<\/head>/i.test(html)) break; }

@@ -8,12 +8,14 @@ import { PageHeader, Card, Table, Badge } from '@/components/ui';
 import { ProductForm } from '@/components/catalog-bits';
 import { LinksEditor } from '@/components/links-editor';
 import { PhotoCapture } from '@/components/photo-capture';
-import { dmyHm } from '@/lib/format';
+import { dmyHm, money } from '@/lib/format';
+import { getT } from '@/i18n/server';
+import { tOr } from '@/i18n/translate';
 
-export const metadata = { title: 'Producto' };
-const KIND: Record<string, string> = { produccion: 'Producción', venta: 'Venta', merma: 'Merma', muestra: 'Muestra', uso_interno: 'Uso interno', ajuste: 'Ajuste', devolucion: 'Devolución', reserva: 'Reserva' };
+export async function generateMetadata() { return { title: (await getT())('meta.product') }; }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const user = await pagePerm('catalogo', 'V'); const { id } = await params; const db = await getDb();
   const [p] = await db.select().from(s.products).where(eq(s.products.id, id)); if (!p) notFound();
   const vars = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, id)).orderBy(asc(s.productVariants.sku));
@@ -24,17 +26,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const costs = canSeeCosts(user);
   return (
     <>
-      <PageHeader back={{ href: '/catalogo', label: 'Catálogo' }} title={p.name} subtitle={<span className="inline-flex gap-2"><Badge>{p.mode === 'simple' ? 'Simple' : 'Con variantes'}</Badge>{p.category}</span>} />
+      <PageHeader back={{ href: '/catalogo', label: t('nav.catalog') }} title={p.name} subtitle={<span className="inline-flex gap-2"><Badge>{p.mode === 'simple' ? t('catalog.simple') : t('catalog.withVariants')}</Badge>{p.category}</span>} />
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
-          <Card title="Variantes" pad={false}><Table><thead><tr><th className="th">SKU</th><th className="th">Atributos</th><th className="th text-right">Stock</th><th className="th text-right">Precio</th>{costs && <th className="th text-right">Costo</th>}<th className="th text-right">Peso / tiempo</th></tr></thead><tbody>{vars.map((v) => <tr key={v.id} className={v.active ? '' : 'opacity-50'}><td className="td font-medium tabular">{v.sku}</td><td className="td">{Object.entries(v.attrs ?? {}).map(([k, x]) => `${k}: ${x}`).join(' · ') || '—'}</td><td className="td text-right tabular">{v.stock}</td><td className="td text-right tabular">${v.price.toLocaleString('es-CL')}</td>{costs && <td className="td text-right tabular">${v.avgCost.toLocaleString('es-CL')}</td>}<td className="td text-right text-xs tabular">{v.weightG} g · {v.printH} h</td></tr>)}</tbody></Table></Card>
-          <Card title="Movimientos de stock" pad={false}><Table><thead><tr><th className="th">Fecha</th><th className="th">SKU</th><th className="th">Tipo</th><th className="th text-right">Cant.</th><th className="th">Motivo</th></tr></thead><tbody>{mv.map(({ m, sku }) => <tr key={m.id}><td className="td tabular text-xs">{dmyHm(m.createdAt)}</td><td className="td tabular">{sku}</td><td className="td">{KIND[m.kind] ?? m.kind}</td><td className={`td text-right tabular ${m.qty < 0 ? 'text-red-600 dark:text-red-400' : m.qty > 0 ? 'text-emerald-600' : ''}`}>{m.qty > 0 ? '+' : ''}{m.qty}</td><td className="td text-xs muted">{m.reason}</td></tr>)}{mv.length === 0 && <tr><td className="td muted" colSpan={5}>Sin movimientos.</td></tr>}</tbody></Table></Card>
-          <Card title="Fotos"><div className="mb-3">{can(user, 'galeria', 'C') && <PhotoCapture intent={{ productId: p.id, modelFileId: p.modelFileId }} />}</div><div className="grid grid-cols-4 sm:grid-cols-6 gap-2">{photos.map((x) => <img key={x.id} src={`/api/media/${x.variants?.['320'] ?? x.storageKey}`} alt="" className="rounded aspect-square object-cover" />)}</div></Card>
+          <Card title={t('catalog.variants')} pad={false}><Table><thead><tr><th className="th">{t('catalog.sku')}</th><th className="th">{t('catalog.attributes')}</th><th className="th text-right">{t('common.stock')}</th><th className="th text-right">{t('catalog.price')}</th>{costs && <th className="th text-right">{t('common.cost')}</th>}<th className="th text-right">{t('catalog.weightTime')}</th></tr></thead><tbody>{vars.map((v) => <tr key={v.id} className={v.active ? '' : 'opacity-50'}><td className="td font-medium tabular">{v.sku}</td><td className="td">{Object.entries(v.attrs ?? {}).map(([k, x]) => `${k}: ${x}`).join(' · ') || '—'}</td><td className="td text-right tabular">{v.stock}</td><td className="td text-right tabular">{money(v.price)}</td>{costs && <td className="td text-right tabular">{money(v.avgCost)}</td>}<td className="td text-right text-xs tabular">{v.weightG} g · {v.printH} h</td></tr>)}</tbody></Table></Card>
+          <Card title={t('catalog.stockMovements')} pad={false}><Table><thead><tr><th className="th">{t('common.date')}</th><th className="th">{t('catalog.sku')}</th><th className="th">{t('common.typeLabel')}</th><th className="th text-right">{t('common.qty')}</th><th className="th">{t('common.reason')}</th></tr></thead><tbody>{mv.map(({ m, sku }) => <tr key={m.id}><td className="td tabular text-xs">{dmyHm(m.createdAt)}</td><td className="td tabular">{sku}</td><td className="td">{tOr(t, `catalog.kind.${m.kind}`, m.kind) ?? m.kind}</td><td className={`td text-right tabular ${m.qty < 0 ? 'text-red-600 dark:text-red-400' : m.qty > 0 ? 'text-emerald-600' : ''}`}>{m.qty > 0 ? '+' : ''}{m.qty}</td><td className="td text-xs muted">{m.reason}</td></tr>)}{mv.length === 0 && <tr><td className="td muted" colSpan={5}>{t('catalog.noMovements')}</td></tr>}</tbody></Table></Card>
+          <Card title={t('catalog.photos')}><div className="mb-3">{can(user, 'galeria', 'C') && <PhotoCapture intent={{ productId: p.id, modelFileId: p.modelFileId }} />}</div><div className="grid grid-cols-4 sm:grid-cols-6 gap-2">{photos.map((x) => <img key={x.id} src={`/api/media/${x.variants?.['320'] ?? x.storageKey}`} alt="" className="rounded aspect-square object-cover" />)}</div></Card>
         </div>
         <div className="space-y-4">
-          {can(user, 'catalogo', 'E') && <Card title="Datos del producto"><ProductForm materials={mats.map((m) => ({ id: m.id, label: `${m.type} ${m.colorName}` }))} models={models} p={{ id: p.id, name: p.name, category: p.category, description: p.description, mode: p.mode, status: p.status, modelFileId: p.modelFileId, attributes: p.attributes ?? [], tags: p.tags ?? [] }} /></Card>}
-          <Card title="Links de referencia"><LinksEditor value={links.map((l) => ({ ...l }))} persist={{ ownerType: 'product', ownerId: p.id, revalidate: `/catalogo/${p.id}` }} readOnly={!can(user, 'catalogo', 'E')} compact /></Card>
-          {p.modelFileId && <Link className="btn-ghost w-full" href={`/archivos/${p.modelFileId}`}>Ver modelo 3D vinculado</Link>}
+          {can(user, 'catalogo', 'E') && <Card title={t('catalog.productDetails')}><ProductForm materials={mats.map((m) => ({ id: m.id, label: `${m.type} ${m.colorName}` }))} models={models} p={{ id: p.id, name: p.name, category: p.category, description: p.description, mode: p.mode, status: p.status, modelFileId: p.modelFileId, attributes: p.attributes ?? [], tags: p.tags ?? [] }} /></Card>}
+          <Card title={t('common.referenceLinks')}><LinksEditor value={links.map((l) => ({ ...l }))} persist={{ ownerType: 'product', ownerId: p.id, revalidate: `/catalogo/${p.id}` }} readOnly={!can(user, 'catalogo', 'E')} compact /></Card>
+          {p.modelFileId && <Link className="btn-ghost w-full" href={`/archivos/${p.modelFileId}`}>{t('catalog.viewLinked3dModel')}</Link>}
         </div>
       </div>
     </>

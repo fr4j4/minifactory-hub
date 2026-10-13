@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { Client } from 'basic-ftp';
+import { getT } from '@/i18n/server';
 
 export interface FtpOpts { host: string; accessCode: string; port?: number }
 
@@ -11,7 +12,8 @@ async function open(o: FtpOpts) {
 }
 
 export async function uploadFile(o: FtpOpts, name: string, data: Buffer, onProgress?: (bytes: number) => void) {
-  if (!/^[\w.\- ()]+$/.test(name)) throw new Error('Nombre de archivo no permitido para la impresora');
+  const t = await getT();
+  if (!/^[\w.\- ()]+$/.test(name)) throw new Error(t('machines.fileNameNotAllowedFor'));
   const c = await open(o);
   try { if (onProgress) c.trackProgress((i) => onProgress(i.bytes)); await c.uploadFrom(Readable.from(data), name); }
   finally { c.trackProgress(); c.close(); }

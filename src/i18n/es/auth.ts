@@ -1,0 +1,15 @@
+export const auth = {
+  invalidCredentials: 'Correo o contraseña incorrectos.',
+  throttled: 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.',
+  email: 'Correo',
+  password: 'Contraseña',
+  submit: 'Ingresar',
+  submitting: 'Ingresando…',
+  eyebrow: 'Acceso al taller',
+  greeting: 'Hola de nuevo',
+  intro: 'Ingresa con tu correo del taller.',
+  heroLine1: 'Del archivo a la entrega,',
+  heroLine2: 'capa a capa.',
+  heroText: 'Pedidos, presupuestos, laminado en el servidor, inventario y cola de producción de tu taller, en un solo lugar.',
+  noPermission: 'Sin permiso: {mod} ({action})',
+};

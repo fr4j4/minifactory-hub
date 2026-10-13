@@ -3,14 +3,15 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
+import { useT } from '@/i18n/client';
 
-const TYPE_LABEL = ['Perímetros', 'Relleno', 'Superficies', 'Soportes', 'Otro'];
+const TYPE_LABEL = ['viewer.perimeters', 'viewer.infill', 'viewer.surfaces', 'viewer.supports', 'viewer.other'] as const;
 const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780];
 
 interface Parsed { bbox: { min: number[]; max: number[] }; layers: Array<{ z: number; t: Array<[number, number, number]> }>; types: string[]; total: number; sampled: boolean; seg: Float32Array }
 function parse(buf: ArrayBuffer): Parsed {
   const dv = new DataView(buf); const magic = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
-  if (magic !== 'MFG1') throw new Error('Vista previa de G-code inválida');
+  if (magic !== 'MFG1') throw new Error('Invalid G-code preview');
   const hl = dv.getUint32(4, true); const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl)));
   const off = 8 + hl; const seg = new Float32Array(buf.slice(off));
   return { ...head, seg };
@@ -18,6 +19,7 @@ function parse(buf: ArrayBuffer): Parsed {
 
 /** Vista previa por capas: deslizador de capa, colores por tipo de línea y animación del recorrido. */
 export function GcodeViewer({ src, className }: { src: string; className?: string }) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null); const S = useRef<any>({});
   const [data, setData] = useState<Parsed | null>(null); const [err, setErr] = useState(''); const [layer, setLayer] = useState(0);
   const [show, setShow] = useState<boolean[]>([true, true, true, true, true]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
@@ -36,7 +38,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
     let raf = 0; const loop = () => { raf = requestAnimationFrame(loop); controls.update(); renderer.render(scene, camera); }; loop();
     (async () => {
       try {
-        const r = await fetch(src); if (!r.ok) throw new Error('La vista previa de capas no está disponible para este archivo');
+        const r = await fetch(src); if (!r.ok) throw new Error(t('viewer.layerPreviewIsNotAvailable'));
         const d = parse(await r.arrayBuffer()); if (disposed) return;
         const mn = d.bbox.min, mx = d.bbox.max; const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2;
         // una geometría por tipo, ordenada por capa (para recortar con drawRange)
@@ -47,7 +49,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
           const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(per[ti]), 3));
           const ls = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: TYPE_COLOR[ti], transparent: true, opacity: 0.85 })); ls.frustumCulled = false; root.add(ls); lines.push(ls);
           // fin (en segmentos) de cada capa para ese tipo
-          let acc = 0; d.layers.forEach((l, li) => { const t = l.t.find((x) => x[0] === ti); if (t) acc = idx[ti][li] + t[2]; ends[ti][li] = acc; });
+          let acc = 0; d.layers.forEach((l, li) => { const tt = l.t.find((x) => x[0] === ti); if (tt) acc = idx[ti][li] + tt[2]; ends[ti][li] = acc; });
         }
         const bed = new THREE.GridHelper(Math.max(mx[0] - mn[0], mx[1] - mn[1]) * 1.4, 14, dark ? 0x45433e : 0xbab4a7, dark ? 0x2c2b28 : 0xd2cdc2); bed.rotation.x = Math.PI / 2; root.add(bed);
         Object.assign(S.current, { lines, ends, d, center: [cx, cy] });
@@ -71,7 +73,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   }, [layer, show, data, onlyCurrent]);
 
   useEffect(() => {
-    if (!playing || !data) return; const t = setInterval(() => setLayer((l) => { if (l >= data.layers.length - 1) { setPlaying(false); return l; } return l + 1; }), 60); return () => clearInterval(t);
+    if (!playing || !data) return; const tt = setInterval(() => setLayer((l) => { if (l >= data.layers.length - 1) { setPlaying(false); return l; } return l + 1; }), 60); return () => clearInterval(tt);
   }, [playing, data]);
 
   const n = data?.layers.length ?? 0;
@@ -79,20 +81,20 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
     <div className={cn('card overflow-hidden', className)}>
       <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
         <div ref={host} className="absolute inset-0" />
-        {!data && !err && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">Cargando trayectorias…</div>}
+        {!data && !err && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingToolpaths')}</div>}
         {err && <div className="absolute inset-0 grid place-items-center text-sm text-red-600 dark:text-red-400 p-6 text-center" role="alert">{err}</div>}
-        {data && <div className="absolute left-2 top-2 rounded bg-slate-900/80 text-white text-xs px-2.5 py-1.5" data-testid="gcode-layer-readout">Capa {layer + 1} / {n} · Z {data.layers[layer]?.z.toFixed(2)} mm</div>}
-        {data?.sampled && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">Relleno muestreado para el visor</div>}
+        {data && <div className="absolute left-2 top-2 rounded bg-slate-900/80 text-white text-xs px-2.5 py-1.5" data-testid="gcode-layer-readout">{t('viewer.layer')} {layer + 1} / {n} · Z {data.layers[layer]?.z.toFixed(2)} mm</div>}
+        {data?.sampled && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.infillSampledForTheViewer')}</div>}
       </div>
       {data && (
         <div className="p-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
           <div className="flex items-center gap-3">
-            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? 'Pausar animación' : 'Reproducir animación'} data-testid="gcode-play">{playing ? '❚❚ Pausar' : '▶ Reproducir'}</button>
-            <input type="range" min={0} max={n - 1} value={layer} onChange={(e) => { setPlaying(false); setLayer(+e.target.value); }} className="flex-1" aria-label="Capa" data-testid="gcode-layer-slider" />
+            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? t('viewer.pauseAnimation') : t('viewer.playAnimation')} data-testid="gcode-play">{playing ? t('viewer.pauseShort') : t('viewer.playShort')}</button>
+            <input type="range" min={0} max={n - 1} value={layer} onChange={(e) => { setPlaying(false); setLayer(+e.target.value); }} className="flex-1" aria-label={t('viewer.layer')} data-testid="gcode-layer-slider" />
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
-            {TYPE_LABEL.map((l, i) => <label key={l} className="flex items-center gap-1.5"><input type="checkbox" checked={show[i]} onChange={(e) => setShow((s) => s.map((v, k) => (k === i ? e.target.checked : v)))} /><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#' + TYPE_COLOR[i].toString(16).padStart(6, '0') }} />{l}</label>)}
-            <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyCurrent} onChange={(e) => setOnlyCurrent(e.target.checked)} /> Resaltar solo la capa actual</label>
+            {TYPE_LABEL.map((lk, i) => <label key={lk} className="flex items-center gap-1.5"><input type="checkbox" checked={show[i]} onChange={(e) => setShow((s) => s.map((v, k) => (k === i ? e.target.checked : v)))} /><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#' + TYPE_COLOR[i].toString(16).padStart(6, '0') }} />{t(lk)}</label>)}
+            <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyCurrent} onChange={(e) => setOnlyCurrent(e.target.checked)} /> {t('viewer.highlightOnlyTheCurrentLayer')}</label>
           </div>
         </div>
       )}

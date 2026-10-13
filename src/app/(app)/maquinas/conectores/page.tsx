@@ -5,11 +5,13 @@ import { can } from '@/lib/perm';
 import { PageHeader } from '@/components/ui';
 import { ConnectorsBoard, type LinkedRow } from '@/components/printer-connect';
 import { accountOnline, liveRows } from '@/lib/bambu/manager';
+import { getT } from '@/i18n/server';
 
-export const metadata = { title: 'Conectar impresoras' };
+export async function generateMetadata() { return { title: (await getT())('meta.connectPrinters') }; }
 export const dynamic = 'force-dynamic';
 
 export default async function ConnectorsPage() {
+  const t = await getT();
   const user = await pagePerm('maquinas', 'V'); const db = await getDb();
   const links = await db.select().from(s.printerLinks).where(isNull(s.printerLinks.deletedAt)).orderBy(asc(s.printerLinks.createdAt));
   const machines = await db.select({ id: s.machines.id, name: s.machines.name, connection: s.machines.connection }).from(s.machines).where(isNull(s.machines.deletedAt)).orderBy(asc(s.machines.name));
@@ -20,7 +22,7 @@ export default async function ConnectorsPage() {
   const free = machines.filter((m) => !links.some((l) => l.machineId === m.id)).map((m) => ({ id: m.id, name: m.name }));
   return (
     <>
-      <PageHeader back={{ href: '/maquinas', label: 'Máquinas' }} title="Conectar impresoras" subtitle="Conecta tus Bambu Lab por la red local o con tu cuenta de Bambu Cloud y míralas en vivo: estado, avance por capas, filamento del AMS y cámara." />
+      <PageHeader back={{ href: '/maquinas', label: t('nav.machines') }} title={t('machines.connectPrinters')} subtitle={t('machines.connectYourBambuLabPrinters')} />
       <ConnectorsBoard linked={rows} machines={free} accounts={accounts} canCreate={can(user, 'maquinas', 'C')} canEdit={can(user, 'maquinas', 'E')} canRemove={can(user, 'maquinas', 'X')} />
     </>
   );

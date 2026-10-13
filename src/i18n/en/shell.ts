@@ -1,0 +1,32 @@
+import type { Shape } from '../translate';
+import type { es } from '../es';
+
+export const shell: Shape<typeof es['shell']> = {
+  expandMenu: 'Expand menu',
+  collapseMenu: 'Collapse menu',
+  collapse: '« Collapse',
+  home: 'Home',
+  searchAria: 'Search (Ctrl+K)',
+  searchShort: 'Search…',
+  searchLong: 'Search customers, orders, files, spools…',
+  newMenu: 'New',
+  notifications: 'Notifications',
+  notificationsUnread: 'Notifications ({n} unread)',
+  account: 'My account',
+  profileLink: 'My profile & alerts',
+  logout: 'Sign out',
+  quickActions: 'Quick actions',
+  more: 'More',
+  moreAria: 'More sections',
+  allSections: 'All sections',
+  quickNewOrder: 'New order',
+  quickQuickSale: 'Quick sale',
+  quickNewQuote: 'New quote',
+  quickCalculator: 'Quick calculator',
+  quickUploadPhoto: 'Upload photo',
+  quickScanQr: 'Scan QR',
+  globalSearch: 'Global search',
+  searchPlaceholder: 'Search by name, number, SKU, spool code…',
+  noResults: 'No results for “{q}”',
+  searchHint: 'Type at least 2 letters. Searches customers, orders, quotes, products, files and spools.',
+};

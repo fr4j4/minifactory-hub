@@ -7,11 +7,13 @@ import { priceFromRun, useRunPolling } from './slice-panel';
 import { dur, grams, money, num, cn } from '@/lib/format';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
+import { useT } from '@/i18n/client';
 
 interface Combo { key: number; machineId: string; processId: string; materialId: string }
 
 /** Lamina el mismo archivo con varias combinaciones a la vez y muestra tiempo, gramos y precio lado a lado. */
 export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; files: Array<{ id: string; name: string; versionId: string }>; initialFile?: string }) {
+  const t = useT();
   const toast = useToast();
   const slicers = ctx.machines.filter((m) => m.machineProfileId);
   const procs = ctx.profiles.filter((p) => p.type === 'process'); const mats = ctx.materials.filter((m) => m.tech === 'fdm' && m.filamentProfileId);
@@ -36,45 +38,45 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
   return (
     <div className="space-y-4" data-testid="comparator">
       <div className="card p-4 grid sm:grid-cols-3 gap-3">
-        <label className="block sm:col-span-2"><span className="label">Archivo a laminar</span><select className="input" value={fileId} onChange={(e) => setFileId(e.target.value)} data-testid="cmp-file">{files.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
-        <label className="block"><span className="label">Copias en la placa</span><input type="number" min={1} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} /></label>
+        <label className="block sm:col-span-2"><span className="label">{t('slicer.fileToSlice')}</span><select className="input" value={fileId} onChange={(e) => setFileId(e.target.value)} data-testid="cmp-file">{files.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}</select></label>
+        <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} /></label>
       </div>
       <div className="card overflow-x-auto">
-        <table className="w-full"><thead><tr><th className="th">#</th><th className="th">Máquina</th><th className="th">Proceso</th><th className="th">Material</th><th className="th" /></tr></thead>
+        <table className="w-full"><thead><tr><th className="th">#</th><th className="th">{t('common.machine')}</th><th className="th">{t('slicer.process')}</th><th className="th">{t('common.material')}</th><th className="th" /></tr></thead>
           <tbody>{combos.map((c, i) => (
             <tr key={c.key}><td className="td">{i + 1}</td>
-              <td className="td min-w-[170px]">{sel(slicers, c.machineId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, machineId: v } : x))), `Máquina ${i + 1}`, `cmp-machine-${i}`)}</td>
-              <td className="td min-w-[200px]">{sel(procs, c.processId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, processId: v } : x))), `Proceso ${i + 1}`, `cmp-process-${i}`)}</td>
-              <td className="td min-w-[170px]">{sel(mats, c.materialId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, materialId: v } : x))), `Material ${i + 1}`, `cmp-material-${i}`)}</td>
-              <td className="td"><button className="btn-ghost btn-sm" onClick={() => setCombos(combos.filter((x) => x.key !== c.key))} disabled={combos.length <= 1} aria-label={`Quitar combinación ${i + 1}`}>✕</button></td></tr>
+              <td className="td min-w-[170px]">{sel(slicers, c.machineId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, machineId: v } : x))), t('slicer.machine', { i: i + 1 }), `cmp-machine-${i}`)}</td>
+              <td className="td min-w-[200px]">{sel(procs, c.processId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, processId: v } : x))), t('slicer.process2', { i: i + 1 }), `cmp-process-${i}`)}</td>
+              <td className="td min-w-[170px]">{sel(mats, c.materialId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, materialId: v } : x))), t('slicer.material', { i: i + 1 }), `cmp-material-${i}`)}</td>
+              <td className="td"><button className="btn-ghost btn-sm" onClick={() => setCombos(combos.filter((x) => x.key !== c.key))} disabled={combos.length <= 1} aria-label={t('slicer.removeCombination', { i: i + 1 })}>✕</button></td></tr>
           ))}</tbody></table>
         <div className="p-3 flex flex-wrap gap-2 border-t border-slate-200 dark:border-slate-700">
-          <button className="btn-ghost" onClick={() => setCombos([...combos, { ...mk(), key: Date.now() }])} disabled={combos.length >= 8}>+ Agregar combinación</button>
-          <button className="btn-primary" onClick={go} disabled={busy || !file} data-testid="cmp-go">{busy ? 'Laminando…' : `Laminar ${combos.length} combinaciones`}</button>
+          <button className="btn-ghost" onClick={() => setCombos([...combos, { ...mk(), key: Date.now() }])} disabled={combos.length >= 8}>{t('slicer.addCombination')}</button>
+          <button className="btn-primary" onClick={go} disabled={busy || !file} data-testid="cmp-go">{busy ? t('common.slicing') : t('slicer.sliceCombinations', { combos: combos.length })}</button>
         </div>
       </div>
       {rows.length > 0 && (
         <div className="card overflow-x-auto" data-testid="cmp-results">
-          <table className="w-full"><thead><tr><th className="th">Combinación</th><th className="th text-right">Tiempo</th><th className="th text-right">Material</th><th className="th text-right">Capas</th><th className="th text-right">Laminado</th><th className="th text-right">Precio sugerido</th><th className="th" /></tr></thead>
+          <table className="w-full"><thead><tr><th className="th">{t('slicer.combination')}</th><th className="th text-right">{t('common.time')}</th><th className="th text-right">{t('common.material')}</th><th className="th text-right">{t('common.layers')}</th><th className="th text-right">{t('slicer.slice')}</th><th className="th text-right">{t('common.suggestedPrice')}</th><th className="th" /></tr></thead>
             <tbody>{rows.map(({ id, run, c }, i) => {
               const m = ctx.machines.find((x) => x.id === c?.machineId); const p = procs.find((x) => x.id === c?.processId); const ma = ctx.materials.find((x) => x.id === c?.materialId);
               const g = run?.filament?.reduce((a: number, x: any) => a + x.g, 0);
               const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId: c.machineId, materialId: c.materialId, qty: copies }) : null;
               return (
                 <tr key={id} data-testid="cmp-row"><td className="td"><div className="font-medium">{i + 1}. {m?.name}</div><div className="text-xs muted">{p?.name} · {ma?.label}</div></td>
-                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>Laminando…</td> : run.status === 'error' ? <td className="td text-red-600 dark:text-red-400 text-sm" colSpan={5}>{run.error}</td> : (
+                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>{t('common.slicing')}</td> : run.status === 'error' ? <td className="td text-red-600 dark:text-red-400 text-sm" colSpan={5}>{run.error}</td> : (
                     <>
                       <td className={cn('td text-right tabular', run.timeS === bestTime && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{dur(run.timeS)}</td>
                       <td className={cn('td text-right tabular', g === bestG && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{grams(g)}</td>
-                      <td className="td text-right tabular">{run.layers}</td><td className="td text-right tabular muted">{run.cached ? 'caché' : `${num((run.durationMs ?? 0) / 1000, 1)} s`}</td>
+                      <td className="td text-right tabular">{run.layers}</td><td className="td text-right tabular muted">{run.cached ? t('slicer.cached2') : `${num((run.durationMs ?? 0) / 1000, 1)} s`}</td>
                       <td className="td text-right tabular font-semibold">{money(bd?.suggestedTotal)}</td>
-                      <td className="td text-right whitespace-nowrap"><button className="btn-ghost btn-sm" onClick={() => setView(view === id ? null : id)}>Ver capas</button> <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${id}&machine=${c.machineId}&material=${c.materialId}&copies=${copies}`}>Usar</Link></td>
+                      <td className="td text-right whitespace-nowrap"><button className="btn-ghost btn-sm" onClick={() => setView(view === id ? null : id)}>{t('slicer.viewLayers')}</button> <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${id}&machine=${c.machineId}&material=${c.materialId}&copies=${copies}`}>{t('slicer.use')}</Link></td>
                     </>
                   )}
                 </tr>
               );
             })}</tbody></table>
-          <p className="text-xs muted p-3">En verde, el menor tiempo y el menor gasto de material. El tiempo ya incluye el factor de corrección de cada máquina cuando lo hay.</p>
+          <p className="text-xs muted p-3">{t('slicer.theLowestTimeAndThe')}</p>
         </div>
       )}
       {view && <GcodeViewer src={`/api/runs/${view}/preview`} />}

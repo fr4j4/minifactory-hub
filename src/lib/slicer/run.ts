@@ -5,6 +5,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { config } from '../config';
 import { parseGcodeMeta, type SliceMeta } from '../gcode';
+import { getT } from '@/i18n/server';
+import type { MessageKey } from '@/i18n/translate';
 
 export interface CliResult {
   ok: boolean; error?: string; engine: string; durationMs: number;
@@ -18,26 +20,27 @@ export async function engineVersion(): Promise<string> {
   const out = await new Promise<string>((res) => {
     const p = spawn(config.orcaBin, ['--help'], { stdio: ['ignore', 'pipe', 'pipe'] });
     let buf = ''; p.stdout.on('data', (d) => (buf += d)); p.stderr.on('data', (d) => (buf += d));
-    const t = setTimeout(() => p.kill('SIGKILL'), 30000);
-    p.on('close', () => { clearTimeout(t); res(buf); }); p.on('error', () => res(''));
+    const tt = setTimeout(() => p.kill('SIGKILL'), 30000);
+    p.on('close', () => { clearTimeout(tt); res(buf); }); p.on('error', () => res(''));
   });
   const m = out.match(/OrcaSlicer-([\d.]+)/);
   return (engineVer = m ? m[1] : 'desconocida');
 }
 
-const ERR_MAP: Record<number, string> = {
-  [-50]: 'La pieza no cabe en el volumen de impresión de la máquina elegida (o la placa quedó vacía).',
-  [-17]: 'El perfil de proceso no es compatible con la máquina elegida.',
+const ERR_MAP: Record<number, MessageKey> = {
+  [-50]: 'slicer.errPartDoesNotFit',
+  [-17]: 'slicer.errProfileIncompatible',
 };
 
 export async function runOrca(o: {
   inputPath: string; ext: string; machine: Record<string, any>; process: Record<string, any>; filament: Record<string, any>;
   copies: number; timeoutS?: number;
 }): Promise<CliResult> {
+  const t = await getT();
   const t0 = Date.now();
   const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mf-slice-'));
   const engine = await engineVersion();
-  if (!fs.existsSync(config.orcaBin)) return { ok: false, error: 'OrcaSlicer no está instalado en este servidor (ver scripts/install-orca.sh)', engine, durationMs: 0, plates: [], tmpDir };
+  if (!fs.existsSync(config.orcaBin)) return { ok: false, error: t('slicer.orcaslicerIsNotInstalledOn'), engine, durationMs: 0, plates: [], tmpDir };
   const outDir = path.join(tmpDir, 'out'); await fsp.mkdir(outDir);
   const input = path.join(tmpDir, `model.${o.ext}`);
   await fsp.copyFile(o.inputPath, input);
@@ -56,10 +59,10 @@ export async function runOrca(o: {
   const durationMs = Date.now() - t0;
   let rc = code, errStr = '';
   try { const r = JSON.parse(await fsp.readFile(path.join(outDir, 'result.json'), 'utf8')); rc = r.return_code ?? rc; errStr = r.error_string ?? ''; } catch { /* sin result.json */ }
-  if (log.join('').includes('timeout')) return { ok: false, error: `El laminado superó el límite de ${o.timeoutS ?? config.orcaTimeoutS} s`, engine, durationMs, plates: [], tmpDir };
+  if (log.join('').includes('timeout')) return { ok: false, error: t('slicer.slicingExceededTheLimitOf', { timeoutS: o.timeoutS ?? config.orcaTimeoutS }), engine, durationMs, plates: [], tmpDir };
   const files = (await fsp.readdir(outDir)).filter((f) => /^plate_\d+\.gcode$/.test(f)).sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)));
   if (rc !== 0 || !files.length) {
-    return { ok: false, error: ERR_MAP[rc] ?? (errStr && errStr !== 'Success.' ? errStr : `El laminador terminó con error (código ${rc})`), engine, durationMs, plates: [], tmpDir };
+    return { ok: false, error: (ERR_MAP[rc] ? t(ERR_MAP[rc]) : (errStr && errStr !== 'Success.' ? errStr : t('slicer.theSlicerFinishedWithAn', { code: rc}))), engine, durationMs, plates: [], tmpDir };
   }
   const plates = [];
   for (const f of files) {
