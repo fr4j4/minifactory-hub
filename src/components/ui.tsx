@@ -99,7 +99,7 @@ export function Tabs({ tabs, current }: { tabs: Array<{ href: string; label: str
 
 export function Meter({ value, max, tone }: { value: number; max: number; tone?: 'ok' | 'warn' | 'bad' }) {
   const p = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
-  return <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden" role="progressbar" aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100}><div className={cn('h-full rounded-full', tone === 'bad' ? 'bg-red-500' : tone === 'warn' ? 'bg-amber-500' : 'bg-brand-600')} style={{ width: `${p}%` }} /></div>;
+  return <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden" role="progressbar" aria-label="Nivel" aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100}><div className={cn('h-full rounded-full', tone === 'bad' ? 'bg-red-500' : tone === 'warn' ? 'bg-amber-500' : 'bg-brand-600')} style={{ width: `${p}%` }} /></div>;
 }
 
 export function Swatch({ hex, className }: { hex: string; className?: string }) { return <span className={cn('inline-block h-3.5 w-3.5 rounded-full border border-black/20 align-[-2px]', className)} style={{ background: hex }} aria-hidden />; }

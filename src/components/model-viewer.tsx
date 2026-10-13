@@ -8,6 +8,7 @@ export interface ViewerMachine { id: string; name: string; volX: number; volY: n
 type Mode = 'solido' | 'alambrico' | 'rayosx' | 'normales';
 type Tool = 'orbitar' | 'medir' | 'cara';
 
+const f1 = (n: number, d = 1) => n.toFixed(d).replace('.', ',');
 const fits = (d: [number, number, number], v: [number, number, number]) => (d[0] <= v[0] + 0.01 && d[1] <= v[1] + 0.01 && d[2] <= v[2] + 0.01) || (d[1] <= v[0] + 0.01 && d[0] <= v[1] + 0.01 && d[2] <= v[2] + 0.01);
 
 function parseMesh(buf: ArrayBuffer) {
@@ -192,7 +193,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
               <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">Encuadrar</button>
             </div>
             {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge">{cur.ok ? `✓ Cabe en ${cur.m.name}` : `✕ No cabe en ${cur.m.name}`}</div>}
-            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? 'Elige el segundo punto' : <>Distancia <b>{measure.mm.toFixed(2)} mm</b> <span className="opacity-70">(Δx {measure.dx!.toFixed(1)} · Δy {measure.dy!.toFixed(1)} · Δz {measure.dz!.toFixed(1)})</span></>}</div>}
+            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? 'Elige el segundo punto' : <>Distancia <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
             {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">Malla simplificada para el visor ({(info.tris / 1000).toFixed(0)}k de {(info.orig / 1000).toFixed(0)}k triángulos)</div>}
           </>
         )}
@@ -222,7 +223,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
             </div>
             <div>
               <div className="label">Dimensiones</div>
-              <div className="tabular font-medium" data-testid="dims">{dims ? `${dims[0].toFixed(1)} × ${dims[1].toFixed(1)} × ${dims[2].toFixed(1)} mm` : '—'}</div>
+              <div className="tabular font-medium" data-testid="dims">{dims ? `${f1(dims[0])} × ${f1(dims[1])} × ${f1(dims[2])} mm` : '—'}</div>
               <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> Mostrar cotas en el visor</label>
             </div>
             <div>
@@ -294,7 +295,7 @@ function drawDimLabels(st: any, host: HTMLElement, dims: [number, number, number
   const holder = host.querySelector('[data-dim-labels]') as HTMLElement; holder.innerHTML = ''; st.dimLabels = [];
   if (!dims || !st.mesh) return;
   st.group.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(st.mesh); const mn = b.min, mx = b.max;
-  const edges: Array<[THREE.Vector3, THREE.Vector3, string]> = [[new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z), `${(mx.x - mn.x).toFixed(1)}`], [new THREE.Vector3(mx.x, mn.y, mn.z), new THREE.Vector3(mx.x, mx.y, mn.z), `${(mx.y - mn.y).toFixed(1)}`], [new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mx.x, mx.y, mx.z), `${(mx.z - mn.z).toFixed(1)}`]];
+  const edges: Array<[THREE.Vector3, THREE.Vector3, string]> = [[new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z), `${f1(mx.x - mn.x)}`], [new THREE.Vector3(mx.x, mn.y, mn.z), new THREE.Vector3(mx.x, mx.y, mn.z), `${f1(mx.y - mn.y)}`], [new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mx.x, mx.y, mx.z), `${f1(mx.z - mn.z)}`]];
   for (const [a, c, txt] of edges) {
     const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, c]), new THREE.LineBasicMaterial({ color: 0x2563eb, depthTest: false })); l.userData.kind = 'dims'; l.renderOrder = 5; o.add(l);
     const el = document.createElement('span'); el.textContent = `${txt} mm`; el.className = 'absolute left-0 top-0 text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-600 text-white whitespace-nowrap'; el.setAttribute('data-testid', 'dim-label'); holder.appendChild(el);

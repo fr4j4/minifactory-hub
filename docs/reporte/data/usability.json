@@ -1,0 +1,56 @@
+[
+ {
+  "name": "Subir un STL y ver su análisis",
+  "seconds": 0.9,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "incluye subida por partes, análisis y miniatura"
+ },
+ {
+  "name": "Laminar una pieza y ver tiempo, gramos y precio",
+  "seconds": 2.5,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 30 s"
+ },
+ {
+  "name": "Comparar 3 combinaciones de laminado",
+  "seconds": 2.5,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true
+ },
+ {
+  "name": "Armar y guardar un presupuesto con 2 líneas",
+  "seconds": 0.6,
+  "steps": 0,
+  "limitS": 120,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 2 min"
+ },
+ {
+  "name": "Registrar un pedido manual (WhatsApp)",
+  "seconds": 0.4,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 1 min"
+ },
+ {
+  "name": "Terminar un trabajo y descontar la bobina",
+  "seconds": 0.2,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true
+ },
+ {
+  "name": "Registrar una venta rápida de marketplace",
+  "seconds": 0.4,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo: menos de 30 s"
+ }
+]

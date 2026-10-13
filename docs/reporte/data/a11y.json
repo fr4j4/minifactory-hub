@@ -1,0 +1,87 @@
+[
+ {
+  "page": "/",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/pedidos",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/pedidos/nuevo",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/presupuestos",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/presupuestos/nuevo",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/calculadora",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/clientes",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/archivos",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/laminador",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/catalogo",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/ventas/nueva",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/inventario",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/maquinas",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/cola",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/galeria",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/reportes",
+  "serious": 0,
+  "items": []
+ },
+ {
+  "page": "/configuracion?tab=tarifas",
+  "serious": 0,
+  "items": []
+ }
+]

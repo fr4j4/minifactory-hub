@@ -65,8 +65,8 @@ export function AppShell({ nav, user, unread, children }: { nav: NavItem[]; user
               <summary className="btn-ghost btn-sm list-none cursor-pointer !px-2.5"><span className="hidden sm:inline max-w-[140px] truncate">{user.name}</span><span className="sm:hidden">👤</span></summary>
               <div className="absolute right-0 mt-1 w-56 card p-2 z-40">
                 <div className="px-2 py-1.5 text-xs muted">{user.name} · {user.role}</div>
-                <Link href="/configuracion/perfil" className="block rounded px-2 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Mi perfil y avisos</Link>
-                <form action={logoutAction}><button className="w-full text-left rounded px-2 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Cerrar sesión</button></form>
+                <Link href="/configuracion/perfil" className="block rounded px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Mi perfil y avisos</Link>
+                <form action={logoutAction}><button className="w-full text-left rounded px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Cerrar sesión</button></form>
               </div>
             </details>
           </div>

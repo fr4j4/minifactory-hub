@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   serverExternalPackages: ['@electric-sql/pglite', 'sharp', 'pg', '@node-rs/argon2', 'playwright', 'exceljs'],
-  experimental: { serverActions: { bodySizeLimit: '50mb' }, instrumentationHook: true },
+  experimental: { serverActions: { bodySizeLimit: '50mb' } },
   poweredByHeader: false,
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: false },
