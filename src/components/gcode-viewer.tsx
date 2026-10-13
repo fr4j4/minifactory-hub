@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
 
 const TYPE_LABEL = ['Perímetros', 'Relleno', 'Superficies', 'Soportes', 'Otro'];
-const TYPE_COLOR = [0x2f6df6, 0x9aa7b8, 0x22b573, 0xf08a24, 0x8b8f99];
+const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780];
 
 interface Parsed { bbox: { min: number[]; max: number[] }; layers: Array<{ z: number; t: Array<[number, number, number]> }>; types: string[]; total: number; sampled: boolean; seg: Float32Array }
 function parse(buf: ArrayBuffer): Parsed {
@@ -26,7 +26,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
     const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches; let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'gcode-canvas');
-    const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x0e1527 : 0xeef1f7);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x161615 : 0xe8e5de);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000); camera.up.set(0, 0, 1);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true;
     const root = new THREE.Group(); scene.add(root);
@@ -49,7 +49,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
           // fin (en segmentos) de cada capa para ese tipo
           let acc = 0; d.layers.forEach((l, li) => { const t = l.t.find((x) => x[0] === ti); if (t) acc = idx[ti][li] + t[2]; ends[ti][li] = acc; });
         }
-        const bed = new THREE.GridHelper(Math.max(mx[0] - mn[0], mx[1] - mn[1]) * 1.4, 14, dark ? 0x3a4a70 : 0xb7c0d6, dark ? 0x263356 : 0xc9d1e3); bed.rotation.x = Math.PI / 2; root.add(bed);
+        const bed = new THREE.GridHelper(Math.max(mx[0] - mn[0], mx[1] - mn[1]) * 1.4, 14, dark ? 0x45433e : 0xbab4a7, dark ? 0x2c2b28 : 0xd2cdc2); bed.rotation.x = Math.PI / 2; root.add(bed);
         Object.assign(S.current, { lines, ends, d, center: [cx, cy] });
         const R = Math.hypot(mx[0] - mn[0], mx[1] - mn[1], mx[2]) ; camera.position.set(R * 0.8, -R * 1.0, R * 0.9 + mx[2] / 2); controls.target.set(0, 0, mx[2] / 3); controls.update();
         setData(d); setLayer(d.layers.length - 1);
@@ -77,10 +77,10 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   const n = data?.layers.length ?? 0;
   return (
     <div className={cn('card overflow-hidden', className)}>
-      <div className="relative bg-slate-100 dark:bg-[#0e1527]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
+      <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
         <div ref={host} className="absolute inset-0" />
         {!data && !err && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">Cargando trayectorias…</div>}
-        {err && <div className="absolute inset-0 grid place-items-center text-sm text-red-600 p-6 text-center" role="alert">{err}</div>}
+        {err && <div className="absolute inset-0 grid place-items-center text-sm text-red-600 dark:text-red-400 p-6 text-center" role="alert">{err}</div>}
         {data && <div className="absolute left-2 top-2 rounded bg-slate-900/80 text-white text-xs px-2.5 py-1.5" data-testid="gcode-layer-readout">Capa {layer + 1} / {n} · Z {data.layers[layer]?.z.toFixed(2)} mm</div>}
         {data?.sampled && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">Relleno muestreado para el visor</div>}
       </div>

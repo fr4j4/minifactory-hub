@@ -158,7 +158,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                 <div>
                   <div className="label">Cómo se obtienen el tiempo y los gramos</div>
                   <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden mb-3" role="radiogroup" aria-label="Modo de cotización">
-                    {([['auto', 'Automático'], ['semi', 'Semiautomático'], ['manual', 'Manual']] as const).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={it.mode === k} disabled={dis} onClick={() => onChange({ mode: k })} className={cn('px-3 min-h-[44px] md:min-h-[36px] text-sm', it.mode === k ? 'bg-brand-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-800')} data-testid={`mode-${k}`}>{l}</button>)}
+                    {([['auto', 'Automático'], ['semi', 'Semiautomático'], ['manual', 'Manual']] as const).map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={it.mode === k} disabled={dis} onClick={() => onChange({ mode: k })} className={cn('px-3 min-h-[44px] md:min-h-[36px] text-sm', it.mode === k ? 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800')} data-testid={`mode-${k}`}>{l}</button>)}
                   </div>
                   {it.mode === 'auto' && (
                     <div className="space-y-2">

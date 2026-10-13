@@ -16,11 +16,38 @@ export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?
   return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONS[name] ?? ICONS.box} /></svg>;
 }
 
+const SECTIONS: Array<{ t: string; hrefs: string[] }> = [
+  { t: 'Taller', hrefs: ['/', '/pedidos', '/presupuestos', '/clientes', '/calculadora'] },
+  { t: 'Fabricación', hrefs: ['/archivos', '/laminador', '/cola', '/maquinas'] },
+  { t: 'Stock y ventas', hrefs: ['/inventario', '/catalogo', '/ventas'] },
+  { t: 'Sistema', hrefs: ['/galeria', '/reportes', '/configuracion'] },
+];
+const CRUMB: Record<string, string> = { nuevo: 'Nuevo', nueva: 'Nueva', perfil: 'Mi perfil', perfiles: 'Perfiles', bobinas: 'Bobinas', escanear: 'Escanear', etiquetas: 'Etiquetas' };
+
+/** Marca: capas apiladas bajo una boquilla. */
+export function Mark({ className = 'h-8 w-8' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" className={className} aria-hidden>
+      <rect width="32" height="32" rx="8" fill="#232220" />
+      <g fill="#ff5b1f"><rect x="7" y="21" width="18" height="3" rx="1" /><rect x="9" y="17" width="14" height="3" rx="1" opacity=".8" /><rect x="11" y="13" width="10" height="3" rx="1" opacity=".6" /></g>
+      <path d="M13.5 5h5l-1 4h-3z" fill="#e9e5dc" /><circle cx="16" cy="10.6" r=".9" fill="#ff5b1f" />
+    </svg>
+  );
+}
+
 export function AppShell({ nav, user, unread, children }: { nav: NavItem[]; user: { name: string; role: string }; unread: number; children: React.ReactNode }) {
   const path = usePathname(); const router = useRouter();
   const [more, setMore] = useState(false); const [plus, setPlus] = useState(false); const [search, setSearch] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => { setMore(false); setPlus(false); }, [path]);
+  // reanima la entrada al navegar sin volver a montar la página (un key por ruta perdería el estado
+  // de formularios que cambian la URL con replaceState, p. ej. /presupuestos/nuevo → /presupuestos/:id)
+  const pageRef = useRef<HTMLDivElement>(null); const prevPath = useRef(path);
+  useEffect(() => {
+    const prev = prevPath.current; prevPath.current = path; const el = pageRef.current;
+    if (!el || prev === path || /\/(nuevo|nueva)$/.test(prev)) return;
+    el.classList.remove('page-enter'); void el.offsetWidth; el.classList.add('page-enter');
+  }, [path]);
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setSearch(true); } if (e.key === 'Escape') { setSearch(false); setMore(false); setPlus(false); } };
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
@@ -32,71 +59,94 @@ export function AppShell({ nav, user, unread, children }: { nav: NavItem[]; user
     { href: '/presupuestos/nuevo', label: 'Nuevo presupuesto', icon: 'quote' }, { href: '/calculadora', label: 'Calculadora rápida', icon: 'calc' },
     { href: '/galeria?subir=1', label: 'Subir foto', icon: 'camera' }, { href: '/inventario/escanear', label: 'Escanear QR', icon: 'qr' },
   ];
-  const Item = ({ n, rail }: { n: NavItem; rail?: boolean }) => (
-    <Link href={n.href} aria-current={active(n.href) ? 'page' : undefined} title={n.label}
-      className={cn('flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm min-h-[44px] md:min-h-[38px]', active(n.href) ? 'bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100 font-medium' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800')}>
-      <Icon name={n.icon} />{!rail && <span className="xl:inline hidden md:hidden">{n.label}</span>}{!rail && <span className="md:hidden xl:hidden">{n.label}</span>}
-    </Link>
-  );
+  const sections = SECTIONS.map((s) => ({ t: s.t, items: s.hrefs.map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[] })).filter((s) => s.items.length);
+  const section = nav.filter((n) => active(n.href)).sort((a, b) => b.href.length - a.href.length)[0];
+  const tail = section ? path.slice(section.href.length).split('/').filter(Boolean) : [];
+  const full = !collapsed;
   return (
     <div className="min-h-screen md:flex">
-      {/* barra lateral: riel con íconos en tablet, completa en escritorio */}
-      <aside className={cn('hidden md:flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0e1527] sticky top-0 h-screen shrink-0 transition-all', collapsed ? 'md:w-[68px]' : 'md:w-[68px] xl:w-60')} aria-label="Navegación principal">
-        <div className="flex items-center gap-2.5 px-3 h-14 border-b border-slate-200 dark:border-slate-800"><img src="/icon.svg" alt="" width={32} height={32} className="rounded-lg" /><span className={cn('font-semibold hidden', collapsed ? '' : 'xl:inline')}>MiniFactory</span></div>
-        <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
-          {nav.map((n) => (
-            <Link key={n.href} href={n.href} aria-current={active(n.href) ? 'page' : undefined} title={n.label}
-              className={cn('flex items-center gap-3 rounded-lg px-3 py-2 text-sm min-h-[40px]', active(n.href) ? 'bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100 font-medium' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800')}>
-              <Icon name={n.icon} /><span className={cn('hidden', collapsed ? '' : 'xl:inline')}>{n.label}</span>
-            </Link>
+      {/* panel de control: riel con íconos en tablet, completo en escritorio */}
+      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 transition-[width] duration-300 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label="Navegación principal">
+        <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0">
+          <Mark className="h-9 w-9 shrink-0" />
+          <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">taller · 3D</span></span>
+        </Link>
+        <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4 [scrollbar-width:thin]">
+          {sections.map((s) => (
+            <div key={s.t}>
+              <div className={cn('hidden px-3 pb-1.5 pt-1 font-mono text-[10px] uppercase tracking-[.16em] text-white/55', full && 'xl:block')}>{s.t}</div>
+              <div className={cn('mx-2 mb-2 h-px bg-white/10', full ? 'xl:hidden' : '')} aria-hidden />
+              <div className="space-y-0.5">
+                {s.items.map((n) => { const on = active(n.href); return (
+                  <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} title={n.label}
+                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
+                    {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_rgba(255,91,31,.55)]" aria-hidden />}
+                    <Icon name={n.icon} className={cn('h-[18px] w-[18px] shrink-0 transition-colors', on ? 'text-[var(--accent)]' : 'text-white/60 group-hover:text-white')} />
+                    <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span>
+                  </Link>); })}
+              </div>
+            </div>
           ))}
         </nav>
-        <div className="p-2 border-t border-slate-200 dark:border-slate-800 hidden xl:block"><button className="btn-ghost btn-sm w-full" onClick={() => setCollapsed((c) => !c)}>{collapsed ? '»' : '« Plegar'}</button></div>
+        <div className="p-3 border-t border-white/10">
+          <div className={cn('hidden items-center gap-2.5 px-2 pb-2', full && 'xl:flex')}>
+            <span className="h-8 w-8 rounded-full bg-white/10 grid place-items-center font-display font-semibold text-sm">{user.name.slice(0, 1)}</span>
+            <span className="min-w-0 leading-tight"><span className="block text-[13px] truncate">{user.name}</span><span className="block font-mono text-[10px] uppercase tracking-[.12em] text-white/55">{user.role}</span></span>
+          </div>
+          <button className="hidden xl:flex w-full items-center justify-center gap-2 rounded-lg min-h-[32px] text-xs text-white/60 hover:text-white hover:bg-white/[.06]" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? 'Expandir menú' : 'Plegar menú'}>{collapsed ? '»' : '« Plegar'}</button>
+        </div>
       </aside>
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="sticky top-0 z-30 h-14 bg-white/90 dark:bg-[#0e1527]/90 backdrop-blur border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 px-3 md:px-6 no-print">
-          <img src="/icon.svg" alt="" width={28} height={28} className="rounded-lg md:hidden" />
-          <button onClick={() => setSearch(true)} className="flex-1 max-w-xl flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 text-sm muted min-h-[40px] text-left" aria-label="Buscar (Ctrl+K)">
-            <Icon name="search" className="h-4 w-4" /><span className="truncate">Buscar clientes, pedidos, archivos, bobinas…</span><kbd className="ml-auto hidden md:inline text-[11px] border rounded px-1.5 py-0.5 border-slate-300 dark:border-slate-600">Ctrl K</kbd>
+        <header className="sticky top-0 z-30 h-16 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--line)] flex items-center gap-3 px-3 md:px-6 no-print">
+          <Link href="/" className="md:hidden grid place-items-center h-11 w-11 -ml-1" aria-label="Inicio"><Mark className="h-8 w-8" /></Link>
+          <nav aria-label="Ubicación" className="hidden lg:flex items-center gap-2 font-mono text-[11px] uppercase tracking-[.12em] text-slate-600 dark:text-slate-400 shrink-0">
+            <span>Taller</span>{section && <><span className="text-slate-400 dark:text-slate-600">/</span><Link href={section.href} className={cn(tail.length ? 'hover:text-[var(--accent-ink)]' : 'text-[var(--ink)]')}>{section.label}</Link></>}
+            {tail.length > 0 && <><span className="text-slate-400 dark:text-slate-600">/</span><span className="text-[var(--ink)] max-w-[120px] truncate">{CRUMB[tail[0]] ?? 'Detalle'}</span></>}
+          </nav>
+          <button onClick={() => setSearch(true)} className="flex-1 min-w-0 max-w-md lg:ml-4 flex items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--card)] px-4 text-sm muted min-h-[40px] text-left hover:border-slate-400 dark:hover:border-slate-500 transition-colors" aria-label="Buscar (Ctrl+K)">
+            <Icon name="search" className="h-4 w-4" /><span className="truncate"><span className="sm:hidden">Buscar…</span><span className="hidden sm:inline">Buscar clientes, pedidos, archivos, bobinas…</span></span><kbd className="ml-auto hidden md:inline font-mono text-[10px] rounded-md px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">Ctrl K</kbd>
           </button>
-          <div className="ml-auto flex items-center gap-1">
-            <Link href="/notificaciones" className="btn-ghost btn-sm relative !px-2.5" aria-label={`Notificaciones${unread ? ` (${unread} sin leer)` : ''}`}><Icon name="bell" className="h-5 w-5" />{unread > 0 && <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-red-600 text-white text-[11px] grid place-items-center">{unread}</span>}</Link>
+          <div className="ml-auto flex items-center gap-1.5">
+            <div className="relative hidden md:block">
+              <button onClick={() => setPlus((p) => !p)} className="btn-primary !min-h-[38px] !rounded-full !px-4" aria-expanded={plus} aria-haspopup="menu"><Icon name="plus" className="h-4 w-4" /> Nuevo</button>
+              {plus && <div className="absolute right-0 mt-2 card p-1.5 w-60 shadow-2xl animate-rise z-50" role="menu">{quick.map((q) => <Link key={q.href} href={q.href} role="menuitem" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 group"><span className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[#17161a] transition-colors"><Icon name={q.icon} className="h-4 w-4" /></span>{q.label}</Link>)}</div>}
+            </div>
+            <Link href="/notificaciones" className="relative grid place-items-center h-11 w-11 md:h-10 md:w-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={`Notificaciones${unread ? ` (${unread} sin leer)` : ''}`}><Icon name="bell" className="h-5 w-5" />{unread > 0 && <span className="absolute top-1 right-1 h-[18px] min-w-[18px] px-1 rounded-full bg-[var(--accent)] text-[#17161a] font-mono text-[10px] font-semibold grid place-items-center ring-2 ring-[var(--bg)]">{unread}</span>}</Link>
             <details className="relative">
-              <summary className="btn-ghost btn-sm list-none cursor-pointer !px-2.5"><span className="hidden sm:inline max-w-[140px] truncate">{user.name}</span><span className="sm:hidden">👤</span></summary>
-              <div className="absolute right-0 mt-1 w-56 card p-2 z-40">
-                <div className="px-2 py-1.5 text-xs muted">{user.name} · {user.role}</div>
-                <Link href="/configuracion/perfil" className="block rounded px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Mi perfil y avisos</Link>
-                <form action={logoutAction}><button className="w-full text-left rounded px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Cerrar sesión</button></form>
+              <summary className="list-none cursor-pointer grid place-items-center h-11 w-11 md:h-10 md:w-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Mi cuenta"><span className="h-8 w-8 rounded-full bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700 grid place-items-center font-display font-semibold text-sm">{user.name.slice(0, 1)}</span></summary>
+              <div className="absolute right-0 mt-2 w-60 card p-2 z-40 shadow-2xl animate-rise">
+                <div className="px-2 py-2"><div className="text-sm font-medium">{user.name}</div><div className="eyebrow !text-[10px] mt-0.5">{user.role}</div></div>
+                <Link href="/configuracion/perfil" className="block rounded-lg px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Mi perfil y avisos</Link>
+                <form action={logoutAction}><button className="w-full text-left rounded-lg px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">Cerrar sesión</button></form>
               </div>
             </details>
           </div>
         </header>
-        <main id="contenido" className="flex-1 p-3 sm:p-4 md:p-6 pb-28 md:pb-8 max-w-[1500px] w-full mx-auto">{children}</main>
+        <main id="contenido" className="flex-1 p-3 sm:p-4 md:p-7 pb-28 md:pb-10 max-w-[1500px] w-full mx-auto"><div ref={pageRef} className="page-enter">{children}</div></main>
       </div>
-      {/* barra inferior móvil */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white dark:bg-[#0e1527] border-t border-slate-200 dark:border-slate-800 grid grid-cols-5 safe-bottom no-print" aria-label="Navegación móvil">
-        {bottom.slice(0, 2).map((n) => <Link key={n.href} href={n.href} aria-current={active(n.href) ? 'page' : undefined} className={cn('flex flex-col items-center justify-center gap-0.5 py-1.5 min-h-[56px] text-[11px]', active(n.href) ? 'text-brand-700 dark:text-brand-300 font-medium' : 'muted')}><Icon name={n.icon} /><span>{n.label}</span></Link>)}
-        <div className="grid place-items-center"><button onClick={() => setPlus((p) => !p)} aria-label="Acciones rápidas" aria-expanded={plus} className="h-12 w-12 -mt-5 rounded-full bg-brand-600 text-white grid place-items-center shadow-lg"><Icon name="plus" className="h-6 w-6" /></button></div>
-        {bottom.slice(2).map((n) => <Link key={n.href} href={n.href} aria-current={active(n.href) ? 'page' : undefined} className={cn('flex flex-col items-center justify-center gap-0.5 py-1.5 min-h-[56px] text-[11px]', active(n.href) ? 'text-brand-700 dark:text-brand-300 font-medium' : 'muted')}><Icon name={n.icon} /><span>{n.label}</span></Link>)}
-        <button onClick={() => setMore(true)} className="flex flex-col items-center justify-center gap-0.5 py-1.5 min-h-[56px] text-[11px] muted col-start-5 row-start-1" aria-label="Más secciones"><Icon name="menu" /><span>Más</span></button>
+      {/* barra inferior móvil: panel oscuro con botón de acción central */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[var(--panel)] text-[var(--panel-ink)] grid grid-cols-5 safe-bottom no-print rounded-t-2xl shadow-[0_-8px_24px_-12px_rgba(0,0,0,.35)]" aria-label="Navegación móvil">
+        {bottom.slice(0, 2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}
+        <div className="grid place-items-center"><button onClick={() => setPlus((p) => !p)} aria-label="Acciones rápidas" aria-expanded={plus} className={cn('h-14 w-14 -mt-6 rounded-2xl bg-[var(--accent)] text-[#17161a] grid place-items-center shadow-[0_2px_0_#b8410f,0_10px_24px_-6px_rgba(255,91,31,.7)] transition-transform', plus && 'rotate-45')}><Icon name="plus" className="h-6 w-6" /></button></div>
+        {bottom.slice(2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}
+        <button onClick={() => setMore(true)} className="flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px] text-white/70 col-start-5 row-start-1" aria-label="Más secciones"><Icon name="menu" className="h-5 w-5" /><span>Más</span></button>
       </nav>
-      {plus && <Sheet onClose={() => setPlus(false)} title="Acciones rápidas"><div className="grid grid-cols-2 gap-2">{quick.map((q) => <Link key={q.href} href={q.href} className="card p-4 flex flex-col items-center gap-2 text-sm min-h-[88px] justify-center"><Icon name={q.icon} className="h-6 w-6 text-brand-600" />{q.label}</Link>)}</div></Sheet>}
-      {more && <Sheet onClose={() => setMore(false)} title="Todas las secciones"><div className="grid grid-cols-3 gap-2">{nav.map((n) => <Link key={n.href} href={n.href} className={cn('rounded-xl border p-3 flex flex-col items-center gap-1.5 text-xs text-center min-h-[76px] justify-center border-slate-200 dark:border-slate-700', active(n.href) && 'bg-brand-50 dark:bg-brand-900/40')}><Icon name={n.icon} className="h-6 w-6" />{n.label}</Link>)}</div></Sheet>}
-      {/* botón + en escritorio */}
-      <div className="hidden md:block fixed bottom-6 right-6 z-40 no-print">
-        <button onClick={() => setPlus((p) => !p)} className="btn-primary shadow-lg !rounded-full !px-4" aria-expanded={plus}><Icon name="plus" className="h-5 w-5" /> Nuevo</button>
-        {plus && <div className="absolute bottom-14 right-0 card p-1.5 w-56 shadow-xl">{quick.map((q) => <Link key={q.href} href={q.href} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"><Icon name={q.icon} className="h-4 w-4" />{q.label}</Link>)}</div>}
-      </div>
+      {plus && <Sheet onClose={() => setPlus(false)} title="Acciones rápidas"><div className="grid grid-cols-2 gap-2">{quick.map((q) => <Link key={q.href} href={q.href} className="card p-4 flex flex-col items-start gap-3 text-sm font-medium min-h-[96px] justify-between"><span className="h-9 w-9 rounded-xl bg-[var(--accent)] text-[#17161a] grid place-items-center"><Icon name={q.icon} className="h-5 w-5" /></span>{q.label}</Link>)}</div></Sheet>}
+      {more && <Sheet onClose={() => setMore(false)} title="Todas las secciones"><div className="space-y-4">{sections.map((s) => <div key={s.t}><div className="eyebrow mb-2">{s.t}</div><div className="grid grid-cols-3 gap-2">{s.items.map((n) => <Link key={n.href} href={n.href} className={cn('rounded-xl border p-3 flex flex-col items-center gap-1.5 text-xs text-center min-h-[76px] justify-center border-[var(--line)]', active(n.href) && 'border-[var(--accent)] bg-brand-50 dark:bg-brand-950/50')}><Icon name={n.icon} className="h-6 w-6" />{n.label}</Link>)}</div></div>)}</div></Sheet>}
       {search && <Palette onClose={() => setSearch(false)} go={(h) => { setSearch(false); router.push(h); }} />}
     </div>
   );
 }
 
+function BottomLink({ n, on }: { n: NavItem; on: boolean }) {
+  return <Link href={n.href} aria-current={on ? 'page' : undefined} className={cn('relative flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px]', on ? 'text-white font-medium' : 'text-white/70')}>{on && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-[var(--accent)]" aria-hidden />}<Icon name={n.icon} className={cn('h-5 w-5', on && 'text-[var(--accent)]')} /><span>{n.label}</span></Link>;
+}
+
 function Sheet({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {
   return (
     <div className="md:hidden fixed inset-0 z-50 bg-black/50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div role="dialog" aria-modal="true" aria-label={title} className="absolute bottom-0 inset-x-0 rounded-t-2xl bg-white dark:bg-[#121a2e] p-4 pb-8 safe-bottom">
-        <div className="flex items-center justify-between mb-3"><h2 className="font-semibold">{title}</h2><button onClick={onClose} className="btn-ghost btn-sm" aria-label="Cerrar">✕</button></div>{children}
+      <div role="dialog" aria-modal="true" aria-label={title} className="absolute bottom-0 inset-x-0 rounded-t-3xl bg-[var(--bg)] p-4 pb-8 safe-bottom animate-rise max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-3"><h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2><button onClick={onClose} className="btn-ghost btn-sm" aria-label="Cerrar">✕</button></div>{children}
       </div>
     </div>
   );
@@ -112,12 +162,12 @@ function Palette({ onClose, go }: { onClose: () => void; go: (h: string) => void
     return () => clearTimeout(t);
   }, [q]);
   return (
-    <div className="fixed inset-0 z-[95] bg-black/50 flex items-start justify-center p-3 md:pt-24" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div role="dialog" aria-modal="true" aria-label="Búsqueda global" className="w-full max-w-xl card overflow-hidden self-start mt-10 md:mt-0">
+    <div className="fixed inset-0 z-[95] bg-black/40 backdrop-blur-sm flex items-start justify-center p-3 md:pt-24" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div role="dialog" aria-modal="true" aria-label="Búsqueda global" className="w-full max-w-xl card overflow-hidden self-start mt-10 md:mt-0 shadow-2xl animate-rise">
         <input ref={inp} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, número, SKU, código de bobina…" className="w-full px-4 py-3.5 bg-transparent outline-none border-b border-slate-200 dark:border-slate-700 text-base"
           onKeyDown={(e) => { if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(hits.length - 1, s + 1)); } if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); } if (e.key === 'Enter' && hits[sel]) go(hits[sel].href); }} />
         <ul className="max-h-[60vh] overflow-y-auto" role="listbox">
-          {hits.map((h, i) => <li key={h.href + i} role="option" aria-selected={i === sel}><button className={cn('w-full text-left px-4 py-2.5 flex items-center gap-3 min-h-[48px]', i === sel && 'bg-slate-100 dark:bg-slate-800')} onClick={() => go(h.href)} onMouseEnter={() => setSel(i)}><span className="badge bg-slate-100 dark:bg-slate-800 border-transparent w-24 justify-center shrink-0">{h.kind}</span><span className="truncate">{h.label}</span>{h.sub && <span className="muted text-xs truncate ml-auto">{h.sub}</span>}</button></li>)}
+          {hits.map((h, i) => <li key={h.href + i} role="option" aria-selected={i === sel}><button className={cn('w-full text-left px-4 py-2.5 flex items-center gap-3 min-h-[48px]', i === sel && 'bg-slate-100 dark:bg-slate-800 shadow-[inset_3px_0_0_var(--accent)]')} onClick={() => go(h.href)} onMouseEnter={() => setSel(i)}><span className="font-mono text-[10px] uppercase tracking-[.1em] text-slate-600 dark:text-slate-400 w-24 shrink-0">{h.kind}</span><span className="truncate">{h.label}</span>{h.sub && <span className="muted text-xs truncate ml-auto">{h.sub}</span>}</button></li>)}
           {q.trim().length >= 2 && !hits.length && <li className="px-4 py-6 text-center muted text-sm">Sin resultados para “{q}”</li>}
           {q.trim().length < 2 && <li className="px-4 py-5 muted text-sm">Escribe al menos 2 letras. Busca en clientes, pedidos, presupuestos, productos, archivos y bobinas.</li>}
         </ul>

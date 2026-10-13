@@ -13,7 +13,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
   const thermal = fmt === 'termica';
   return (
     <>
-      <div className="no-print"><PageHeader back={{ href: '/inventario?tab=bobinas', label: 'Bobinas' }} title="Etiquetas QR" subtitle="Térmica 40×30 mm o una hoja A4 con varias etiquetas." actions={<><a className={`btn-ghost ${thermal ? '!bg-brand-600 !text-white' : ''}`} href="?fmt=termica">Térmica 40×30</a><a className={`btn-ghost ${!thermal ? '!bg-brand-600 !text-white' : ''}`} href="?fmt=a4">Hoja A4</a><PrintButton /></>} /></div>
+      <div className="no-print"><PageHeader back={{ href: '/inventario?tab=bobinas', label: 'Bobinas' }} title="Etiquetas QR" subtitle="Térmica 40×30 mm o una hoja A4 con varias etiquetas." actions={<><a className={`btn-ghost ${thermal ? '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700' : ''}`} href="?fmt=termica">Térmica 40×30</a><a className={`btn-ghost ${!thermal ? '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700' : ''}`} href="?fmt=a4">Hoja A4</a><PrintButton /></>} /></div>
       <style>{thermal ? '@page{size:40mm 30mm;margin:0}' : '@page{size:A4;margin:10mm}'}</style>
       <div className={thermal ? '' : 'grid grid-cols-4 gap-2'} data-testid="labels">
         {rows.map((r, i) => (

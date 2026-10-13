@@ -21,39 +21,63 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     ...d.toShip.map((x) => ({ tone: 'blue' as const, text: `Venta por despachar ${x.number}${x.externalOrder ? ' · ' + x.externalOrder : ''}`, href: '/ventas' })),
     ...d.oldJobs.map((x) => ({ tone: 'amber' as const, text: `Reserva por caducar: ${x.j.number} lleva más de ${15} días en cola`, href: '/cola' })),
   ];
+  const hour = new Date().getHours(); const hello = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
+  const live = d.machines.map((m) => { const pj = d.printing.find((x) => x.j.machineId === m.id); const el = pj?.j.realStart ? (now - pj.j.realStart.getTime()) / 3600_000 : 0; const p = pj && pj.j.estH > 0 ? Math.min(99, (el / pj.j.estH) * 100) : 0; return { m, pj, p }; });
+  const busy = live.filter((x) => x.pj).length;
+  const actions = [{ h: '/pedidos/nuevo', l: 'Nuevo pedido', i: 'orders', m: 'pedidos', k: 'P' }, { h: '/presupuestos/nuevo', l: 'Presupuesto', i: 'quote', m: 'presupuestos', k: 'Q' }, { h: '/ventas/nueva', l: 'Venta rápida', i: 'cart', m: 'ventas', k: 'V' }, { h: '/calculadora', l: 'Calculadora', i: 'calc', m: 'presupuestos', k: 'C' }, { h: '/galeria?subir=1', l: 'Subir foto', i: 'camera', m: 'galeria', k: 'F' }, { h: '/inventario/escanear', l: 'Escanear QR', i: 'qr', m: 'inventario', k: 'E' }].filter((a) => can(user, a.m as any, 'V'));
   return (
     <>
-      <PageHeader title={`Hola, ${user.name.split(' ')[0]}`} subtitle={`Hoy ${dmy(new Date())}`} />
-      {sp.sin_permiso && <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm mb-4">Tu rol no tiene acceso a “{sp.sin_permiso}”. Pide al administrador que ajuste tus permisos.</div>}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-5" aria-label="Acciones rápidas">
-        {[{ h: '/pedidos/nuevo', l: 'Nuevo pedido', i: 'orders', m: 'pedidos' }, { h: '/presupuestos/nuevo', l: 'Nuevo presupuesto', i: 'quote', m: 'presupuestos' }, { h: '/ventas/nueva', l: 'Venta rápida', i: 'cart', m: 'ventas' }, { h: '/calculadora', l: 'Calculadora rápida', i: 'calc', m: 'presupuestos' }, { h: '/galeria?subir=1', l: 'Subir foto', i: 'camera', m: 'galeria' }, { h: '/inventario/escanear', l: 'Escanear QR', i: 'qr', m: 'inventario' }].filter((a) => can(user, a.m as any, 'V')).map((a) => (
-          <Link key={a.h} href={a.h} className="card p-3.5 flex items-center gap-3 hover:border-brand-500 min-h-[64px]"><span className="h-9 w-9 rounded-lg bg-brand-50 dark:bg-brand-900/40 grid place-items-center text-brand-700 dark:text-brand-200"><Icon name={a.i} /></span><span className="text-sm font-medium">{a.l}</span></Link>))}
+      <PageHeader eyebrow={new Intl.DateTimeFormat('es-CL', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()).replace(/^./, (c) => c.toUpperCase())} title={<>{hello}, <span className="text-[var(--accent-ink)]">{user.name.split(' ')[0]}</span></>} subtitle={`${busy} de ${d.machines.length} máquinas imprimiendo · ${d.due.length} pedidos vencen hoy o mañana · ${alerts.length} alertas`} />
+      {sp.sin_permiso && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm mb-4">Tu rol no tiene acceso a “{sp.sin_permiso}”. Pide al administrador que ajuste tus permisos.</div>}
+
+      {/* taller en vivo: cada máquina como una placa con su pieza creciendo capa a capa */}
+      <section aria-label="Taller en vivo" className="relative overflow-hidden rounded-3xl bg-[var(--panel)] text-[var(--panel-ink)] p-4 md:p-5 mb-5 ring-1 ring-black/5 dark:ring-white/[.07]">
+        <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.5]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.2px)', backgroundSize: '18px 18px' }} />
+        <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[var(--accent)] opacity-20 blur-3xl" />
+        <div className="relative flex items-center justify-between mb-4"><h2 className="font-mono text-[11px] uppercase tracking-[.16em] text-white/70 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulseDot" aria-hidden />Taller en vivo</h2><Link href="/cola" className="text-xs text-white/75 hover:text-white underline-offset-4 hover:underline">Ver la cola →</Link></div>
+        {live.length === 0 ? <p className="relative text-sm text-white/70">Aún no hay máquinas. <Link href="/maquinas/nueva" className="underline">Agrega la primera</Link>.</p> : (
+          <ul className="relative flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 xl:grid-cols-4 [scrollbar-width:none]">{live.map(({ m, pj, p }) => (
+            <li key={m.id} className="snap-start shrink-0 w-[78%] sm:w-auto"><Link href={pj ? '/cola' : `/maquinas/${m.id}`} className="group flex gap-4 rounded-2xl bg-white/[.04] hover:bg-white/[.07] border border-white/10 p-3.5 transition-colors h-full">
+              <div className="relative h-[68px] w-[52px] shrink-0 rounded-lg bg-black/30 border border-white/10 flex flex-col-reverse items-center gap-[2px] p-1.5 overflow-hidden" aria-hidden>
+                {Array.from({ length: 10 }, (_, i) => <span key={i} className={i < Math.round(p / 10) ? 'bg-[var(--accent)]' : 'bg-white/10'} style={{ height: 3, width: `${92 - Math.abs(4.5 - i) * 7}%`, borderRadius: 2, opacity: i < Math.round(p / 10) ? 0.55 + i * 0.045 : 1 }} />)}
+                {pj && <span className="absolute left-1/2 -translate-x-1/2 h-1.5 w-3 rounded-sm bg-white/80" style={{ bottom: `${8 + Math.round(p / 10) * 5}px` }} />}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium truncate">{m.name}</span><span className={`font-mono text-[10px] uppercase tracking-[.1em] ${pj ? 'text-[var(--accent)]' : m.status === 'disponible' ? 'text-emerald-400' : 'text-amber-300'}`}>{pj ? 'imprime' : m.status === 'disponible' ? 'libre' : m.status.replace(/_/g, ' ')}</span></div>
+                {pj ? <><div className="text-xs text-white/70 truncate mt-0.5">{pj.j.title}</div><div className="flex items-baseline justify-between mt-1.5"><span className="num text-2xl font-medium">{num(p, 0)}<span className="text-sm text-white/60">%</span></span><span className="font-mono text-[10px] text-white/60">fin {dmyHm(pj.j.plannedEnd)}</span></div></>
+                  : <div className="text-xs text-white/60 mt-1.5">{m.status === 'disponible' ? 'Lista para el próximo trabajo' : 'Revisa la máquina'}</div>}
+              </div>
+            </Link></li>))}</ul>)}
+      </section>
+
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5 mb-6" aria-label="Acciones rápidas">
+        {actions.map((a) => (
+          <Link key={a.h} href={a.h} className="group card !rounded-2xl p-3 md:p-3.5 flex flex-col gap-3 min-h-[92px] justify-between hover:-translate-y-0.5 hover:border-[var(--accent)] transition-all">
+            <span className="flex items-center justify-between"><span className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[#17161a] transition-colors"><Icon name={a.i} className="h-[18px] w-[18px]" /></span><span className="hidden md:inline font-mono text-[10px] text-slate-500 dark:text-slate-500 group-hover:text-[var(--accent-ink)]" aria-hidden>↗</span></span>
+            <span className="text-[13px] font-medium leading-tight">{a.l}</span>
+          </Link>))}
       </div>
+
       <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-4">
-          <Card title="Imprimiendo ahora">
-            {d.printing.length === 0 ? <p className="text-sm muted">Ninguna máquina está imprimiendo. <Link href="/cola" className="underline">Ir a la cola</Link></p> : (
-              <ul className="space-y-3">{d.printing.map(({ j, m }) => { const el = j.realStart ? (now - j.realStart.getTime()) / 3600_000 : 0; const p = j.estH > 0 ? Math.min(99, (el / j.estH) * 100) : 0; return (
-                <li key={j.id}><div className="flex justify-between text-sm gap-2"><span className="font-medium truncate">{m} · {j.title}</span><span className="tabular muted shrink-0">{num(p, 0)}% · termina {dmyHm(j.plannedEnd)}</span></div><Meter value={p} max={100} /></li>); })}</ul>)}
-          </Card>
+        <div className="xl:col-span-2 space-y-4 min-w-0">
           <div className="grid md:grid-cols-2 gap-4">
-            <Card title="Pedidos que vencen hoy o mañana">{d.due.length === 0 ? <p className="text-sm muted">Nada urgente.</p> : <ul className="space-y-2 text-sm">{d.due.map((o) => <li key={o.id} className="flex justify-between gap-2"><Link className="underline truncate" href={`/pedidos/${o.id}`}>{o.number} · {o.customerName}</Link><Badge tone={o.dueDate! < d.today ? 'red' : 'amber'}>{dmy(o.dueDate)}</Badge></li>)}</ul>}</Card>
-            <Card title="Presupuestos esperando respuesta > 3 días">{d.waiting.length === 0 ? <p className="text-sm muted">Todos al día.</p> : <ul className="space-y-2 text-sm">{d.waiting.map((q) => <li key={q.id} className="flex justify-between gap-2"><Link className="underline truncate" href={`/presupuestos/${q.id}`}>{q.number} · {q.customerName}</Link><span className="tabular muted">{money(q.total)}</span></li>)}</ul>}</Card>
+            <Card title="Vencen hoy o mañana">{d.due.length === 0 ? <p className="text-sm muted">Nada urgente. Buen momento para producir stock.</p> : <ul className="divide-y divide-slate-100 dark:divide-slate-800 -my-1">{d.due.map((o) => <li key={o.id}><Link className="flex items-center justify-between gap-2 py-2 text-sm group" href={`/pedidos/${o.id}`}><span className="truncate min-w-0"><span className="num text-xs muted mr-2">{o.number}</span><span className="group-hover:text-[var(--accent-ink)]">{o.customerName}</span></span><Badge className="badge-led" tone={o.dueDate! < d.today ? 'red' : 'amber'}>{dmy(o.dueDate)}</Badge></Link></li>)}</ul>}</Card>
+            <Card title="Presupuestos sin respuesta (> 3 días)">{d.waiting.length === 0 ? <p className="text-sm muted">Todos al día.</p> : <ul className="divide-y divide-slate-100 dark:divide-slate-800 -my-1">{d.waiting.map((q) => <li key={q.id}><Link className="flex items-center justify-between gap-2 py-2 text-sm group" href={`/presupuestos/${q.id}`}><span className="truncate min-w-0"><span className="num text-xs muted mr-2">{q.number}</span><span className="group-hover:text-[var(--accent-ink)]">{q.customerName}</span></span><span className="num">{money(q.total)}</span></Link></li>)}</ul>}</Card>
           </div>
           <Card title="Indicadores del mes">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <Stat label="Ventas" value={money(d.ind.revenue)} sub={`${d.ind.ordersCount} pedidos · ${d.ind.salesCount} ventas rápidas`} />
               {costs && <Stat label="Margen bruto" value={money(d.ind.grossMargin)} sub={pct(d.ind.marginPct, 0)} tone={d.ind.marginPct != null && d.ind.marginPct < 25 ? 'warn' : 'good'} />}
-              <Stat label="Pedidos entregados" value={d.ind.delivered} />
-              <Stat label="Aprobación de presupuestos" value={d.ind.approvalRate != null ? pct(d.ind.approvalRate, 0) : '—'} sub={`${d.ind.quotesCount} enviados`} />
-              <Stat label="Horas-máquina" value={`${num(d.ind.machineHours, 0)} h`} />
-              <Stat label="Material consumido" value={`${num(d.ind.kgUsed, 1)} kg`} />
+              <Stat label="Entregados" value={d.ind.delivered} />
+              <Stat label="Aprobación" value={d.ind.approvalRate != null ? pct(d.ind.approvalRate, 0) : '—'} sub={`${d.ind.quotesCount} presupuestos enviados`} />
+              <Stat label="Horas-máquina" value={<>{num(d.ind.machineHours, 0)}<span className="text-sm muted ml-1">h</span></>} />
+              <Stat label="Material usado" value={<>{num(d.ind.kgUsed, 1)}<span className="text-sm muted ml-1">kg</span></>} />
               <Stat label="Stock valorizado" value={money(d.val.total)} sub={`Material ${money(d.val.materials)} · Productos ${money(d.val.products)}`} />
             </div>
           </Card>
         </div>
-        <Card title={`Alertas (${alerts.length})`}>
-          {alerts.length === 0 ? <Empty title="Sin alertas" hint="Stock, mantenimiento y pagos están al día." /> : <ul className="space-y-2" data-testid="alerts">{alerts.map((a, i) => <li key={i}><Link href={a.href} className="flex items-start gap-2 text-sm hover:underline"><span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${a.tone === 'red' ? 'bg-red-500' : a.tone === 'amber' ? 'bg-amber-500' : 'bg-blue-500'}`} aria-hidden />{a.text}</Link></li>)}</ul>}
+        <Card title={<>Alertas <span className="num text-xs muted ml-1">{String(alerts.length).padStart(2, '0')}</span></>}>
+          {alerts.length === 0 ? <Empty title="Sin alertas" hint="Stock, mantenimiento y pagos están al día." /> : <ul className="space-y-1.5 -mx-1" data-testid="alerts">{alerts.map((a, i) => <li key={i}><Link href={a.href} className={`flex items-start gap-2.5 text-sm rounded-xl px-2.5 py-2 border-l-[3px] hover:bg-slate-50 dark:hover:bg-slate-800/50 ${a.tone === 'red' ? 'border-red-500' : a.tone === 'amber' ? 'border-amber-500' : 'border-sky-500'}`}>{a.text}</Link></li>)}</ul>}
         </Card>
       </div>
     </>

@@ -28,7 +28,7 @@ export function FileMetaForm({ f, customers }: { f: { id: string; name: string; 
 
 export function DeleteFileButton({ id }: { id: string }) {
   const { run } = useAction(); const router = useRouter();
-  return <ConfirmButton className="btn-ghost text-red-600" message="¿Eliminar este archivo de la biblioteca? Queda en la papelera lógica y se puede recuperar desde la base de datos." onConfirm={() => run(() => deleteFileAction(id), { ok: 'Archivo eliminado', refresh: false, onOk: () => router.push('/archivos') })}>Eliminar</ConfirmButton>;
+  return <ConfirmButton className="btn-ghost text-red-600 dark:text-red-400" message="¿Eliminar este archivo de la biblioteca? Queda en la papelera lógica y se puede recuperar desde la base de datos." onConfirm={() => run(() => deleteFileAction(id), { ok: 'Archivo eliminado', refresh: false, onOk: () => router.push('/archivos') })}>Eliminar</ConfirmButton>;
 }
 export function SetVersionButton({ modelId, versionId }: { modelId: string; versionId: string }) {
   const { run, pending } = useAction();

@@ -34,7 +34,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const slicedRuns = cur ? await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.fileVersionId, cur.id)).orderBy(desc(s.sliceRuns.createdAt)).limit(8) : [];
   const processing = meta.status === 'processing';
   const tabs = [['visor', 'Visor 3D'], ['laminar', 'Laminar y cotizar'], ['versiones', `Versiones (${versions.length})`], ['vinculos', 'Vínculos y referencias']];
-  const color = '#3b82f6';
+  const color = '#ff6a2b';
   return (
     <>
       <PageHeader back={{ href: '/archivos', label: 'Archivos 3D' }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>· licencia {f.license}</span>}</span>}

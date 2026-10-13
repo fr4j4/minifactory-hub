@@ -56,7 +56,7 @@ export function ProfileRowActions({ id, name }: { id: string; name: string }) {
   return (
     <span className="inline-flex gap-1">
       <button className="btn-ghost btn-sm" onClick={() => run(() => duplicateProfileAction(id, `${name} (copia)`), { ok: 'Perfil duplicado' })}>Duplicar</button>
-      <ConfirmButton className="btn-ghost btn-sm text-red-600" message={`¿Eliminar el perfil “${name}”?`} onConfirm={() => run(() => deleteProfileAction(id), { ok: 'Perfil eliminado' })}>Eliminar</ConfirmButton>
+      <ConfirmButton className="btn-ghost btn-sm text-red-600 dark:text-red-400" message={`¿Eliminar el perfil “${name}”?`} onConfirm={() => run(() => deleteProfileAction(id), { ok: 'Perfil eliminado' })}>Eliminar</ConfirmButton>
     </span>
   );
 }

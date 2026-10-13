@@ -55,7 +55,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[90] flex items-end md:items-center justify-center bg-black/50 p-0 md:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cn('bg-white dark:bg-[#121a2e] w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cn('bg-[var(--card)] w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
         <div className="sticky top-0 bg-inherit flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 z-10">
           <h2 className="font-semibold">{title}</h2>
           <button onClick={onClose} aria-label="Cerrar" className="btn-ghost btn-sm !px-2.5">✕</button>

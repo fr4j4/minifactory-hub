@@ -1,29 +1,81 @@
+@import '@fontsource-variable/bricolage-grotesque/index.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light dark; --bg: #f5f7fb; --card: #ffffff; --line: #e3e8f0; --ink: #0f172a; --muted: #5b6577; --brand: #1d62f0; }
+/* ── Lenguaje visual «capa a capa» ─────────────────────────────────────────
+   Papel técnico cálido + panel de control grafito + naranja de boquilla.
+   Motivos: cama de impresión punteada, capas apiladas (barras segmentadas),
+   cifras monoespaciadas con unidades en versalitas, LEDs de estado. */
+:root {
+  color-scheme: light dark;
+  --bg: #f3f1ec; --card: #fbfaf7; --line: #e0dcd2; --ink: #17161a; --muted: #5b564e;
+  --accent: #ff5b1f; --accent-ink: #c13d0b; --panel: #151514; --panel-ink: #e9e5dc;
+  --dot: rgba(23, 22, 26, .085); --glow: rgba(255, 91, 31, .16);
+}
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #0b1020; --card: #121a2e; --line: #243049; --ink: #e8edf7; --muted: #9aa7bf; --brand: #5b8dff; }
+  :root {
+    --bg: #121211; --card: #1b1b19; --line: #2c2b28; --ink: #ece8df; --muted: #a29c90;
+    --accent: #ff6a2b; --accent-ink: #ff9e6c; --panel: #0c0c0b; --panel-ink: #e9e5dc;
+    --dot: rgba(236, 232, 223, .06); --glow: rgba(255, 106, 43, .14);
+  }
 }
 html { -webkit-text-size-adjust: 100%; }
-body { background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
-@layer components {
-  .card { @apply rounded-xl border bg-white dark:bg-[#121a2e] border-slate-200 dark:border-slate-700/60 shadow-sm; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium min-h-[44px] md:min-h-[38px] transition-colors border select-none disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600; }
-  .btn-primary { @apply btn bg-brand-600 hover:bg-brand-700 border-brand-600 text-white; }
-  .btn-ghost { @apply btn bg-transparent border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800; }
-  .btn-danger { @apply btn bg-red-600 hover:bg-red-700 border-red-600 text-white; }
-  .btn-sm { @apply min-h-[44px] md:min-h-[32px] px-2.5 py-1 text-xs; }
-  .input { @apply w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0e1527] px-3 py-2 text-base md:text-sm min-h-[44px] md:min-h-[38px] placeholder:text-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600; }
-  .label { @apply block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1; }
-  .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border; }
-  .th { @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400 px-3 py-2 border-b border-slate-200 dark:border-slate-700; }
-  .td { @apply px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 text-sm align-middle; }
-  .h1 { @apply text-xl md:text-2xl font-semibold tracking-tight; }
-  .muted { @apply text-slate-600 dark:text-slate-400; }
+body {
+  background-color: var(--bg); color: var(--ink);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+  /* cama de impresión: retícula de puntos muy sutil */
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+  background-size: 22px 22px; background-attachment: fixed;
 }
+::selection { background: var(--accent); color: #17161a; }
+
+@layer components {
+  .card { @apply rounded-2xl border bg-[var(--card)] border-[var(--line)]; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 1px 2px rgba(23,22,26,.04); }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium min-h-[44px] md:min-h-[38px] border select-none disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500;
+    transition: transform .12s ease, box-shadow .12s ease, background-color .15s ease, border-color .15s ease; }
+  .btn:not(:disabled):active { transform: translateY(1px); }
+  /* primario: naranja con texto tinta y un «borde de capa» inferior que se hunde al presionar */
+  .btn-primary { @apply btn border-transparent font-semibold; background: var(--accent); color: #17161a; box-shadow: 0 2px 0 #b8410f, 0 6px 18px -8px var(--accent); }
+  .btn-primary:not(:disabled):hover { background: #ff6f39; }
+  .btn-primary:not(:disabled):active { box-shadow: 0 1px 0 #b8410f; }
+  .btn-ghost { @apply btn bg-[var(--card)] border-[var(--line)] hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/60; }
+  .btn-danger { @apply btn bg-red-700 hover:bg-red-800 border-red-700 text-white; }
+  .btn-sm { @apply min-h-[44px] md:min-h-[32px] px-2.5 py-1 text-xs rounded-lg; }
+  .input { @apply w-full rounded-xl border border-[var(--line)] bg-white/80 dark:bg-[#161615] px-3 py-2 text-base md:text-sm min-h-[44px] md:min-h-[38px] placeholder:text-slate-400 transition-[border-color,box-shadow] hover:border-slate-300 dark:hover:border-slate-600;
+    outline: none; }
+  .input:focus-visible, .input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--glow); }
+  .label { @apply block text-[11px] font-medium uppercase tracking-[.08em] text-slate-600 dark:text-slate-400 mb-1.5; font-family: var(--font-geist-mono), ui-monospace, monospace; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium border whitespace-nowrap; }
+  .badge-led::before { content: ''; @apply h-1.5 w-1.5 rounded-full shrink-0; background: currentColor; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent); }
+  .th { @apply text-left text-[11px] font-medium uppercase tracking-[.08em] text-slate-600 dark:text-slate-400 px-3 py-2.5 border-b border-[var(--line)]; font-family: var(--font-geist-mono), ui-monospace, monospace; }
+  .td { @apply px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 text-sm align-middle; }
+  tbody tr { transition: background-color .12s; }
+  tbody tr:hover > .td { @apply bg-slate-50/80 dark:bg-slate-800/30; }
+  .h1 { @apply font-display text-[1.7rem] md:text-[2.15rem] leading-[1.05] font-semibold; letter-spacing: -.025em; font-variation-settings: 'opsz' 96, 'wdth' 92; }
+  .muted { @apply text-slate-600 dark:text-slate-400; }
+  .eyebrow { @apply text-[11px] uppercase tracking-[.14em] text-slate-600 dark:text-slate-400; font-family: var(--font-geist-mono), ui-monospace, monospace; }
+  /* barra de capas: progreso segmentado como capas apiladas */
+  .layers { background-image: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 7px); }
+}
+@media (prefers-color-scheme: dark) { .card { box-shadow: 0 1px 0 rgba(255,255,255,.03) inset; } }
+h1, h2, h3 { text-wrap: balance; }
+.font-display { font-variation-settings: 'opsz' 72; }
 .tabular { font-variant-numeric: tabular-nums; }
+.num { font-family: var(--font-geist-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
 canvas { touch-action: none; }
+/* entrada suave de cada pantalla */
+.page-enter > * { animation: rise .4s cubic-bezier(.2,.7,.2,1) backwards; }
+.page-enter > *:nth-child(2) { animation-delay: .04s; } .page-enter > *:nth-child(3) { animation-delay: .08s; } .page-enter > *:nth-child(n+4) { animation-delay: .12s; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 @media print { .no-print { display: none !important; } body { background: #fff; color: #000; } }
+/* escena del login: la pieza se revela de abajo hacia arriba y la boquilla sube con ella */
+.login-print { animation: print 7s cubic-bezier(.45,.05,.55,.95) infinite; }
+.login-climb { animation: climb 7s cubic-bezier(.45,.05,.55,.95) infinite; }
+.login-nozzle { animation: nozzle .9s ease-in-out infinite; }
+@keyframes print { 0% { clip-path: inset(100% 0 0 0); } 80%, 94% { clip-path: inset(0 0 0 0); } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
+@keyframes climb { 0% { transform: translateY(-4px); } 80%, 94% { transform: translateY(-296px); } 100% { transform: translateY(-296px); opacity: 0; } }
+@keyframes nozzle { 0%, 100% { transform: translateX(-46px); } 50% { transform: translateX(46px); } }

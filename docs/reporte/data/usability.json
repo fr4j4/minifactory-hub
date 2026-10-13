@@ -1,7 +1,7 @@
 [
  {
   "name": "Subir un STL y ver su análisis",
-  "seconds": 0.9,
+  "seconds": 1.7,
   "steps": 0,
   "limitS": 30,
   "ok": true,
@@ -9,7 +9,7 @@
  },
  {
   "name": "Laminar una pieza y ver tiempo, gramos y precio",
-  "seconds": 2.5,
+  "seconds": 2.1,
   "steps": 0,
   "limitS": 30,
   "ok": true,
@@ -17,14 +17,14 @@
  },
  {
   "name": "Comparar 3 combinaciones de laminado",
-  "seconds": 2.5,
+  "seconds": 2.6,
   "steps": 0,
   "limitS": 60,
   "ok": true
  },
  {
   "name": "Armar y guardar un presupuesto con 2 líneas",
-  "seconds": 0.6,
+  "seconds": 1.2,
   "steps": 0,
   "limitS": 120,
   "ok": true,
@@ -32,7 +32,7 @@
  },
  {
   "name": "Registrar un pedido manual (WhatsApp)",
-  "seconds": 0.4,
+  "seconds": 0.5,
   "steps": 0,
   "limitS": 60,
   "ok": true,
@@ -47,7 +47,7 @@
  },
  {
   "name": "Registrar una venta rápida de marketplace",
-  "seconds": 0.4,
+  "seconds": 0.9,
   "steps": 0,
   "limitS": 30,
   "ok": true,

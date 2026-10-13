@@ -69,7 +69,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
       {items.length > 0 && (
         <ul className="mt-2 space-y-1.5" aria-live="polite">
           {items.map((it, i) => (
-            <li key={i} className="text-xs"><div className="flex justify-between gap-2"><span className="truncate">{it.name}</span><span className={cn(it.state === 'err' && 'text-red-600')}>{it.state === 'ok' ? 'Listo ✓' : it.state === 'err' ? it.msg : `${Math.round(it.p * 100)}%`}</span></div>
+            <li key={i} className="text-xs"><div className="flex justify-between gap-2"><span className="truncate">{it.name}</span><span className={cn(it.state === 'err' && 'text-red-600 dark:text-red-400')}>{it.state === 'ok' ? 'Listo ✓' : it.state === 'err' ? it.msg : `${Math.round(it.p * 100)}%`}</span></div>
               <div className="h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className={cn('h-full', it.state === 'err' ? 'bg-red-500' : 'bg-brand-600')} style={{ width: `${it.p * 100}%` }} /></div></li>
           ))}
         </ul>

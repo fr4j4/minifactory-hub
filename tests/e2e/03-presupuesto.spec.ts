@@ -31,8 +31,10 @@ test.describe('Presupuestos con varios modelos', () => {
     await expect(page.getByTestId('sum-total')).toContainText('45.000');
     await shot(page, '33-presupuesto-precio-final');
     expect(sug).toContain('$');
+    // pausa como la de una persona: deja correr el autoguardado (2,5 s) antes de pulsar Guardar
+    await page.waitForTimeout(Number(process.env.QUOTE_PAUSE_MS ?? 3500));
     await page.getByTestId('quote-save').click();
-    await page.waitForURL(/\/presupuestos\/[^/]+$/, { timeout: 30000 });
+    await expect(page.getByTestId('quote-send')).toBeVisible({ timeout: 30000 }); await page.goto(page.url().replace(/\?.*$/, ''));
     await expect(page.getByTestId('quote-summary')).toContainText('45.000');
     await shot(page, '34-presupuesto-detalle', { full: true });
     // PDF

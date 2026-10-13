@@ -23,7 +23,7 @@ function parseMesh(buf: ArrayBuffer) {
   return { verts, idx, colors, decimated: !!(flags & 2), origTris };
 }
 
-export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3b82f6', analysis, className, initialMode, onCapture }: {
+export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', analysis, className, initialMode, onCapture }: {
   versionId: string; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string;
   analysis?: { dimX: number; dimY: number; dimZ: number; triangles: number } | null; className?: string; initialMode?: Mode;
   onCapture?: (dataUrl: string) => void;
@@ -52,10 +52,10 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.localClippingEnabled = true;
     el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'viewer-canvas'); renderer.domElement.setAttribute('aria-label', 'Visor 3D del modelo'); renderer.domElement.setAttribute('role', 'img');
-    const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x0e1527 : 0xeef1f7);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x161615 : 0xe8e5de);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000); camera.up.set(0, 0, 1);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.12; controls.screenSpacePanning = true;
-    scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x223 : 0x99a, 1.1));
+    scene.add(new THREE.HemisphereLight(0xffffff, dark ? 0x221d18 : 0xa89f90, 1.1));
     const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(150, -200, 300); scene.add(key);
     const fill = new THREE.DirectionalLight(0xffffff, 0.5); fill.position.set(-200, 150, 100); scene.add(fill);
     const group = new THREE.Group(); scene.add(group);
@@ -68,8 +68,8 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
       sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vWz;\nuniform float uOver; uniform float uSection; uniform float uBedZ;')
         .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
         vec3 wn = inverseTransformDirection(normal, viewMatrix);
-        if (uOver < 1.0 && vWz > uBedZ + 0.08 && wn.z < -uOver) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.12, 0.12), 0.88);
-        if (uSection > 0.5 && !gl_FrontFacing) diffuseColor.rgb = vec3(0.96, 0.62, 0.18);`);
+        if (uOver < 1.0 && vWz > uBedZ + 0.08 && wn.z < -uOver) diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.1, 0.62), 0.9);
+        if (uSection > 0.5 && !gl_FrontFacing) diffuseColor.rgb = vec3(0.07, 0.66, 0.72);`);
     };
     const clip = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1000);
     const st = S.current; Object.assign(st, { renderer, scene, camera, controls, group, overlay, mat, uniforms, clip, mesh: null as THREE.Mesh | null, wire: null, bedGroup: new THREE.Group(), raycaster: new THREE.Raycaster(), disposed: false });
@@ -178,14 +178,14 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
     return machines.map((m) => ({ m, ok: fits(dims, [m.volX, m.volY, m.volZ]) }));
   }, [dims, machines]);
   const cur = fitInfo?.find((f) => f.m.id === machineId);
-  const btn = (active: boolean) => cn('btn-sm rounded-md border px-2.5', active ? 'bg-brand-600 border-brand-600 text-white' : 'btn-ghost');
+  const btn = (active: boolean) => cn('btn-sm rounded-md border px-2.5', active ? 'btn bg-[var(--panel)] border-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700' : 'btn-ghost');
 
   return (
     <div className={cn('card overflow-hidden', className)}>
-      <div className="relative bg-slate-100 dark:bg-[#0e1527]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
+      <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
         <div ref={host} className="absolute inset-0" data-testid="viewer-host"><div data-dim-labels className="pointer-events-none absolute inset-0 overflow-hidden" /></div>
         {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">Cargando modelo…</div>}
-        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-red-600" role="alert">{err}</div>}
+        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-red-600 dark:text-red-400" role="alert">{err}</div>}
         {status === 'listo' && (
           <>
             <div className="absolute left-2 top-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]" role="toolbar" aria-label="Vistas">
@@ -238,7 +238,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#3
             </div>
             <div>
               <div className="label">Análisis de voladizos</div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> Resaltar caras en rojo</label>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> Resaltar caras en magenta</label>
               {overhang.on && <div className="mt-1.5"><label className="text-xs muted" htmlFor="oh">Ángulo: {overhang.deg}°</label><input id="oh" type="range" min={20} max={80} value={overhang.deg} onChange={(e) => setOverhang((o) => ({ ...o, deg: +e.target.value }))} className="w-full" data-testid="overhang-angle" /></div>}
             </div>
             <div className="flex flex-col gap-1.5">
@@ -278,17 +278,17 @@ function drawBed(st: any, m: ViewerMachine | null) {
   if (!m) return;
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const box = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(m.volX, m.volY, m.volZ));
-  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(m.volX, m.volY, m.volZ)), new THREE.LineBasicMaterial({ color: dark ? 0x6b7a99 : 0x8793ad })); e.position.set(m.volX / 2, m.volY / 2, m.volZ / 2); g.add(e);
-  const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.volX, m.volY), new THREE.MeshBasicMaterial({ color: dark ? 0x1b2745 : 0xd9dfec, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false })); plane.position.set(m.volX / 2, m.volY / 2, -0.05); g.add(plane);
-  const grid = new THREE.GridHelper(Math.max(m.volX, m.volY), Math.round(Math.max(m.volX, m.volY) / 10), dark ? 0x3a4a70 : 0xb7c0d6, dark ? 0x263356 : 0xc9d1e3); grid.rotation.x = Math.PI / 2; grid.position.set(m.volX / 2, m.volY / 2, 0.02); g.add(grid);
+  const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(m.volX, m.volY, m.volZ)), new THREE.LineBasicMaterial({ color: dark ? 0x77736b : 0x9a9284 })); e.position.set(m.volX / 2, m.volY / 2, m.volZ / 2); g.add(e);
+  const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.volX, m.volY), new THREE.MeshBasicMaterial({ color: dark ? 0x23221f : 0xdcd7cc, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false })); plane.position.set(m.volX / 2, m.volY / 2, -0.05); g.add(plane);
+  const grid = new THREE.GridHelper(Math.max(m.volX, m.volY), Math.round(Math.max(m.volX, m.volY) / 10), dark ? 0x45433e : 0xbab4a7, dark ? 0x2c2b28 : 0xd2cdc2); grid.rotation.x = Math.PI / 2; grid.position.set(m.volX / 2, m.volY / 2, 0.02); g.add(grid);
   void box;
 }
 function drawMeasure(st: any) {
   const o: THREE.Group = st.overlay; for (const c of [...o.children]) if ((c as any).userData.kind === 'measure') { o.remove(c); (c as any).geometry?.dispose(); }
   const pts: THREE.Vector3[] = st.pts ?? []; if (!pts.length) return;
   const r = Math.max(0.6, new THREE.Box3().setFromObject(st.group).getSize(new THREE.Vector3()).length() / 140);
-  for (const p of pts) { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), new THREE.MeshBasicMaterial({ color: 0xff3366, depthTest: false })); s.position.copy(p); s.userData.kind = 'measure'; s.renderOrder = 10; o.add(s); }
-  if (pts.length === 2) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xff3366, depthTest: false })); l.userData.kind = 'measure'; l.renderOrder = 10; o.add(l); }
+  for (const p of pts) { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), new THREE.MeshBasicMaterial({ color: 0x0ea5b7, depthTest: false })); s.position.copy(p); s.userData.kind = 'measure'; s.renderOrder = 10; o.add(s); }
+  if (pts.length === 2) { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x0ea5b7, depthTest: false })); l.userData.kind = 'measure'; l.renderOrder = 10; o.add(l); }
 }
 function drawDimLabels(st: any, host: HTMLElement, dims: [number, number, number] | null) {
   const o: THREE.Group = st.overlay; for (const c of [...o.children]) if ((c as any).userData.kind === 'dims') { o.remove(c); (c as any).geometry?.dispose(); }
@@ -297,8 +297,8 @@ function drawDimLabels(st: any, host: HTMLElement, dims: [number, number, number
   st.group.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(st.mesh); const mn = b.min, mx = b.max;
   const edges: Array<[THREE.Vector3, THREE.Vector3, string]> = [[new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z), `${f1(mx.x - mn.x)}`], [new THREE.Vector3(mx.x, mn.y, mn.z), new THREE.Vector3(mx.x, mx.y, mn.z), `${f1(mx.y - mn.y)}`], [new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mx.x, mx.y, mx.z), `${f1(mx.z - mn.z)}`]];
   for (const [a, c, txt] of edges) {
-    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, c]), new THREE.LineBasicMaterial({ color: 0x2563eb, depthTest: false })); l.userData.kind = 'dims'; l.renderOrder = 5; o.add(l);
-    const el = document.createElement('span'); el.textContent = `${txt} mm`; el.className = 'absolute left-0 top-0 text-[11px] font-medium px-1.5 py-0.5 rounded bg-blue-600 text-white whitespace-nowrap'; el.setAttribute('data-testid', 'dim-label'); holder.appendChild(el);
+    const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, c]), new THREE.LineBasicMaterial({ color: 0x151514, depthTest: false })); l.userData.kind = 'dims'; l.renderOrder = 5; o.add(l);
+    const el = document.createElement('span'); el.textContent = `${txt} mm`; el.className = 'absolute left-0 top-0 num text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#151514] text-[#ece8df] ring-1 ring-white/10 whitespace-nowrap'; el.setAttribute('data-testid', 'dim-label'); holder.appendChild(el);
     st.dimLabels.push({ el, p: a.clone().add(c).multiplyScalar(0.5) });
   }
 }

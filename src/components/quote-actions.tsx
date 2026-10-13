@@ -18,7 +18,7 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
       {canEdit && ['borrador', 'enviado', 'vencido'].includes(status) && canOrder && <button className="btn-primary" onClick={() => setAp(true)} data-testid="quote-approve">El cliente aceptó</button>}
       {canEdit && ['enviado', 'vencido', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, false), { ok: 'Nueva versión creada', onOk: (nid) => router.push(`/presupuestos/${nid}`) })} data-testid="quote-newversion">Nueva versión</button>}
       {canEdit && status === 'vencido' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, true), { ok: 'Reactivado con tarifas actuales', onOk: (nid) => router.push(`/presupuestos/${nid}`) })}>Reactivar con tarifas actuales</button>}
-      {canEdit && ['enviado', 'vencido'].includes(status) && <button className="btn-ghost text-red-600" onClick={() => setRj(true)}>Rechazado</button>}
+      {canEdit && ['enviado', 'vencido'].includes(status) && <button className="btn-ghost text-red-600 dark:text-red-400" onClick={() => setRj(true)}>Rechazado</button>}
       <Modal open={ap} onClose={() => setAp(false)} title="Registrar aprobación del cliente">
         <div className="space-y-3">
           <p className="text-sm muted">La aprobación se registra a mano. Se crea el pedido con los precios finales de este presupuesto.</p>

@@ -40,17 +40,25 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
     priceReason: x.priceReason || null, notes: x.notes || null, validUntil: x.validUntil || null, links: x.links,
     items: x.items.map((i) => ({ id: i.id, kind: i.kind, description: i.description, qty: i.qty, optional: i.optional, groupName: i.groupName || null, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
   });
-  const save = useCallback(async (silent = false) => {
-    if (saving) return null; setSaving(true);
-    const r = await saveQuoteAction(payload(qRef.current));
-    setSaving(false);
-    if (!r.ok) { if (!silent) toast.push(r.error, 'err'); return null; }
-    setDirty(false); setSavedAt(new Date());
-    if (!idRef.current) { idRef.current = r.data; window.history.replaceState(null, '', `/presupuestos/${r.data}`); }
-    if (!silent) toast.push('Presupuesto guardado');
-    return r.data;
+  // un guardado manual no se pierde si coincide con el autoguardado: espera a que termine por completo
+  // (incluido el id del presupuesto recién creado) y vuelve a guardar con los datos actuales
+  const inflight = useRef<Promise<string | null> | null>(null);
+  const save = useCallback(async (silent = false): Promise<string | null> => {
+    if (inflight.current) { if (silent) return null; await inflight.current; }
+    const run = (async () => {
+      setSaving(true);
+      const r = await saveQuoteAction(payload(qRef.current));
+      setSaving(false);
+      if (!r.ok) { if (!silent) toast.push(r.error, 'err'); return null; }
+      setDirty(false); setSavedAt(new Date());
+      if (!idRef.current) { idRef.current = r.data; window.history.replaceState(null, '', `/presupuestos/${r.data}`); }
+      if (!silent) toast.push('Presupuesto guardado');
+      return r.data;
+    })();
+    inflight.current = run;
+    try { return await run; } finally { if (inflight.current === run) inflight.current = null; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saving]);
+  }, []);
   // guardado automático de borradores
   useEffect(() => { if (!dirty) return; const t = setTimeout(() => { if (qRef.current.items.length) save(true); }, 2500); return () => clearTimeout(t); }, [q, dirty, save]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);
@@ -93,7 +101,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
       </div>
 
       {/* resumen fijo: precio sugerido vs final */}
-      <div className="fixed md:sticky bottom-[64px] md:bottom-0 inset-x-0 z-30 md:z-20 bg-white/95 dark:bg-[#0e1527]/95 backdrop-blur border-t md:border border-slate-200 dark:border-slate-700 md:rounded-xl md:shadow-lg px-3 py-3 safe-bottom" data-testid="quote-summary">
+      <div className="fixed md:sticky bottom-[64px] md:bottom-0 inset-x-0 z-30 md:z-20 bg-[var(--card)] backdrop-blur border-t md:border border-slate-200 dark:border-slate-700 md:rounded-xl md:shadow-lg px-3 py-3 safe-bottom" data-testid="quote-summary">
         <div className="max-w-[1500px] mx-auto flex flex-wrap items-center gap-x-6 gap-y-2">
           <div><div className="text-[11px] muted">Sugerido</div><div className="tabular font-medium" data-testid="sum-suggested">{money(t.suggestedTotal)}</div></div>
           <div><label className="text-[11px] muted block" htmlFor="final-total">Precio final del presupuesto</label>
@@ -104,7 +112,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
           {showCosts && <div className="text-right"><div className="text-[11px] muted">Margen</div><Badge tone={t.belowCost ? 'red' : t.belowMin ? 'amber' : 'green'}>{pct(t.marginPct, 0)}</Badge></div>}
           <div className="flex items-center gap-2">
             <span className="text-xs muted hidden lg:inline" aria-live="polite">{saving ? 'Guardando…' : dirty ? 'Cambios sin guardar' : savedAt ? `Guardado ${savedAt.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-            <button className="btn-primary" onClick={async () => { const id = await save(false); if (id) router.push(`/presupuestos/${id}`); router.refresh(); }} disabled={saving || q.items.length === 0} data-testid="quote-save">Guardar</button>
+            <button className="btn-primary" onClick={async () => { const id = await save(false); if (id) router.push(`/presupuestos/${id}?guardado=1`); }} disabled={saving || q.items.length === 0} data-testid="quote-save">Guardar</button>
           </div>
         </div>
         {(t.belowCost || t.belowMin) && showCosts && <p className="text-xs mt-1 text-amber-700 dark:text-amber-300 max-w-[1500px] mx-auto">{t.belowCost ? 'El precio final queda bajo el costo: solo un Administrador puede guardarlo y debes indicar el motivo.' : `El margen queda bajo el mínimo (${ctx.rates.minMarginPct}%).`}</p>}

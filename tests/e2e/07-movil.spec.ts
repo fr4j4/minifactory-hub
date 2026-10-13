@@ -7,7 +7,8 @@ test.describe('Uso en el celular (390×844)', () => {
     await login(page);
     for (const [path, name] of [['/', '71-movil-inicio'], ['/pedidos/nuevo', '72-movil-pedido-nuevo'], ['/cola', '73-movil-cola'], ['/inventario', '74-movil-inventario'], ['/catalogo', '75-movil-catalogo']] as const) {
       await page.goto(path); await page.waitForLoadState('networkidle'); await shot(page, name);
-      const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      // en móvil el navegador ensancha la ventana para mostrar lo que desborda: se compara contra los 390 px reales
+      const over = await page.evaluate(() => Math.max(document.documentElement.scrollWidth, window.innerWidth) - 390);
       expect(over, `scroll horizontal en ${path}`).toBeLessThanOrEqual(1);
     }
     await page.goto('/');

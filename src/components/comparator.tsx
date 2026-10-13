@@ -62,7 +62,7 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
               const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId: c.machineId, materialId: c.materialId, qty: copies }) : null;
               return (
                 <tr key={id} data-testid="cmp-row"><td className="td"><div className="font-medium">{i + 1}. {m?.name}</div><div className="text-xs muted">{p?.name} · {ma?.label}</div></td>
-                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>Laminando…</td> : run.status === 'error' ? <td className="td text-red-600 text-sm" colSpan={5}>{run.error}</td> : (
+                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>Laminando…</td> : run.status === 'error' ? <td className="td text-red-600 dark:text-red-400 text-sm" colSpan={5}>{run.error}</td> : (
                     <>
                       <td className={cn('td text-right tabular', run.timeS === bestTime && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{dur(run.timeS)}</td>
                       <td className={cn('td text-right tabular', g === bestG && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{grams(g)}</td>
