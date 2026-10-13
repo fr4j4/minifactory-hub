@@ -4,7 +4,11 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { PageHeader, Card, Table, Tabs, Badge } from '@/components/ui';
 import { ChannelDialog, PriceListDialog, RatesForm, ShopForm, TemplatesForm, UserDialog } from '@/components/config-forms';
-import { getSettings } from '@/lib/settings';
+import { getSettings, getSettingsRaw } from '@/lib/settings';
+import { can } from '@/lib/perm';
+import { publicAiSettings } from '@/lib/ai/config';
+import { aiUsage } from '@/lib/ai';
+import { AiSettingsForm, AiUsagePanel } from '@/components/ai-settings';
 import { ROLE_LABEL } from '@/lib/perm';
 import { dmyHm, money } from '@/lib/format';
 
@@ -18,7 +22,8 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title="Configuración" subtitle="Datos del taller, tarifas, plantillas, usuarios, canales de venta y respaldo." />
-      <Tabs current={tab} tabs={[['taller', 'Taller'], ['tarifas', 'Tarifas'], ['plantillas', 'Plantillas y numeración'], ['usuarios', 'Usuarios y permisos'], ['canales', 'Canales de venta'], ['listas', 'Listas de precios'], ['auditoria', 'Auditoría'], ['respaldo', 'Respaldo']].map(([k, l]) => ({ key: k, label: l, href: `/configuracion?tab=${k}` }))} />
+      <Tabs current={tab} tabs={[['taller', 'Taller'], ['tarifas', 'Tarifas'], ['plantillas', 'Plantillas y numeración'], ['usuarios', 'Usuarios y permisos'], ['canales', 'Canales de venta'], ['listas', 'Listas de precios'], ['ia', 'Inteligencia artificial'], ['auditoria', 'Auditoría'], ['respaldo', 'Respaldo']].map(([k, l]) => ({ key: k, label: l, href: `/configuracion?tab=${k}` }))} />
+      {tab === 'ia' && <><Card title="Inteligencia artificial (opcional)"><AiSettingsForm st={publicAiSettings((await getSettingsRaw()).ai)} canClear={can(user, 'ia', 'X')} /></Card><Card title="Consumo" className="mt-6"><AiUsagePanel usage={await aiUsage()} budget={st.ai.budget.monthlyUsd} /></Card></>}
       {tab === 'taller' && <Card><ShopForm st={st} /></Card>}
       {tab === 'tarifas' && <Card><RatesForm st={st} /></Card>}
       {tab === 'plantillas' && <Card><TemplatesForm st={st} /></Card>}

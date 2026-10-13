@@ -64,7 +64,7 @@ export function TemplatesForm({ st }: { st: AppSettings }) {
   );
 }
 
-const MODS: Array<[Module, string]> = [['pedidos', 'Pedidos'], ['presupuestos', 'Presupuestos'], ['clientes', 'Clientes'], ['archivos', 'Archivos 3D'], ['laminador', 'Laminador'], ['catalogo', 'Catálogo'], ['ventas', 'Ventas rápidas'], ['inventario', 'Inventario'], ['maquinas', 'Máquinas'], ['cola', 'Cola'], ['galeria', 'Galería'], ['pagos', 'Pagos'], ['reportes', 'Reportes'], ['config', 'Configuración']];
+const MODS: Array<[Module, string]> = [['pedidos', 'Pedidos'], ['presupuestos', 'Presupuestos'], ['clientes', 'Clientes'], ['archivos', 'Archivos 3D'], ['laminador', 'Laminador'], ['catalogo', 'Catálogo'], ['ventas', 'Ventas rápidas'], ['inventario', 'Inventario'], ['maquinas', 'Máquinas'], ['cola', 'Cola'], ['galeria', 'Galería'], ['pagos', 'Pagos'], ['reportes', 'Reportes'], ['config', 'Configuración'], ['ia', 'Inteligencia artificial']];
 export function UserDialog({ u, trigger, selfId }: { u?: { id: string; name: string; email: string; role: string; active: boolean; permOverrides: Record<string, string> }; trigger: React.ReactNode; selfId: string }) {
   const [open, setOpen] = useState(false); const { run, pending } = useAction(); const [v, setV] = useState({ name: u?.name ?? '', email: u?.email ?? '', role: u?.role ?? 'operador', password: '', active: u?.active ?? true }); const [ov, setOv] = useState<Record<string, string>>(u?.permOverrides ?? {});
   const eff = (m: Module) => ov[m] ?? (DEFAULT_MATRIX as any)[v.role][m] ?? '';

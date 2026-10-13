@@ -473,7 +473,7 @@ Tasa de aceptación por función · % de candidatos que laminan · ahorro de tie
 
 | Fase | Entregable | Dependencias | Criterio de salida |
 |---|---|---|---|
-| **0 – Fundación** | `lib/ai` (proveedores, `run`, `redact`, `budget`, `cache`), `settings.ai`, pantalla de configuración con *Probar conexión*, tablas `ai_calls/ai_suggestions`, módulo `ia` en permisos, `MockProvider`/simulador, kill-switch | Ninguna | Con IA apagada, build y tests actuales idénticos; con proveedor simulado se puede probar conexión y ver consumo |
+| **0 – Fundación** *(implementada)* | `lib/ai` (proveedores, `run`, `redact`, `budget`, `cache`), `settings.ai`, pantalla de configuración con *Probar conexión*, tablas `ai_calls/ai_suggestions`, módulo `ia` en permisos, `MockProvider`/simulador, kill-switch | Ninguna | Con IA apagada, build y tests actuales idénticos; con proveedor simulado se puede probar conexión y ver consumo |
 | **1 – Asesor de perfiles** | L3 ficha de desempeño (DET) + L8 explicación de errores (DET/LLM) + L1/L2 asesor con candidatos, laminado real y comparación; aplicar como nueva versión | Fase 0; catálogo `failCause` | Criterios de §6.10 cumplidos; evaluación en conjunto dorado |
 | **2 – Entrada de datos y archivos** | Q1 captura de pedidos, Q4 redacción de mensajes, Q7 riesgos, F1/F2, P2 HMS, G1/G3, I1 | Fase 0 | Cada función desactivable y con revisión humana |
 | **3 – Búsqueda, visión y análisis** | Embeddings (Q2/F3/R3), R1/R2 preguntas y resúmenes, P1 detección en cámara (local recomendado), L4 orientación, L7 calibración | Fases 0–2 | Medición de utilidad real antes de seguir |
@@ -482,6 +482,11 @@ Tasa de aceptación por función · % de candidatos que laminan · ahorro de tie
 Estimación gruesa: Fase 0 ≈ 1 semana · Fase 1 ≈ 2 semanas · Fase 2 ≈ 2 semanas · Fases 3–4 incrementales.
 
 ---
+
+### Estado de la Fase 0 (implementada)
+
+Hecho: `src/lib/ai` (proveedores Anthropic y compatible con OpenAI por `fetch`, `MockProvider`, `run.ts` con permisos → presupuesto → caché → reintentos → validación zod con un reintento → telemetría, cortacircuitos, ocultación de datos personales, validación de URL y modo solo-local), `settings.ai` con la clave cifrada (`getSettings()` nunca la expone; `getSettingsRaw()` es solo de servidor), tablas `ai_calls` y `ai_suggestions`, módulo de permisos `ia`, pestaña de configuración con *Probar conexión* y consumo, `scripts/ai-sim.ts`, pruebas unitarias, de integración y e2e. Pendiente de la fundación: `ai_embeddings` (se crea con las búsquedas semánticas, Fase 3) y el selector por función de modelo `fast`/`smart` (hoy fijo en el registro `FEATURES`).
+Decisiones de implementación que difieren de lo escrito arriba: el costo estimado solo usa tarifas por defecto para Anthropic (en proveedores compatibles es 0 salvo `AI_PRICES`); el interruptor maestro solo viene de los ajustes del taller (las variables de entorno aportan proveedor, clave y modelos de respaldo).
 
 ## 11. Riesgos y alternativas
 

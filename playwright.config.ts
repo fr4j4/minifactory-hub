@@ -18,5 +18,7 @@ export default defineConfig({
   webServer: [
     { command: 'npx next start -p ' + PORT, port: PORT, reuseExistingServer: false, timeout: 120_000, env: { ...env, NODE_ENV: 'production' } },
     { command: 'npx tsx scripts/bambu-sim.ts', port: 18883, reuseExistingServer: false, timeout: 60_000, env: { BAMBU_SIM_SSDP_TARGETS: `127.0.0.1:${SSDP}`, BAMBU_SIM_BASE_PORT: '18000', BAMBU_SIM_CLOUD_API_PORT: CLOUD.api, BAMBU_SIM_CLOUD_MQTT_PORT: CLOUD.mqtt, BAMBU_SIM_CLOUD_CA_FILE: CLOUD.ca } },
+    // proveedor de IA simulado (Configuración → Inteligencia artificial)
+    { command: 'npx tsx scripts/ai-sim.ts', port: 18090, reuseExistingServer: false, timeout: 60_000, env: { AI_SIM_PORT: '18090' } },
   ],
 });

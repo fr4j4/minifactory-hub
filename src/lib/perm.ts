@@ -2,14 +2,14 @@
 export type Role = 'admin' | 'operador' | 'ventas';
 export type Module =
   | 'pedidos' | 'presupuestos' | 'clientes' | 'archivos' | 'laminador' | 'catalogo' | 'ventas'
-  | 'inventario' | 'maquinas' | 'cola' | 'galeria' | 'pagos' | 'reportes' | 'config';
+  | 'inventario' | 'maquinas' | 'cola' | 'galeria' | 'pagos' | 'reportes' | 'config' | 'ia';
 export type Action = 'V' | 'C' | 'E' | 'X';
 
 const ALL = 'VCEX';
 export const DEFAULT_MATRIX: Record<Role, Record<Module, string>> = {
-  admin: Object.fromEntries(['pedidos','presupuestos','clientes','archivos','laminador','catalogo','ventas','inventario','maquinas','cola','galeria','pagos','reportes','config'].map((m) => [m, ALL])) as Record<Module, string>,
-  operador: { pedidos: 'VCE', presupuestos: 'V', clientes: 'V', archivos: 'VCE', laminador: 'VCE', catalogo: 'VCE', ventas: 'VC', inventario: 'VCE', maquinas: 'VCE', cola: 'VCE', galeria: 'VCE', pagos: 'V', reportes: '', config: '' },
-  ventas: { pedidos: 'VCE', presupuestos: 'VCE', clientes: 'VCE', archivos: 'VCE', laminador: 'V', catalogo: 'V', ventas: 'VCE', inventario: 'V', maquinas: 'V', cola: 'V', galeria: 'VCE', pagos: 'VCE', reportes: 'V', config: '' },
+  admin: Object.fromEntries(['pedidos','presupuestos','clientes','archivos','laminador','catalogo','ventas','inventario','maquinas','cola','galeria','pagos','reportes','config','ia'].map((m) => [m, ALL])) as Record<Module, string>,
+  operador: { pedidos: 'VCE', presupuestos: 'V', clientes: 'V', archivos: 'VCE', laminador: 'VCE', catalogo: 'VCE', ventas: 'VC', inventario: 'VCE', maquinas: 'VCE', cola: 'VCE', galeria: 'VCE', pagos: 'V', reportes: '', config: '', ia: 'VC' },
+  ventas: { pedidos: 'VCE', presupuestos: 'VCE', clientes: 'VCE', archivos: 'VCE', laminador: 'V', catalogo: 'V', ventas: 'VCE', inventario: 'V', maquinas: 'V', cola: 'V', galeria: 'VCE', pagos: 'VCE', reportes: 'V', config: '', ia: 'VC' },
 };
 
 export interface PermUser { role: Role; permOverrides?: Record<string, string> | null }

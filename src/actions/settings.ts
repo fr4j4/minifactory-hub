@@ -9,7 +9,8 @@ import { safe } from './common';
 export async function saveSettingsAction(patch: Partial<AppSettings>) {
   return safe(async () => {
     const u = await requirePerm('config', 'E');
-    const before = await getSettings(); const next = await saveSettings(patch);
+    const { ai: _ignored, ...safePatch } = patch as Partial<AppSettings>; // la IA se guarda solo con saveAiSettingsAction
+    const before = await getSettings(); const next = await saveSettings(safePatch);
     if (patch.rates) await audit('settings', null, 'tarifas', { before: before.rates, after: next.rates }, u.id);
     return true;
   }, ['/configuracion', '/']);

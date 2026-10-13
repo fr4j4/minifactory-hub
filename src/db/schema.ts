@@ -699,3 +699,42 @@ export const cloudAccounts = pgTable('cloud_accounts', {
   lastError: text('last_error'),
   lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
 });
+
+/* ───────────── IA opcional (Fase 0) ───────────── */
+/** Propuestas generadas por IA y su ciclo de vida. Nada se aplica sin confirmación humana. */
+export const aiSuggestions = pgTable('ai_suggestions', {
+  ...base(),
+  feature: text('feature').notNull(),
+  subjectType: text('subject_type'),
+  subjectId: uuid('subject_id'),
+  inputHash: text('input_hash').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  proposal: jsonb('proposal').$type<Record<string, any>>().notNull().default({}),
+  rationale: jsonb('rationale').$type<Record<string, any>>().default({}),
+  status: text('status').notNull().default('proposed'), // proposed | applied | rejected | expired | superseded
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+  appliedBy: uuid('applied_by'),
+  outcome: jsonb('outcome').$type<Record<string, any>>().default({}),
+}, (t) => [index('ai_suggestions_subject_ix').on(t.subjectType, t.subjectId), index('ai_suggestions_hash_ix').on(t.inputHash)]);
+
+/** Telemetría de uso y costo de cada llamada al proveedor (el contenido solo se guarda si la retención lo permite). */
+export const aiCalls = pgTable('ai_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id'),
+  feature: text('feature').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  tier: text('tier').notNull().default('fast'),
+  inTokens: integer('in_tokens').notNull().default(0),
+  outTokens: integer('out_tokens').notNull().default(0),
+  costUsd: doublePrecision('cost_usd').notNull().default(0),
+  latencyMs: integer('latency_ms').notNull().default(0),
+  ok: boolean('ok').notNull().default(true),
+  error: text('error'),
+  cacheHit: boolean('cache_hit').notNull().default(false),
+  promptLog: jsonb('prompt_log').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('ai_calls_created_ix').on(t.createdAt)]);
