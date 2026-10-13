@@ -16,5 +16,7 @@ services:
       ORCA_CONCURRENCY: 2
     volumes: [files:/data]
     ports: ["3000:3000"]
+    # Para detectar impresoras Bambu Lab por SSDP el contenedor debe ver la red local:
+    # reemplaza `ports` por `network_mode: host` (y usa DATABASE_URL con la IP del host).
     restart: unless-stopped
 volumes: { pgdata: {}, files: {} }

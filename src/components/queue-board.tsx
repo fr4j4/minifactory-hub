@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cancelJobAction, createTestJobAction, finishJobAction, moveJobAction, pauseJobAction, resumeJobAction, startJobAction } from '@/actions/production';
 import { Modal, useAction } from './client';
 import { Badge, StatusBadge, Swatch } from './ui';
+import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
 
 export interface QJob { id: string; number: string; title: string; kind: string; status: string; machineId: string | null; materialId: string | null; spoolId: string | null; estG: number; estH: number; realG: number | null; plannedStart: string | null; plannedEnd: string | null; realStart: string | null; qty: number; orderId: string | null; orderNumber: string | null; reprint: boolean; position: number; customer: string | null }
@@ -55,7 +56,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
           {cols.map((c) => { const list = live.filter((j) => (j.machineId ?? null) === c.id).sort((a, b) => a.position - b.position); if (c.id === null && list.length === 0) return null; const mach = machines.find((m) => m.id === c.id);
             return (
               <section key={c.id ?? 'none'} className={cn('rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5 min-w-[270px] md:min-w-0 snap-start', drag && c.id && 'ring-2 ring-brand-400/50')} onDragOver={(e) => c.id && e.preventDefault()} onDrop={() => drop(c.id, list.length + 1)} aria-label={`Cola de ${c.name}`}>
-                <header className="flex items-center justify-between px-1 pb-2"><h3 className="font-semibold text-sm">{c.name}</h3>{mach && <StatusBadge status={mach.status} />}</header>
+                <header className="px-1 pb-2"><div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{c.name}</h3>{mach && <StatusBadge status={mach.status} />}</div>{c.id && <div className="mt-1 empty:hidden"><PrinterPill machineId={c.id} /></div>}</header>
                 <ul className="space-y-2 min-h-[60px]">{list.map((j) => <Card key={j.id} j={j} />)}{list.length === 0 && <li className="text-xs muted text-center py-4">Sin trabajos. Arrastra uno aquí.</li>}</ul>
               </section>); })}
         </div>

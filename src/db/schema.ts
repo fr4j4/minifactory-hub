@@ -659,3 +659,25 @@ export const uploadSessions = pgTable('upload_sessions', {
   tmpPath: text('tmp_path').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Impresoras conectadas por red (por ahora Bambu Lab en modo LAN). El código de acceso se guarda cifrado. */
+export const printerLinks = pgTable('printer_links', {
+  ...base(),
+  machineId: uuid('machine_id').notNull(),
+  vendor: text('vendor').notNull().default('bambu'),
+  serial: text('serial').notNull(),
+  host: text('host').notNull(),
+  accessCodeEnc: text('access_code_enc').notNull(),
+  model: text('model'), // código de modelo (C12, N1, BL-P001…)
+  name: text('name'),
+  mqttPort: integer('mqtt_port').notNull().default(8883),
+  cameraPort: integer('camera_port'),
+  ftpPort: integer('ftp_port').notNull().default(990),
+  urlPrefix: text('url_prefix').notNull().default('file:///sdcard/'),
+  fingerprint: text('fingerprint'), // huella SHA-256 del certificado (confianza en el primer uso)
+  enabled: boolean('enabled').notNull().default(true),
+  syncQueue: boolean('sync_queue').notNull().default(true),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  lastStatus: jsonb('last_status').$type<Record<string, any>>(),
+  lastError: text('last_error'),
+}, (t) => [uniqueIndex('printer_links_serial_uq').on(t.workspaceId, t.serial)]);

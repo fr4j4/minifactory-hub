@@ -8,6 +8,13 @@
       "when": 1791866544782,
       "tag": "0000_fair_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791883316750,
+      "tag": "0001_premium_whirlwind",
+      "breakpoints": true
     }
   ]
 }

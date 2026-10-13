@@ -9,6 +9,10 @@ import { IncidentForm, MachineForm, PlanTools, StatusSelect } from '@/components
 import { getSettings } from '@/lib/settings';
 import { machineHourly } from '@/lib/pricing';
 import { dmy, dmyHm, money, num, pct } from '@/lib/format';
+import { PrinterPanel } from '@/components/printer-live';
+import { liveRows, storedStatus } from '@/lib/bambu/manager';
+import { modelFromCode } from '@/lib/bambu/models';
+import { sendableRuns } from '@/lib/services/printers';
 
 export const metadata = { title: 'Máquina' };
 export default async function MachinePage({ params }: { params: Promise<{ id: string }> }) {
@@ -20,12 +24,25 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
   const jobs = await db.select().from(s.printJobs).where(eq(s.printJobs.machineId, id)).orderBy(desc(s.printJobs.createdAt)).limit(10);
   const spools = await db.select({ sp: s.spools, m: s.materials }).from(s.spools).innerJoin(s.materials, eq(s.materials.id, s.spools.materialId)).where(eq(s.spools.machineId, id));
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)); const items = await db.select().from(s.inventoryItems).where(and(eq(s.inventoryItems.category, 'repuesto'), isNull(s.inventoryItems.deletedAt)));
+  const [link] = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.machineId, id), isNull(s.printerLinks.deletedAt)));
+  let printer: React.ReactNode = null;
+  if (link) {
+    const md = modelFromCode(link.model, link.serial);
+    const live = liveRows().find((r) => r.id === link.id) ?? { id: link.id, machineId: id, name: link.name ?? m.name, model: link.model, modelName: md?.name ?? null, online: false, error: link.enabled ? link.lastError : 'Conexión pausada', status: storedStatus(link) };
+    const allSpools = await db.select({ sp: s.spools, m: s.materials }).from(s.spools).innerJoin(s.materials, eq(s.materials.id, s.spools.materialId)).where(and(isNull(s.spools.deletedAt)));
+    const runs = (await sendableRuns()).map((r) => ({ id: r.id, label: r.label, timeS: r.timeS, grams: (r.filament ?? []).reduce((a: number, f: any) => a + (f.g ?? 0), 0), createdAt: r.createdAt.toISOString(), machine: (r.profileVersions as any)?.machine?.[0] ?? null }));
+    const queued = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, id), eq(s.printJobs.status, 'en_cola'))).orderBy(asc(s.printJobs.position));
+    printer = <PrinterPanel initial={live} cameraKind={md?.camera ?? 'jpeg-tls'} canControl={can(user, 'maquinas', 'E')} canAssign={can(user, 'inventario', 'E')} canSend={can(user, 'cola', 'E')}
+      spools={allSpools.filter(({ sp }) => !['agotada', 'descartada'].includes(sp.status)).map(({ sp, m: mm }) => ({ id: sp.id, code: sp.code, type: mm.type, colorName: mm.colorName, hex: mm.hex, remainingG: sp.remainingG, slot: sp.slot, machineId: sp.machineId }))}
+      runs={runs} jobs={queued.map((j) => ({ id: j.id, label: `${j.number} · ${j.title ?? ''}` }))} />;
+  }
   const hr = machineHourly({ purchaseValue: m.purchaseValue, residualValue: m.residualValue, lifeHours: m.lifeHours, watts: m.watts, maintCostHour: m.maintCostHour }, st.rates.kwh); const done = m.jobsOk + m.jobsFailed;
   const planRows = plans.map((p) => { const remH = p.intervalHours != null ? p.intervalHours - (m.hoursTotal - p.lastDoneHours) : null; const remD = p.intervalDays != null && p.lastDoneAt ? p.intervalDays - (Date.now() - new Date(p.lastDoneAt).getTime()) / 86400_000 : null; const due = (remH != null && remH <= 0) || (remD != null && remD <= 0); return { p, remH, remD, due }; });
   return (
     <>
       <PageHeader back={{ href: '/maquinas', label: 'Máquinas' }} title={<span>{m.name} <StatusBadge status={m.status} /></span>} subtitle={`${m.brand ?? ''} ${m.model ?? ''} · ${m.tech} · ${m.volX}×${m.volY}×${m.volZ} mm`} actions={can(user, 'maquinas', 'E') ? <StatusSelect id={m.id} status={m.status} /> : undefined} />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"><Stat label="Horas totales" value={`${num(m.hoursTotal, 0)} h`} /><Stat label="Trabajos OK / fallidos" value={`${m.jobsOk} / ${m.jobsFailed}`} /><Stat label="Tasa de éxito" value={done ? pct((m.jobsOk / done) * 100, 0) : '—'} />{canSeeCosts(user) && <Stat label="Costo por hora" value={money(Math.round(hr.dep + hr.maint + hr.energy))} />}<Stat label="Factor real/estimado" value={`${num(m.timeFactor, 2)}×`} sub="mediana de los últimos 20 trabajos" /></div>
+      {printer && <div className="mb-4">{printer}</div>}
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
           <Card title="Mantenimiento preventivo" actions={can(user, 'maquinas', 'E') ? <PlanTools machineId={m.id} items={items.map((i) => ({ id: i.id, name: i.name }))} plans={planRows.map((r) => ({ id: r.p.id, task: r.p.task, due: r.due }))} /> : undefined}>

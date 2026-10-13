@@ -34,6 +34,15 @@ npm test                 # unitarias + integración (incluye laminado real si Or
 npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas y videos en docs/reporte
 ```
 
+## Conector Bambu Lab (modo LAN)
+
+Máquinas → **Conectar impresoras**: detecta las Bambu Lab de la red (SSDP), pide el código de acceso de 8 caracteres y muestra en vivo estado, avance por capas, temperaturas, filamento del AMS / bobina externa, avisos HMS y cámara. Permite pausar, reanudar, detener, cambiar velocidad y luz, asociar bobinas del inventario a las bandejas y **enviar a imprimir** un laminado (sube el 3MF por FTPS y lo inicia), verificando antes modelo, boquilla y material.
+
+- Protocolo: MQTT con TLS (8883), cámara JPEG por TLS (6000, P1/A1) o RTSPS (322, X1/H2, requiere ffmpeg), FTPS implícito (990). Todo dentro de la red local.
+- El código de acceso se guarda cifrado (AES-256-GCM con llave derivada de `SESSION_SECRET`) y la huella del certificado se fija en la primera conexión.
+- Simulador para desarrollo: `npx tsx scripts/bambu-sim.ts` (P1S, A1 y X1C falsas; códigos y puertos en la salida). Con `BAMBU_SIM_SSDP_TARGETS=127.0.0.1:2021` anuncia al puerto que escucha la app.
+- Probado contra el simulador; antes de confiar en «Enviar a imprimir» pruébalo con tu impresora real y una pieza pequeña (ver `docs/reporte`).
+
 ## Documentación
 
 - `docs/reporte/index.html`: informe final con capturas, videos y métricas de usabilidad.
