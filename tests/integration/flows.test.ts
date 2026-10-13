@@ -1,0 +1,183 @@
+import { beforeAll, describe, expect, it } from 'vitest';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { and, desc, eq, isNull } from 'drizzle-orm';
+import { getDb, s } from '@/db';
+import { seedDemo } from '@/lib/seed';
+import { getSettings, saveSettings } from '@/lib/settings';
+import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus, addPayment } from '@/lib/services/orders';
+import { loadQuote, newQuoteVersion, saveQuote, sendQuote } from '@/lib/services/quotes';
+import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance } from '@/lib/services/production';
+import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/services/catalog';
+import { materialStock, weighSpool, shoppingList } from '@/lib/services/inventory';
+import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
+import { orcaAvailable } from '@/lib/slicer/catalog';
+import { reportData, REPORTS } from '@/lib/reports';
+import { dashboardData } from '@/lib/stats';
+
+let admin: any, ventas: any, op: any; let db: Awaited<ReturnType<typeof getDb>>;
+let pla: any, a1: any, ender: any;
+const U = (u: any) => ({ id: u.id, role: u.role, permOverrides: {} });
+
+beforeAll(async () => {
+  fs.rmSync('data/test-storage', { recursive: true, force: true });
+  await seedDemo(); db = await getDb();
+  const users = await db.select().from(s.users);
+  admin = U(users.find((u) => u.role === 'admin')); ventas = U(users.find((u) => u.role === 'ventas')); op = U(users.find((u) => u.role === 'operador'));
+  pla = (await db.select().from(s.materials).where(eq(s.materials.colorName, 'Negro'))).find((m) => m.type === 'PLA');
+  const ms = await db.select().from(s.machines); a1 = ms.find((m) => m.name.startsWith('Bambu')); ender = ms.find((m) => m.name.startsWith('Ender'));
+});
+
+const line = (o: any = {}) => ({ description: 'Pieza', qty: 1, materialId: pla.id, machineId: a1.id, mode: 'manual' as const, gramsTotal: 40, hoursTotal: 2, ...o });
+
+describe('presupuestos: varios modelos, precio final y congelado', () => {
+  it('un presupuesto puede tener varios modelos y links de referencia', async () => {
+    const files = await db.select().from(s.modelFiles); const q = await saveQuote({ customerName: 'Cliente X', items: [
+      line({ description: 'Barco + engranaje', qty: 2, models: [{ modelFileId: files[0].id, qty: 1 }, { modelFileId: files[1].id, qty: 2 }], links: [{ url: 'printables.com/model/123', title: 'Barco', kind: 'modelo_original' }] }),
+      line({ description: 'Llavero', qty: 10, models: [{ modelFileId: files[2].id }] }), line({ description: 'Soporte', qty: 1, models: [] }) ],
+      links: [{ url: 'https://www.instagram.com/p/abc', title: 'Inspiración', kind: 'inspiracion', showInPdf: true }] }, admin);
+    const d = (await loadQuote(q))!;
+    expect(d.items.length).toBe(3); expect(d.models.filter((m) => m.qm.quoteItemId === d.items[0].id).length).toBe(2);
+    expect(d.links.filter((l) => l.ownerType === 'quote').length).toBe(1); expect(d.links.some((l) => l.ownerType === 'quote_item' && l.url.startsWith('https://printables.com'))).toBe(true);
+    expect(d.quote.total).toBeGreaterThan(0); expect(d.quote.number).toMatch(/^P-\d{4}-\d{4}$/);
+  });
+  it('el precio final lo decide el usuario aunque haya sugerido', async () => {
+    const id = await saveQuote({ items: [line({ finalUnit: 25000 })] }, admin); const d = (await loadQuote(id))!;
+    expect(d.items[0].finalUnit).toBe(25000); expect(d.items[0].suggestedUnit).not.toBe(25000);
+    const adj = await db.select().from(s.priceAdjustments).where(eq(s.priceAdjustments.ownerId, d.items[0].id)); expect(adj.length).toBe(1); expect(adj[0].next).toBe(25000);
+  });
+  it('un total fijado por el usuario se reparte entre las líneas', async () => {
+    const id = await saveQuote({ finalTotal: 50000, items: [line({ qty: 1 }), line({ qty: 2, gramsTotal: 80, hoursTotal: 4 })] }, admin); const d = (await loadQuote(id))!;
+    expect(d.quote.total).toBe(50000); expect((d.quote.calc as any).lines.reduce((a: number, l: any) => a + l.finalTotal, 0)).toBe(50000);
+  });
+  it('vender bajo el costo: Ventas no puede; el Administrador sí, con motivo', async () => {
+    await expect(saveQuote({ items: [line({ finalUnit: 500 })] }, ventas)).rejects.toThrow(/bajo el costo/);
+    await expect(saveQuote({ items: [line({ finalUnit: 500 })] }, admin)).rejects.toThrow(/motivo/);
+    const id = await saveQuote({ priceReason: 'Cliente fundador', items: [line({ finalUnit: 500 })] }, admin); expect(id).toBeTruthy();
+  });
+  it('cambiar la tarifa de kWh no altera los presupuestos ya enviados', async () => {
+    const id = await saveQuote({ items: [line({ gramsTotal: 200, hoursTotal: 10 })] }, admin); await sendQuote(id, admin.id);
+    const before = (await loadQuote(id))!.quote.total; const st = await getSettings();
+    await saveSettings({ rates: { ...st.rates, kwh: st.rates.kwh * 10, laborHour: st.rates.laborHour * 3 } });
+    expect((await loadQuote(id))!.quote.total).toBe(before);
+    await expect(saveQuote({ id, items: [line()] }, admin)).rejects.toThrow(/nueva versión/);
+    const v2 = await newQuoteVersion(id, admin, true); const d2 = (await loadQuote(v2))!;
+    expect(d2.quote.version).toBe(2); expect(d2.quote.number).toBe((await loadQuote(id))!.quote.number); expect(d2.quote.total).toBeGreaterThan(before); expect((await loadQuote(id))!.quote.status).toBe('reemplazado');
+    await saveSettings({ rates: st.rates });
+  });
+});
+
+describe('aprobación manual → pedido → producción → inventario', () => {
+  it('flujo completo con consumo de bobina, falla con reimpresión y estados derivados', async () => {
+    const spool = (await db.select().from(s.spools).where(and(eq(s.spools.materialId, pla.id), eq(s.spools.status, 'en_uso'))))[0]; const before = spool.remainingG;
+    const q = await saveQuote({ customerName: 'Ana', customerPhone: '+56911111111', source: 'whatsapp', items: [line({ description: 'Carcasa', qty: 3, gramsTotal: 90, hoursTotal: 4.5, finalUnit: 12000 })] }, admin);
+    const oid = await approveQuote(q, { by: 'Ana', channel: 'whatsapp', deposit: { amount: 10000, method: 'transferencia' } }, admin);
+    const [o] = await db.select().from(s.orders).where(eq(s.orders.id, oid)); const [qq] = await db.select().from(s.quotes).where(eq(s.quotes.id, q));
+    expect(qq.status).toBe('aprobado'); expect(o.total).toBe(qq.total); expect(o.paid).toBe(10000); expect(o.status).toBe('recibido'); expect(o.approvedBy).toBe('Ana');
+    const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid)); expect(items[0].finalUnit).toBe(12000);
+    const jobIds = await planProduction(oid, admin); expect(jobIds.length).toBe(1);
+    expect((await db.select().from(s.orders).where(eq(s.orders.id, oid)))[0].status).toBe('en_produccion');
+    expect((await materialStock(db)).find((x) => x.materialId === pla.id)!.reservedG).toBeGreaterThanOrEqual(90);
+    await startJob(jobIds[0], { userId: admin.id });
+    // falla total: consume material, crea reimpresión
+    const f = await finishJob(jobIds[0], { result: 'falla_total', realG: 30, failCause: 'Despegue de la cama', failCharge: 'taller', userId: admin.id });
+    expect(f.reprintId).toBeTruthy(); expect((await db.select().from(s.printJobs).where(eq(s.printJobs.id, f.reprintId!)))[0].reprintOfId).toBe(jobIds[0]);
+    expect((await db.select().from(s.spools).where(eq(s.spools.id, spool.id)))[0].remainingG).toBeCloseTo(before - 30, 1);
+    expect((await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, spool.id), eq(s.inventoryMovements.kind, 'falla')))).length).toBe(1);
+    // reimpresión exitosa
+    await startJob(f.reprintId!, { userId: admin.id }); const ok = await finishJob(f.reprintId!, { result: 'exito', realG: 92, realH: 4.7, userId: admin.id });
+    expect((await db.select().from(s.spools).where(eq(s.spools.id, spool.id)))[0].remainingG).toBeCloseTo(before - 30 - 92, 1);
+    const [o2] = await db.select().from(s.orders).where(eq(s.orders.id, oid)); expect(o2.status).toBe('post_proceso'); expect(o2.costReal).toBeGreaterThan(0);
+    const [m] = await db.select().from(s.machines).where(eq(s.machines.id, a1.id)); expect(m.jobsFailed).toBeGreaterThanOrEqual(1); expect(m.jobsOk).toBeGreaterThanOrEqual(1);
+    await setOrderStatus(oid, 'listo', admin); await addPayment({ orderId: oid, amount: o.total - 10000, method: 'efectivo' }, admin); await setOrderStatus(oid, 'entregado', admin, { tracking: 'ABC123' });
+    const fin = (await db.select().from(s.orders).where(eq(s.orders.id, oid)))[0]; expect(fin.status).toBe('entregado'); expect(fin.paid).toBe(o.total); expect(fin.tracking).toBe('ABC123');
+  });
+  it('al terminar un trabajo y quedar bajo el mínimo se genera la alerta de stock bajo', async () => {
+    const mat = (await db.select().from(s.materials).where(eq(s.materials.colorName, 'Transparente')))[0];
+    const id = await createOrder({ customerName: 'Luis', items: [line({ materialId: mat.id, gramsTotal: 100, hoursTotal: 3 })] }, admin);
+    const [j] = (await planProduction(id, admin)); await startJob(j, { userId: admin.id }); await finishJob(j, { result: 'exito', realG: 100, userId: admin.id });
+    const n = await db.select().from(s.notifications).where(eq(s.notifications.kind, 'stock_bajo')); expect(n.some((x) => x.title.includes('Transparente'))).toBe(true);
+    expect((await shoppingList()).some((x) => x.name.includes('Transparente'))).toBe(true);
+  });
+  it('cancelar un pedido libera material y stock reservados', async () => {
+    const id = await createOrder({ customerName: 'Pía', items: [line({ gramsTotal: 500, hoursTotal: 20 })] }, admin); await planProduction(id, admin);
+    const r1 = (await materialStock(db)).find((x) => x.materialId === pla.id)!.reservedG; await cancelOrder(id, 'El cliente desistió', admin);
+    const r2 = (await materialStock(db)).find((x) => x.materialId === pla.id)!.reservedG; expect(r1 - r2).toBeGreaterThanOrEqual(500);
+  });
+  it('pesaje: se resta la tara y se registra el ajuste', async () => {
+    const sp = (await db.select().from(s.spools).where(eq(s.spools.status, 'abierta')))[0]; const r = await weighSpool(sp.id, 600 + sp.tareG, admin.id);
+    expect(r.after).toBe(600); expect((await db.select().from(s.spools).where(eq(s.spools.id, sp.id)))[0].remainingG).toBe(600);
+  });
+  it('mantenimiento por horas: aviso al cumplirse las horas de la máquina', async () => {
+    const [m] = await db.select().from(s.machines).where(eq(s.machines.id, ender.id)); await db.update(s.machines).set({ hoursTotal: 250 }).where(eq(s.machines.id, ender.id));
+    const due = await maintenanceDue(); expect(due.some((d) => d.machineId === ender.id)).toBe(true); await checkMaintenance(ender.id);
+    expect((await db.select().from(s.notifications).where(eq(s.notifications.kind, 'mantenimiento'))).length).toBeGreaterThan(0);
+  });
+});
+
+describe('catálogo: productos con variantes, stock y ventas', () => {
+  let variantIds: string[] = []; let productId = '';
+  it('producto con variantes genera las combinaciones y uno simple, una referencia', async () => {
+    productId = await saveProduct({ name: 'Posavasos', mode: 'variantes', attributes: [{ name: 'Color', values: ['Negro', 'Rojo'] }, { name: 'Forma', values: ['Redondo', 'Cuadrado', 'Hexagonal'] }], price: 2990, materialId: pla.id, weightG: 12, printH: 0.4, minStock: 5 }, admin);
+    const v = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, productId)); expect(v.length).toBe(6); variantIds = v.map((x) => x.id); expect(new Set(v.map((x) => x.sku)).size).toBe(6);
+    const simple = await saveProduct({ name: 'Maceta simple', mode: 'simple', price: 5990 }, admin); expect((await db.select().from(s.productVariants).where(eq(s.productVariants.productId, simple))).length).toBe(1);
+    await saveProduct({ id: productId, name: 'Posavasos', mode: 'variantes', attributes: [{ name: 'Color', values: ['Negro', 'Rojo', 'Azul'] }, { name: 'Forma', values: ['Redondo', 'Cuadrado', 'Hexagonal'] }] }, admin);
+    expect((await db.select().from(s.productVariants).where(and(eq(s.productVariants.productId, productId), eq(s.productVariants.active, true)))).length).toBe(9);
+  });
+  it('producción para stock: al terminar suma unidades buenas y calcula el costo promedio', async () => {
+    const po = await createProductionOrder({ variantId: variantIds[0], qty: 10, userId: admin.id }); await startJob(po.jobId, { userId: admin.id });
+    await finishJob(po.jobId, { result: 'falla_parcial', realG: 120, realH: 4, qtyGood: 8, failCause: 'Warping', reprint: false, userId: admin.id });
+    const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])); expect(v.stock).toBe(8); expect(v.avgCost).toBeGreaterThan(0);
+    const mv = await db.select().from(s.stockMovements).where(eq(s.stockMovements.variantId, variantIds[0])); expect(mv.some((m) => m.kind === 'produccion' && m.qty === 8)).toBe(true);
+    const [p] = await db.select().from(s.productionOrders).where(eq(s.productionOrders.id, po.productionOrderId)); expect(p.qtyGood).toBe(8); expect(p.qtyFailed).toBe(2);
+  });
+  it('venta rápida de marketplace: descuenta stock y calcula comisión y margen neto; anular reingresa', async () => {
+    const ml = (await db.select().from(s.salesChannels).where(eq(s.salesChannels.name, 'Mercado Libre')))[0]; const [v0] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0]));
+    const r = await createSale({ channelId: ml.id, items: [{ variantId: variantIds[0], qty: 3 }], externalOrder: 'ML-12345' }, ventas);
+    expect(r.subtotal).toBe(v0.price * 3); expect(r.commission).toBe(Math.round(r.subtotal * 0.12 + 700)); expect(r.netMargin).toBe(r.subtotal - r.commission - ml.avgShipping - v0.avgCost * 3);
+    expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])))[0].stock).toBe(v0.stock - 3);
+    const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, r.id)); expect(sale.status).toBe('por_despachar');
+    await expect(setSaleStatus(r.id, 'anulada', ventas)).rejects.toThrow(/motivo/); await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Devolución', returnToStock: true });
+    expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])))[0].stock).toBe(v0.stock);
+  });
+  it('pedido mixto: reserva stock, produce solo lo que falta y descuenta al entregar', async () => {
+    const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])); expect(v.stock).toBeGreaterThanOrEqual(5);
+    const oid = await createOrder({ customerName: 'Mixto', items: [line({ description: 'Pieza a medida' }), { description: 'Posavasos', qty: v.stock + 2, variantId: variantIds[0], kind: 'producto' as const }] }, admin);
+    const [o] = await db.select().from(s.orders).where(eq(s.orders.id, oid)); expect(o.kind).toBe('mixto');
+    const oi = (await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid))).find((i) => i.variantId)!; expect(oi.fromStock).toBe(v.stock);
+    expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])))[0].reserved).toBe(v.stock);
+    const jobs = await planProduction(oid, admin); expect(jobs.length).toBe(2);
+    for (const j of jobs) { await startJob(j, { userId: admin.id }); await finishJob(j, { result: 'exito', userId: admin.id }); }
+    await setOrderStatus(oid, 'listo', admin); await setOrderStatus(oid, 'entregado', admin);
+    const [after] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])); expect(after.reserved).toBe(0); expect(after.stock).toBe(0);
+  });
+  it('ajustes de stock exigen motivo y no dejan negativos', async () => {
+    await expect(adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4 }, admin)).rejects.toThrow(/motivo/); await adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4, reason: 'Conteo' }, admin);
+    await expect(adjustStock({ variantId: variantIds[1], kind: 'merma', qty: 10, reason: 'x' }, admin)).rejects.toThrow(/negativo/);
+  });
+});
+
+describe('reportes y dashboard', () => {
+  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, { from: new Date(Date.now() - 120 * 86400_000), to: new Date() }, true); expect(d.columns.length).toBeGreaterThan(2); } });
+  it('el dashboard calcula indicadores y alertas', async () => { const d = await dashboardData(); expect(d.ind.revenue).toBeGreaterThan(0); expect(d.val.total).toBeGreaterThan(0); expect(d.lowMaterials.length + d.lowItems.length + d.maint.length).toBeGreaterThan(0); });
+  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true); const mine = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true, ventas.id); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+});
+
+describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
+  it('lamina, es determinista, usa caché, cotiza por placa y detecta piezas que no caben', async () => {
+    const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((p) => p.name === n)!.id;
+    const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo')); const [big] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Placa grande 300 mm'));
+    const base = { fileVersionId: bar.currentVersionId!, machineProfileId: P('Bambu Lab A1 0.4'), processProfileId: P('A1 · 0,20 Standard'), filamentProfileId: P('PLA Basic') };
+    const r1 = await enqueueSlice({ ...base, label: 't1' }); const r2 = await enqueueSlice({ ...base, copies: 4, label: 't4' }); const r3 = await enqueueSlice({ ...base, processProfileId: P('A1 · 0,12 Fine'), label: 'fine' });
+    const rows = await waitForRuns([r1, r2, r3], 120000); const [a, c4, fine] = rows;
+    expect(a.status).toBe('done'); expect(a.timeS).toBeGreaterThan(600); expect(a.filament![0].g).toBeGreaterThan(3); expect(a.layers).toBe(164); expect(a.engineVersion).toBe('2.4.2');
+    expect(fine.layers).toBeGreaterThan(a.layers!); expect(fine.timeS).toBeGreaterThan(a.timeS!);
+    expect(c4.timeS!).toBeLessThan(a.timeS! * 4); expect(c4.filament![0].g).toBeGreaterThan(a.filament![0].g * 3.5);
+    const again = (await waitForRuns([await enqueueSlice({ ...base, label: 'cache' })]))[0]; expect((again.result as any).cached).toBe(true); expect(again.timeS).toBe(a.timeS);
+    const forced = (await waitForRuns([await enqueueSlice({ ...base, label: 'forced', force: true })]))[0];
+    const { getBuffer } = await import('@/lib/storage'); const sha = async (k: string) => crypto.createHash('sha256').update((await getBuffer(k)).toString().split('\n').filter((l) => !l.startsWith('; generated by') && !l.startsWith('; HEADER_BLOCK')).join('\n')).digest('hex');
+    expect(await sha(forced.gcodeKey!)).toBe(await sha(a.gcodeKey!));
+    const big1 = (await waitForRuns([await enqueueSlice({ fileVersionId: big.currentVersionId!, machineProfileId: P('Ender-3 V3 SE 0.4'), processProfileId: P('Ender · 0,20 Standard'), filamentProfileId: P('PLA genérico Ender'), label: 'grande' })]))[0];
+    expect(big1.status).toBe('error'); expect(big1.error).toMatch(/no cabe/);
+  });
+});

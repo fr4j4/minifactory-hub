@@ -3,11 +3,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createProfileAction, deleteProfileAction, duplicateProfileAction, factoryListAction, factoryVendorsAction, importProfileAction, profileBaseValuesAction, revertProfileAction, updateProfileAction } from '@/actions/slicer';
 import { ConfirmButton, Modal, useAction, useToast } from './client';
-import { SIMPLE_PARAMS_CLIENT } from '@/lib/slicer/params';
+import { SIMPLE_PARAMS_CLIENT, TYPE_LABEL } from '@/lib/slicer/params';
 import { cn } from '@/lib/format';
 
 type PType = 'machine' | 'process' | 'filament';
-export const TYPE_LABEL: Record<PType, string> = { machine: 'Máquina', process: 'Proceso', filament: 'Filamento' };
 
 export function NewProfileButton({ type, machines }: { type: PType; machines: Array<{ name: string; baseName: string }> }) {
   const [open, setOpen] = useState(false); const { run, pending } = useAction(); const router = useRouter();

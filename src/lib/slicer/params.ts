@@ -32,3 +32,5 @@ export const SIMPLE_PARAMS_CLIENT: Record<'machine' | 'process' | 'filament', Ar
     { key: 'fan_min_speed', label: 'Ventilador mín.', kind: 'number', unit: '%' },
   ],
 };
+
+export const TYPE_LABEL: Record<'machine' | 'process' | 'filament', string> = { machine: 'Máquina', process: 'Proceso', filament: 'Filamento' };

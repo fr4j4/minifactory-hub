@@ -4,7 +4,8 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { PageHeader, Badge } from '@/components/ui';
-import { ProfileEditor, TYPE_LABEL } from '@/components/profile-bits';
+import { ProfileEditor } from '@/components/profile-bits';
+import { TYPE_LABEL } from '@/lib/slicer/params';
 import { dmyHm } from '@/lib/format';
 
 export const metadata = { title: 'Perfil de laminado' };
