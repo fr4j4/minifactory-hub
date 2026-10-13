@@ -20,10 +20,10 @@ export async function produceAction(variantId: string, qty: number) {
 export async function createSaleAction(i: QuickSaleInput) {
   const t = await getT(); return safe(async () => { const u = await requirePerm('ventas', 'C'); if (!i.items.length) throw new Error(t('catalog.addAtLeastOneProduct')); return createSale(i, u); }, ['/ventas', '/catalogo']); }
 export async function setSaleStatusAction(id: string, status: Parameters<typeof setSaleStatus>[1], o: { tracking?: string; returnToStock?: boolean; reason?: string } = {}) { return safe(async () => { const u = await requirePerm('ventas', 'E'); await setSaleStatus(id, status, u, o); }, ['/ventas', '/catalogo']); }
-export async function saleToggleChannelAction(i: { id?: string; name: string; kind: string; commissionPct: number; commissionFixed: number; avgShipping: number; active: boolean }) {
+export async function saleToggleChannelAction(i: { id?: string; name: string; kind: string; commissionPct: number; commissionFixed: number; avgShipping: number; active: boolean; calcProfileId?: string | null }) {
   return safe(async () => {
     const u = await requirePerm('config', 'E'); const db = await getDb();
-    if (i.id) await db.update(s.salesChannels).set({ name: i.name, kind: i.kind, commissionPct: i.commissionPct, commissionFixed: i.commissionFixed, avgShipping: i.avgShipping, active: i.active, updatedAt: new Date() }).where(eq(s.salesChannels.id, i.id));
-    else await db.insert(s.salesChannels).values({ workspaceId: u.workspaceId, name: i.name, kind: i.kind, commissionPct: i.commissionPct, commissionFixed: i.commissionFixed, avgShipping: i.avgShipping, active: i.active });
+    if (i.id) await db.update(s.salesChannels).set({ name: i.name, kind: i.kind, commissionPct: i.commissionPct, commissionFixed: i.commissionFixed, avgShipping: i.avgShipping, active: i.active, calcProfileId: i.calcProfileId || null, updatedAt: new Date() }).where(eq(s.salesChannels.id, i.id));
+    else await db.insert(s.salesChannels).values({ workspaceId: u.workspaceId, name: i.name, kind: i.kind, commissionPct: i.commissionPct, commissionFixed: i.commissionFixed, avgShipping: i.avgShipping, active: i.active, calcProfileId: i.calcProfileId || null });
   }, ['/configuracion', '/ventas']);
 }

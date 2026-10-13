@@ -38,7 +38,8 @@ export function effectiveRates(it: Pick<ItemPriceInput, 'profileId' | 'opts'>, e
   return { rt, profileId };
 }
 
-export function priceLine(it: ItemPriceInput, env: ItemPriceEnv): ItemPrice {
+/** Entrada del motor y tarifas efectivas de una línea (la usan priceLine y las herramientas del nivel Experto). */
+export function buildLine(it: ItemPriceInput, env: ItemPriceEnv): { input: LineInput; rt: Rates; profileId: string | null } {
   const { rt, profileId } = effectiveRates(it, env);
   const qty = Math.max(1, Math.floor(it.qty || 1));
   const legacy = rt.engine === 'legacy';
@@ -54,9 +55,14 @@ export function priceLine(it: ItemPriceInput, env: ItemPriceEnv): ItemPrice {
     plates: o.plates, designMinutes: o.designMinutes, colorChanges: o.colorChanges, tags: o.tags, materialType: m?.type, riskFactor: m?.riskFactor ?? undefined,
     wastePct: m?.wastePct ?? undefined, filaments, origin: originOf(it.originKind),
   };
+  return { input, rt, profileId };
+}
+
+export function priceLine(it: ItemPriceInput, env: ItemPriceEnv): ItemPrice {
+  const { input, rt, profileId } = buildLine(it, env);
   const bd = calcLine(input, rt);
   let unit = bd.suggestedUnit;
-  if (legacy) { const urg = rt.urgency.find((u) => u.key === (env.urgency ?? 'normal'))?.pct ?? 0; if (urg) unit = Math.round((unit * (1 + urg / 100)) / 10) * 10; }
+  if (rt.engine === 'legacy') { const urg = rt.urgency.find((u) => u.key === (env.urgency ?? 'normal'))?.pct ?? 0; if (urg) unit = Math.round((unit * (1 + urg / 100)) / 10) * 10; }
   if (env.priceAdjPct) unit = roundPrice(unit * (1 + env.priceAdjPct / 100), rt.rounding);
   return { bd, suggestedUnit: unit, cost: bd.cost + (bd.feesAmount ?? 0), rates: rt, profileId };
 }

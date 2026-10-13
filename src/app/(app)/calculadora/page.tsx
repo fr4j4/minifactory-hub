@@ -8,7 +8,7 @@ import { getT } from '@/i18n/server';
 export async function generateMetadata() { return { title: (await getT())('meta.calculator') }; }
 export default async function CalcPage() {
   const t = await getT();
-  const user = await pagePerm('presupuestos', 'V'); const { ctx, models } = await loadEditorData();
+  const user = await pagePerm('presupuestos', 'V'); const { ctx, models, customers } = await loadEditorData();
   return (<><PageHeader title={t('calculator.quickCalculator')} subtitle={t('calculator.forWhatsappInquiriesCalculateThe')} />
-    <QuickCalc ctx={ctx} models={models} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} canCreate={can(user, 'presupuestos', 'C')} whatsappTpl="" /></>);
+    <QuickCalc ctx={ctx} models={models} customers={customers} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} canCreate={can(user, 'presupuestos', 'C')} /></>);
 }

@@ -40,5 +40,6 @@ import { restore } from './restore';
 import { archive } from './archive';
 import { ai } from './ai';
 import { advisor } from './advisor';
+import { calc } from './calc';
 
-export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor };
+export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, calc };

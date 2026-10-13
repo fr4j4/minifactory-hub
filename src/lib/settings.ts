@@ -1,7 +1,7 @@
 import { eq, and, sql, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import type { CalcProfile, Rates } from './pricing';
-import { V2_DEFAULTS } from './pricing';
+import { DEFAULT_RATES } from './calc-defaults';
 import { DEFAULT_CALC_PROFILES } from './calc-presets';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
 
@@ -23,13 +23,7 @@ export interface AppSettings {
 
 export const DEFAULT_SETTINGS: AppSettings = {
   shop: { name: 'MiniFactory', legalName: '', taxId: '', address: '', phone: '', email: '', currency: 'CLP', timezone: 'America/Santiago', lang: 'es-CL', brandColor: '#1d62f0' },
-  rates: {
-    kwh: 180, laborHour: 6000, wastePct: 5, failRatePct: 5, marginPct: 40, marginByCategory: {},
-    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'sumado',
-    urgency: [{ key: 'normal', label: 'Normal', pct: 0 }, { key: '48h', label: 'Urgente 48 h', pct: 25 }, { key: '24h', label: 'Urgente 24 h', pct: 50 }],
-    volumeTiers: [{ minQty: 10, pct: -10 }, { minQty: 50, pct: -20 }], prepMinutes: 10,
-    ...V2_DEFAULTS,
-  },
+  rates: DEFAULT_RATES,
   quoteValidDays: 15, reservationDays: 15, minDepositPct: 50,
   numbering: { quote: 'P-{YYYY}-{NNNN}', order: 'OT-{YYYY}-{NNNN}', sale: 'V-{YYYY}-{NNNN}', job: 'T-{YYYY}-{NNNN}', production: 'OP-{YYYY}-{NNNN}' },
   templates: {
@@ -74,6 +68,8 @@ export async function saveSettings(patch: Partial<AppSettings>) {
   const db = await getDb();
   const cur = await getSettingsRaw();
   const next = merge(cur, patch);
+  // las tarifas se envían completas: se reemplazan (un merge profundo no podría quitar claves, p. ej. un riesgo por material)
+  if (patch.rates) next.rates = { ...cur.rates, ...patch.rates };
   await db.insert(s.settings).values({ workspaceId: WORKSPACE_ID, data: next as any })
     .onConflictDoUpdate({ target: s.settings.workspaceId, set: { data: next as any, updatedAt: new Date() } });
   return next;

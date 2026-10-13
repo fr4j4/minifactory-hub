@@ -32,7 +32,7 @@ export default async function NewQuote({ searchParams }: { searchParams: Promise
       items.push(it);
     }
   }
-  const initial: QuoteState = { customerId: sp.customer ?? null, customerName: '', customerPhone: '', source: '', title: '', urgency: 'normal', discount: 0, finalTotal: null, priceReason: '', notes: '', validUntil: valid, items, links: [] };
+  const initial: QuoteState = { customerId: sp.customer ?? null, customerName: '', customerPhone: '', source: '', title: '', urgency: 'normal', applyTax: ctx.rates.engine === 'legacy' ? false : !!ctx.rates.taxDefault, calcProfileId: null, channelId: null, discount: 0, finalTotal: null, priceReason: '', notes: '', validUntil: valid, items, links: [] };
   const c = customers.find((x) => x.id === initial.customerId); if (c) { initial.customerName = c.name; initial.customerPhone = c.phone ?? ''; }
   return (<><PageHeader back={{ href: '/presupuestos', label: t('nav.quotes') }} title={t('common.newQuote')} subtitle={t('quotes.addOneOrMoreModels')} />
     <QuoteEditor initial={initial} ctx={ctx} customers={customers} models={models} variants={variants} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} /></>);

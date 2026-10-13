@@ -2,17 +2,20 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { calcQuote } from '@/lib/pricing';
+import { effectiveRates } from '@/lib/item-price';
 import type { CalcContext } from '@/lib/context';
 import type { ModelBrief } from '@/actions/quotes';
 import type { LinkRow } from '@/actions/links';
 import { createOrderAction } from '@/actions/orders';
-import { computeItem, LineEditor, newItem, uid, type ItemState } from './line-editor';
+import { computeItem, LineEditor, newItem, toCalcOpts, uid, type CalcEnv, type ItemState } from './line-editor';
+import { LevelSwitch, atLeast, useCalcLevel } from './calc-bits';
 import { CustomerPicker, SourceSelect, type CustomerOpt } from './customer-picker';
 import { LinksEditor } from './links-editor';
 import { Badge, Card } from './ui';
 import { Modal, useToast } from './client';
 import type { VariantOpt } from './quote-editor';
 import { sources, cn, money, num, pct } from '@/lib/format';
+import { profileDesc, profileName } from '@/lib/calc-presets';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
 
@@ -26,15 +29,22 @@ export function OrderForm({ ctx, customers, models, variants, showCosts, canPric
   const [items, setItems] = useState<ItemState[]>([newItem(ctx)]); const [links, setLinks] = useState<LinkRow[]>([]); const [discount, setDiscount] = useState(0); const [dep, setDep] = useState(0); const [method, setMethod] = useState('transferencia');
   const [busy, setBusy] = useState(false); const [addProd, setAddProd] = useState(false);
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
-  const adj = customers.find((c) => c.id === cust.customerId)?.priceAdj ?? 0;
+  const [level, setLevel] = useCalcLevel('detallado'); const legacy = ctx.rates.engine === 'legacy';
+  const [applyTax, setApplyTax] = useState(legacy ? false : !!ctx.rates.taxDefault); const [calcProfileId, setCalcProfileId] = useState<string | null>(null); const [channelId, setChannelId] = useState<string | null>(null);
+  const custRow = customers.find((c) => c.id === cust.customerId); const adj = custRow?.priceAdj ?? 0;
+  const env = useMemo<CalcEnv>(() => ({ priceAdj: adj, quoteProfileId: calcProfileId, customerProfileId: custRow?.calcProfileId ?? null, channelId }), [adj, calcProfileId, custRow?.calcProfileId, channelId]);
   const setItem = (id: string, p: Partial<ItemState>) => setItems((x) => x.map((i) => (i.uid === id ? { ...i, ...p } : i)));
-  const tt = useMemo(() => calcQuote(items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost - it.shipping, shipping: it.shipping }; }), ctx.rates, { discount }), [items, ctx, adj, vById, discount]);
+  const tt = useMemo(() => {
+    const ch = channelId ? ctx.channels.find((c) => c.id === channelId) : undefined;
+    const rt = effectiveRates({}, { rates: ctx.rates, profiles: ctx.calcProfiles, quoteProfileId: calcProfileId, customerProfileId: custRow?.calcProfileId ?? null, channelProfileId: ch?.calcProfileId, channelFeePct: ch?.commissionPct }).rt;
+    return calcQuote(items.map((it) => { const c = computeItem(it, ctx, env, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; }), rt, { discount, applyTax });
+  }, [items, ctx, env, vById, discount, applyTax, calcProfileId, channelId, custRow?.calcProfileId]);
   const save = async () => {
     setBusy(true);
     const r = await createOrderAction({
-      customerId: cust.customerId, customerName: cust.name, customerPhone: cust.phone, source: source || null, title: title || null, dueDate: due || null, priority, shipMethod: ship, shipAddress: addr || null, notes: notes || null, discount, links,
+      customerId: cust.customerId, customerName: cust.name, customerPhone: cust.phone, source: source || null, title: title || null, dueDate: due || null, priority, shipMethod: ship, shipAddress: addr || null, notes: notes || null, discount, links, applyTax, calcProfileId, channelId,
       deposit: dep > 0 ? { amount: dep, method } : null,
-      items: items.map((i) => ({ kind: i.kind, description: i.description || (i.variantId ? vById[i.variantId]?.label : t('common.order')), qty: i.qty, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
+      items: items.map((i) => ({ kind: i.kind, description: i.description || (i.variantId ? vById[i.variantId]?.label : t('common.order')), qty: i.qty, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, calcProfileId: i.calcProfileId, calcOpts: toCalcOpts(i), sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
     });
     setBusy(false);
     if (!r.ok) { toast.push(r.error, 'err'); return; }
@@ -49,9 +59,17 @@ export function OrderForm({ ctx, customers, models, variants, showCosts, canPric
           <label className="block sm:col-span-2"><span className="label">{t('orders.whatTheyOrderedTitle')}</span><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('orders.eG20KeychainsWith')} data-testid="order-title" /></label>
           <label className="block"><span className="label">{t('orders.requestedDate')}</span><input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} data-testid="order-due" /></label>
         </div>
+        {!legacy && (
+          <div className="flex flex-wrap items-end gap-3" data-testid="order-calc-opts">
+            {atLeast(level, 'detallado') && <label className="block"><span className="label">{t('calc.field.profile')}</span><select className="input" value={calcProfileId ?? ''} onChange={(e) => setCalcProfileId(e.target.value || null)} data-testid="order-profile"><option value="">{t('calc.field.profileDefault')}</option>{ctx.calcProfiles.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{profileName(t, p)}</option>)}</select></label>}
+            {atLeast(level, 'detallado') && ctx.channels.length > 0 && <label className="block"><span className="label">{t('calc.field.channel')}</span><select className="input" value={channelId ?? ''} onChange={(e) => setChannelId(e.target.value || null)}><option value="">—</option>{ctx.channels.map((c) => <option key={c.id} value={c.id}>{c.name}{c.commissionPct ? ` (${c.commissionPct}%)` : ''}</option>)}</select></label>}
+            <label className="flex items-center gap-2 text-sm pb-2"><input type="checkbox" checked={applyTax} onChange={(e) => setApplyTax(e.target.checked)} data-testid="apply-tax" />{t('calc.applyTax', { pct: ctx.rates.taxPct })}</label>
+            <div className="ml-auto pb-1"><LevelSwitch level={level} onChange={setLevel} /></div>
+          </div>
+        )}
       </div></Card>
       <div className="space-y-3">
-        {items.map((it, i) => <LineEditor key={it.uid} it={it} index={i} ctx={ctx} models={models} showCosts={showCosts} canPrice={canPrice} priceAdj={adj} variantsById={vById} onChange={(p) => setItem(it.uid, p)} onRemove={items.length > 1 ? () => setItems(items.filter((x) => x.uid !== it.uid)) : undefined} onDuplicate={() => setItems([...items, { ...it, uid: uid() }])} />)}
+        {items.map((it, i) => <LineEditor key={it.uid} it={it} index={i} ctx={ctx} models={models} showCosts={showCosts} canPrice={canPrice} env={env} level={level} variantsById={vById} onChange={(p) => setItem(it.uid, p)} onRemove={items.length > 1 ? () => setItems(items.filter((x) => x.uid !== it.uid)) : undefined} onDuplicate={() => setItems([...items, { ...it, uid: uid() }])} />)}
         <div className="flex flex-wrap gap-2"><button className="btn-ghost" onClick={() => setItems([...items.map((x) => ({ ...x, open: false })), newItem(ctx)])} data-testid="add-line">{t('orders.customItem')}</button>{variants.length > 0 && <button className="btn-ghost" onClick={() => setAddProd(true)} data-testid="add-product">{t('orders.catalogProduct')}</button>}</div>
       </div>
       <div className="grid gap-4 lg:grid-cols-3">

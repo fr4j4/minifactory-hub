@@ -7,13 +7,13 @@ import { createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
 
-export interface MaterialInput { id?: string; tech: string; manufacturer?: string; line?: string; type: string; colorName: string; hex: string; diameter?: number | null; density: number; costPerKg: number; stockMinG: number; tempNozzle?: string; tempBed?: string; supplierText?: string; filamentProfileId?: string | null }
+export interface MaterialInput { id?: string; tech: string; manufacturer?: string; line?: string; type: string; colorName: string; hex: string; diameter?: number | null; density: number; costPerKg: number; stockMinG: number; tempNozzle?: string; tempBed?: string; supplierText?: string; filamentProfileId?: string | null; riskFactor?: number | null; wastePct?: number | null }
 export async function saveMaterialAction(i: MaterialInput) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('inventario', i.id ? 'E' : 'C'); const db = await getDb();
     if (!i.type.trim() || !i.colorName.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
-    const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, filamentProfileId: i.filamentProfileId || null, updatedAt: new Date() };
+    const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, filamentProfileId: i.filamentProfileId || null, riskFactor: i.riskFactor != null && i.riskFactor > 0 ? i.riskFactor : null, wastePct: i.wastePct != null && i.wastePct >= 0 ? i.wastePct : null, updatedAt: new Date() };
     if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
     const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); return m.id;
   }, ['/inventario']);

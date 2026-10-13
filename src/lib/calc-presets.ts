@@ -3,6 +3,7 @@
  * se guardan en settings y el usuario los ajusta (spec §4.3 y §5.2).
  */
 import type { CalcProfile, DeepPartial, Rates } from './pricing';
+import type { TFn } from '@/i18n/translate';
 
 /** Los textos (nombre y descripción) se traducen en la interfaz con `calc.profile.<id>.name|desc`. */
 export const DEFAULT_CALC_PROFILES: CalcProfile[] = [
@@ -45,3 +46,17 @@ export const KNOWN_MACHINES: Array<{ key: string; brand: string; model: string; 
   { key: 'mk4s', brand: 'Prusa', model: 'MK4S', watts: 140, volX: 250, volY: 210, volZ: 220, lifeHours: 8000, feedGph: 30 },
   { key: 'saturn', brand: 'Elegoo', model: 'Saturn (resina)', watts: 60, volX: 192, volY: 120, volZ: 200, lifeHours: 3000, feedGph: 20 },
 ];
+
+/** Los perfiles de fábrica se muestran traducidos mientras no se les cambie el nombre o la descripción. */
+export function profileName(t: TFn, p: Pick<CalcProfile, 'id' | 'name'>): string {
+  const d = DEFAULT_CALC_PROFILES.find((x) => x.id === p.id);
+  return d && d.name === p.name ? t(`calc.profile.${p.id}.name` as never) : p.name;
+}
+export function profileDesc(t: TFn, p: Pick<CalcProfile, 'id' | 'description'>): string {
+  const d = DEFAULT_CALC_PROFILES.find((x) => x.id === p.id);
+  return d && d.description === p.description ? t(`calc.profile.${p.id}.desc` as never) : p.description ?? '';
+}
+export function tagName(t: TFn, tg: { key: string; label: string }): string {
+  const d = DEFAULT_COMPLEXITY_TAGS.find((x) => x.key === tg.key);
+  return d && d.label === tg.label ? t(`calc.tag.${tg.key}` as never) : tg.label;
+}

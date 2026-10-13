@@ -3,7 +3,7 @@ import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { hashPassword } from './auth';
-import { getSettings, saveSettings } from './settings';
+import { getRates, getSettings, saveSettings } from './settings';
 import { createSpool } from './services/inventory';
 import { ingestModel } from './files';
 import { orcaAvailable, findVendorOf, getIndex } from './slicer/catalog';
@@ -52,6 +52,8 @@ export async function seedDemo() {
   const db = await getDb();
   const [existing] = await db.select({ id: s.machines.id }).from(s.machines).limit(1);
   if (existing) return { skipped: true };
+  // tarifas de demostración: costos fijos y un ingreso objetivo para que la tarifa de equilibrio tenga sentido
+  { const st0 = await getSettings(); await saveSettings({ rates: { ...st0.rates, fixedCosts: [{ label: 'Arriendo del local', amount: 250000 }, { label: 'Internet, software y contabilidad', amount: 70000 }], targetIncomeMonth: 600000 }, calcSetup: { done: true, preset: 'taller' } }); }
   const pw = await hashPassword('taller1234');
   const [admin] = await db.select().from(s.users).limit(1);
   await db.update(s.users).set({ name: 'Francisco (Admin)' }).where(eq(s.users.id, admin.id));
@@ -159,7 +161,7 @@ export async function seedDemo() {
   const [cCon, cAro, cFab, cGeek, cAnd, cPed] = C;
 
   /* ── catálogo ── */
-  const rt = (await getSettings()).rates;
+  const rt = await getRates();
   const costOf = (g: number, h: number, m: typeof plaNeg) => calcLine({ qty: 1, gramsTotal: g, hoursTotal: h, costPerKg: m.costPerKg, machine: machineCostOf(a1), prepMinutes: 0 }, rt).cost;
   const prods: Array<{ name: string; p: Parameters<typeof saveProduct>[0] }> = [
     { name: 'llavero', p: { name: 'Llavero personalizado', category: 'Accesorios', mode: 'variantes', attributes: [{ name: 'Color', values: ['Negro', 'Rojo', 'Blanco'] }, { name: 'Tamaño', values: ['S', 'M'] }], price: 3990, materialId: plaNeg.id, weightG: 7, printH: 0.5, minStock: 5, modelFileId: fileIds.llavero?.modelFileId, tags: ['regalo'] } },
