@@ -253,6 +253,34 @@ export async function completeMaintenance(o: { planId: string; cost?: number; do
   await audit('machine', m.id, 'mantenimiento', { task: p.task }, o.userId);
 }
 
+/* ───────── eliminar máquina ───────── */
+const ACTIVE_JOB_STATUSES = ['en_cola', 'imprimiendo', 'pausado'] as const;
+
+/** Qué impide eliminar una máquina, y si tiene una impresora vinculada (se desconecta sola al eliminar). */
+export async function machineDeleteInfo(machineId: string) {
+  const db = await getDb();
+  const activeJobs = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), inArray(s.printJobs.status, [...ACTIVE_JOB_STATUSES])));
+  const [link] = await db.select({ id: s.printerLinks.id, mode: s.printerLinks.mode, serial: s.printerLinks.serial }).from(s.printerLinks).where(and(eq(s.printerLinks.machineId, machineId), isNull(s.printerLinks.deletedAt)));
+  return { canDelete: activeJobs.length === 0, activeJobCount: activeJobs.length, link: link ?? null };
+}
+
+/**
+ * Elimina (soft-delete) una máquina registrada manualmente o conectada (LAN/Bambu Cloud).
+ * - Si tiene una impresora vinculada, la desconecta primero (reutiliza removePrinter; no toca su historial ni la cuenta Bambu Cloud).
+ * - Bloquea el borrado si hay trabajos activos en la cola para no perder una impresión en curso.
+ * - El historial (trabajos terminados, mantenciones, incidencias) se conserva; solo se oculta la máquina de las listas.
+ */
+export async function removeMachine(machineId: string, userId?: string | null) {
+  const db = await getDb();
+  const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId));
+  if (!m) throw new Error('Máquina no encontrada');
+  const info = await machineDeleteInfo(machineId);
+  if (!info.canDelete) throw new Error(`Esta máquina tiene ${info.activeJobCount} trabajo(s) activo(s) en la cola. Termina, cancela o reasigna esos trabajos antes de eliminarla.`);
+  if (info.link) { const { removePrinter } = await import('./printers'); await removePrinter(info.link.id, userId); }
+  await db.update(s.machines).set({ deletedAt: new Date(), connection: {} }).where(eq(s.machines.id, machineId));
+  await audit('machine', machineId, 'eliminar', { name: m.name, hadPrinterLink: !!info.link }, userId);
+}
+
 /* ───────── producción para stock ───────── */
 export async function createProductionOrder(o: { variantId: string; qty: number; origin?: 'manual' | 'reposicion'; machineId?: string | null; userId?: string | null }) {
   const db = await getDb();

@@ -5,7 +5,7 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Table, Badge, StatusBadge, Meter, Stat } from '@/components/ui';
-import { IncidentForm, MachineForm, PlanTools, StatusSelect } from '@/components/machine-bits';
+import { IncidentForm, MachineForm, PlanTools, StatusSelect, DeleteMachineButton } from '@/components/machine-bits';
 import { getSettings } from '@/lib/settings';
 import { machineHourly } from '@/lib/pricing';
 import { dmy, dmyHm, money, num, pct } from '@/lib/format';
@@ -40,7 +40,7 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
   const planRows = plans.map((p) => { const remH = p.intervalHours != null ? p.intervalHours - (m.hoursTotal - p.lastDoneHours) : null; const remD = p.intervalDays != null && p.lastDoneAt ? p.intervalDays - (Date.now() - new Date(p.lastDoneAt).getTime()) / 86400_000 : null; const due = (remH != null && remH <= 0) || (remD != null && remD <= 0); return { p, remH, remD, due }; });
   return (
     <>
-      <PageHeader back={{ href: '/maquinas', label: 'Máquinas' }} title={<span>{m.name} <StatusBadge status={m.status} /></span>} subtitle={`${m.brand ?? ''} ${m.model ?? ''} · ${m.tech} · ${m.volX}×${m.volY}×${m.volZ} mm`} actions={can(user, 'maquinas', 'E') ? <StatusSelect id={m.id} status={m.status} /> : undefined} />
+      <PageHeader back={{ href: '/maquinas', label: 'Máquinas' }} title={<span>{m.name} <StatusBadge status={m.status} /></span>} subtitle={`${m.brand ?? ''} ${m.model ?? ''} · ${m.tech} · ${m.volX}×${m.volY}×${m.volZ} mm`} actions={<div className="flex items-center gap-2">{can(user, 'maquinas', 'E') && <StatusSelect id={m.id} status={m.status} />}{can(user, 'maquinas', 'X') && <DeleteMachineButton machineId={m.id} machineName={m.name} redirectTo="/maquinas" />}</div>} />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"><Stat label="Horas totales" value={`${num(m.hoursTotal, 0)} h`} /><Stat label="Trabajos OK / fallidos" value={`${m.jobsOk} / ${m.jobsFailed}`} /><Stat label="Tasa de éxito" value={done ? pct((m.jobsOk / done) * 100, 0) : '—'} />{canSeeCosts(user) && <Stat label="Costo por hora" value={money(Math.round(hr.dep + hr.maint + hr.energy))} />}<Stat label="Factor real/estimado" value={`${num(m.timeFactor, 2)}×`} sub="mediana de los últimos 20 trabajos" /></div>
       {printer && <div className="mb-4">{printer}</div>}
       <div className="grid gap-4 xl:grid-cols-3">
