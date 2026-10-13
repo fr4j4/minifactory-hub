@@ -7,6 +7,7 @@ import { enqueueSlice } from '@/lib/slicer/queue';
 import { findVendorOf, getIndex, listFactory, listVendors, resolveFactory, SIMPLE_PARAMS, type ProfileType } from '@/lib/slicer/catalog';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId: string; copies?: number; label?: string; force?: boolean }) {
   return safe(async () => {
@@ -201,5 +202,40 @@ export async function profileKeysAction(type: ProfileType, baseName: string) {
     const base = resolveFactory(type, baseName, findVendorOf(type, baseName));
     return Object.entries(base).filter(([k, v]) => !['name', 'inherits', 'from', 'instantiation', 'setting_id', 'type', 'version', 'compatible_printers', 'compatible_printers_condition'].includes(k) && (typeof v !== 'string' || v.length < 200) && !(Array.isArray(v) && JSON.stringify(v).length > 200))
       .map(([k, v]) => ({ key: k, value: Array.isArray(v) ? String(v[0] ?? '') : String(v) })).sort((a, b) => a.key.localeCompare(b.key));
+  });
+}
+
+/* ── Explicar errores de laminado (reglas siempre; IA solo si está disponible) ─────────────────── */
+async function runContext(runId: string) {
+  const db = await getDb();
+  const [run] = await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, runId));
+  if (!run) throw new LocalizedError('slicer.profileNotFound');
+  const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, run.fileVersionId));
+  const [mf] = fv ? await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, fv.modelFileId)) : [];
+  const [m] = run.machineProfileId ? await db.select().from(s.machines).where(and(eq(s.machines.machineProfileId, run.machineProfileId), isNull(s.machines.deletedAt))) : [];
+  const dims = mf?.dimX && mf?.dimY && mf?.dimZ ? [mf.dimX, mf.dimY, mf.dimZ] as [number, number, number] : null;
+  const volume = m ? [m.volX, m.volY, m.volZ] as [number, number, number] : null;
+  const procs = run.processProfileId ? await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, run.processProfileId)) : [];
+  return { run, dims, volume, code: ((run.result as any)?.errorCode ?? null) as string | null, changedKeys: Object.keys(procs[0]?.changes ?? {}) };
+}
+export async function explainSliceErrorAction(runId: string) {
+  return safe(async () => {
+    await requirePerm('laminador', 'V');
+    const c = await runContext(runId);
+    const { explainSliceError } = await import('@/lib/slicer/explain');
+    const { aiAvailableFor } = await import('@/lib/ai');
+    const user = await requirePerm('laminador', 'V');
+    return { hints: explainSliceError({ code: c.code, dims: c.dims, volume: c.volume, copies: c.run.copies }), aiAvailable: await aiAvailableFor(user, 'slicer.explain') };
+  });
+}
+export async function explainSliceErrorAiAction(runId: string) {
+  return safe(async () => {
+    const user = await requirePerm('laminador', 'V');
+    const c = await runContext(runId);
+    if (c.run.status !== 'error') throw new LocalizedError('slicer.profileNotFound');
+    const { explainSliceErrorAi } = await import('@/lib/ai/features/slicer-explain');
+    const { getLocale } = await import('@/i18n/server');
+    const r = await explainSliceErrorAi({ error: c.run.error ?? '', code: c.code, dims: c.dims, volume: c.volume, copies: c.run.copies, changedKeys: c.changedKeys, locale: await getLocale() }, { user });
+    return { summary: r.summary, steps: r.steps };
   });
 }

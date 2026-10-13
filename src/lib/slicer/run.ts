@@ -11,7 +11,7 @@ import type { MessageKey } from '@/i18n/translate';
 import { parse3MF } from '../mesh/parse';
 
 export interface CliResult {
-  ok: boolean; error?: string; engine: string; durationMs: number;
+  ok: boolean; error?: string; errorCode?: SliceErrorCode; engine: string; durationMs: number;
   plates: Array<{ gcodePath: string; meta: SliceMeta }>; threemfPath?: string; tmpDir: string;
 }
 
@@ -28,6 +28,9 @@ export async function engineVersion(): Promise<string> {
   const m = out.match(/OrcaSlicer-([\d.]+)/);
   return (engineVer = m ? m[1] : 'desconocida');
 }
+
+/** Código estable del error (no depende del idioma) para poder explicarlo y sugerir acciones. */
+export type SliceErrorCode = 'not_installed' | 'timeout' | 'no_fit' | 'incompatible' | 'other';
 
 const ERR_MAP: Record<number, MessageKey> = {
   [-50]: 'slicer.errPartDoesNotFit',
@@ -70,7 +73,7 @@ export async function runOrca(o: {
   const t0 = Date.now();
   const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mf-slice-'));
   const engine = await engineVersion();
-  if (!fs.existsSync(config.orcaBin)) return { ok: false, error: t('slicer.orcaslicerIsNotInstalledOn'), engine, durationMs: 0, plates: [], tmpDir };
+  if (!fs.existsSync(config.orcaBin)) return { ok: false, errorCode: 'not_installed', error: t('slicer.orcaslicerIsNotInstalledOn'), engine, durationMs: 0, plates: [], tmpDir };
   const outDir = path.join(tmpDir, 'out'); await fsp.mkdir(outDir);
   let ext = o.ext;
   if (ext === '3mf' && o.copies > 1) {
@@ -95,10 +98,10 @@ export async function runOrca(o: {
   const durationMs = Date.now() - t0;
   let rc = code, errStr = '';
   try { const r = JSON.parse(await fsp.readFile(path.join(outDir, 'result.json'), 'utf8')); rc = r.return_code ?? rc; errStr = r.error_string ?? ''; } catch { /* sin result.json */ }
-  if (log.join('').includes('timeout')) return { ok: false, error: t('slicer.slicingExceededTheLimitOf', { timeoutS: o.timeoutS ?? config.orcaTimeoutS }), engine, durationMs, plates: [], tmpDir };
+  if (log.join('').includes('timeout')) return { ok: false, errorCode: 'timeout', error: t('slicer.slicingExceededTheLimitOf', { timeoutS: o.timeoutS ?? config.orcaTimeoutS }), engine, durationMs, plates: [], tmpDir };
   const files = (await fsp.readdir(outDir)).filter((f) => /^plate_\d+\.gcode$/.test(f)).sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)));
   if (rc !== 0 || !files.length) {
-    return { ok: false, error: (ERR_MAP[rc] ? t(ERR_MAP[rc]) : (errStr && errStr !== 'Success.' ? errStr : t('slicer.theSlicerFinishedWithAn', { code: rc}))), engine, durationMs, plates: [], tmpDir };
+    return { ok: false, errorCode: rc === -50 ? 'no_fit' : rc === -17 ? 'incompatible' : 'other', error: (ERR_MAP[rc] ? t(ERR_MAP[rc]) : (errStr && errStr !== 'Success.' ? errStr : t('slicer.theSlicerFinishedWithAn', { code: rc}))), engine, durationMs, plates: [], tmpDir };
   }
   const plates = [];
   for (const f of files) {

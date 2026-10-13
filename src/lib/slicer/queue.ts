@@ -83,7 +83,7 @@ async function execute(runId: string) {
     const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies });
     tmpDir = r.tmpDir;
     if (!r.ok) {
-      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
+      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
       return;
     }
     // sumar todas las placas (si las copias no caben en una)
@@ -101,7 +101,7 @@ async function execute(runId: string) {
       result: { gcodeKeys, slicer: r.plates[0].meta.slicer }, error: null, updatedAt: new Date(),
     }).where(eq(s.sliceRuns.id, runId));
   } catch (e) {
-    await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
+    await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, result: { errorCode: 'other' }, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
   } finally {
     if (tmpDir) await cleanup(tmpDir).catch(() => {});
   }

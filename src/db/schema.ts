@@ -480,6 +480,7 @@ export const printJobs = pgTable('print_jobs', {
   realH: doublePrecision('real_h'),
   result: text('result'), // exito | falla_parcial | falla_total
   failCause: text('fail_cause'),
+  failCode: text('fail_code'), // catálogo cerrado (lib/production/fail-causes.ts); fail_cause guarda el detalle libre
   failCharge: text('fail_charge'), // taller | pedido
   reprintOfId: uuid('reprint_of_id'),
   sliceRunId: uuid('slice_run_id'),
