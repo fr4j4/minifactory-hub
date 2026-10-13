@@ -69,7 +69,8 @@ function Temp({ label, t, target }: { label: string; t: number | null; target?: 
 
 export function CameraView({ id, kind, offline }: { id: string; kind: string; offline: boolean }) {
   const [mode, setMode] = useState<'foto' | 'vivo'>('foto'); const [n, setN] = useState(0); const [err, setErr] = useState<string | null>(null); const [loaded, setLoaded] = useState(false);
-  useEffect(() => { if (mode !== 'foto' || offline || err) return; const t = setInterval(() => setN((x) => x + 1), 5000); return () => clearInterval(t); }, [mode, offline, err]);
+  const cloud = kind === 'cloud';
+  useEffect(() => { if (mode !== 'foto' || offline || err) return; const t = setInterval(() => setN((x) => x + 1), cloud ? 60_000 : 5000); return () => clearInterval(t); }, [mode, offline, err, cloud]);
   const src = mode === 'vivo' ? `/api/printers/${id}/camera?stream=1` : `/api/printers/${id}/camera?t=${n}`;
   const retry = () => { setErr(null); setLoaded(false); setN((x) => x + 1); };
   return (
@@ -79,11 +80,12 @@ export function CameraView({ id, kind, offline }: { id: string; kind: string; of
         : err ? <div className="absolute inset-0 grid place-items-center p-5 text-center"><div><p className="text-sm text-white/80 max-w-xs" data-testid="camera-error">{err}</p><button className="btn-ghost btn-sm mt-3 !bg-transparent !text-white !border-white/30" onClick={retry}>Reintentar</button></div></div>
         : <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img key={mode} src={src} alt="Cámara de la impresora" className={cn('h-full w-full object-cover transition-opacity', loaded ? 'opacity-100' : 'opacity-0')} onLoad={() => setLoaded(true)}
+          <img key={mode} src={src} alt={cloud ? 'Vista previa de la placa del trabajo' : 'Cámara de la impresora'} className={cn('h-full w-full transition-opacity', cloud ? 'object-contain p-6' : 'object-cover', loaded ? 'opacity-100' : 'opacity-0')} onLoad={() => setLoaded(true)}
             onError={async () => { try { const r = await fetch(`/api/printers/${id}/camera?t=e${n}`); setErr(r.ok ? 'La cámara se desconectó.' : await r.text()); } catch { setErr('No se pudo abrir la cámara.'); } }} />
-          {!loaded && <div className="absolute inset-0 grid place-items-center"><span className="font-mono text-[11px] uppercase tracking-[.14em] text-white/60 animate-pulseDot">conectando cámara…</span></div>}
+          {!loaded && <div className="absolute inset-0 grid place-items-center"><span className="font-mono text-[11px] uppercase tracking-[.14em] text-white/60 animate-pulseDot">{cloud ? 'cargando vista previa…' : 'conectando cámara…'}</span></div>}
+          {cloud && loaded && <div className="absolute inset-x-0 bottom-0 bg-black/55 backdrop-blur px-3 py-2 text-[11px] text-white/80" data-testid="cloud-cover-note">Vista previa de la placa · Bambu Cloud no ofrece cámara en vivo a programas externos</div>}
         </>}
-      {kind !== 'none' && !offline && <div className="absolute top-2 right-2 flex rounded-full bg-black/55 backdrop-blur p-0.5 text-[11px]" role="radiogroup" aria-label="Modo de cámara">
+      {kind !== 'none' && !cloud && !offline && <div className="absolute top-2 right-2 flex rounded-full bg-black/55 backdrop-blur p-0.5 text-[11px]" role="radiogroup" aria-label="Modo de cámara">
         {(['foto', 'vivo'] as const).map((m) => <button key={m} role="radio" aria-checked={mode === m} onClick={() => { setMode(m); setErr(null); setLoaded(false); }} className={cn('px-2.5 min-h-[28px] rounded-full capitalize', mode === m ? 'bg-white text-[#17161a]' : 'text-white/80')} data-testid={`cam-${m}`}>{m === 'vivo' ? '● En vivo' : 'Foto'}</button>)}
       </div>}
     </div>
@@ -151,6 +153,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
   // el estado de la máquina (encabezado, cola) lo cambia el servidor al recibir la transición: se refresca la página
   const router = useRouter(); const prevState = useRef(s.state);
   useEffect(() => { if (prevState.current !== s.state) { prevState.current = s.state; const t = setTimeout(() => router.refresh(), 600); return () => clearTimeout(t); } }, [s.state, router]);
+  const cloud = r.mode === 'cloud'; canControl = canControl && !cloud; canSend = canSend && !cloud;
   const busy = s.state === 'RUNNING' || s.state === 'PAUSE' || s.state === 'PREPARE'; const cmd = (c: Parameters<typeof printerCommandAction>[1], arg?: number, ok?: string) => run(() => printerCommandAction(r.id, c, arg), { ok, refresh: false });
   // la bobina externa solo se muestra si tiene filamento o si no hay AMS
   const trays = [...s.ams.flatMap((u) => u.trays), ...(s.external && (!s.external.empty || !s.ams.length) ? [s.external] : [])];
@@ -158,13 +161,14 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
   return (
     <section className="card overflow-hidden" data-testid="printer-panel">
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-[var(--line)]">
-        <div className="flex items-center gap-2.5 min-w-0"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden /><h2 className="text-[13px] font-semibold tracking-tight truncate">En vivo · {r.modelName ? `Bambu Lab ${r.modelName}` : 'Bambu Lab'}</h2><PrinterStateBadge r={r} /></div>
+        <div className="flex items-center gap-2.5 min-w-0"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden /><h2 className="text-[13px] font-semibold tracking-tight truncate">En vivo · {r.modelName ? `Bambu Lab ${r.modelName}` : 'Bambu Lab'}</h2><PrinterStateBadge r={r} />{cloud && <span className="font-mono text-[10px] uppercase tracking-[.1em] rounded-full border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 px-2 py-0.5" data-testid="mode-cloud">☁ nube · solo lectura</span>}</div>
         <div className="flex items-center gap-1.5">
           {canSend && <button className="btn-primary btn-sm" disabled={!r.online || busy} onClick={() => setSend(true)} data-testid="send-open">Enviar a imprimir</button>}
           {canControl && busy && (s.state === 'PAUSE' ? <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('resume', undefined, 'Reanudando')} data-testid="cmd-resume">▶ Reanudar</button> : <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('pause', undefined, 'Pausa enviada')} data-testid="cmd-pause">❚❚ Pausar</button>)}
           {canControl && busy && <ConfirmButton className="btn-ghost btn-sm text-red-600 dark:text-red-400" message="¿Detener la impresión? No se puede reanudar." onConfirm={() => cmd('stop', undefined, 'Impresión detenida')}>■ Detener</ConfirmButton>}
         </div>
       </header>
+      {cloud && <p className="mx-4 mt-3 text-xs muted" data-testid="cloud-readonly">Conectada por Bambu Cloud: puedes ver el estado desde cualquier red, pero Bambu Lab no permite pausar, detener ni enviar impresiones desde programas externos por la nube. Para controlarla, conéctala por LAN.</p>}
       {!r.online && r.error && <div role="alert" className="mx-4 mt-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="printer-error">{r.error}</div>}
       <div className="grid gap-4 p-4 lg:grid-cols-[1.15fr_1fr]">
         <CameraView id={r.id} kind={cameraKind} offline={!r.online} />

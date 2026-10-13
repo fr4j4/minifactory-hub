@@ -25,7 +25,7 @@ export interface SimOpts {
   printing?: { file: string; totalLayers: number; minutes: number; progress?: number } | null;
   hms?: Array<{ attr: number; code: number }>; ssdpTargets?: string[]; speedFactor?: number; loop?: boolean;
 }
-export interface SimHandle { opts: SimOpts; files: Map<string, Buffer>; commands: any[]; state: Record<string, any>; stop: () => Promise<void> }
+export interface SimHandle { opts: SimOpts; files: Map<string, Buffer>; commands: any[]; state: Record<string, any>; stop: () => Promise<void>; onReport: (cb: (payload: Record<string, any>) => void) => void; request: (m: any) => void }
 
 const pad = (s: string) => s.padEnd(8, 'F');
 
@@ -55,11 +55,16 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
   const broker = await Aedes.createBroker();
   broker.authenticate = (_c, user, pass, done) => { const ok = user === 'bblp' && pass?.toString() === o.accessCode; done(ok ? null : Object.assign(new Error('Not authorized'), { returnCode: 5 }) as any, ok); };
   broker.authorizeSubscribe = (_c, sub, done) => done(sub.topic === `device/${o.serial}/report` ? null : new Error('denegado'), sub);
-  const report = (payload: Record<string, any>) => broker.publish({ topic: `device/${o.serial}/report`, payload: Buffer.from(JSON.stringify(payload)), qos: 0, retain: false, cmd: 'publish', dup: false } as any, () => {});
+  const reportHooks: Array<(p: Record<string, any>) => void> = [];
+  const report = (payload: Record<string, any>) => { for (const h of reportHooks) h(payload); publishLan(payload); };
+  const publishLan = (payload: Record<string, any>) => broker.publish({ topic: `device/${o.serial}/report`, payload: Buffer.from(JSON.stringify(payload)), qos: 0, retain: false, cmd: 'publish', dup: false } as any, () => {});
   const full = () => report({ print: { command: 'push_status', msg: 0, sequence_id: '0', ...p } });
   broker.on('publish', (pkt, client) => {
     if (!client || pkt.topic !== `device/${o.serial}/request`) return;
     let m: any; try { m = JSON.parse(pkt.payload.toString()); } catch { return; }
+    handle(m);
+  });
+  const handle = (m: any) => {
     commands.push(m);
     const cmd = m.print?.command ?? m.pushing?.command ?? m.system?.command ?? m.info?.command;
     if (cmd === 'pushall') full();
@@ -78,7 +83,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
       full();
       setTimeout(() => { if (p.gcode_state === 'PREPARE') { p.gcode_state = 'RUNNING'; p.stg_cur = 0; report({ print: { gcode_state: 'RUNNING', stg_cur: 0 } }); } }, 2500 / speedF);
     }
-  });
+  };
   const mqttSrv = tls.createServer(tlsOpts, (s) => broker.handle(s as any));
   await new Promise<void>((r) => mqttSrv.listen(o.mqttPort, '0.0.0.0', () => r()));
 
@@ -175,7 +180,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
   announce(); const ann = setInterval(announce, 1500);
 
   return {
-    opts: o, files, commands, state: p,
+    opts: o, files, commands, state: p, onReport: (cb) => { reportHooks.push(cb); }, request: (m) => handle(m),
     stop: async () => {
       clearInterval(tick); clearInterval(ann); udp.close();
       await Promise.all([mqttSrv, camSrv, ftpSrv].filter(Boolean).map((s) => new Promise<void>((r) => { (s as tls.Server).close(() => r()); setTimeout(r, 300); })));
@@ -211,12 +216,27 @@ export function demoPrinters(base = Number(process.env.BAMBU_SIM_BASE_PORT || 18
   ];
 }
 
+/** Impresora que solo está en la cuenta de la nube (no se anuncia en la red local). */
+export function cloudOnlyPrinter(base = Number(process.env.BAMBU_SIM_BASE_PORT || 18000)): SimOpts {
+  return { serial: '01S00C123400999', name: 'P1P Bodega', model: 'C11', accessCode: '13572468', mqttPort: base + 3883, ftpPort: base + 3990, ssdpTargets: [],
+    external: { type: 'PETG', color: '#1E9E6A', brand: 'PETG Basic', remain: -1 }, printing: { file: 'Soporte_camara_x2.3mf', totalLayers: 210, minutes: 190, progress: 12 }, speedFactor: 10, loop: true };
+}
+
 if (process.argv[1]?.endsWith('bambu-sim.ts')) {
   (async () => {
-    const sims = await Promise.all(demoPrinters().map((p) => startSim(p)));
+    const base = Number(process.env.BAMBU_SIM_BASE_PORT || 18000);
+    const sims = await Promise.all([...demoPrinters(base), cloudOnlyPrinter(base)].map((p) => startSim(p)));
     for (const s of sims) console.log(`${s.opts.name} (${s.opts.serial}) · código ${s.opts.accessCode} · MQTT ${s.opts.mqttPort}${s.opts.cameraPort ? ` · cámara ${s.opts.cameraPort}` : ''}${s.opts.ftpPort ? ` · FTPS ${s.opts.ftpPort}` : ''}`);
+    let cloud: { stop: () => Promise<void> } | null = null;
+    if (process.env.BAMBU_SIM_CLOUD_API_PORT) {
+      const { startCloudSim } = await import('./bambu-cloud-sim');
+      const c = await startCloudSim({ apiPort: Number(process.env.BAMBU_SIM_CLOUD_API_PORT), mqttPort: Number(process.env.BAMBU_SIM_CLOUD_MQTT_PORT || base + 884), caFile: process.env.BAMBU_SIM_CLOUD_CA_FILE || 'data/bambu-cloud-ca.pem',
+        users: [{ email: 'taller@minifactory.cl', password: 'bambu1234', uid: '1840000123', name: 'Taller MiniFactory', mode: 'code', code: '246810', jwt: true, devices: sims.map((sim) => ({ sim })) }] });
+      cloud = c;
+      console.log(`Nube simulada: API ${c.apiBase} · MQTT ${c.mqtt} · CA ${c.caFile} · cuenta taller@minifactory.cl / bambu1234 · código 246810`);
+    }
     console.log('Simulador listo. Ctrl+C para salir.');
-    const bye = async () => { await Promise.all(sims.map((s) => s.stop())); process.exit(0); };
+    const bye = async () => { await cloud?.stop(); await Promise.all(sims.map((s) => s.stop())); process.exit(0); };
     process.on('SIGINT', bye); process.on('SIGTERM', bye);
   })();
 }

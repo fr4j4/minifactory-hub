@@ -1,6 +1,9 @@
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { camHub, cameraSnapshot } from '@/lib/bambu/manager';
+import { cloudCover } from '@/lib/services/printers';
+import { getDb, s } from '@/db';
+import { eq } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +11,12 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const u = await getSession(); if (!u || !can(u, 'maquinas', 'V')) return new Response('No autorizado', { status: 401 });
   const { id } = await params; const url = new URL(req.url);
+  const db = await getDb(); const [link] = await db.select({ mode: s.printerLinks.mode }).from(s.printerLinks).where(eq(s.printerLinks.id, id));
+  if (link?.mode === 'cloud') {
+    // por la nube no hay cámara en vivo: se entrega la miniatura de la placa del trabajo actual
+    try { const c = await cloudCover(id); return new Response(new Uint8Array(c.jpg), { headers: { 'Content-Type': c.type, 'Cache-Control': 'no-store' } }); }
+    catch (e) { return new Response((e as Error).message, { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }
+  }
   if (url.searchParams.get('stream') !== '1') {
     try { const jpg = await cameraSnapshot(id); return new Response(new Uint8Array(jpg), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } }); }
     catch (e) { return new Response((e as Error).message, { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }); }

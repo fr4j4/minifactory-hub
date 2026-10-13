@@ -665,8 +665,10 @@ export const printerLinks = pgTable('printer_links', {
   ...base(),
   machineId: uuid('machine_id').notNull(),
   vendor: text('vendor').notNull().default('bambu'),
+  mode: text('mode').notNull().default('lan'), // lan | cloud
+  cloudAccountId: uuid('cloud_account_id'),
   serial: text('serial').notNull(),
-  host: text('host').notNull(),
+  host: text('host'), // IP en modo LAN; vacío en modo nube
   accessCodeEnc: text('access_code_enc').notNull(),
   model: text('model'), // código de modelo (C12, N1, BL-P001…)
   name: text('name'),
@@ -681,3 +683,19 @@ export const printerLinks = pgTable('printer_links', {
   lastStatus: jsonb('last_status').$type<Record<string, any>>(),
   lastError: text('last_error'),
 }, (t) => [uniqueIndex('printer_links_serial_uq').on(t.workspaceId, t.serial)]);
+
+/** Cuentas de Bambu Cloud. Nunca se guarda la contraseña: solo el token de acceso, cifrado. */
+export const cloudAccounts = pgTable('cloud_accounts', {
+  ...base(),
+  vendor: text('vendor').notNull().default('bambu'),
+  region: text('region').notNull().default('global'), // global | china
+  email: text('email').notNull(),
+  displayName: text('display_name'),
+  uid: text('uid'),
+  username: text('username'), // u_<uid> para MQTT
+  tokenEnc: text('token_enc'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  status: text('status').notNull().default('activa'), // activa | expirada | cerrada
+  lastError: text('last_error'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+});

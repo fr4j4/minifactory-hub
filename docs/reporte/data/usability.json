@@ -1,7 +1,7 @@
 [
  {
   "name": "Subir un STL y ver su análisis",
-  "seconds": 2,
+  "seconds": 1.2,
   "steps": 0,
   "limitS": 30,
   "ok": true,
@@ -9,7 +9,7 @@
  },
  {
   "name": "Laminar una pieza y ver tiempo, gramos y precio",
-  "seconds": 2.9,
+  "seconds": 3.6,
   "steps": 0,
   "limitS": 30,
   "ok": true,
@@ -32,7 +32,7 @@
  },
  {
   "name": "Registrar un pedido manual (WhatsApp)",
-  "seconds": 0.5,
+  "seconds": 0.6,
   "steps": 0,
   "limitS": 60,
   "ok": true,
@@ -40,14 +40,14 @@
  },
  {
   "name": "Terminar un trabajo y descontar la bobina",
-  "seconds": 0.3,
+  "seconds": 0.2,
   "steps": 0,
   "limitS": 30,
   "ok": true
  },
  {
   "name": "Registrar una venta rápida de marketplace",
-  "seconds": 0.6,
+  "seconds": 0.7,
   "steps": 0,
   "limitS": 30,
   "ok": true,
@@ -55,7 +55,7 @@
  },
  {
   "name": "Detectar y conectar una impresora Bambu Lab",
-  "seconds": 8.7,
+  "seconds": 8.2,
   "steps": 0,
   "limitS": 60,
   "ok": true,
@@ -63,9 +63,16 @@
  },
  {
   "name": "Enviar un laminado a la impresora",
-  "seconds": 1.7,
+  "seconds": 1,
   "steps": 0,
   "limitS": 30,
+  "ok": true
+ },
+ {
+  "name": "Iniciar sesión en Bambu Cloud y agregar una impresora",
+  "seconds": 2.6,
+  "steps": 0,
+  "limitS": 90,
   "ok": true
  }
 ]

@@ -8,7 +8,9 @@ import { getBuffer } from '../storage';
 import { BambuClient } from '../bambu/client';
 import { uploadFile } from '../bambu/ftps';
 import { modelFromCode } from '../bambu/models';
-import { clientFor, reloadLink } from '../bambu/manager';
+import { clientFor, reloadAccount, reloadLink } from '../bambu/manager';
+import { cloudDevices, cloudTasks, cloudUsername, isAllowedCoverUrl, loginPassword, loginWithCode, loginWithTfa, tokenExpiry, type Region } from '../bambu/cloud';
+import { randomUUID } from 'node:crypto';
 import { startJob } from './production';
 
 /** Solo direcciones de la red local (o el propio equipo): el conector no debe usarse para alcanzar internet. */
@@ -27,11 +29,17 @@ export function assertLanHost(host: string) {
 }
 const CODE_RE = /^[A-Za-z0-9]{6,16}$/;
 
-export interface ConnectInput { serial: string; host: string; accessCode: string; model?: string | null; name?: string | null; machineId?: string | null; mqttPort?: number; cameraPort?: number | null; ftpPort?: number; userId?: string | null }
+export interface ConnectInput { serial: string; host: string; accessCode: string; cloudAccountId?: string | null; model?: string | null; name?: string | null; machineId?: string | null; mqttPort?: number; cameraPort?: number | null; ftpPort?: number; userId?: string | null }
 
 /** Prueba la conexión (MQTT con el código de acceso) y, si responde, la guarda y la deja conectada. */
 export async function connectPrinter(i: ConnectInput) {
   const host = assertLanHost(i.host); const serial = i.serial.trim().toUpperCase();
+  // conexión LAN con el código de acceso que entrega Bambu Cloud (el código nunca pasa por el navegador)
+  if (!i.accessCode && i.cloudAccountId) {
+    const d = (await accountDevices(i.cloudAccountId)).find((x) => x.serial === serial);
+    if (!d?.accessCode) throw new Error('Bambu Cloud no entregó el código de acceso de esta impresora; escríbelo desde la pantalla de la impresora.');
+    i = { ...i, accessCode: d.accessCode, model: i.model ?? d.model };
+  }
   if (!/^[A-Z0-9]{8,20}$/.test(serial)) throw new Error('Número de serie inválido');
   if (!CODE_RE.test(i.accessCode.trim())) throw new Error('El código de acceso tiene 8 caracteres (Ajustes → Red/WLAN en la pantalla de la impresora)');
   const db = await getDb();
@@ -127,6 +135,7 @@ export function inspectSliced3mf(buf: Buffer, plate = 1) {
 export interface SendInput { linkId: string; runId: string; plate?: number; useAms: boolean; amsSlot?: number; timelapse?: boolean; bedLeveling?: boolean; jobId?: string | null; userId?: string | null }
 export async function sendToPrinter(i: SendInput) {
   const db = await getDb(); const e = clientFor(i.linkId); const L = e.link; const md = modelFromCode(L.model, L.serial);
+  if (L.mode === 'cloud' || !L.host) throw new Error('Enviar a imprimir requiere conexión LAN: Bambu Lab no permite iniciar impresiones desde programas externos a través de la nube.');
   if (!e.client.online) throw new Error('La impresora no está conectada');
   const st = e.client.status;
   if (!['IDLE', 'FINISH', 'FAILED'].includes(st.state)) throw new Error(`La impresora está «${st.stateLabel}». Espera a que quede libre.`);
@@ -148,8 +157,8 @@ export async function sendToPrinter(i: SendInput) {
   }
   const base = (run.label ?? 'pieza').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '_').slice(0, 40) || 'pieza';
   const fileName = `MF_${run.id.slice(0, 8)}_${base}.3mf`;
-  await uploadFile({ host: L.host, accessCode: unseal(L.accessCodeEnc), port: L.ftpPort }, fileName, buf);
-  e.client.startProject({ fileName, plate: i.plate ?? 1, urlPrefix: L.urlPrefix, useAms: i.useAms, amsMapping: i.useAms ? [i.amsSlot ?? 0] : [], timelapse: i.timelapse, bedLeveling: i.bedLeveling ?? true, md5: info.md5 });
+  await uploadFile({ host: L.host!, accessCode: unseal(L.accessCodeEnc), port: L.ftpPort }, fileName, buf);
+  (e.client as BambuClient).startProject({ fileName, plate: i.plate ?? 1, urlPrefix: L.urlPrefix, useAms: i.useAms, amsMapping: i.useAms ? [i.amsSlot ?? 0] : [], timelapse: i.timelapse, bedLeveling: i.bedLeveling ?? true, md5: info.md5 });
   if (i.jobId) await startJob(i.jobId, { machineId: L.machineId, userId: i.userId });
   await audit('printer_link', L.id, 'enviar_impresion', { runId: run.id, fileName, jobId: i.jobId ?? null, useAms: i.useAms, amsSlot: i.amsSlot ?? null }, i.userId);
   return { fileName };
@@ -171,4 +180,101 @@ export async function assignTraySpool(linkId: string, slotLabel: string, spoolId
     await db.update(s.spools).set({ machineId: l.machineId, slot: slotLabel, status: sp.status === 'nueva' ? 'abierta' : sp.status, openedAt: sp.openedAt ?? new Date().toISOString().slice(0, 10), updatedAt: new Date() }).where(eq(s.spools.id, spoolId));
   }
   await audit('printer_link', linkId, 'asignar_bobina', { slot: slotLabel, spoolId }, userId);
+}
+
+/* ── Bambu Cloud ─────────────────────────────────────────────────────────────────────────────── */
+type Pending = { region: Region; account: string; kind: 'code' | 'tfa'; tfaKey?: string; userId?: string | null; exp: number };
+const gp = globalThis as unknown as { __cloudPending?: Map<string, Pending> };
+const pending = () => (gp.__cloudPending ??= new Map());
+
+/** Paso 1 del login. La contraseña se usa solo en esta llamada y no se guarda. */
+export async function cloudStartLogin(i: { region: Region; account: string; password: string; userId?: string | null }) {
+  const account = i.account.trim().toLowerCase(); if (!account || !i.password) throw new Error('Escribe el correo y la contraseña de tu cuenta Bambu Lab');
+  const r = await loginPassword(i.region, account, i.password);
+  if (r.kind === 'token') return { state: 'done' as const, accountId: await saveCloudAccount(i.region, account, r.token, r.expiresIn, i.userId) };
+  for (const [k, v] of pending()) if (v.exp < Date.now()) pending().delete(k);
+  const id = randomUUID(); pending().set(id, { region: i.region, account, kind: r.kind, tfaKey: r.kind === 'tfa' ? r.tfaKey : undefined, userId: i.userId, exp: Date.now() + 10 * 60_000 });
+  return { state: r.kind, pendingId: id };
+}
+/** Paso 2: código del correo o de la app autenticadora. */
+export async function cloudFinishLogin(i: { pendingId: string; code: string }) {
+  const p = pending().get(i.pendingId); if (!p || p.exp < Date.now()) throw new Error('El inicio de sesión expiró. Vuelve a empezar.');
+  const code = i.code.replace(/\s/g, ''); if (!/^\d{4,8}$/.test(code)) throw new Error('El código tiene 6 dígitos');
+  const t = p.kind === 'tfa' ? await loginWithTfa(p.region, p.tfaKey!, code) : await loginWithCode(p.region, p.account, code);
+  pending().delete(i.pendingId);
+  return { accountId: await saveCloudAccount(p.region, p.account, t.token, t.expiresIn, p.userId) };
+}
+async function saveCloudAccount(region: Region, email: string, token: string, expiresIn: number | null, userId?: string | null) {
+  const db = await getDb(); const who = await cloudUsername(region, token); const exp = tokenExpiry(token, expiresIn);
+  const [prev] = await db.select().from(s.cloudAccounts).where(and(eq(s.cloudAccounts.email, email), eq(s.cloudAccounts.region, region), isNull(s.cloudAccounts.deletedAt)));
+  const values = { tokenEnc: seal(token), tokenExpiresAt: exp, uid: who.uid, username: who.username, displayName: who.name, status: 'activa', lastError: null, updatedAt: new Date() };
+  let id: string;
+  if (prev) { await db.update(s.cloudAccounts).set(values).where(eq(s.cloudAccounts.id, prev.id)); id = prev.id; }
+  else { const [a] = await db.insert(s.cloudAccounts).values({ workspaceId: WORKSPACE_ID, region, email, createdBy: userId ?? null, ...values }).returning(); id = a.id; }
+  await audit('cloud_account', id, 'iniciar_sesion', { email, region }, userId);
+  await reloadAccount(id);
+  return id;
+}
+async function accountToken(accountId: string) {
+  const db = await getDb(); const [a] = await db.select().from(s.cloudAccounts).where(eq(s.cloudAccounts.id, accountId));
+  if (!a || a.deletedAt || a.status !== 'activa' || !a.tokenEnc) throw new Error('La cuenta de Bambu Cloud no tiene sesión activa. Inicia sesión otra vez.');
+  return { a, token: unseal(a.tokenEnc), region: a.region as Region };
+}
+/** Impresoras de la cuenta (incluye el código LAN; solo se usa en el servidor). */
+export async function accountDevices(accountId: string) {
+  const { a, token, region } = await accountToken(accountId);
+  try { return await cloudDevices(region, token); }
+  catch (e) {
+    if ((e as { code?: string }).code === 'unauthorized') { const db = await getDb(); await db.update(s.cloudAccounts).set({ status: 'expirada', lastError: (e as Error).message }).where(eq(s.cloudAccounts.id, a.id)); }
+    throw e;
+  }
+}
+export async function cloudDeviceList(accountId: string) {
+  const db = await getDb(); const linked = await db.select({ serial: s.printerLinks.serial, mode: s.printerLinks.mode }).from(s.printerLinks).where(isNull(s.printerLinks.deletedAt));
+  return (await accountDevices(accountId)).map(({ accessCode, ...d }) => ({ ...d, hasLanCode: !!accessCode, modelName: modelFromCode(d.model, d.serial)?.name ?? d.productName, linked: linked.find((l) => l.serial === d.serial)?.mode ?? null }));
+}
+
+/** Agrega una impresora de la cuenta en modo nube (solo lectura). */
+export async function addCloudPrinter(i: { accountId: string; serial: string; name?: string | null; machineId?: string | null; userId?: string | null }) {
+  const db = await getDb(); const d = (await accountDevices(i.accountId)).find((x) => x.serial === i.serial);
+  if (!d) throw new Error('Esa impresora no está en tu cuenta de Bambu Cloud');
+  const [dup] = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.serial, d.serial), isNull(s.printerLinks.deletedAt)));
+  if (dup) throw new Error('Esta impresora ya está conectada');
+  const md = modelFromCode(d.model, d.serial);
+  let machineId = i.machineId ?? null;
+  if (machineId) {
+    const [taken] = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.machineId, machineId), isNull(s.printerLinks.deletedAt)));
+    if (taken) throw new Error('Esa máquina ya tiene una impresora conectada');
+  } else {
+    const [prof] = md ? await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'machine'), eq(s.slicerProfiles.baseName, md.orcaMachine), isNull(s.slicerProfiles.deletedAt))).limit(1) : [];
+    const [m] = await db.insert(s.machines).values({ workspaceId: WORKSPACE_ID, name: i.name?.trim() || d.name || `Bambu Lab ${md?.name ?? d.serial}`, brand: 'Bambu Lab', model: md?.name ?? d.productName, tech: 'FDM', serial: d.serial,
+      volX: md?.vol[0] ?? 256, volY: md?.vol[1] ?? 256, volZ: md?.vol[2] ?? 256, enclosed: md?.enclosed ?? false, nozzles: [d.nozzle ?? '0.4'], machineProfileId: prof?.id ?? null, watts: md?.family === 'A1' ? 95 : 140, createdBy: i.userId ?? null }).returning();
+    machineId = m.id;
+  }
+  const [link] = await db.insert(s.printerLinks).values({ workspaceId: WORKSPACE_ID, machineId, mode: 'cloud', cloudAccountId: i.accountId, serial: d.serial, host: null, accessCodeEnc: seal(d.accessCode ?? ''), model: d.model, name: i.name?.trim() || d.name, createdBy: i.userId ?? null }).returning();
+  await db.update(s.machines).set({ serial: d.serial, connection: { vendor: 'bambu', linkId: link.id, mode: 'cloud' }, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  await audit('printer_link', link.id, 'conectar_nube', { serial: d.serial, accountId: i.accountId }, i.userId);
+  await reloadLink(link.id);
+  return { linkId: link.id, machineId };
+}
+
+export async function cloudLogout(accountId: string, userId?: string | null) {
+  const db = await getDb();
+  await db.update(s.cloudAccounts).set({ status: 'cerrada', tokenEnc: null, updatedAt: new Date() }).where(eq(s.cloudAccounts.id, accountId));
+  await audit('cloud_account', accountId, 'cerrar_sesion', {}, userId);
+  await reloadAccount(accountId);
+}
+
+/** Miniatura de la placa del trabajo más reciente (la cámara en vivo no está disponible por la nube). */
+const covers = new Map<string, { at: number; jpg: Buffer; type: string }>();
+export async function cloudCover(linkId: string) {
+  const db = await getDb(); const [l] = await db.select().from(s.printerLinks).where(eq(s.printerLinks.id, linkId));
+  if (!l?.cloudAccountId) throw new Error('No es una impresora en modo nube');
+  const hit = covers.get(linkId); if (hit && Date.now() - hit.at < 60_000) return hit;
+  const { token, region } = await accountToken(l.cloudAccountId);
+  const t = (await cloudTasks(region, token, l.serial, 5)).find((x) => x.cover);
+  if (!t?.cover || !isAllowedCoverUrl(t.cover)) throw new Error('Todavía no hay una vista previa del trabajo en Bambu Cloud.');
+  const r = await fetch(t.cover, { signal: AbortSignal.timeout(15_000) }); if (!r.ok) throw new Error('No se pudo descargar la vista previa');
+  const out = { at: Date.now(), jpg: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') ?? 'image/png' };
+  covers.set(linkId, out); return out;
 }

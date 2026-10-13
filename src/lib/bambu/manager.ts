@@ -4,6 +4,8 @@ import { getDb, s } from '@/db';
 import { notify } from '../audit';
 import { unseal } from '../secret';
 import { BambuClient } from './client';
+import { CloudSession, type CloudDeviceClient } from './cloud-mqtt';
+import { cloudDevices, type Region } from './cloud';
 import { cameraFrames } from './camera';
 import { modelFromCode } from './models';
 import type { PrintState, PrinterStatus } from './state';
@@ -15,11 +17,13 @@ import { normalize } from './state';
  * último estado en la base cada 15 s o cuando cambia el estado, y sincroniza la cola de producción.
  */
 type Link = typeof s.printerLinks.$inferSelect;
-export interface LiveRow { id: string; machineId: string; name: string; model: string | null; modelName: string | null; online: boolean; error: string | null; status: PrinterStatus }
-interface Entry { link: Link; client: BambuClient; prev: PrintState | null; lastDb: number; hmsSeen: Set<string>; cam: CamHub | null }
+export interface LiveRow { id: string; machineId: string; name: string; model: string | null; modelName: string | null; mode: 'lan' | 'cloud'; online: boolean; error: string | null; status: PrinterStatus }
+type Conn = BambuClient | CloudDeviceClient;
+interface Entry { link: Link; client: Conn; prev: PrintState | null; lastDb: number; hmsSeen: Set<string>; cam: CamHub | null }
+interface AccountSession { session: CloudSession; timer: NodeJS.Timeout; region: Region; token: string; notified: boolean }
 
 class Manager extends EventEmitter {
-  entries = new Map<string, Entry>(); started = false;
+  entries = new Map<string, Entry>(); accounts = new Map<string, AccountSession>(); started = false;
   constructor() { super(); this.setMaxListeners(200); }
 }
 const g = globalThis as unknown as { __bambu?: Manager };
@@ -30,37 +34,85 @@ export function ensureBambu() {
   (async () => {
     const db = await getDb();
     const links = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.enabled, true), isNull(s.printerLinks.deletedAt)));
-    for (const l of links) start(l);
+    for (const l of links) await start(l);
   })().catch((e) => console.error('[bambu] no se pudieron cargar las impresoras', e));
 }
 
-function start(link: Link) {
+async function start(link: Link) {
   const m = mgr(); stop(link.id);
-  const client = new BambuClient({ host: link.host, serial: link.serial, accessCode: unseal(link.accessCodeEnc), mqttPort: link.mqttPort, fingerprint: link.fingerprint });
+  let client: Conn;
+  if (link.mode === 'cloud') {
+    const acc = link.cloudAccountId ? await accountSession(link.cloudAccountId) : null;
+    if (!acc) { const db = await getDb(); await db.update(s.printerLinks).set({ lastError: 'La cuenta de Bambu Cloud no tiene sesión activa. Vuelve a iniciar sesión.' }).where(eq(s.printerLinks.id, link.id)); return; }
+    client = acc.session.device(link.serial);
+  } else {
+    client = new BambuClient({ host: link.host ?? '', serial: link.serial, accessCode: unseal(link.accessCodeEnc), mqttPort: link.mqttPort, fingerprint: link.fingerprint });
+  }
   const e: Entry = { link, client, prev: null, lastDb: 0, hmsSeen: new Set(), cam: null };
   m.entries.set(link.id, e);
   client.on('error', async (err: Error & { code?: string }) => {
     const db = await getDb(); await db.update(s.printerLinks).set({ lastError: err.message, updatedAt: new Date() }).where(eq(s.printerLinks.id, link.id));
-    if (err.code === 'cert_changed' || err.code === 'auth') await notify('impresora', `${link.name ?? link.serial}: conexión rechazada`, err.message, `/maquinas/${link.machineId}`);
+    if (link.mode === 'lan' && (err.code === 'cert_changed' || err.code === 'auth')) await notify('impresora', `${link.name ?? link.serial}: conexión rechazada`, err.message, `/maquinas/${link.machineId}`);
     m.emit('update', row(e));
   });
   client.on('fingerprint', async (fp: string) => { const db = await getDb(); await db.update(s.printerLinks).set({ fingerprint: fp }).where(eq(s.printerLinks.id, link.id)); e.link = { ...e.link, fingerprint: fp }; });
   client.on('offline', () => m.emit('update', row(e)));
+  client.on('online', () => m.emit('update', row(e)));
   client.on('status', (st: PrinterStatus) => { m.emit('update', row(e)); onStatus(e, st).catch((err) => console.error('[bambu]', err)); });
   client.connect();
 }
+
+/** Sesión de nube compartida por todas las impresoras de una cuenta; revisa cada 5 min qué impresoras están en línea. */
+async function accountSession(accountId: string): Promise<AccountSession | null> {
+  const m = mgr(); const have = m.accounts.get(accountId); if (have) return have;
+  const db = await getDb(); const [a] = await db.select().from(s.cloudAccounts).where(eq(s.cloudAccounts.id, accountId));
+  if (!a || a.deletedAt || a.status !== 'activa' || !a.tokenEnc || !a.username) return null;
+  const token = unseal(a.tokenEnc); const region = a.region as Region;
+  const session = new CloudSession({ region, username: a.username, token });
+  const acc: AccountSession = { session, region, token, notified: false, timer: setInterval(() => syncAccount(accountId).catch(() => {}), 5 * 60_000) };
+  session.on('session-error', async (err: Error & { code?: string }) => {
+    if (err.code !== 'auth' || acc.notified) return; acc.notified = true;
+    await expireAccount(accountId, err.message);
+  });
+  m.accounts.set(accountId, acc);
+  setTimeout(() => syncAccount(accountId).catch(() => {}), 1500);
+  return acc;
+}
+async function expireAccount(accountId: string, msg: string) {
+  const db = await getDb(); const [a] = await db.select().from(s.cloudAccounts).where(eq(s.cloudAccounts.id, accountId));
+  await db.update(s.cloudAccounts).set({ status: 'expirada', lastError: msg, updatedAt: new Date() }).where(eq(s.cloudAccounts.id, accountId));
+  await notify('impresora', 'Bambu Cloud: vuelve a iniciar sesión', `La sesión de ${a?.email ?? 'la cuenta'} expiró. Las impresoras en modo nube quedaron sin datos en vivo.`, '/maquinas/conectores');
+}
+async function syncAccount(accountId: string) {
+  const acc = mgr().accounts.get(accountId); if (!acc) return;
+  try {
+    const list = await cloudDevices(acc.region, acc.token);
+    for (const e of mgr().entries.values()) if (e.link.cloudAccountId === accountId && e.link.mode === 'cloud') { const d = list.find((x) => x.serial === e.link.serial); (e.client as CloudDeviceClient).setDeviceOnline?.(!!d?.online); }
+    const db = await getDb(); await db.update(s.cloudAccounts).set({ lastSyncAt: new Date(), lastError: null }).where(eq(s.cloudAccounts.id, accountId));
+  } catch (err) { if ((err as { code?: string }).code === 'unauthorized' && !acc.notified) { acc.notified = true; await expireAccount(accountId, (err as Error).message); } }
+}
+export async function reloadAccount(accountId: string) {
+  const m = mgr(); const acc = m.accounts.get(accountId);
+  if (acc) { clearInterval(acc.timer); acc.session.removeAllListeners(); acc.session.close(); m.accounts.delete(accountId); }
+  const db = await getDb();
+  const links = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.cloudAccountId, accountId), eq(s.printerLinks.mode, 'cloud'), eq(s.printerLinks.enabled, true), isNull(s.printerLinks.deletedAt)));
+  for (const l of links) await start(l);
+  m.emit('update', null);
+}
+export function accountOnline(accountId: string) { return !!mgr().accounts.get(accountId)?.session.connected; }
+
 function stop(id: string) { const e = mgr().entries.get(id); if (!e) return; e.client.removeAllListeners(); e.client.close(); e.cam?.close(); mgr().entries.delete(id); }
 
 export async function reloadLink(id: string) {
   ensureBambu(); const db = await getDb();
   const [l] = await db.select().from(s.printerLinks).where(eq(s.printerLinks.id, id));
   if (!l || l.deletedAt || !l.enabled) { stop(id); mgr().emit('update', null); return; }
-  start(l);
+  await start(l);
 }
 
 function row(e: Entry): LiveRow {
   const md = modelFromCode(e.link.model, e.link.serial);
-  return { id: e.link.id, machineId: e.link.machineId, name: e.link.name ?? e.link.serial, model: e.link.model, modelName: md?.name ?? null, online: e.client.online, error: e.client.online ? null : e.client.lastError ?? e.link.lastError, status: e.client.status };
+  return { id: e.link.id, machineId: e.link.machineId, name: e.link.name ?? e.link.serial, model: e.link.model, modelName: md?.name ?? null, mode: e.link.mode === 'cloud' ? 'cloud' : 'lan', online: e.client.online, error: e.client.online ? null : e.client.lastError ?? e.link.lastError, status: e.client.status };
 }
 export function liveRows(): LiveRow[] { ensureBambu(); return [...mgr().entries.values()].map(row); }
 export function liveByMachine(): Record<string, LiveRow> { return Object.fromEntries(liveRows().map((r) => [r.machineId, r])); }
@@ -80,6 +132,17 @@ async function onStatus(e: Entry, st: PrinterStatus) {
   for (const h of st.hms) if (!e.hmsSeen.has(h.code)) { e.hmsSeen.add(h.code); if (prev !== null) await notify('impresora', `${name}: aviso HMS ${h.code}`, `Severidad ${h.severity}. Revísalo en la pantalla de la impresora o en la wiki de Bambu Lab.`, `/maquinas/${L.machineId}`); }
   if (cur === 'UNKNOWN' || cur === 'OFFLINE') return;
   e.prev = cur;
+  if (prev === null && L.syncQueue) {
+    // primer estado tras conectar: alinear la máquina con lo que informa la impresora, sin avisos
+    const want = cur === 'RUNNING' || cur === 'PREPARE' ? 'imprimiendo' : cur === 'PAUSE' ? 'pausada' : null;
+    const [mm] = await db.select({ status: s.machines.status }).from(s.machines).where(eq(s.machines.id, L.machineId));
+    if (want && mm && mm.status !== want && mm.status !== 'mantenimiento' && mm.status !== 'fuera_de_servicio') await db.update(s.machines).set({ status: want, updatedAt: new Date() }).where(eq(s.machines.id, L.machineId));
+    else if (!want && mm && (mm.status === 'imprimiendo' || mm.status === 'pausada')) {
+      const [running] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, L.machineId), eq(s.printJobs.status, 'imprimiendo'))).limit(1);
+      if (!running) await db.update(s.machines).set({ status: 'disponible', updatedAt: new Date() }).where(eq(s.machines.id, L.machineId));
+    }
+    return;
+  }
   if (prev === null || prev === cur || !L.syncQueue) return;
   const [job] = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, L.machineId), eq(s.printJobs.status, prev === 'PAUSE' ? 'pausado' : 'imprimiendo'))).limit(1);
   const setMachine = (status: string) => db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, L.machineId));
@@ -117,7 +180,8 @@ class CamHub {
     const L = this.e.link; const md = modelFromCode(L.model, L.serial);
     const ac = new AbortController(); this.ac = ac; this.error = null;
     try {
-      for await (const f of cameraFrames({ host: L.host, accessCode: unseal(L.accessCodeEnc), kind: md?.camera ?? 'jpeg-tls', port: L.cameraPort ?? undefined }, ac.signal)) {
+      if (L.mode === 'cloud') throw new Error('La cámara en vivo no está disponible por la nube');
+      for await (const f of cameraFrames({ host: L.host ?? '', accessCode: unseal(L.accessCodeEnc), kind: md?.camera ?? 'jpeg-tls', port: L.cameraPort ?? undefined }, ac.signal)) {
         this.last = { at: Date.now(), jpg: f }; for (const cb of this.subs) cb(f);
       }
     } catch (err) { this.error = (err as Error).message; for (const cb of this.subs) cb(Buffer.alloc(0)); }

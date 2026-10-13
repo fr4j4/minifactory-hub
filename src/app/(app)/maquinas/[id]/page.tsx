@@ -28,11 +28,11 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
   let printer: React.ReactNode = null;
   if (link) {
     const md = modelFromCode(link.model, link.serial);
-    const live = liveRows().find((r) => r.id === link.id) ?? { id: link.id, machineId: id, name: link.name ?? m.name, model: link.model, modelName: md?.name ?? null, online: false, error: link.enabled ? link.lastError : 'Conexión pausada', status: storedStatus(link) };
+    const live = liveRows().find((r) => r.id === link.id) ?? { id: link.id, machineId: id, name: link.name ?? m.name, model: link.model, modelName: md?.name ?? null, mode: (link.mode === 'cloud' ? 'cloud' : 'lan') as 'lan' | 'cloud', online: false, error: link.enabled ? link.lastError : 'Conexión pausada', status: storedStatus(link) };
     const allSpools = await db.select({ sp: s.spools, m: s.materials }).from(s.spools).innerJoin(s.materials, eq(s.materials.id, s.spools.materialId)).where(and(isNull(s.spools.deletedAt)));
     const runs = (await sendableRuns()).map((r) => ({ id: r.id, label: r.label, timeS: r.timeS, grams: (r.filament ?? []).reduce((a: number, f: any) => a + (f.g ?? 0), 0), createdAt: r.createdAt.toISOString(), machine: (r.profileVersions as any)?.machine?.[0] ?? null }));
     const queued = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, id), eq(s.printJobs.status, 'en_cola'))).orderBy(asc(s.printJobs.position));
-    printer = <PrinterPanel initial={live} cameraKind={md?.camera ?? 'jpeg-tls'} canControl={can(user, 'maquinas', 'E')} canAssign={can(user, 'inventario', 'E')} canSend={can(user, 'cola', 'E')}
+    printer = <PrinterPanel initial={live} cameraKind={link.mode === 'cloud' ? 'cloud' : md?.camera ?? 'jpeg-tls'} canControl={can(user, 'maquinas', 'E')} canAssign={can(user, 'inventario', 'E')} canSend={can(user, 'cola', 'E')}
       spools={allSpools.filter(({ sp }) => !['agotada', 'descartada'].includes(sp.status)).map(({ sp, m: mm }) => ({ id: sp.id, code: sp.code, type: mm.type, colorName: mm.colorName, hex: mm.hex, remainingG: sp.remainingG, slot: sp.slot, machineId: sp.machineId }))}
       runs={runs} jobs={queued.map((j) => ({ id: j.id, label: `${j.number} · ${j.title ?? ''}` }))} />;
   }
