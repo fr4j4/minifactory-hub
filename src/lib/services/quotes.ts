@@ -117,6 +117,8 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
   let pos = 0;
   for (const it of input.items) {
     const priced = await priceItem(it, ctx, adj);
+    const urgPct = rt.urgency.find((u) => u.key === (input.urgency ?? 'normal'))?.pct ?? 0;
+    if (urgPct) priced.suggestedUnit = Math.round((priced.suggestedUnit * (1 + urgPct / 100)) / 10) * 10;
     const finalUnit = it.finalUnit != null && it.finalUnit >= 0 ? Math.round(it.finalUnit) : null;
     const [row] = await db.insert(s.quoteItems).values({
       workspaceId: WORKSPACE_ID, quoteId, position: pos++, kind: it.kind ?? (it.variantId ? 'producto' : it.models?.length ? 'modelo' : 'manual'),

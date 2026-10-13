@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light dark; --bg: #f5f7fb; --card: #ffffff; --line: #e3e8f0; --ink: #0f172a; --muted: #5b6577; --brand: #1d62f0; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0b1020; --card: #121a2e; --line: #243049; --ink: #e8edf7; --muted: #9aa7bf; --brand: #5b8dff; }
+}
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+@layer components {
+  .card { @apply rounded-xl border bg-white dark:bg-[#121a2e] border-slate-200 dark:border-slate-700/60 shadow-sm; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium min-h-[44px] md:min-h-[38px] transition-colors border select-none disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600; }
+  .btn-primary { @apply btn bg-brand-600 hover:bg-brand-700 border-brand-600 text-white; }
+  .btn-ghost { @apply btn bg-transparent border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800; }
+  .btn-danger { @apply btn bg-red-600 hover:bg-red-700 border-red-600 text-white; }
+  .btn-sm { @apply min-h-[44px] md:min-h-[32px] px-2.5 py-1 text-xs; }
+  .input { @apply w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#0e1527] px-3 py-2 text-base md:text-sm min-h-[44px] md:min-h-[38px] placeholder:text-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-600; }
+  .label { @apply block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1; }
+  .badge { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border; }
+  .th { @apply text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 px-3 py-2 border-b border-slate-200 dark:border-slate-700; }
+  .td { @apply px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 text-sm align-middle; }
+  .h1 { @apply text-xl md:text-2xl font-semibold tracking-tight; }
+  .muted { @apply text-slate-500 dark:text-slate-400; }
+}
+.tabular { font-variant-numeric: tabular-nums; }
+.safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+canvas { touch-action: none; }
+@media print { .no-print { display: none !important; } body { background: #fff; color: #000; } }
