@@ -48,9 +48,9 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       {tab === 'visor' && (
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2 space-y-4">
-            {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer versionId={cur.id} machines={machines} color={color} analysis={a} />}
-            {!processing && cur && kind === 'malla' && meta.gcodePreviewKey && <Card title="Trayectorias del G-code incluido en el 3MF"><GcodeViewer src={`/api/files/v/${cur.id}/gcode`} /></Card>}
-            {!processing && cur && kind === 'gcode' && (meta.gcodePreviewKey ? <GcodeViewer src={`/api/files/v/${cur.id}/gcode`} /> : <Card><Empty title="Sin vista previa de capas" hint={sm?.notes?.[0] ?? 'Este G-code no se puede previsualizar.'} /></Card>)}
+            {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} analysis={a} />}
+            {!processing && cur && kind === 'malla' && meta.gcodePreviewKey && <Card title="Trayectorias del G-code incluido en el 3MF"><GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /></Card>}
+            {!processing && cur && kind === 'gcode' && (meta.gcodePreviewKey ? <GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /> : <Card><Empty title="Sin vista previa de capas" hint={sm?.notes?.[0] ?? 'Este G-code no se puede previsualizar.'} /></Card>)}
             {!processing && cur && kind === 'imagen' && (f.format === 'pdf' ? <iframe src={`/api/files/v/${cur.id}/raw`} className="w-full h-[70vh] card" title={f.name} /> : <img src={`/api/files/v/${cur.id}/thumb`} alt={f.name} className="card w-full" />)}
             {photos.length > 0 && <Card title="Fotos de lo fabricado con este modelo"><div className="grid grid-cols-3 sm:grid-cols-6 gap-2">{photos.map((p) => <img key={p.id} src={`/api/media/${p.variants?.['320'] ?? p.storageKey}`} alt={p.caption ?? 'Foto'} className="rounded aspect-square object-cover" />)}</div></Card>}
           </div>

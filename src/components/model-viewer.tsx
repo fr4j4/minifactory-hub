@@ -47,6 +47,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
 
   /* ───────── escena ───────── */
   useEffect(() => {
+    setStatus('cargando'); setErr(''); setInfo(null); setMeasure(null);
     const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
