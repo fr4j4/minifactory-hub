@@ -8,3 +8,5 @@ test-results/
 playwright-report/
 .orca/
 next-env.d.ts
+videos/*/.hyperframes/
+videos/*/node_modules/

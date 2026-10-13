@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>MiniFactory Hub — Promo ES</title>
+    <script src="assets/gsap.min.js"></script>
+    <style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      html,body{width:1920px;height:1080px;overflow:hidden;background:#141413}
+      #root{position:relative;width:100%;height:100%;overflow:hidden;color:#f3f1ec;font-family:system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;background:
+        radial-gradient(1200px 700px at 85% -10%,rgba(255,91,31,.22),transparent 60%),
+        radial-gradient(900px 600px at 0% 110%,rgba(255,91,31,.10),transparent 60%),#141413}
+      #root::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+        background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 2px,transparent 2px 14px)}
+      .scene{position:absolute;inset:0;display:flex;align-items:center}
+      .kicker{font-size:26px;font-weight:700;letter-spacing:.4em;color:#ff5b1f;margin-bottom:28px;font-family:ui-monospace,Menlo,Consolas,monospace}
+      em{font-style:normal;color:#ff5b1f}
+      .center{position:relative;width:100%;padding:0 140px;text-align:center;z-index:2}
+      h1.big{font-size:128px;line-height:1.04;font-weight:800;letter-spacing:-.035em}
+      h1.huge{font-size:220px;line-height:1;font-weight:800;letter-spacing:-.05em}
+      .sub{font-size:44px;color:#cfcabf;margin-top:26px}
+      .left{width:820px;padding-left:130px;z-index:2}
+      h2{font-size:104px;line-height:1.05;font-weight:800;letter-spacing:-.035em}
+      .chips{display:flex;flex-wrap:wrap;gap:16px;margin-top:44px}
+      .chip{font-size:30px;font-weight:600;padding:14px 26px;border-radius:999px;border:2px solid rgba(255,91,31,.7);background:rgba(255,91,31,.12);color:#ffd9c4}
+      .card{position:absolute;right:90px;top:150px;width:1000px;height:780px;border-radius:22px;overflow:hidden;
+        box-shadow:0 50px 120px rgba(0,0,0,.7),0 0 0 2px rgba(255,255,255,.12),0 0 90px rgba(255,91,31,.25);background:#f3f1ec;transform:perspective(1800px) rotateY(-9deg)}
+      .card img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}
+      .card.tall img{object-position:top center}
+      .bgshot{position:absolute;inset:0;overflow:hidden}
+      .bgshot img{width:100%;height:100%;object-fit:cover;opacity:.0}
+      .title .bgshot::after,.cta .bgshot::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(20,20,19,.72),rgba(20,20,19,.95))}
+      .cta .bgshot img{filter:saturate(.8)}
+      .brand{display:inline-flex;align-items:center;gap:20px;margin-top:50px;font-size:56px;font-weight:800;padding:22px 44px;border-radius:24px;background:#ff5b1f;color:#141413}
+      .brand i{width:30px;height:30px;border-radius:8px;background:#141413;display:block;box-shadow:inset 0 0 0 6px #ff5b1f,0 0 0 4px #141413}
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-width="1920" data-height="1080" data-duration="54.81">
+    <section id="s-hook" class="clip scene text" data-start="0" data-duration="5.2" data-track-index="1"><div class="center"><div class="kicker">¿TE SUENA?</div><h1 class="big">Tu taller 3D funciona con <em>WhatsApp</em>, planillas… y <em>suerte.</em></h1></div></section>
+    <audio id="a-hook" src="assets/audio/hook.wav" data-start="0.50" data-duration="4.20" data-track-index="2" data-volume="1"></audio>
+    <section id="s-title" class="clip scene title" data-start="5.2" data-duration="5.1" data-track-index="1"><div class="bgshot"><img class="shot" src="assets/img/91-diseno-inicio.png" alt="" /></div><div class="center"><div class="kicker">CONOCE</div><h1 class="huge">MiniFactory <em>Hub</em></h1><p class="sub">Todo tu taller 3D. En un solo lugar.</p></div></section>
+    <audio id="a-title" src="assets/audio/title.wav" data-start="5.55" data-duration="4.25" data-track-index="2" data-volume="1"></audio>
+    <section id="s-quote" class="clip scene shot" data-start="10.3" data-duration="7.16" data-track-index="1"><div class="left"><div class="kicker">01 · PRESUPUESTOS</div><h2>Cotiza cualquier trabajo en <em>segundos.</em></h2><div class="chips"><span class="chip">Varios modelos</span><span class="chip">Márgenes reales</span><span class="chip">Un clic a pedido</span></div></div><div class="card "><img class="shot" src="assets/img/33-presupuesto-precio-final.png" alt="" /></div></section>
+    <audio id="a-quote" src="assets/audio/quote.wav" data-start="10.65" data-duration="6.31" data-track-index="2" data-volume="1"></audio>
+    <section id="s-slice" class="clip scene shot" data-start="17.46" data-duration="7.51" data-track-index="1"><div class="left"><div class="kicker">02 · 3D + LAMINADOR</div><h2>Míralo. Lámina. <em>Cotízalo.</em></h2><div class="chips"><span class="chip">Visor 3D</span><span class="chip">OrcaSlicer real</span><span class="chip">Tiempo · gramos · costo</span></div></div><div class="card "><img class="shot" src="assets/img/21-laminar-resultado.png" alt="" /></div></section>
+    <audio id="a-slice" src="assets/audio/slice.wav" data-start="17.81" data-duration="6.66" data-track-index="2" data-volume="1"></audio>
+    <section id="s-queue" class="clip scene shot" data-start="24.97" data-duration="6.72" data-track-index="1"><div class="left"><div class="kicker">03 · PRODUCCIÓN</div><h2>Todos los pedidos, <em>una cola.</em></h2><div class="chips"><span class="chip">Kanban + Gantt</span><span class="chip">Por máquina</span><span class="chip">Nada se olvida</span></div></div><div class="card tall"><img class="shot" src="assets/img/44-cola-tablero.png" alt="" /></div></section>
+    <audio id="a-queue" src="assets/audio/queue.wav" data-start="25.32" data-duration="5.87" data-track-index="2" data-volume="1"></audio>
+    <section id="s-stock" class="clip scene shot" data-start="31.69" data-duration="7.31" data-track-index="1"><div class="left"><div class="kicker">04 · STOCK + VENTAS</div><h2>Cada bobina, <em>al gramo.</em></h2><div class="chips"><span class="chip">Etiquetas QR</span><span class="chip">Descuento automático</span><span class="chip">Venta rápida</span></div></div><div class="card "><img class="shot" src="assets/img/65-bobinas.png" alt="" /></div></section>
+    <audio id="a-stock" src="assets/audio/stock.wav" data-start="32.04" data-duration="6.46" data-track-index="2" data-volume="1"></audio>
+    <section id="s-bambu" class="clip scene shot" data-start="39" data-duration="7.87" data-track-index="1"><div class="left"><div class="kicker">05 · BAMBU LAB</div><h2>Mira tus impresoras <em>en vivo.</em></h2><div class="chips"><span class="chip">Cámara</span><span class="chip">Capas + AMS</span><span class="chip">Enviar a imprimir</span></div></div><div class="card "><img class="shot" src="assets/img/B06-camara-en-vivo.png" alt="" /></div></section>
+    <audio id="a-bambu" src="assets/audio/bambu.wav" data-start="39.35" data-duration="7.02" data-track-index="2" data-volume="1"></audio>
+    <section id="s-cta" class="clip scene cta" data-start="46.87" data-duration="7.94" data-track-index="1"><div class="bgshot dim"><img class="shot" src="assets/img/97-diseno-inicio-oscuro.png" alt="" /></div><div class="center"><div class="kicker">AUTOALOJADO · TUS DATOS · TU HARDWARE</div><h1 class="big">Imprime más. <em>Persigue menos.</em></h1><div class="brand"><i></i>MiniFactory Hub</div></div></section>
+    <audio id="a-cta" src="assets/audio/cta.wav" data-start="47.22" data-duration="5.99" data-track-index="2" data-volume="1"></audio>
+    <audio id="a-bed" src="assets/audio/bed.wav" data-start="0" data-duration="54.81" data-track-index="3" data-volume="0.16"></audio>
+    </div>
+    <script>
+      const tl = gsap.timeline({ paused: true });
+      tl.fromTo("#s-hook .kicker",{y:20,opacity:0},{y:0,opacity:1,duration:.5,ease:"power3.out"},0.1);
+      tl.fromTo("#s-hook .big",{scale:1.25,opacity:0},{scale:1,opacity:1,duration:.7,ease:"expo.out"},0.2);
+      tl.fromTo("#s-hook em",{color:"#fff"},{color:"#ff5b1f",duration:.4,stagger:.35},1.2);
+      tl.to("#s-hook .big",{scale:1.06,duration:4.2,ease:"none"},0.9);
+      tl.to("#s-hook > *",{opacity:0,duration:.25,ease:"power1.in"},4.95);
+      tl.fromTo("#s-title .bgshot img",{scale:1.25,opacity:0},{scale:1.05,opacity:1,duration:5.1,ease:"power2.out"},5.2);
+      tl.fromTo("#s-title .kicker",{scale:1.6,opacity:0},{scale:1,opacity:1,duration:.9,ease:"power3.out"},5.3500000000000005);
+      tl.fromTo("#s-title .huge",{y:60,opacity:0,scale:.9},{y:0,opacity:1,scale:1,duration:.9,ease:"back.out(1.6)"},5.55);
+      tl.fromTo("#s-title .sub",{y:20,opacity:0},{y:0,opacity:1,duration:.6,ease:"power2.out"},6.300000000000001);
+      tl.to("#s-title > *",{opacity:0,duration:.25,ease:"power1.in"},10.05);
+      tl.fromTo("#s-quote .kicker",{x:-40,opacity:0},{x:0,opacity:1,duration:.5,ease:"power3.out"},10.4);
+      tl.fromTo("#s-quote h2",{y:50,opacity:0},{y:0,opacity:1,duration:.7,ease:"expo.out"},10.5);
+      tl.fromTo("#s-quote .chip",{y:24,opacity:0,scale:.85},{y:0,opacity:1,scale:1,duration:.45,stagger:.35,ease:"back.out(2)"},11.200000000000001);
+      tl.fromTo("#s-quote .card",{x:260,rotateY:-24,opacity:0},{x:0,rotateY:-9,opacity:1,duration:.9,ease:"expo.out"},10.4);
+      tl.fromTo("#s-quote .card img",{scale:1,transformOrigin:"78% 90%"},{scale:1.9,transformOrigin:"78% 90%",duration:6.5600000000000005,ease:"power1.inOut"},11.200000000000001);
+      tl.to("#s-quote .card",{rotateY:-3,y:-14,duration:6.16,ease:"sine.inOut"},11.3);
+      tl.to("#s-quote > *",{opacity:0,duration:.25,ease:"power1.in"},17.21);
+      tl.fromTo("#s-slice .kicker",{x:-40,opacity:0},{x:0,opacity:1,duration:.5,ease:"power3.out"},17.560000000000002);
+      tl.fromTo("#s-slice h2",{y:50,opacity:0},{y:0,opacity:1,duration:.7,ease:"expo.out"},17.66);
+      tl.fromTo("#s-slice .chip",{y:24,opacity:0,scale:.85},{y:0,opacity:1,scale:1,duration:.45,stagger:.35,ease:"back.out(2)"},18.36);
+      tl.fromTo("#s-slice .card",{x:260,rotateY:-24,opacity:0},{x:0,rotateY:-9,opacity:1,duration:.9,ease:"expo.out"},17.560000000000002);
+      tl.fromTo("#s-slice .card img",{scale:1,transformOrigin:"62% 68%"},{scale:1.9,transformOrigin:"62% 68%",duration:6.91,ease:"power1.inOut"},18.36);
+      tl.to("#s-slice .card",{rotateY:-3,y:-14,duration:6.51,ease:"sine.inOut"},18.46);
+      tl.to("#s-slice > *",{opacity:0,duration:.25,ease:"power1.in"},24.72);
+      tl.fromTo("#s-queue .kicker",{x:-40,opacity:0},{x:0,opacity:1,duration:.5,ease:"power3.out"},25.07);
+      tl.fromTo("#s-queue h2",{y:50,opacity:0},{y:0,opacity:1,duration:.7,ease:"expo.out"},25.169999999999998);
+      tl.fromTo("#s-queue .chip",{y:24,opacity:0,scale:.85},{y:0,opacity:1,scale:1,duration:.45,stagger:.35,ease:"back.out(2)"},25.869999999999997);
+      tl.fromTo("#s-queue .card",{x:260,rotateY:-24,opacity:0},{x:0,rotateY:-9,opacity:1,duration:.9,ease:"expo.out"},25.07);
+      tl.fromTo("#s-queue .card img",{scale:1,transformOrigin:"50% 30%"},{scale:1.9,transformOrigin:"50% 30%",duration:6.12,ease:"power1.inOut"},25.869999999999997);
+      tl.to("#s-queue .card",{rotateY:-3,y:-14,duration:5.72,ease:"sine.inOut"},25.97);
+      tl.to("#s-queue > *",{opacity:0,duration:.25,ease:"power1.in"},31.44);
+      tl.fromTo("#s-stock .kicker",{x:-40,opacity:0},{x:0,opacity:1,duration:.5,ease:"power3.out"},31.790000000000003);
+      tl.fromTo("#s-stock h2",{y:50,opacity:0},{y:0,opacity:1,duration:.7,ease:"expo.out"},31.89);
+      tl.fromTo("#s-stock .chip",{y:24,opacity:0,scale:.85},{y:0,opacity:1,scale:1,duration:.45,stagger:.35,ease:"back.out(2)"},32.59);
+      tl.fromTo("#s-stock .card",{x:260,rotateY:-24,opacity:0},{x:0,rotateY:-9,opacity:1,duration:.9,ease:"expo.out"},31.790000000000003);
+      tl.fromTo("#s-stock .card img",{scale:1,transformOrigin:"40% 50%"},{scale:1.9,transformOrigin:"40% 50%",duration:6.71,ease:"power1.inOut"},32.59);
+      tl.to("#s-stock .card",{rotateY:-3,y:-14,duration:6.31,ease:"sine.inOut"},32.69);
+      tl.to("#s-stock > *",{opacity:0,duration:.25,ease:"power1.in"},38.75);
+      tl.fromTo("#s-bambu .kicker",{x:-40,opacity:0},{x:0,opacity:1,duration:.5,ease:"power3.out"},39.1);
+      tl.fromTo("#s-bambu h2",{y:50,opacity:0},{y:0,opacity:1,duration:.7,ease:"expo.out"},39.2);
+      tl.fromTo("#s-bambu .chip",{y:24,opacity:0,scale:.85},{y:0,opacity:1,scale:1,duration:.45,stagger:.35,ease:"back.out(2)"},39.9);
+      tl.fromTo("#s-bambu .card",{x:260,rotateY:-24,opacity:0},{x:0,rotateY:-9,opacity:1,duration:.9,ease:"expo.out"},39.1);
+      tl.fromTo("#s-bambu .card img",{scale:1,transformOrigin:"28% 52%"},{scale:1.9,transformOrigin:"28% 52%",duration:7.2700000000000005,ease:"power1.inOut"},39.9);
+      tl.to("#s-bambu .card",{rotateY:-3,y:-14,duration:6.87,ease:"sine.inOut"},40);
+      tl.to("#s-bambu > *",{opacity:0,duration:.25,ease:"power1.in"},46.62);
+      tl.fromTo("#s-cta .bgshot img",{scale:1.0,opacity:0},{scale:1.12,opacity:1,duration:7.94,ease:"none"},46.87);
+      tl.fromTo("#s-cta .kicker",{opacity:0,y:20},{opacity:1,y:0,duration:.6},47.07);
+      tl.fromTo("#s-cta .big",{y:60,opacity:0},{y:0,opacity:1,duration:.9,ease:"expo.out"},51.264666999999996);
+      tl.fromTo("#s-cta .brand",{scale:.7,opacity:0},{scale:1,opacity:1,duration:.7,ease:"back.out(2)"},53.209999999999994);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

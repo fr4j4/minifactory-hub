@@ -1,0 +1,1 @@
+Controla cada bobina al gramo. El stock baja solo después de cada impresión, y la venta rápida toma dos toques.

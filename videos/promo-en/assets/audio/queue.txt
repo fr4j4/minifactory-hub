@@ -1,0 +1,1 @@
+Every order lands in one production queue. By machine, by deadline, and nothing gets forgotten.

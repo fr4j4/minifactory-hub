@@ -1,0 +1,1 @@
+Cada pedido cae en una sola cola de producción. Por máquina, por fecha de entrega, y nada se olvida.
