@@ -7,6 +7,8 @@ import { can } from '@/lib/perm';
 import { PageHeader, Card, StatusBadge, Meter, Swatch, Table } from '@/components/ui';
 import { SpoolEditor, WeighForm } from '@/components/inventory-bits';
 import { dmy, dmyHm, grams, num } from '@/lib/format';
+import { EditButton } from '@/components/edit-button';
+import { editFields } from '@/lib/edit-fields';
 import { getT } from '@/i18n/server';
 import { RemoveButton } from '@/components/remove-button';
 
@@ -21,7 +23,7 @@ export default async function SpoolPage({ params }: { params: Promise<{ id: stri
   const qr = await QRCode.toDataURL(`MF:${sp.code}`, { margin: 1, width: 220 });
   return (
     <>
-      <PageHeader back={{ href: '/inventario?tab=bobinas', label: t('nav.crumbSpools') }} title={<span>{sp.code} · <Swatch hex={m.hex} /> {m.type} {m.colorName} <StatusBadge status={sp.status} /></span>} subtitle={`${m.manufacturer ?? ''} ${m.line ?? ''} · ${t('inventory.lotBought', { lot: sp.lot ?? '—', date: dmy(sp.boughtAt) })}`} actions={can(user, 'inventario', 'X') ? <RemoveButton kind="spool" id={sp.id} name={sp.code} redirectTo="/inventario?tab=bobinas" /> : undefined} />
+      <PageHeader back={{ href: '/inventario?tab=bobinas', label: t('nav.crumbSpools') }} title={<span>{sp.code} · <Swatch hex={m.hex} /> {m.type} {m.colorName} <StatusBadge status={sp.status} /></span>} subtitle={`${m.manufacturer ?? ''} ${m.line ?? ''} · ${t('inventory.lotBought', { lot: sp.lot ?? '—', date: dmy(sp.boughtAt) })}`} actions={<>{can(user, 'inventario', 'E') && <EditButton kind="spool" id={sp.id} fields={editFields('spool', t)} values={sp} className="btn-secondary" testId="edit-spool" />}{can(user, 'inventario', 'X') && <RemoveButton kind="spool" id={sp.id} name={sp.code} redirectTo="/inventario?tab=bobinas" />}</>} />
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-4">
           <Card title={t('inventory.remainingWeight')}><div className="flex items-end justify-between mb-2"><div className="text-3xl font-bold tabular" data-testid="spool-remaining">{grams(sp.remainingG)}</div><div className="muted text-sm">{t('inventory.ofTare', { total: grams(sp.initialG), tare: sp.tareG })}</div></div><Meter value={sp.remainingG} max={sp.initialG} tone={sp.remainingG < sp.initialG * 0.15 ? 'bad' : 'ok'} /></Card>

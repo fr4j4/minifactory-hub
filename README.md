@@ -42,6 +42,12 @@ Laminador → **Configurar laminado**: elige qué impresora es cada máquina, la
 
 Casi todos los registros (materiales, bobinas, repuestos e insumos, productos y variantes, clientes, presupuestos, pedidos cancelados, listas de precios, canales, usuarios, colecciones de fotos, planes de mantenimiento, incidencias, contactos y pagos) se pueden eliminar desde su pantalla con el botón **Eliminar** (permiso «eliminar» del módulo). Es un borrado lógico: el historial, los reportes y los movimientos se conservan. Antes de confirmar, el sistema avisa si hay algo que lo impide (stock, pedidos abiertos, la última cuenta de administrador…). Las reglas están en `src/lib/services/removal.ts`.
 
+**Archivados:** en *Configuración → Archivados* se listan los registros eliminados y se pueden **restaurar** (también sus variantes o bobinas eliminadas junto con ellos). No se restaura si el registro del que depende sigue eliminado o si su código, SKU o correo ya lo usa otro (`src/lib/services/archive.ts`).
+
+## Editar registros ya creados
+
+Pedidos, pagos, ventas rápidas, bobinas (lote, fecha y costo), planes de mantenimiento, incidencias, colecciones de fotos y contactos tienen un botón **Editar** (✎). Solo se aceptan los campos de una lista blanca por tipo (`EDIT_SPEC` en `src/lib/services/edits.ts`): totales, estados y claves no se tocan desde ahí. Corregir un pago recalcula lo pagado del pedido o la venta, y no se editan pedidos cancelados ni ventas anuladas. Cada cambio queda en la auditoría.
+
 ## Idiomas (i18n)
 
 La interfaz está disponible en **español** (idioma por defecto) e **inglés**. El idioma se elige en el selector del menú de cuenta (o en la pantalla de ingreso) y se recuerda en la cookie `mf_lang`; sin cookie se usa `Accept-Language` y, si no coincide, español.

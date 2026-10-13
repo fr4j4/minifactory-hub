@@ -130,4 +130,5 @@ export const settings = {
     feria: 'Feria',
     redes: 'Redes sociales',
   },
+  tabArchived: 'Archivados',
 };

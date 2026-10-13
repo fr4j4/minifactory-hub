@@ -9,6 +9,8 @@ import { Uploader } from '@/components/uploader';
 import { PhotoGrid, type PhotoView } from '@/components/photo-grid';
 import { STAGE_KEYS } from '@/lib/photo-stages';
 import { tOr } from '@/i18n/translate';
+import { EditButton } from '@/components/edit-button';
+import { editFields } from '@/lib/edit-fields';
 import { getT } from '@/i18n/server';
 import { RemoveButton } from '@/components/remove-button';
 
@@ -34,7 +36,7 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
         <select name="stage" defaultValue={sp.stage ?? ''} className="input sm:!w-48" aria-label={t('common.stage')}><option value="">{t('gallery.allStages')}</option>{STAGE_KEYS.map((k) => <option key={k} value={k}>{t(`gallery.stage.${k}`)}</option>)}</select>
         <input name="tag" defaultValue={sp.tag} list="tags" className="input sm:!w-48" placeholder={t('gallery.tagEGPetg')} aria-label={t('common.tag')} /><datalist id="tags">{allTags.map((tt) => <option key={tt} value={tt} />)}</datalist>
         <select name="months" defaultValue={sp.months ?? ''} className="input sm:!w-44" aria-label={t('gallery.period')}><option value="">{t('gallery.allTime')}</option><option value="1">{t('gallery.lastMonth')}</option><option value="3">{t('gallery.last3Months')}</option><option value="6">{t('gallery.last6Months')}</option></select>
-        {cols.length > 0 && <select name="col" defaultValue={sp.col ?? ''} className="input sm:!w-48" aria-label={t('gallery.collection')}><option value="">{t('gallery.allCollections')}</option>{cols.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}{sp.col && cols.some((c) => c.id === sp.col) && can(user, 'galeria', 'X') && <RemoveButton kind="collection" id={sp.col} name={cols.find((c) => c.id === sp.col)!.name} redirectTo="/galeria" />}
+        {cols.length > 0 && <select name="col" defaultValue={sp.col ?? ''} className="input sm:!w-48" aria-label={t('gallery.collection')}><option value="">{t('gallery.allCollections')}</option>{cols.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}{sp.col && cols.some((c) => c.id === sp.col) && can(user, 'galeria', 'E') && <EditButton kind="collection" id={sp.col} fields={editFields('collection', t)} values={cols.find((c) => c.id === sp.col)!} className="btn-ghost" testId="edit-collection" />}{sp.col && cols.some((c) => c.id === sp.col) && can(user, 'galeria', 'X') && <RemoveButton kind="collection" id={sp.col} name={cols.find((c) => c.id === sp.col)!.name} redirectTo="/galeria" />}
         <label className="flex items-center gap-1.5 text-sm px-1"><input type="checkbox" name="fav" value="1" defaultChecked={!!sp.fav} /> {t('gallery.featured')}</label><button className="btn-ghost" data-testid="gallery-filter">{t('common.filter')}</button>
       </form>
       {views.length === 0 ? <Card><Empty title={t('gallery.noPhotosMatchTheseFilters')} hint={t('gallery.takePhotosFromAnOrder')} /></Card> : <PhotoGrid photos={views} stages={Object.fromEntries(STAGE_KEYS.map((k) => [k, t(`gallery.stage.${k}`)]))} canEdit={can(user, 'galeria', 'E')} />}

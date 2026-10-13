@@ -37,5 +37,8 @@ import { payMethod } from './payMethod';
 import { taxDoc } from './taxDoc';
 import { audit } from './audit';
 import { remove } from './remove';
+import { edit } from './edit';
+import { restore } from './restore';
+import { archive } from './archive';
 
-export const en: Shape<typeof esDict> = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove };
+export const en: Shape<typeof esDict> = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive };

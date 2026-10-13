@@ -4,6 +4,7 @@ import { audit } from '../audit';
 import { LocalizedError } from '@/i18n/errors';
 import type { MessageKey, Params } from '@/i18n/translate';
 import type { Module } from '../perm';
+import { recomputePaid } from './orders';
 
 /**
  * Eliminar / archivar registros. Siempre es un borrado lógico (`deletedAt`): el historial (pedidos, ventas, reportes,
@@ -93,7 +94,7 @@ export async function removalInfo(kind: RemovableKind, id: string, actorId?: str
   }
 }
 
-async function nameOf(kind: RemovableKind, id: string): Promise<string | null> {
+export async function nameOf(kind: RemovableKind, id: string): Promise<string | null> {
   const db = await getDb();
   const pick = async (q: Promise<Array<{ v: string | null }>>) => (await q)[0]?.v ?? null;
   switch (kind) {
@@ -114,12 +115,6 @@ async function nameOf(kind: RemovableKind, id: string): Promise<string | null> {
     case 'contact': return pick(db.select({ v: s.contactLog.summary }).from(s.contactLog).where(eq(s.contactLog.id, id)));
     case 'payment': return pick(db.select({ v: sql<string>`${s.payments.amount}::text` }).from(s.payments).where(eq(s.payments.id, id)));
   }
-}
-
-/** Recalcula lo pagado de un pedido o venta a partir de los pagos vigentes. */
-async function recomputePaid(db: Awaited<ReturnType<typeof getDb>>, p: { orderId: string | null; saleId: string | null }) {
-  if (p.orderId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.orderId, p.orderId), isNull(s.payments.deletedAt))); await db.update(s.orders).set({ paid: Number(r.t), updatedAt: new Date() }).where(eq(s.orders.id, p.orderId)); }
-  if (p.saleId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.saleId, p.saleId), isNull(s.payments.deletedAt))); await db.update(s.sales).set({ paid: Number(r.t) }).where(eq(s.sales.id, p.saleId)); }
 }
 
 /** Elimina (borrado lógico) un registro. Lanza `LocalizedError` si está bloqueado o no existe. */

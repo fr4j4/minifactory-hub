@@ -133,4 +133,5 @@ export const settings: Shape<typeof es['settings']> = {
     feria: 'Fair',
     redes: 'Social media',
   },
+  tabArchived: 'Archived',
 };
