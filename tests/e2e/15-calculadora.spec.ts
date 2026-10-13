@@ -69,7 +69,7 @@ test.describe('Calculadora v2', () => {
     const before = await page.getByTestId('prev-medium').innerText();
     await page.getByTestId('cfg-margin').fill('55');
     await expect(page.getByTestId('cfg-margin-value')).toContainText('55');
-    expect(await page.getByTestId('prev-medium').innerText()).not.toBe(before);
+    await expect(page.getByTestId('prev-medium')).not.toHaveText(before);
     await expect(page.getByTestId('preview-breakeven')).toContainText('equilibrio');
     // Avanzado
     await page.getByTestId('cfg-mode-avanzado').click();

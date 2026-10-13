@@ -56,7 +56,8 @@ export function CalcConfig({ st, ctx, canEdit, draftCount, usage, history }: { s
     <NumField key={path} label={label} unit={o.unit} hint={o.hint} max={o.max} step={o.step} value={Number(pathGet(r, path) ?? 0)} def={pathGet(DEFAULT_RATES, path)} disabled={!canEdit}
       onChange={(v) => setR((x) => pathSet(x, path, v))} testid={o.testid ?? `cfg-${path}`} />
   );
-  const rt: Rates = r;
+  // las tarifas del borrador no traen el número de máquinas: se toma del contexto, como al cotizar de verdad
+  const rt: Rates = { ...r, machineCount: ctx.rates.machineCount };
   const machine = ctx.machines.find((m) => m.tech === 'FDM' && !m.simulated) ?? ctx.machines[0]; const material = ctx.materials.find((m) => m.tech === 'fdm') ?? ctx.materials[0];
   const sample = (x: Rates, c: { qty: number; g: number; h: number }) => (machine && material ? samplePrice(x, profiles, machine.cost, toItemMaterial(material), c) : null);
   const preview = CASES.map((c) => ({ c, p: sample(rt, c) }));
@@ -154,8 +155,8 @@ export function CalcConfig({ st, ctx, canEdit, draftCount, usage, history }: { s
           </div>
           <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3 text-sm space-y-1 tabular" data-testid="breakeven">
             <div>{t('calc.cfg.machinesCount', { n: ctx.rates.machineCount ?? 1, hours: num(hoursPerMachineMonth(rt) * (ctx.rates.machineCount ?? 1), 0) })}</div>
-            <div>{t('calc.cfg.fixedPerHour', { v: money(Math.round(fixedPerHour({ ...rt, machineCount: ctx.rates.machineCount }))) })}</div>
-            <div className="font-medium">{t('calc.cfg.breakEven', { v: money(Math.round(breakEvenRate({ ...rt, machineCount: ctx.rates.machineCount }))) })}</div>
+            <div>{t('calc.cfg.fixedPerHour', { v: money(Math.round(fixedPerHour(rt))) })}</div>
+            <div className="font-medium">{t('calc.cfg.breakEven', { v: money(Math.round(breakEvenRate(rt))) })}</div>
             {medium && <div>{t('calc.cfg.nowCharges', { v: money(Math.round(medium.perHour)) })}</div>}
           </div>
         </div>
