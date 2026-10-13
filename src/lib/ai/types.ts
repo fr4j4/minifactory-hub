@@ -45,6 +45,8 @@ export interface AIProvider {
 export interface AiSettings {
   enabled: boolean;
   provider: 'none' | 'anthropic' | 'openai-compat';
+  /** Preajuste elegido en la interfaz (ver presets.ts); vacío en instalaciones anteriores. */
+  preset: string;
   baseUrl: string;
   apiKeySealed: string;
   models: { fast: string; smart: string; vision: string };
@@ -57,7 +59,7 @@ export interface AiSettings {
 }
 
 export const DEFAULT_AI: AiSettings = {
-  enabled: false, provider: 'none', baseUrl: '', apiKeySealed: '',
+  enabled: false, provider: 'none', preset: '', baseUrl: '', apiKeySealed: '',
   models: { fast: 'claude-haiku-5-5', smart: 'claude-sonnet-5-5', vision: '' },
   localOnly: false, features: {}, roles: {},
   privacy: { redactPII: true, sendImages: false },

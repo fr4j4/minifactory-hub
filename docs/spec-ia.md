@@ -499,6 +499,10 @@ Hecho:
 
 Diferencias respecto del diseño original: no hay segunda ronda de refinamiento ni diagnóstico por foto (`profile.diagnose` es solo texto; las imágenes se agregan después); la sugerencia desde la ficha del perfil (caso C) es por reglas, sin IA; los perfiles fantasma de candidatos no se purgan todavía.
 
+### Proveedores preconfigurados y descubridor de IA local (añadido tras la Fase 1)
+
+`lib/ai/presets.ts` define la lista (locales: Ollama, LM Studio, llama.cpp/LocalAI, vLLM, Jan; nube: Anthropic, Ollama Cloud —`https://ollama.com/v1`, con clave—, OpenAI, OpenRouter, Groq, Gemini, Mistral, Together, DeepSeek) y los dos genéricos (compatible con OpenAI / con Anthropic), que siempre están. Elegir uno rellena protocolo, URL y modelos sugeridos; `ai.preset` recuerda la elección. `lib/ai/discovery.ts` busca servidores locales con un `GET /v1/models` sin credenciales, solo en direcciones locales, puertos conocidos, sin seguir redirecciones y con tope de tamaño y de tiempo; **no recorre la red** (otro equipo = el administrador escribe su dirección). «Cargar modelos» lista los modelos del proveedor elegido y sugiere rápido/avanzado/visión según nombre y tamaño. Con `network_mode: host` en Docker, `localhost` ya ve los servidores del equipo anfitrión.
+
 ## 11. Riesgos y alternativas
 
 - **Calidad de las sugerencias variable según el modelo.** Mitigación: KB de dominio, validación, laminado real y bucle de resultados; opción de modelo más potente solo para el asesor.
