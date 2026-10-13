@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { estimateFromDims, estimateFromMesh, pickProfileId, type CostBreakdown, type FillKind, type Rates } from '@/lib/pricing';
-import { priceLine, toItemMaterial, type ItemCalcOpts, type ItemOverrides } from '@/lib/item-price';
+import { fromCalcOpts, priceLine, toCalcOpts, toItemMaterial, type ItemOverrides } from '@/lib/item-price';
 import type { CalcContext } from '@/lib/context';
 import { cn, dur, grams, money, num, pct } from '@/lib/format';
 import { modelBriefAction, type ModelBrief } from '@/actions/quotes';
@@ -47,20 +47,7 @@ export function newItem(ctx: CalcContext, over: Partial<ItemState> = {}): ItemSt
   };
 }
 
-/** Opciones de cálculo de la línea tal como se guardan (solo lo que se apartó del valor por defecto). */
-export function toCalcOpts(it: Pick<ItemState, 'plates' | 'designMinutes' | 'colorChanges' | 'tags' | 'overrides' | 'filaments'>): ItemCalcOpts {
-  const o: ItemCalcOpts = {};
-  if (it.plates > 1) o.plates = it.plates;
-  if (it.designMinutes > 0) o.designMinutes = it.designMinutes;
-  if (it.colorChanges > 0) o.colorChanges = it.colorChanges;
-  if (it.tags.length) o.tags = it.tags;
-  if (Object.keys(it.overrides).length) o.overrides = it.overrides;
-  if (it.filaments.length) o.filaments = it.filaments;
-  return o;
-}
-export function fromCalcOpts(o: Record<string, any> | null | undefined, profileId?: string | null): Pick<ItemState, 'calcProfileId' | 'plates' | 'designMinutes' | 'colorChanges' | 'tags' | 'overrides' | 'filaments' | 'dims'> {
-  return { dims: { l: 0, w: 0, h: 0, fill: 'normal' }, calcProfileId: profileId ?? null, plates: o?.plates ?? 1, designMinutes: o?.designMinutes ?? 0, colorChanges: o?.colorChanges ?? 0, tags: o?.tags ?? [], overrides: o?.overrides ?? {}, filaments: o?.filaments ?? [] };
-}
+export { toCalcOpts, fromCalcOpts };
 
 export interface ComputedItem { bd: CostBreakdown; suggestedUnit: number; cost: number; rates: Rates; profileId: string | null }
 /** Costos y precio sugerido de una línea, en el navegador (el servidor usa la misma función `priceLine` al guardar). */

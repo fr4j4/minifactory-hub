@@ -3,7 +3,7 @@
  * Es la única implementación: la usan el navegador (vista en vivo) y el servidor (al guardar),
  * de modo que ambos siempre dan el mismo precio (spec CAL-50 y CAL-70).
  */
-import { calcLine, resolveRates, pickProfileId, roundPrice, type CalcProfile, type CostBreakdown, type DeepPartial, type LineInput, type MachineCost, type Rates } from './pricing';
+import { calcLine, resolveRates, pickProfileId, roundPrice, type FillKind, type CalcProfile, type CostBreakdown, type DeepPartial, type LineInput, type MachineCost, type Rates } from './pricing';
 
 export interface ItemMaterial { costPerKg: number; replaceCostPerKg?: number; type?: string; riskFactor?: number | null; wastePct?: number | null }
 export interface ItemOverrides { marginPct?: number; wastePct?: number; failRatePct?: number; laborHour?: number; supervisionMinPerHour?: number; payFeePct?: number }
@@ -70,3 +70,22 @@ export function priceLine(it: ItemPriceInput, env: ItemPriceEnv): ItemPrice {
 /** Material del contexto de cálculo (navegador) en la forma que usa `priceLine`. */
 export const toItemMaterial = (m: { costPerKg: number; replaceCostPerKg?: number; type?: string; riskFactor?: number | null; wastePct?: number | null } | undefined | null): ItemMaterial | null =>
   m ? { costPerKg: m.costPerKg, replaceCostPerKg: m.replaceCostPerKg, type: m.type, riskFactor: m.riskFactor, wastePct: m.wastePct } : null;
+
+/** Opciones de cálculo de la línea tal como se guardan (solo lo que se apartó del valor por defecto). */
+export function toCalcOpts(it: { plates: number; designMinutes: number; colorChanges: number; tags: string[]; overrides: ItemOverrides; filaments: Array<{ g: number; materialId: string }> }): ItemCalcOpts {
+  const o: ItemCalcOpts = {};
+  if (it.plates > 1) o.plates = it.plates;
+  if (it.designMinutes > 0) o.designMinutes = it.designMinutes;
+  if (it.colorChanges > 0) o.colorChanges = it.colorChanges;
+  if (it.tags.length) o.tags = it.tags;
+  if (Object.keys(it.overrides).length) o.overrides = it.overrides;
+  if (it.filaments.length) o.filaments = it.filaments;
+  return o;
+}
+/** Lo inverso al cargar una línea guardada. Vive aquí (y no en el componente) para poder usarse desde páginas del servidor. */
+export function fromCalcOpts(o: Record<string, any> | null | undefined, profileId?: string | null) {
+  return {
+    dims: { l: 0, w: 0, h: 0, fill: 'normal' as FillKind }, calcProfileId: profileId ?? null, plates: (o?.plates ?? 1) as number, designMinutes: (o?.designMinutes ?? 0) as number, colorChanges: (o?.colorChanges ?? 0) as number,
+    tags: (o?.tags ?? []) as string[], overrides: (o?.overrides ?? {}) as ItemOverrides, filaments: (o?.filaments ?? []) as Array<{ g: number; materialId: string }>,
+  };
+}

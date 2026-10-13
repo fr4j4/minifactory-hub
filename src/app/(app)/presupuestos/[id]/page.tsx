@@ -8,7 +8,8 @@ import { PageHeader, Card, StatusBadge, Table, Badge, Empty } from '@/components
 import { QuoteEditor, type QuoteState } from '@/components/quote-editor';
 import { QuoteActions } from '@/components/quote-actions';
 import { LinksEditor } from '@/components/links-editor';
-import { fromCalcOpts, type ItemState } from '@/components/line-editor';
+import { type ItemState } from '@/components/line-editor';
+import { fromCalcOpts } from '@/lib/item-price';
 import { loadQuote } from '@/lib/services/quotes';
 import { loadEditorData } from '@/lib/editor-data';
 import { getSettings } from '@/lib/settings';
