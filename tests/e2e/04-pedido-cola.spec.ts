@@ -10,7 +10,7 @@ test.describe('Pedido manual, cola y consumo de material', () => {
       await page.getByTestId('order-title').fill('20 llaveros con logo');
       const l = page.getByTestId('quote-line').first();
       await l.getByLabel('Descripción').fill('Llavero logo');
-      await l.getByRole('radio', { name: 'Manual' }).click();
+      await l.getByTestId('mode-manual').click();
       await l.getByTestId('manual-grams').fill('9'); await l.getByTestId('manual-hours').fill('1');
       await l.getByTestId('line-qty').fill('20');
       await page.getByTestId('order-deposit').fill('5000');

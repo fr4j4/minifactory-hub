@@ -11,7 +11,7 @@ test.describe('Presupuestos con varios modelos', () => {
       await page.getByTestId('add-line').click();
       const l1 = page.getByTestId('quote-line').first();
       await l1.getByLabel('Descripción').fill('Llaveros logo');
-      await l1.getByRole('radio', { name: 'Manual' }).click();
+      await l1.getByTestId('mode-manual').click();
       await l1.getByTestId('manual-grams').fill('12'); await l1.getByTestId('manual-hours').fill('1'); await l1.getByTestId('manual-minutes').fill('30');
       await l1.getByTestId('line-qty').fill('10');
       await expect(l1.getByTestId('line-suggested')).toContainText('$');
@@ -21,7 +21,7 @@ test.describe('Presupuestos con varios modelos', () => {
       await l2.getByLabel('Descripción').fill('Set decorativo (varios modelos)');
       await l2.getByTestId('model-pick').selectOption({ index: 1 });
       await l2.getByTestId('model-pick').selectOption({ index: 2 }).catch(() => {});
-      await l2.getByRole('radio', { name: 'Manual' }).click();
+      await l2.getByTestId('mode-manual').click();
       await l2.getByTestId('manual-grams').fill('20'); await l2.getByTestId('manual-hours').fill('2');
     });
     await shot(page, '32-presupuesto-lineas', { full: true });

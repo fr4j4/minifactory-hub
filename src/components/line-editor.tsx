@@ -174,7 +174,12 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   const unitH = hm(it.unitHours);
   const showModels = det || it.mode === 'auto' || it.mode === 'semi';
   const weightMode: 'auto' | 'semi' | 'manual' | 'estimate' = it.mode === 'manual' && (estOpen || it.origin.grams === 'estimate') ? 'estimate' : it.mode;
-  const pickWeight = (k: typeof weightMode) => { if (k === 'estimate') { setEstOpen(true); onChange({ mode: 'manual' }); } else { setEstOpen(false); onChange({ mode: k }); } };
+  const pickWeight = (k: typeof weightMode) => {
+    if (k === 'estimate') { setEstOpen(true); onChange({ mode: 'manual' }); return; }
+    setEstOpen(false);
+    // «Lo sé» después de estimar: los valores pasan a ser tuyos (ya no son una estimación)
+    onChange(k === 'manual' && it.origin.grams === 'estimate' ? { mode: 'manual', origin: { grams: 'manual', hours: 'manual' } } : { mode: k });
+  };
   const itemInput = { qty, gramsTotal: it.gramsTotal, hoursTotal: it.hoursTotal, mode: it.mode, originKind: it.origin.grams, prepMinutes: it.prepMinutes, postMinutes: it.postMinutes, postSupplies: it.postSupplies, shipping: it.shipping, profileId: it.calcProfileId, opts: toCalcOpts(it) };
   const exEnv = {
     rates: ctx.rates, profiles: ctx.calcProfiles, material: toItemMaterial(mat), machine: mach?.cost ?? null, materialById: (id: string) => toItemMaterial(ctx.materials.find((m) => m.id === id)) ?? undefined,
