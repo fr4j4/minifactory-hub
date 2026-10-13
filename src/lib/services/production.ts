@@ -1,3 +1,4 @@
+import { isFailCode, normalizeFailCause } from '../production/fail-causes';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
@@ -117,7 +118,7 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   await audit('print_job', jobId, 'iniciar', { machineId, spoolId: spool?.id }, o.userId);
 }
 
-export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string }
+export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCode?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string }
 
 export async function finishJob(jobId: string, o: FinishInput) {
   const t = await getT();
@@ -139,7 +140,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
   const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
   await db.update(s.printJobs).set({
-    status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause ?? null,
+    status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
     failCharge: o.failCharge ?? null, spoolId, updatedAt: now,
   }).where(eq(s.printJobs.id, jobId));
   // máquina: contadores y factor de corrección de tiempo
@@ -188,6 +189,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
     await notify('trabajo_fallido', t('queue.failedJob', { job: j.number }), o.failCause ?? t('queue.noCauseGiven'), '/cola');
   } else await notify('trabajo_terminado', t('queue.finishedJob', { job: j.number }), j.title ?? '', '/cola');
   if (j.orderId) await recomputeOrderStatus(j.orderId);
+  if (failed) await import('../slicer/performance').then((m) => m.checkProfileDegradation(jobId)).catch(() => {});
   await audit('print_job', jobId, 'finalizar', { result: o.result, realG, realH, qtyGood, reprintId }, o.userId);
   return { reprintId, realG, realH, qtyGood, cost: line.cost };
 }

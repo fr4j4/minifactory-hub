@@ -7,6 +7,8 @@ import { dur, grams, money, num, cn } from '@/lib/format';
 import { sliceAction } from '@/actions/slicer';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
+import { SliceErrorHelp } from './slice-error-help';
+import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
 
 export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
@@ -37,7 +39,7 @@ export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'fil
 }
 
 /** Panel de laminado en el servidor (OrcaSlicer): elige máquina, proceso y material; entrega tiempo, gramos y precio. */
-export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName }: { fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string }) {
+export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName, ai }: { fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean } }) {
   const t = useT();
   const toast = useToast();
   const slicers = ctx.machines.filter((m) => m.machineProfileId);
@@ -47,7 +49,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const mats = ctx.materials.filter((m) => m.tech === 'fdm' && m.filamentProfileId);
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
-  const [copies, setCopies] = useState(1); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
   useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [machineId]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
@@ -73,11 +75,12 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>
+        {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && material?.filamentProfileId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
         {run?.status === 'done' && <button className="btn-ghost" onClick={() => go(true)} disabled={busy}>{t('slicer.sliceAgainBypassCache')}</button>}
         <span className="text-xs muted">{t('slicer.engineOrcaslicerTheSameFile')}</span>
       </div>
       {busy && <div className="flex items-center gap-2 text-sm muted" role="status"><span className="inline-block h-3 w-3 rounded-full bg-brand-600 animate-pulse" /> {run?.status === 'running' ? t('slicer.slicingWithOrcaslicer') : t('slicer.inTheSlicingQueue')}</div>}
-      {run?.status === 'error' && <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-200" role="alert" data-testid="slice-error">{run.error}</div>}
+      {run?.status === 'error' && <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-200" role="alert" data-testid="slice-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
       {run?.status === 'done' && bd && (
         <div className="rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 p-4 space-y-3" data-testid="slice-result">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -97,6 +100,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           </div>
         </div>
       )}
+      {advisorOpen && ai && machine?.machineProfileId && material?.filamentProfileId && <AdvisorPanel target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: material.filamentProfileId, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
       {showLayers && run?.status === 'done' && <GcodeViewer src={`/api/runs/${run.id}/preview`} />}
     </div>
   );

@@ -72,9 +72,9 @@ Máquinas → **Conectar impresoras**: detecta las Bambu Lab de la red (SSDP), p
 - La API de la nube no es oficial (documentada por la comunidad: ha-bambulab, OpenBambuAPI); Bambu Lab puede cambiarla. Para pruebas: `BAMBU_SIM_CLOUD_API_PORT=18080 npx tsx scripts/bambu-sim.ts` levanta también una nube simulada y la app se apunta a ella con `BAMBU_CLOUD_API`, `BAMBU_CLOUD_WEB`, `BAMBU_CLOUD_MQTT` y `BAMBU_CLOUD_CA_FILE`.
 - Probado contra el simulador; antes de confiar en «Enviar a imprimir» pruébalo con tu impresora real y una pieza pequeña (ver `docs/reporte`).
 
-## IA opcional (Fase 0: fundación)
+## IA opcional (Fases 0 y 1)
 
-Apagada por defecto. Se configura en **Configuración → Inteligencia artificial**: proveedor (Anthropic o cualquier API compatible con OpenAI, incluido Ollama/LM Studio en tu red), clave (cifrada), modelos, funciones por rol, privacidad (ocultar datos personales, imágenes, «solo local»), tope de gasto y consumo. Mientras esté apagada no hay controles de IA ni llamadas de red. `AI_FORCE_DISABLED=1` la apaga siempre. La Fase 0 trae solo la infraestructura (`src/lib/ai`); las funciones (asesor de perfiles, etc.) se agregan en las siguientes fases. Diseño completo en `docs/spec-ia.md`. Para desarrollo: `npx tsx scripts/ai-sim.ts` levanta un proveedor simulado en `http://127.0.0.1:18090`.
+Apagada por defecto. Se configura en **Configuración → Inteligencia artificial**: proveedor (Anthropic o cualquier API compatible con OpenAI, incluido Ollama/LM Studio en tu red), clave (cifrada), modelos, funciones por rol, privacidad (ocultar datos personales, imágenes, «solo local»), tope de gasto y consumo. Mientras esté apagada no hay controles de IA ni llamadas de red. `AI_FORCE_DISABLED=1` la apaga siempre. La infraestructura está en `src/lib/ai`. Funciones disponibles: **asesor de perfiles de impresión** (Laminador → «Mejorar con IA»: propone candidatos, los lamina de verdad con OrcaSlicer, los compara y guarda el elegido como nueva versión del perfil) y **explicación de errores de laminado**. Sin IA, cada perfil muestra igualmente su **ficha de desempeño** con los trabajos reales y las reglas de «qué probar». Diseño completo en `docs/spec-ia.md`. Para desarrollo: `npx tsx scripts/ai-sim.ts` levanta un proveedor simulado en `http://127.0.0.1:18090`.
 
 ## Documentación
 

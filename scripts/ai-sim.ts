@@ -7,6 +7,26 @@
  */
 import http from 'node:http';
 
+/** Respuestas guionadas según la función que llama (se reconoce por el texto del sistema). */
+function scripted(system: string, user: string): string {
+  if (/asesor de perfiles/i.test(system)) {
+    const symptom = /problema/i.test(system) && !/lograr el objetivo/i.test(system);
+    return JSON.stringify({
+      confidence: 'media', testPlan: 'Imprime primero una pieza pequeña con el candidato elegido.',
+      diagnosis: symptom ? [{ cause: 'Adherencia de la primera capa', likelihood: 0.7, why: 'Las esquinas se levantan por contracción.' }] : undefined,
+      candidates: [
+        { name: 'conservador', summary: 'Más relleno y una pared extra para ganar resistencia.', expected: { time: '+', material: '+', strength: '+', quality: '=' }, risks: ['Gasta más material'],
+          changes: [{ scope: 'process', key: 'sparse_infill_density', to: '30%', reason: 'Más resistencia', evidence: 'relleno actual 15 %' }, { scope: 'process', key: 'wall_loops', to: 3, reason: 'Las paredes aportan más que el relleno', evidence: 'wall_loops=2' }] },
+        { name: 'equilibrado', summary: 'Capa más gruesa para ahorrar tiempo.', expected: { time: '-', material: '=', strength: '-', quality: '-' }, risks: ['Se notan más las capas'],
+          changes: [{ scope: 'process', key: 'layer_height', to: 0.28, reason: 'Menos capas = menos tiempo', evidence: 'layer_height=0.2' }, { scope: 'process', key: 'machine_start_gcode', to: 'M104 S999', reason: 'x', evidence: 'x' }] },
+      ],
+    });
+  }
+  if (/laminado/i.test(system) && /explica por qu/i.test(system)) return JSON.stringify({ summary: 'El perfil no es compatible con la máquina elegida.', steps: ['Elige un perfil hecho para esa impresora', 'Vuelve a laminar'] });
+  void user;
+  return '{"ok":true}';
+}
+
 export function startAiSim(port = Number(process.env.AI_SIM_PORT || 18090)) {
   const log: Array<{ path: string; body: any; headers: http.IncomingHttpHeaders }> = [];
   const server = http.createServer((req, res) => {
@@ -18,8 +38,14 @@ export function startAiSim(port = Number(process.env.AI_SIM_PORT || 18090)) {
       const fail = Number(req.headers['x-sim-fail'] || 0); if (fail) return send(fail, { error: { message: `fallo simulado ${fail}` } });
       const key = String(req.headers['x-api-key'] || req.headers.authorization || '');
       if (/mala/.test(key)) return send(401, { error: { message: 'clave inválida' } });
-      if (req.url?.endsWith('/v1/messages')) return send(200, { model: body.model, content: [{ type: 'tool_use', name: 'responder', input: { ok: true } }], usage: { input_tokens: 12, output_tokens: 5 } });
-      if (req.url?.endsWith('/chat/completions')) return send(200, { model: body.model, choices: [{ message: { role: 'assistant', content: '{"ok":true}' } }], usage: { prompt_tokens: 12, completion_tokens: 5 } });
+      if (req.url?.endsWith('/v1/messages')) {
+        const user = JSON.stringify(body.messages?.[0]?.content ?? '');
+        return send(200, { model: body.model, content: [{ type: 'tool_use', name: 'responder', input: JSON.parse(scripted(String(body.system ?? ''), user)) }], usage: { input_tokens: 12, output_tokens: 5 } });
+      }
+      if (req.url?.endsWith('/chat/completions')) {
+        const [sys, usr] = body.messages ?? [];
+        return send(200, { model: body.model, choices: [{ message: { role: 'assistant', content: scripted(String(sys?.content ?? ''), JSON.stringify(usr?.content ?? '')) } }], usage: { prompt_tokens: 12, completion_tokens: 5 } });
+      }
       send(404, { error: { message: 'no encontrado' } });
     });
   });

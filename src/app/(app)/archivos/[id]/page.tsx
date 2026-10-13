@@ -8,6 +8,7 @@ import { PageHeader, Card, Badge, StatusBadge, Table, Empty } from '@/components
 import { ModelViewer } from '@/components/model-viewer';
 import { GcodeViewer } from '@/components/gcode-viewer';
 import { SlicePanel } from '@/components/slice-panel';
+import { aiAvailableFor } from '@/lib/ai';
 import { Uploader } from '@/components/uploader';
 import { LinksEditor } from '@/components/links-editor';
 import { AutoRefresh, DeleteFileButton, FileMetaForm, SetVersionButton } from '@/components/file-bits';
@@ -96,7 +97,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
         <div className="grid gap-4 xl:grid-cols-3">
           <Card title={t('files.serverSideSlicing')} className="xl:col-span-2">
             {kind === 'malla' && f.format !== 'step' && f.format !== 'stp' ? (
-              <SlicePanel fileVersionId={cur.id} ctx={ctx} fileId={f.id} fileName={f.name} canSlice={can(user, 'laminador', 'V')} />
+              <SlicePanel fileVersionId={cur.id} ctx={ctx} fileId={f.id} fileName={f.name} canSlice={can(user, 'laminador', 'V')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
             ) : <Empty title={t('files.thisFormatIsNotSliced')} hint={t('files.gCodeFilesAreAlready')} />}
           </Card>
           <div className="space-y-4">

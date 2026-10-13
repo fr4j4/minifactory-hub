@@ -474,7 +474,7 @@ Tasa de aceptación por función · % de candidatos que laminan · ahorro de tie
 | Fase | Entregable | Dependencias | Criterio de salida |
 |---|---|---|---|
 | **0 – Fundación** *(implementada)* | `lib/ai` (proveedores, `run`, `redact`, `budget`, `cache`), `settings.ai`, pantalla de configuración con *Probar conexión*, tablas `ai_calls/ai_suggestions`, módulo `ia` en permisos, `MockProvider`/simulador, kill-switch | Ninguna | Con IA apagada, build y tests actuales idénticos; con proveedor simulado se puede probar conexión y ver consumo |
-| **1 – Asesor de perfiles** | L3 ficha de desempeño (DET) + L8 explicación de errores (DET/LLM) + L1/L2 asesor con candidatos, laminado real y comparación; aplicar como nueva versión | Fase 0; catálogo `failCause` | Criterios de §6.10 cumplidos; evaluación en conjunto dorado |
+| **1 – Asesor de perfiles** *(implementada, ver estado)* | L3 ficha de desempeño (DET) + L8 explicación de errores (DET/LLM) + L1/L2 asesor con candidatos, laminado real y comparación; aplicar como nueva versión | Fase 0; catálogo `failCause` | Criterios de §6.10 cumplidos; evaluación en conjunto dorado |
 | **2 – Entrada de datos y archivos** | Q1 captura de pedidos, Q4 redacción de mensajes, Q7 riesgos, F1/F2, P2 HMS, G1/G3, I1 | Fase 0 | Cada función desactivable y con revisión humana |
 | **3 – Búsqueda, visión y análisis** | Embeddings (Q2/F3/R3), R1/R2 preguntas y resúmenes, P1 detección en cámara (local recomendado), L4 orientación, L7 calibración | Fases 0–2 | Medición de utilidad real antes de seguir |
 | **4 – Optimización de operación** | P4 planificación de cola, P5/P6, I3 pronóstico, Q3 sugerencia de precio | Datos acumulados | Mejora medible en entregas a tiempo / cambios de bobina |
@@ -487,6 +487,17 @@ Estimación gruesa: Fase 0 ≈ 1 semana · Fase 1 ≈ 2 semanas · Fase 2 ≈ 2 
 
 Hecho: `src/lib/ai` (proveedores Anthropic y compatible con OpenAI por `fetch`, `MockProvider`, `run.ts` con permisos → presupuesto → caché → reintentos → validación zod con un reintento → telemetría, cortacircuitos, ocultación de datos personales, validación de URL y modo solo-local), `settings.ai` con la clave cifrada (`getSettings()` nunca la expone; `getSettingsRaw()` es solo de servidor), tablas `ai_calls` y `ai_suggestions`, módulo de permisos `ia`, pestaña de configuración con *Probar conexión* y consumo, `scripts/ai-sim.ts`, pruebas unitarias, de integración y e2e. Pendiente de la fundación: `ai_embeddings` (se crea con las búsquedas semánticas, Fase 3) y el selector por función de modelo `fast`/`smart` (hoy fijo en el registro `FEATURES`).
 Decisiones de implementación que difieren de lo escrito arriba: el costo estimado solo usa tarifas por defecto para Anthropic (en proveedores compatibles es 0 salvo `AI_PRICES`); el interruptor maestro solo viene de los ajustes del taller (las variables de entorno aportan proveedor, clave y modelos de respaldo).
+
+### Estado de la Fase 1 (implementada)
+
+Hecho:
+- **Catálogo de causas de falla**: columna `print_jobs.fail_code` (migración `0004`), selector en «terminar trabajo fallido», clasificación automática del texto libre (`lib/production/fail-causes.ts`); los trabajos antiguos se clasifican al vuelo.
+- **Ficha de desempeño (L3, sin IA, siempre visible)** en cada perfil de proceso/filamento: éxito, fallas por causa y desvío de tiempo/material por versión, con reglas de la base de conocimiento («qué probar») según la causa más frecuente, y alerta (`notify`) una sola vez cuando una versión cae bajo 85 % con ≥ 8 trabajos.
+- **Explicar errores de laminado (L8)**: el laminador guarda un código estable del error (`no_fit`, `incompatible`, `timeout`, `not_installed`, `other`); las reglas dan acciones concretas (rotar, escalar, menos copias…) sin IA; «Explicar con IA» (función `slicer.explain`) solo aparece si el taller la activó y se usa para errores desconocidos.
+- **Asesor de perfiles (L1/L2)**: botón «Mejorar con IA» en el panel de laminado (funciones `profile.advisor` por objetivo y `profile.diagnose` por síntoma). Flujo: propuesta (hasta 3 candidatos) → validación determinista (lista de parámetros permitidos, rangos por boquilla/material/máquina, dependencias, recorte) → laminado real de la base y de cada candidato en la cola existente (perfiles «fantasma» con borrado lógico) → ranking por objetivo con medidas reales + puntajes heurísticos → guardar como nueva versión (reversible, con control de «versión desactualizada») o como perfil nuevo. Todo queda en `ai_suggestions`, `activity_log` y la versión del perfil.
+- Pruebas: unitarias del validador/puntajes/reglas, integración con OrcaSlicer real y proveedor simulado, e2e del flujo completo y de accesibilidad.
+
+Diferencias respecto del diseño original: no hay segunda ronda de refinamiento ni diagnóstico por foto (`profile.diagnose` es solo texto; las imágenes se agregan después); la sugerencia desde la ficha del perfil (caso C) es por reglas, sin IA; los perfiles fantasma de candidatos no se purgan todavía.
 
 ## 11. Riesgos y alternativas
 

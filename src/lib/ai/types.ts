@@ -4,9 +4,9 @@ import type { MessageKey, Params } from '@/i18n/translate';
 
 /** Funciones de IA conocidas. `available` pasa a true cuando se implementa (Fase 0 solo trae la fundación). */
 export const FEATURES = {
-  'profile.advisor': { tier: 'smart', vision: false, available: false },
-  'profile.diagnose': { tier: 'smart', vision: true, available: false },
-  'slicer.explain': { tier: 'fast', vision: false, available: false },
+  'profile.advisor': { tier: 'smart', vision: false, available: true },
+  'profile.diagnose': { tier: 'smart', vision: false, available: true },
+  'slicer.explain': { tier: 'fast', vision: false, available: true },
   'intake.parse': { tier: 'smart', vision: true, available: false },
   'messages.draft': { tier: 'fast', vision: false, available: false },
   'files.tag': { tier: 'fast', vision: true, available: false },
