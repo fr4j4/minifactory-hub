@@ -60,7 +60,9 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId, materialId, qty: copies }) : null;
   return (
     <div className="space-y-4" data-testid="slice-panel">
-      {slicers.length === 0 && <p className="text-sm muted">No hay máquinas con perfil de laminado. Asigna un perfil de máquina en <Link href="/maquinas" className="underline">Máquinas</Link>.</p>}
+      {(slicers.length === 0 || mats.length === 0) && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
+        {slicers.length === 0 ? 'Ninguna máquina tiene su impresora configurada para laminar.' : 'Ningún material del inventario tiene perfil de filamento.'} <Link href="/laminador/configurar" className="underline font-medium">Configúralo en un minuto →</Link></div>}
+      {slicers.length > 0 && mats.length > 0 && ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length > 0 && <p className="text-xs muted">{ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length} material(es) no aparecen porque no tienen perfil de filamento · <Link href="/laminador/configurar" className="underline">configurar</Link></p>}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block"><span className="label">Máquina</span><select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} data-testid="slice-machine">{slicers.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select></label>
         <label className="block"><span className="label">Perfil de proceso</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process">{procs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>

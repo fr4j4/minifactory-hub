@@ -659,3 +659,43 @@ export const uploadSessions = pgTable('upload_sessions', {
   tmpPath: text('tmp_path').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Impresoras conectadas por red (por ahora Bambu Lab en modo LAN). El código de acceso se guarda cifrado. */
+export const printerLinks = pgTable('printer_links', {
+  ...base(),
+  machineId: uuid('machine_id').notNull(),
+  vendor: text('vendor').notNull().default('bambu'),
+  mode: text('mode').notNull().default('lan'), // lan | cloud
+  cloudAccountId: uuid('cloud_account_id'),
+  serial: text('serial').notNull(),
+  host: text('host'), // IP en modo LAN; vacío en modo nube
+  accessCodeEnc: text('access_code_enc').notNull(),
+  model: text('model'), // código de modelo (C12, N1, BL-P001…)
+  name: text('name'),
+  mqttPort: integer('mqtt_port').notNull().default(8883),
+  cameraPort: integer('camera_port'),
+  ftpPort: integer('ftp_port').notNull().default(990),
+  urlPrefix: text('url_prefix').notNull().default('file:///sdcard/'),
+  fingerprint: text('fingerprint'), // huella SHA-256 del certificado (confianza en el primer uso)
+  enabled: boolean('enabled').notNull().default(true),
+  syncQueue: boolean('sync_queue').notNull().default(true),
+  lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+  lastStatus: jsonb('last_status').$type<Record<string, any>>(),
+  lastError: text('last_error'),
+}, (t) => [uniqueIndex('printer_links_serial_uq').on(t.workspaceId, t.serial)]);
+
+/** Cuentas de Bambu Cloud. Nunca se guarda la contraseña: solo el token de acceso, cifrado. */
+export const cloudAccounts = pgTable('cloud_accounts', {
+  ...base(),
+  vendor: text('vendor').notNull().default('bambu'),
+  region: text('region').notNull().default('global'), // global | china
+  email: text('email').notNull(),
+  displayName: text('display_name'),
+  uid: text('uid'),
+  username: text('username'), // u_<uid> para MQTT
+  tokenEnc: text('token_enc'),
+  tokenExpiresAt: timestamp('token_expires_at', { withTimezone: true }),
+  status: text('status').notNull().default('activa'), // activa | expirada | cerrada
+  lastError: text('last_error'),
+  lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+});

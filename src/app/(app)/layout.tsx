@@ -5,6 +5,7 @@ import { can, ROLE_LABEL, type Module } from '@/lib/perm';
 import { AppShell, type NavItem } from '@/components/shell';
 import { expireQuotes } from '@/lib/services/quotes';
 import { ensureWorker } from '@/lib/slicer/queue';
+import { ensureBambu } from '@/lib/bambu/manager';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,7 +30,7 @@ const NAV: Array<NavItem & { mod: Module }> = [
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
   const db = await getDb();
-  ensureWorker();
+  ensureWorker(); ensureBambu();
   await expireQuotes().catch(() => {});
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.read, false), or(isNull(s.notifications.userId), eq(s.notifications.userId, user.id))));
   const nav = NAV.filter((n) => can(user, n.mod, 'V'));

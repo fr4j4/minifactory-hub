@@ -4,6 +4,8 @@ import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Stat, Meter, Badge, Empty } from '@/components/ui';
 import { Icon } from '@/components/shell';
 import { dashboardData } from '@/lib/stats';
+import { liveByMachine } from '@/lib/bambu/manager';
+import { PrinterPill } from '@/components/printer-live';
 import { dmy, dmyHm, dur, money, num, pct } from '@/lib/format';
 
 export const metadata = { title: 'Inicio' };
@@ -22,7 +24,11 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     ...d.oldJobs.map((x) => ({ tone: 'amber' as const, text: `Reserva por caducar: ${x.j.number} lleva más de ${15} días en cola`, href: '/cola' })),
   ];
   const hour = new Date().getHours(); const hello = hour < 12 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
-  const live = d.machines.map((m) => { const pj = d.printing.find((x) => x.j.machineId === m.id); const el = pj?.j.realStart ? (now - pj.j.realStart.getTime()) / 3600_000 : 0; const p = pj && pj.j.estH > 0 ? Math.min(99, (el / pj.j.estH) * 100) : 0; return { m, pj, p }; });
+  const conn = liveByMachine();
+  // si la máquina está conectada, el avance es el real que informa la impresora; si no, se estima con el tiempo transcurrido
+  const live = d.machines.map((m) => { const pj = d.printing.find((x) => x.j.machineId === m.id); const c = conn[m.id]; const cs = c?.online ? c.status : null; const cBusy = !!cs && ['RUNNING', 'PAUSE', 'PREPARE'].includes(cs.state);
+    const el = pj?.j.realStart ? (now - pj.j.realStart.getTime()) / 3600_000 : 0; const p = cBusy ? cs!.progress ?? 0 : pj && pj.j.estH > 0 ? Math.min(99, (el / pj.j.estH) * 100) : 0;
+    return { m, pj: pj ?? (cBusy ? { j: { id: c!.id, title: cs!.task ?? cs!.file ?? 'Impresión', plannedEnd: cs!.remainingMin != null ? new Date(now + cs!.remainingMin * 60_000) : null, machineId: m.id } as any, m: m.name } : undefined), p, c }; });
   const busy = live.filter((x) => x.pj).length;
   const actions = [{ h: '/pedidos/nuevo', l: 'Nuevo pedido', i: 'orders', m: 'pedidos', k: 'P' }, { h: '/presupuestos/nuevo', l: 'Presupuesto', i: 'quote', m: 'presupuestos', k: 'Q' }, { h: '/ventas/nueva', l: 'Venta rápida', i: 'cart', m: 'ventas', k: 'V' }, { h: '/calculadora', l: 'Calculadora', i: 'calc', m: 'presupuestos', k: 'C' }, { h: '/galeria?subir=1', l: 'Subir foto', i: 'camera', m: 'galeria', k: 'F' }, { h: '/inventario/escanear', l: 'Escanear QR', i: 'qr', m: 'inventario', k: 'E' }].filter((a) => can(user, a.m as any, 'V'));
   return (
@@ -36,7 +42,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[var(--accent)] opacity-20 blur-3xl" />
         <div className="relative flex items-center justify-between mb-4"><h2 className="font-mono text-[11px] uppercase tracking-[.16em] text-white/70 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulseDot" aria-hidden />Taller en vivo</h2><Link href="/cola" className="text-xs text-white/75 hover:text-white underline-offset-4 hover:underline">Ver la cola →</Link></div>
         {live.length === 0 ? <p className="relative text-sm text-white/70">Aún no hay máquinas. <Link href="/maquinas/nueva" className="underline">Agrega la primera</Link>.</p> : (
-          <ul className="relative flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 xl:grid-cols-4 [scrollbar-width:none]">{live.map(({ m, pj, p }) => (
+          <ul className="relative flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 xl:grid-cols-4 [scrollbar-width:none]">{live.map(({ m, pj, p, c }) => (
             <li key={m.id} className="snap-start shrink-0 w-[78%] sm:w-auto"><Link href={pj ? '/cola' : `/maquinas/${m.id}`} className="group flex gap-4 rounded-2xl bg-white/[.04] hover:bg-white/[.07] border border-white/10 p-3.5 transition-colors h-full">
               <div className="relative h-[68px] w-[52px] shrink-0 rounded-lg bg-black/30 border border-white/10 flex flex-col-reverse items-center gap-[2px] p-1.5 overflow-hidden" aria-hidden>
                 {Array.from({ length: 10 }, (_, i) => <span key={i} className={i < Math.round(p / 10) ? 'bg-[var(--accent)]' : 'bg-white/10'} style={{ height: 3, width: `${92 - Math.abs(4.5 - i) * 7}%`, borderRadius: 2, opacity: i < Math.round(p / 10) ? 0.55 + i * 0.045 : 1 }} />)}
@@ -44,8 +50,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium truncate">{m.name}</span><span className={`font-mono text-[10px] uppercase tracking-[.1em] ${pj ? 'text-[var(--accent)]' : m.status === 'disponible' ? 'text-emerald-400' : 'text-amber-300'}`}>{pj ? 'imprime' : m.status === 'disponible' ? 'libre' : m.status.replace(/_/g, ' ')}</span></div>
-                {pj ? <><div className="text-xs text-white/70 truncate mt-0.5">{pj.j.title}</div><div className="flex items-baseline justify-between mt-1.5"><span className="num text-2xl font-medium">{num(p, 0)}<span className="text-sm text-white/60">%</span></span><span className="font-mono text-[10px] text-white/60">fin {dmyHm(pj.j.plannedEnd)}</span></div></>
-                  : <div className="text-xs text-white/60 mt-1.5">{m.status === 'disponible' ? 'Lista para el próximo trabajo' : 'Revisa la máquina'}</div>}
+                {pj ? <><div className="text-xs text-white/70 truncate mt-0.5">{pj.j.title}</div><div className="flex items-baseline justify-between mt-1.5"><span className="num text-2xl font-medium">{num(p, 0)}<span className="text-sm text-white/60">%</span></span><span className="font-mono text-[10px] text-white/60">fin {dmyHm(pj.j.plannedEnd)}</span></div>{c && <div className="mt-1"><PrinterPill machineId={m.id} initial={c} dark /></div>}</>
+                  : <div className="text-xs text-white/60 mt-1.5">{c ? <PrinterPill machineId={m.id} initial={c} dark /> : m.status === 'disponible' ? 'Lista para el próximo trabajo' : 'Revisa la máquina'}</div>}
               </div>
             </Link></li>))}</ul>)}
       </section>

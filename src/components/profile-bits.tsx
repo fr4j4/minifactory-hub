@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createProfileAction, deleteProfileAction, duplicateProfileAction, factoryListAction, factoryVendorsAction, importProfileAction, profileBaseValuesAction, revertProfileAction, updateProfileAction } from '@/actions/slicer';
+import { createProfileAction, deleteProfileAction, duplicateProfileAction, factoryListAction, factoryVendorsAction, profileBaseValuesAction, profileKeysAction, revertProfileAction, updateProfileAction } from '@/actions/slicer';
 import { ConfirmButton, Modal, useAction, useToast } from './client';
 import { SIMPLE_PARAMS_CLIENT, TYPE_LABEL } from '@/lib/slicer/params';
 import { cn } from '@/lib/format';
@@ -33,24 +33,6 @@ export function NewProfileButton({ type, machines }: { type: PType; machines: Ar
   );
 }
 
-export function ImportProfileButton() {
-  const [open, setOpen] = useState(false); const { run, pending } = useAction(); const [type, setType] = useState<PType>('process'); const [json, setJson] = useState(''); const toast = useToast();
-  return (
-    <>
-      <button className="btn-ghost" onClick={() => setOpen(true)}>Importar de OrcaSlicer / Bambu Studio</button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Importar perfil exportado">
-        <div className="space-y-3">
-          <p className="text-sm muted">En OrcaSlicer o Bambu Studio exporta el perfil (JSON) y pégalo o elige el archivo. Se guarda como “perfil de fábrica + cambios”, idéntico a lo que ya usas en tu PC.</p>
-          <label className="block"><span className="label">Tipo</span><select className="input" value={type} onChange={(e) => setType(e.target.value as PType)}>{(['machine', 'process', 'filament'] as PType[]).map((t) => <option key={t} value={t}>{TYPE_LABEL[t]}</option>)}</select></label>
-          <input type="file" accept=".json,application/json" aria-label="Archivo JSON del perfil" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setJson(await f.text()); }} />
-          <textarea className="input font-mono text-xs h-40" value={json} onChange={(e) => setJson(e.target.value)} placeholder='{"name": "...", "inherits": "0.20mm Standard @BBL A1", ...}' aria-label="JSON del perfil" />
-          <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button><button className="btn-primary" disabled={pending || !json.trim()} onClick={() => run(() => importProfileAction({ type, json }), { onOk: (d) => { toast.push(`Importado: ${d.keys} ajustes sobre “${d.baseName}”`); setOpen(false); } })}>Importar</button></div>
-        </div>
-      </Modal>
-    </>
-  );
-}
-
 export function ProfileRowActions({ id, name }: { id: string; name: string }) {
   const { run } = useAction();
   return (
@@ -66,15 +48,19 @@ export function ProfileEditor({ p, versions, canEdit }: { p: { id: string; type:
   const params = SIMPLE_PARAMS_CLIENT[p.type];
   const [name, setName] = useState(p.name); const [sim, setSim] = useState(p.simulated); const [notes, setNotes] = useState(p.notes ?? '');
   const [vals, setVals] = useState<Record<string, string>>(() => Object.fromEntries(params.map((x) => [x.key, p.changes[x.key] != null ? String(Array.isArray(p.changes[x.key]) ? p.changes[x.key][0] : p.changes[x.key]) : ''])));
-  const [adv, setAdv] = useState(() => JSON.stringify(Object.fromEntries(Object.entries(p.changes).filter(([k]) => !params.some((x) => x.key === k))), null, 2));
+  // otros parámetros (cualquier clave de OrcaSlicer) como filas clave → valor, sin escribir JSON
+  const toStr = (v: unknown) => (Array.isArray(v) ? String(v[0] ?? '') : String(v ?? ''));
+  const [extra, setExtra] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(p.changes).filter(([k]) => !params.some((x) => x.key === k)).map(([k, v]) => [k, toStr(v)])));
+  const [allKeys, setAllKeys] = useState<Array<{ key: string; value: string }>>([]); const [kq, setKq] = useState('');
+  useEffect(() => { profileKeysAction(p.type, p.baseName).then((r) => r.ok && setAllKeys(r.data)); }, [p.type, p.baseName]);
   const [base, setBase] = useState<Record<string, any>>({}); const [note, setNote] = useState('');
   useEffect(() => { profileBaseValuesAction(p.type, p.baseName).then((r) => r.ok && setBase(r.data)); }, [p.type, p.baseName]);
   const changes = useMemo(() => {
     const out: Record<string, any> = {}; for (const [k, v] of Object.entries(vals)) if (v !== '') out[k] = v;
-    try { Object.assign(out, JSON.parse(adv || '{}')); } catch { /* inválido: se avisa al guardar */ } return out;
-  }, [vals, adv]);
+    for (const [k, v] of Object.entries(extra)) if (v !== '') out[k] = Array.isArray(p.changes[k]) && toStr(p.changes[k]) === v ? p.changes[k] : v;
+    return out;
+  }, [vals, extra]); // eslint-disable-line react-hooks/exhaustive-deps
   const save = () => {
-    try { JSON.parse(adv || '{}'); } catch { toast.push('El JSON avanzado no es válido', 'err'); return; }
     run(() => updateProfileAction(p.id, { name, changes, simulated: sim, notes, note }), { ok: 'Guardado: se creó una versión nueva' });
   };
   const nChanged = Object.keys(changes).length;
@@ -101,10 +87,17 @@ export function ProfileEditor({ p, versions, canEdit }: { p: { id: string; type:
             ))}
           </div>
         </div>
-        <details className="card p-4"><summary className="font-semibold text-sm cursor-pointer">Modo avanzado: todas las claves (JSON)</summary>
-          <p className="text-xs muted my-2">Cualquier clave de OrcaSlicer, por ejemplo <code>{'{"sparse_infill_density":"40%"}'}</code>. Los valores se ajustan al tipo del perfil base.</p>
-          <textarea className="input font-mono text-xs h-48" value={adv} onChange={(e) => setAdv(e.target.value)} disabled={!canEdit} aria-label="Cambios avanzados en JSON" />
-        </details>
+        <div className="card p-4 space-y-3" data-testid="extra-params">
+          <div><h2 className="font-semibold text-sm">Otros parámetros</h2><p className="text-xs muted">Cualquier ajuste de OrcaSlicer/Bambu Studio. Busca por nombre (en inglés, como en el programa), por ejemplo «retraction», «brim», «ironing», «seam».</p></div>
+          {Object.keys(extra).length > 0 && <ul className="divide-y divide-[var(--line)]">{Object.entries(extra).map(([k, v]) => { const b = allKeys.find((x) => x.key === k)?.value; return (
+            <li key={k} className="py-2 flex flex-wrap items-center gap-2"><code className="text-xs flex-1 min-w-[180px] break-all">{k}</code><span className="text-xs muted">fábrica: {b ?? '—'}</span>
+              <input className="input !w-40 !min-h-[34px] num" value={v} disabled={!canEdit} onChange={(e) => setExtra({ ...extra, [k]: e.target.value })} aria-label={`Valor de ${k}`} />
+              {canEdit && <button className="btn-ghost btn-sm" onClick={() => { const n = { ...extra }; delete n[k]; setExtra(n); }} aria-label={`Quitar ${k}`}>✕</button>}</li>); })}</ul>}
+          {canEdit && <div className="space-y-1.5"><input className="input" placeholder={`Buscar entre ${allKeys.length} parámetros…`} value={kq} onChange={(e) => setKq(e.target.value)} data-testid="param-search" />
+            {kq.length >= 2 && <ul className="max-h-56 overflow-y-auto rounded-xl border border-[var(--line)] divide-y divide-[var(--line)]">{allKeys.filter((x) => x.key.includes(kq.toLowerCase().replace(/\s+/g, '_')) && !(x.key in extra) && !params.some((pp) => pp.key === x.key)).slice(0, 40).map((x) =>
+              <li key={x.key}><button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 flex justify-between gap-2" onClick={() => { setExtra({ ...extra, [x.key]: x.value }); setKq(''); }} data-testid="param-add"><code className="text-xs">{x.key}</code><span className="text-xs muted truncate">fábrica: {x.value}</span></button></li>)}</ul>}</div>}
+          <details><summary className="text-xs muted cursor-pointer">Ver los cambios como JSON (solo lectura, para expertos)</summary><pre className="mt-2 text-xs bg-slate-50 dark:bg-slate-900 rounded-xl p-3 overflow-x-auto">{JSON.stringify(changes, null, 2)}</pre></details>
+        </div>
         {canEdit && <div className="flex flex-wrap items-center gap-2 sticky bottom-20 md:bottom-4"><input className="input !w-auto flex-1 min-w-[180px]" placeholder="Nota de la versión (opcional)" value={note} onChange={(e) => setNote(e.target.value)} /><button className="btn-primary" disabled={pending} onClick={save} data-testid="profile-save">Guardar ({nChanged} cambio{nChanged === 1 ? '' : 's'}) → v{p.version + 1}</button></div>}
       </div>
       <div className="card p-4 h-fit">

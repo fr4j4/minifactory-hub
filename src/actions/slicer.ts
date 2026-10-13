@@ -1,5 +1,5 @@
 'use server';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -128,5 +128,69 @@ export async function profileBaseValuesAction(type: ProfileType, baseName: strin
     const out: Record<string, any> = {};
     for (const p of SIMPLE_PARAMS[type]) { const v = base[p.key]; out[p.key] = Array.isArray(v) ? v[0] : v ?? ''; }
     return out;
+  });
+}
+
+/* ── Importar desde Bambu Studio / OrcaSlicer (3MF, paquetes y JSON) ─────────────────────────── */
+async function readFiles(fd: FormData) {
+  const files = fd.getAll('files').filter((f): f is File => typeof f === 'object' && 'arrayBuffer' in f);
+  if (!files.length) throw new Error('Elige al menos un archivo');
+  if (files.reduce((a, f) => a + f.size, 0) > 60 * 1024 * 1024) throw new Error('Los archivos superan 60 MB');
+  return Promise.all(files.map(async (f) => ({ name: f.name, data: new Uint8Array(await f.arrayBuffer()) })));
+}
+export async function previewImportAction(fd: FormData) {
+  return safe(async () => {
+    await requirePerm('laminador', 'C');
+    const { parsePresetFiles } = await import('@/lib/slicer/import');
+    const cands = parsePresetFiles(await readFiles(fd));
+    const db = await getDb(); const existing = await db.select({ type: s.slicerProfiles.type, name: s.slicerProfiles.name }).from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt));
+    return cands.map((c) => ({ key: c.key, type: c.type, name: c.name, baseName: c.baseName, keys: Object.keys(c.changes).length, source: c.source, note: c.note, ok: c.ok, exists: existing.some((e) => e.type === c.type && e.name === c.name) }));
+  });
+}
+/** Guarda los perfiles elegidos. Si ya existe uno con el mismo nombre, se agrega como versión nueva (se puede volver atrás). */
+export async function importSelectedAction(fd: FormData) {
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'C');
+    const { parsePresetFiles } = await import('@/lib/slicer/import'); const { createProfileRow } = await import('@/lib/slicer/setup');
+    const keys = new Set(String(fd.get('keys') ?? '').split('\n').filter(Boolean));
+    const cands = parsePresetFiles(await readFiles(fd)).filter((c) => keys.has(c.key) && c.ok && c.baseName);
+    const db = await getDb(); let created = 0, updated = 0;
+    for (const c of cands) {
+      const [prev] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, c.type), eq(s.slicerProfiles.name, c.name), isNull(s.slicerProfiles.deletedAt)));
+      if (prev) {
+        const version = prev.version + 1;
+        await db.insert(s.slicerProfileVersions).values({ profileId: prev.id, version, baseName: c.baseName!, changes: c.changes, createdBy: u.id, note: `Importado de ${c.source}` });
+        await db.update(s.slicerProfiles).set({ baseName: c.baseName!, vendor: findVendorOf(c.type, c.baseName!) ?? prev.vendor, changes: c.changes, version, imported: true, updatedAt: new Date() }).where(eq(s.slicerProfiles.id, prev.id));
+        updated++;
+      } else { await createProfileRow({ type: c.type, name: c.name, baseName: c.baseName!, changes: c.changes, userId: u.id, imported: true, note: `Importado de ${c.source}` }, db); created++; }
+    }
+    return { created, updated };
+  }, ['/laminador', '/laminador/configurar']);
+}
+
+/* ── Configuración guiada ───────────────────────────────────────────────────────────────────── */
+export async function setupMachineAction(machineId: string, machineBase: string, processBase: string | null) {
+  return safe(async () => { const u = await requirePerm('laminador', 'C'); const { setupMachine } = await import('@/lib/slicer/setup'); return setupMachine(machineId, machineBase, processBase, u.id); }, ['/laminador', '/laminador/configurar', '/maquinas']);
+}
+export async function processesForAction(machineBase: string) { return safe(async () => { await requirePerm('laminador', 'V'); const { processesFor } = await import('@/lib/slicer/setup'); return processesFor(machineBase); }); }
+export async function setupFilamentAction(materialId: string, o: { base?: string; profileId?: string }) {
+  return safe(async () => { const u = await requirePerm('laminador', 'C'); const { setupFilament } = await import('@/lib/slicer/setup'); return setupFilament(materialId, o, u.id); }, ['/laminador', '/laminador/configurar', '/inventario']);
+}
+export async function setupAllFilamentsAction(items: Array<{ materialId: string; base: string }>) {
+  return safe(async () => { const u = await requirePerm('laminador', 'C'); const { setupFilament } = await import('@/lib/slicer/setup'); for (const i of items) await setupFilament(i.materialId, { base: i.base }, u.id); return items.length; }, ['/laminador', '/laminador/configurar', '/inventario']);
+}
+export async function customFilamentDefaultsAction(type: string, baseName?: string) {
+  return safe(async () => { await requirePerm('laminador', 'V'); const { customFilamentDefaults, genericBaseFor } = await import('@/lib/slicer/setup'); const base = baseName || genericBaseFor(type); return { baseName: base, values: customFilamentDefaults(base) }; });
+}
+export async function createCustomFilamentAction(i: Omit<import('@/lib/slicer/setup').CustomFilamentInput, 'userId'>) {
+  return safe(async () => { const u = await requirePerm('laminador', 'C'); if (i.addToInventory) await requirePerm('inventario', 'C'); const { createCustomFilament } = await import('@/lib/slicer/setup'); return createCustomFilament({ ...i, userId: u.id }); }, ['/laminador', '/laminador/configurar', '/inventario']);
+}
+/** Todas las claves del perfil de fábrica (para el buscador de parámetros del editor). */
+export async function profileKeysAction(type: ProfileType, baseName: string) {
+  return safe(async () => {
+    await requirePerm('laminador', 'V');
+    const base = resolveFactory(type, baseName, findVendorOf(type, baseName));
+    return Object.entries(base).filter(([k, v]) => !['name', 'inherits', 'from', 'instantiation', 'setting_id', 'type', 'version', 'compatible_printers', 'compatible_printers_condition'].includes(k) && (typeof v !== 'string' || v.length < 200) && !(Array.isArray(v) && JSON.stringify(v).length > 200))
+      .map(([k, v]) => ({ key: k, value: Array.isArray(v) ? String(v[0] ?? '') : String(v) })).sort((a, b) => a.key.localeCompare(b.key));
   });
 }

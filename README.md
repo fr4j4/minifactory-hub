@@ -34,6 +34,21 @@ npm test                 # unitarias + integración (incluye laminado real si Or
 npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas y videos en docs/reporte
 ```
 
+## Laminar en el sitio
+
+Laminador → **Configurar laminado**: elige qué impresora es cada máquina, la calidad por defecto y el filamento de cada material (se sugieren solos). Puedes **importar tus perfiles de Bambu Studio u OrcaSlicer** subiendo un proyecto `.3mf` (lo más fácil: guarda un proyecto con tu impresora, filamentos y proceso), un paquete `.bbscfg`/`.bbsflmt` (Archivo → Exportar → Exportar paquete de preajustes) o archivos `.json`, y crear **filamentos personalizados** con un formulario. Cada perfil se puede exportar de vuelta a Bambu Studio.
+
+## Conector Bambu Lab (modo LAN)
+
+Máquinas → **Conectar impresoras**: detecta las Bambu Lab de la red (SSDP), pide el código de acceso de 8 caracteres y muestra en vivo estado, avance por capas, temperaturas, filamento del AMS / bobina externa, avisos HMS y cámara. Permite pausar, reanudar, detener, cambiar velocidad y luz, asociar bobinas del inventario a las bandejas y **enviar a imprimir** un laminado (sube el 3MF por FTPS y lo inicia), verificando antes modelo, boquilla y material.
+
+- Protocolo: MQTT con TLS (8883), cámara JPEG por TLS (6000, P1/A1) o RTSPS (322, X1/H2, requiere ffmpeg), FTPS implícito (990). Todo dentro de la red local.
+- El código de acceso se guarda cifrado (AES-256-GCM con llave derivada de `SESSION_SECRET`) y la huella del certificado se fija en la primera conexión.
+- Simulador para desarrollo: `npx tsx scripts/bambu-sim.ts` (P1S, A1 y X1C falsas; códigos y puertos en la salida). Con `BAMBU_SIM_SSDP_TARGETS=127.0.0.1:2021` anuncia al puerto que escucha la app.
+- **Modo nube (Bambu Cloud):** inicia sesión con la cuenta de Bambu Lab (contraseña → código por correo o 2FA; la contraseña no se guarda, el token queda cifrado y dura ~3 meses). Permite ver en vivo, desde cualquier red, las impresoras de la cuenta (estado, capas, temperaturas, AMS, avisos) y la miniatura de la placa del trabajo. Es **solo lectura**: el firmware actual de Bambu Lab rechaza el control desde programas externos por la nube y no ofrece cámara en vivo. La cuenta también entrega el código LAN de cada impresora, así que se pueden conectar por LAN sin ir a la pantalla.
+- La API de la nube no es oficial (documentada por la comunidad: ha-bambulab, OpenBambuAPI); Bambu Lab puede cambiarla. Para pruebas: `BAMBU_SIM_CLOUD_API_PORT=18080 npx tsx scripts/bambu-sim.ts` levanta también una nube simulada y la app se apunta a ella con `BAMBU_CLOUD_API`, `BAMBU_CLOUD_WEB`, `BAMBU_CLOUD_MQTT` y `BAMBU_CLOUD_CA_FILE`.
+- Probado contra el simulador; antes de confiar en «Enviar a imprimir» pruébalo con tu impresora real y una pieza pequeña (ver `docs/reporte`).
+
 ## Documentación
 
 - `docs/reporte/index.html`: informe final con capturas, videos y métricas de usabilidad.
