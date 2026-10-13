@@ -70,6 +70,7 @@ export const customers = pgTable('customers', {
   tags: jsonb('tags').$type<string[]>().default([]),
   notes: text('notes'),
   depositPct: doublePrecision('deposit_pct'),
+  calcProfileId: text('calc_profile_id'), // perfil de cálculo por defecto de este cliente
 }, (t) => [index('customers_name_ix').on(t.name)]);
 
 export const contactLog = pgTable('contact_log', {
@@ -90,6 +91,7 @@ export const salesChannels = pgTable('sales_channels', {
   commissionFixed: integer('commission_fixed').notNull().default(0),
   avgShipping: integer('avg_shipping').notNull().default(0),
   active: boolean('active').notNull().default(true),
+  calcProfileId: text('calc_profile_id'),
 });
 
 /* ───────────── Inventario de materiales ───────────── */
@@ -110,6 +112,8 @@ export const materials = pgTable('materials', {
   supplierText: text('supplier_text'),
   filamentProfileId: uuid('filament_profile_id'),
   notes: text('notes'),
+  riskFactor: doublePrecision('risk_factor'), // factor sobre la falla (null = 1)
+  wastePct: doublePrecision('waste_pct'),     // merma propia (null = la de las tarifas)
 });
 
 export const spools = pgTable('spools', {
@@ -318,6 +322,9 @@ export const quotes = pgTable('quotes', {
   title: text('title'),
   validUntil: date('valid_until'),
   urgency: text('urgency').notNull().default('normal'),
+  applyTax: boolean('apply_tax').notNull().default(false), // cálculo v2: las líneas son netas y el IVA es opcional
+  calcProfileId: text('calc_profile_id'),
+  channelId: uuid('channel_id'), // canal de venta (aporta su comisión al cálculo)
   suggestedTotal: integer('suggested_total').notNull().default(0),
   finalTotal: integer('final_total'), // si el usuario fija el total
   discount: integer('discount').notNull().default(0),
@@ -354,6 +361,8 @@ export const quoteItems = pgTable('quote_items', {
   postSupplies: integer('post_supplies').notNull().default(0),
   prepMinutes: integer('prep_minutes').notNull().default(10),
   shipping: integer('shipping').notNull().default(0),
+  calcProfileId: text('calc_profile_id'),
+  calcOpts: jsonb('calc_opts').$type<Record<string, any>>().default({}), // placas, etiquetas, diseño, ajustes del nivel Experto
   costBreakdown: jsonb('cost_breakdown').$type<Record<string, any>>().default({}),
   suggestedUnit: integer('suggested_unit').notNull().default(0),
   finalUnit: integer('final_unit'), // lo decide el usuario; null = usa el sugerido
@@ -410,6 +419,8 @@ export const orders = pgTable('orders', {
   dueDate: date('due_date'),
   title: text('title'),
   total: integer('total').notNull().default(0),
+  taxAmount: integer('tax_amount').notNull().default(0),
+  taxMode: text('tax_mode'), // incluido | sumado | exento; null = según tarifas (pedidos anteriores al cálculo v2)
   costEstimated: integer('cost_estimated').notNull().default(0),
   costReal: integer('cost_real'),
   paid: integer('paid').notNull().default(0),

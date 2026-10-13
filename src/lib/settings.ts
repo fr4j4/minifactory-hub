@@ -1,6 +1,8 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
-import type { Rates } from './pricing';
+import type { CalcProfile, Rates } from './pricing';
+import { V2_DEFAULTS } from './pricing';
+import { DEFAULT_CALC_PROFILES } from './calc-presets';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
 
 export interface AppSettings {
@@ -15,15 +17,18 @@ export interface AppSettings {
   defaults: { processProfileId?: string; infillPct: number; failRatePct: number };
   watermark: { enabled: boolean; opacity: number; position: string };
   ai: AiSettings;
+  calcProfiles: CalcProfile[];
+  calcSetup: { done: boolean; preset?: string };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   shop: { name: 'MiniFactory', legalName: '', taxId: '', address: '', phone: '', email: '', currency: 'CLP', timezone: 'America/Santiago', lang: 'es-CL', brandColor: '#1d62f0' },
   rates: {
-    kwh: 180, laborHour: 6000, wastePct: 8, failRatePct: 5, marginPct: 70, marginByCategory: {},
-    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'incluido',
+    kwh: 180, laborHour: 6000, wastePct: 5, failRatePct: 5, marginPct: 40, marginByCategory: {},
+    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'sumado',
     urgency: [{ key: 'normal', label: 'Normal', pct: 0 }, { key: '48h', label: 'Urgente 48 h', pct: 25 }, { key: '24h', label: 'Urgente 24 h', pct: 50 }],
     volumeTiers: [{ minQty: 10, pct: -10 }, { minQty: 50, pct: -20 }], prepMinutes: 10,
+    ...V2_DEFAULTS,
   },
   quoteValidDays: 15, reservationDays: 15, minDepositPct: 50,
   numbering: { quote: 'P-{YYYY}-{NNNN}', order: 'OT-{YYYY}-{NNNN}', sale: 'V-{YYYY}-{NNNN}', job: 'T-{YYYY}-{NNNN}', production: 'OP-{YYYY}-{NNNN}' },
@@ -37,6 +42,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaults: { infillPct: 15, failRatePct: 5 },
   watermark: { enabled: false, opacity: 0.4, position: 'abajo-derecha' },
   ai: DEFAULT_AI,
+  calcProfiles: DEFAULT_CALC_PROFILES,
+  calcSetup: { done: false },
 };
 
 function merge<T>(base: T, over: any): T {
@@ -53,7 +60,10 @@ function merge<T>(base: T, over: any): T {
 export async function getSettingsRaw(): Promise<AppSettings> {
   const db = await getDb();
   const [row] = await db.select().from(s.settings).where(eq(s.settings.workspaceId, WORKSPACE_ID));
-  return merge(DEFAULT_SETTINGS, row?.data ?? {});
+  const data: any = row?.data ?? {};
+  // cuentas anteriores a la calculadora v2 siguen con la fórmula antigua hasta que el administrador migre
+  if (data.rates && data.rates.engine === undefined) data.rates = { ...data.rates, engine: 'legacy' };
+  return merge(DEFAULT_SETTINGS, data);
 }
 /** Ajustes seguros para páginas y componentes: sin la clave de IA. */
 export async function getSettings(): Promise<AppSettings> {
@@ -85,3 +95,10 @@ export async function nextNumber(kind: keyof AppSettings['numbering'], tx?: any)
 
 export const fmtMoney = (n: number | null | undefined, cur = 'CLP') =>
   n == null ? '—' : new Intl.NumberFormat('es-CL', { style: 'currency', currency: cur, maximumFractionDigits: cur === 'CLP' ? 0 : 2 }).format(n);
+
+/** Tarifas con el número de máquinas activas (los costos fijos se reparten entre todas). */
+export async function getRates(): Promise<Rates> {
+  const db = await getDb(); const st = await getSettings();
+  const ms = await db.select({ sim: s.machines.simulated }).from(s.machines).where(isNull(s.machines.deletedAt));
+  return { ...st.rates, machineCount: Math.max(1, ms.filter((m) => !m.sim).length) };
+}

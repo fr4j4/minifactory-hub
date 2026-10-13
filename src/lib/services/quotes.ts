@@ -2,7 +2,8 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit } from '../audit';
 import { getSettings, nextNumber } from '../settings';
-import { calcLine, calcQuote, roundPrice, type CostBreakdown, type MachineCost, type QuoteLine } from '../pricing';
+import { calcQuote, type CalcProfile, type CostBreakdown, type MachineCost, type QuoteLine, type Rates } from '../pricing';
+import { effectiveRates, priceLine, type ItemCalcOpts, type ItemMaterial } from '../item-price';
 import { materialCostPerKg } from './inventory';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
@@ -18,11 +19,13 @@ export interface ItemInput {
   mode?: 'auto' | 'semi' | 'manual'; gramsTotal?: number; hoursTotal?: number; origin?: Record<string, any>;
   postMinutes?: number; postSupplies?: number; prepMinutes?: number; shipping?: number;
   finalUnit?: number | null; sliceRunId?: string | null; variantId?: string | null;
+  calcProfileId?: string | null; calcOpts?: ItemCalcOpts;
   models?: ModelRef[]; links?: LinkInput[];
 }
 export interface QuoteInput {
   id?: string; customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null;
   urgency?: string; discount?: number; finalTotal?: number | null; priceReason?: string | null; notes?: string | null; validUntil?: string | null;
+  applyTax?: boolean; calcProfileId?: string | null; channelId?: string | null;
   items: ItemInput[]; links?: LinkInput[];
   _version?: { number: string; version: number; rootId: string };
 }
@@ -32,7 +35,27 @@ export async function pricingContext(db?: Db) {
   const settings = await getSettings();
   const machines = await db.select().from(s.machines).where(isNull(s.machines.deletedAt));
   const mMap = new Map(machines.map((m) => [m.id, m]));
-  return { settings, machines: mMap, db };
+  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
+  const matMap = new Map(mats.map((m) => [m.id, m]));
+  // las tarifas llevan el número de máquinas activas: los costos fijos se reparten entre todas
+  const rates: Rates = { ...settings.rates, machineCount: Math.max(1, machines.filter((m) => !m.simulated).length) };
+  return { settings, rates, profiles: settings.calcProfiles as CalcProfile[], machines: mMap, materialRows: matMap, db };
+}
+export type PricingContext = Awaited<ReturnType<typeof pricingContext>>;
+
+/** Perfil y comisión que aportan el cliente y el canal del presupuesto. */
+export async function quoteEnvOf(ctx: PricingContext, o: { customerId?: string | null; channelId?: string | null; calcProfileId?: string | null }) {
+  let customerProfileId: string | null = null, channelProfileId: string | null = null, channelFeePct: number | null = null, adj = 0;
+  if (o.customerId) {
+    const [c] = await ctx.db.select().from(s.customers).where(eq(s.customers.id, o.customerId));
+    customerProfileId = c?.calcProfileId ?? null;
+    if (c?.priceListId) { const [pl] = await ctx.db.select().from(s.priceLists).where(eq(s.priceLists.id, c.priceListId)); adj = pl?.adjustPct ?? 0; }
+  }
+  if (o.channelId) {
+    const [ch] = await ctx.db.select().from(s.salesChannels).where(eq(s.salesChannels.id, o.channelId));
+    channelProfileId = ch?.calcProfileId ?? null; channelFeePct = ch?.commissionPct ?? null;
+  }
+  return { priceAdjPct: adj, quoteProfileId: o.calcProfileId ?? null, customerProfileId, channelProfileId, channelFeePct };
 }
 
 export function machineCostOf(m: typeof s.machines.$inferSelect | undefined | null): MachineCost | null {
@@ -40,31 +63,44 @@ export function machineCostOf(m: typeof s.machines.$inferSelect | undefined | nu
   const done = m.jobsOk + m.jobsFailed;
   return {
     purchaseValue: m.purchaseValue, residualValue: m.residualValue, lifeHours: m.lifeHours, watts: m.watts, maintCostHour: m.maintCostHour,
-    failRatePct: done >= 10 ? (m.jobsFailed / done) * 100 : null, timeFactor: m.timeFactor,
+    failRatePct: done >= 10 ? (m.jobsFailed / done) * 100 : null, timeFactor: m.timeFactor, jobsDone: done, jobsFailed: m.jobsFailed,
   };
 }
 
-export interface PricedItem { breakdown: CostBreakdown; suggestedUnit: number; costTotal: number; frozenCost: number }
+export interface PricedItem { breakdown: CostBreakdown; suggestedUnit: number; costTotal: number; cost: number; frozenCost: number; profileId: string | null }
+export interface PriceEnvOpts { priceAdjPct?: number; urgency?: string; quoteProfileId?: string | null; customerProfileId?: string | null; channelProfileId?: string | null; channelFeePct?: number | null }
 
-/** Calcula costos y precio sugerido de una línea con las tarifas y datos actuales. */
-export async function priceItem(it: ItemInput, ctx: Awaited<ReturnType<typeof pricingContext>>, priceAdjPct = 0): Promise<PricedItem> {
-  const rt = ctx.settings.rates;
+export const itemMaterial = (m: typeof s.materials.$inferSelect | undefined, avg: number): ItemMaterial | null =>
+  m ? { costPerKg: avg, replaceCostPerKg: m.costPerKg, type: m.type, riskFactor: m.riskFactor, wastePct: m.wastePct } : null;
+
+/** Calcula costos y precio sugerido de una línea con las tarifas y datos actuales (misma función que usa el navegador). */
+export async function priceItem(it: ItemInput, ctx: PricingContext, env: number | PriceEnvOpts = 0): Promise<PricedItem> {
+  const e: PriceEnvOpts = typeof env === 'number' ? { priceAdjPct: env } : env;
+  const priceAdjPct = e.priceAdjPct ?? 0;
   const qty = Math.max(1, Math.floor(it.qty || 1));
   if (it.variantId) {
     const [v] = await ctx.db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
     const price = v ? Math.round((v.price * (1 + priceAdjPct / 100)) / 10) * 10 : 0;
     const cost = (v?.avgCost ?? 0) * qty;
     const bd = { material: 0, machine: 0, energy: 0, prep: 0, post: 0, failure: 0, cost, marginPct: price > 0 ? ((price - (v?.avgCost ?? 0)) / price) * 100 : 0, urgencyPct: 0, volumePct: 0, priceBeforeRound: price * qty, suggestedTotal: price * qty, suggestedUnit: price, shipping: it.shipping ?? 0, hoursEffective: 0, gramsEffective: 0 };
-    return { breakdown: bd, suggestedUnit: price, costTotal: cost + (it.shipping ?? 0), frozenCost: cost };
+    return { breakdown: bd, suggestedUnit: price, costTotal: cost + (it.shipping ?? 0), cost, frozenCost: cost, profileId: null };
   }
-  const costPerKg = it.materialId ? await materialCostPerKg(it.materialId, ctx.db) : 0;
+  const mat = it.materialId ? ctx.materialRows.get(it.materialId) : undefined;
+  const avg = it.materialId ? await materialCostPerKg(it.materialId, ctx.db) : 0;
   const machine = it.machineId ? machineCostOf(ctx.machines.get(it.machineId)) : null;
-  const bd = calcLine({
-    qty, gramsTotal: it.gramsTotal ?? 0, hoursTotal: it.hoursTotal ?? 0, costPerKg, machine, prepMinutes: it.prepMinutes, postMinutesPerUnit: it.postMinutes,
-    postSuppliesPerUnit: it.postSupplies, shipping: it.shipping, applyTimeFactor: it.mode !== 'manual',
-  }, rt);
-  const unit = priceAdjPct ? roundPrice((bd.suggestedUnit * (1 + priceAdjPct / 100)), rt.rounding) : bd.suggestedUnit;
-  return { breakdown: bd, suggestedUnit: unit, costTotal: bd.cost, frozenCost: bd.cost };
+  const matById = new Map<string, ItemMaterial>();
+  for (const f of it.calcOpts?.filaments ?? []) {
+    const fm = ctx.materialRows.get(f.materialId);
+    if (fm && !matById.has(f.materialId)) matById.set(f.materialId, itemMaterial(fm, await materialCostPerKg(f.materialId, ctx.db))!);
+  }
+  const p = priceLine({
+    qty, gramsTotal: it.gramsTotal ?? 0, hoursTotal: it.hoursTotal ?? 0, mode: it.mode, originKind: (it.origin as any)?.grams,
+    prepMinutes: it.prepMinutes, postMinutes: it.postMinutes, postSupplies: it.postSupplies, shipping: it.shipping, profileId: it.calcProfileId, opts: it.calcOpts,
+  }, {
+    rates: ctx.rates, profiles: ctx.profiles, material: itemMaterial(mat, avg), machine, materialById: (id) => matById.get(id),
+    urgency: e.urgency, priceAdjPct, quoteProfileId: e.quoteProfileId, customerProfileId: e.customerProfileId, channelProfileId: e.channelProfileId, channelFeePct: e.channelFeePct,
+  });
+  return { breakdown: p.bd, suggestedUnit: p.suggestedUnit, costTotal: p.cost + (it.shipping ?? 0), cost: p.cost, frozenCost: p.cost, profileId: p.profileId };
 }
 
 async function replaceLinks(db: Db, ownerType: string, ownerId: string, links: LinkInput[] | undefined, userId?: string | null) {
@@ -83,21 +119,19 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
   const t = await getT();
   const ctx = await pricingContext();
   const db = ctx.db;
-  const rt = ctx.settings.rates;
   let quoteId = input.id;
   const [existing] = quoteId ? await db.select().from(s.quotes).where(eq(s.quotes.id, quoteId)) : [];
   if (existing?.frozen) throw new Error(t('quotes.theQuoteHasAlreadyBeen'));
-  // lista de precios del cliente
-  let adj = 0;
-  if (input.customerId) {
-    const [c] = await db.select().from(s.customers).where(eq(s.customers.id, input.customerId));
-    if (c?.priceListId) { const [pl] = await db.select().from(s.priceLists).where(eq(s.priceLists.id, c.priceListId)); adj = pl?.adjustPct ?? 0; }
-  }
+  // lista de precios, perfil y comisión que aportan el cliente y el canal
+  const env = await quoteEnvOf(ctx, { customerId: input.customerId, channelId: input.channelId, calcProfileId: input.calcProfileId });
+  const legacy = ctx.rates.engine === 'legacy';
+  const rt = effectiveRates({}, { rates: ctx.rates, profiles: ctx.profiles, ...env }).rt;
   const valid = input.validUntil ?? new Date(Date.now() + ctx.settings.quoteValidDays * 86400_000).toISOString().slice(0, 10);
   const header = {
     customerId: input.customerId ?? null, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, source: input.source ?? null,
     title: input.title ?? null, urgency: input.urgency ?? 'normal', discount: Math.max(0, Math.round(input.discount ?? 0)), finalTotal: input.finalTotal ?? null,
     priceReason: input.priceReason ?? null, notes: input.notes ?? null, validUntil: valid, updatedAt: new Date(),
+    applyTax: legacy ? false : !!(input.applyTax ?? ctx.rates.taxDefault), calcProfileId: input.calcProfileId ?? null, channelId: input.channelId ?? null,
   };
   if (!quoteId) {
     const number = input._version?.number ?? await nextNumber('quote');
@@ -118,9 +152,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
   const lines: QuoteLine[] = [];
   let pos = 0;
   for (const it of input.items) {
-    const priced = await priceItem(it, ctx, adj);
-    const urgPct = rt.urgency.find((u) => u.key === (input.urgency ?? 'normal'))?.pct ?? 0;
-    if (urgPct) priced.suggestedUnit = Math.round((priced.suggestedUnit * (1 + urgPct / 100)) / 10) * 10;
+    const priced = await priceItem(it, ctx, { ...env, urgency: input.urgency });
     const finalUnit = it.finalUnit != null && it.finalUnit >= 0 ? Math.round(it.finalUnit) : null;
     const [row] = await db.insert(s.quoteItems).values({
       workspaceId: WORKSPACE_ID, quoteId, position: pos++, kind: it.kind ?? (it.variantId ? 'producto' : it.models?.length ? 'modelo' : 'manual'),
@@ -128,6 +160,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
       materialId: it.materialId ?? null, color: it.color ?? null, machineId: it.machineId ?? null, processProfileId: it.processProfileId ?? null,
       mode: it.mode ?? 'manual', gramsTotal: it.gramsTotal ?? 0, hoursTotal: it.hoursTotal ?? 0, origin: it.origin ?? {},
       postMinutes: it.postMinutes ?? 0, postSupplies: it.postSupplies ?? 0, prepMinutes: it.prepMinutes ?? rt.prepMinutes, shipping: it.shipping ?? 0,
+      calcProfileId: it.calcProfileId ?? null, calcOpts: (it.calcOpts ?? {}) as any,
       costBreakdown: priced.breakdown as any, suggestedUnit: priced.suggestedUnit, finalUnit, sliceRunId: it.sliceRunId ?? null, variantId: it.variantId ?? null, createdBy: user.id,
     }).returning({ id: s.quoteItems.id });
     let k = 0;
@@ -137,23 +170,23 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
     const prev = it.id ? oldById.get(it.id) : undefined;
     const prevFinal = prev?.finalUnit ?? null;
     if (finalUnit !== prevFinal && (finalUnit != null || prevFinal != null)) {
-      const net = ctx.settings.rates.taxMode === 'incluido' ? (finalUnit ?? priced.suggestedUnit) / (1 + rt.taxPct / 100) : (finalUnit ?? priced.suggestedUnit);
+      const net = legacy && ctx.rates.taxMode === 'incluido' ? (finalUnit ?? priced.suggestedUnit) / (1 + rt.taxPct / 100) : (finalUnit ?? priced.suggestedUnit);
       await db.insert(s.priceAdjustments).values({
         workspaceId: WORKSPACE_ID, ownerType: 'quote_item', ownerId: row.id, suggested: priced.suggestedUnit, previous: prevFinal, next: finalUnit,
         reason: input.priceReason ?? null, belowCost: net * Math.max(1, it.qty) < priced.costTotal, authorizedBy: canSellBelowCost(user) ? user.id : null, createdBy: user.id,
       });
     }
-    lines.push({ id: row.id, qty: Math.max(1, it.qty), optional: !!it.optional, suggestedUnit: priced.suggestedUnit, finalUnit, cost: priced.costTotal - (it.shipping ?? 0), shipping: it.shipping });
+    lines.push({ id: row.id, qty: Math.max(1, it.qty), optional: !!it.optional, suggestedUnit: priced.suggestedUnit, finalUnit, cost: priced.cost, shipping: it.shipping });
   }
   await replaceLinks(db, 'quote', quoteId, input.links, user.id);
-  const tt = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal });
+  const tt = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal, applyTax: header.applyTax });
   if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) {
     throw new Error(t('quotes.theFinalPriceIsBelow2'));
   }
   if (tt.belowCost && !(header.priceReason ?? '').trim()) throw new Error(t('quotes.enterTheReasonForThe'));
   await db.update(s.quotes).set({
     suggestedTotal: tt.suggestedTotal, total: tt.total, taxAmount: tt.tax, costTotal: tt.cost,
-    calc: { totals: { subtotal: tt.subtotal, net: tt.net, marginPct: tt.marginPct, diffPct: tt.diffPct, belowMin: tt.belowMin, belowCost: tt.belowCost }, lines: tt.lines } as any,
+    calc: { engine: legacy ? 1 : 2, applyTax: header.applyTax, totals: { subtotal: tt.subtotal, net: tt.net, marginPct: tt.marginPct, diffPct: tt.diffPct, belowMin: tt.belowMin, belowCost: tt.belowCost, belowOrderMin: tt.belowOrderMin }, lines: tt.lines } as any,
   }).where(eq(s.quotes.id, quoteId));
   await audit('quote', quoteId, existing ? 'editar' : 'crear', { total: tt.total, suggested: tt.suggestedTotal, final: header.finalTotal }, user.id);
   return quoteId;
@@ -203,6 +236,7 @@ export async function newQuoteVersion(id: string, user: PermUser & { id: string 
   const newId = await saveQuote({
     customerId: q.customerId, customerName: q.customerName, customerPhone: q.customerPhone, source: q.source, title: q.title, urgency: q.urgency,
     discount: q.discount, finalTotal: recalc ? null : q.finalTotal, priceReason: q.priceReason, notes: q.notes, items: itemInputs,
+    applyTax: q.applyTax, calcProfileId: q.calcProfileId, channelId: q.channelId,
     links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })),
     _version: { number: q.number, version: Number(mx.v) + 1, rootId },
   }, user);

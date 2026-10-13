@@ -2,7 +2,7 @@ import { isFailCode, normalizeFailCause } from '../production/fail-causes';
 import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
-import { getSettings, nextNumber } from '../settings';
+import { getRates, getSettings, nextNumber } from '../settings';
 import { fitsIn } from '../mesh/ops';
 import { calcLine } from '../pricing';
 import { consumeFromSpool, materialCostPerKg } from './inventory';
@@ -138,7 +138,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
   const costPerKg = j.materialId ? await materialCostPerKg(j.materialId, db) : 0;
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
-  const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
+  const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5, origin: 'slicer' }, await getRates());
   await db.update(s.printJobs).set({
     status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
     failCharge: o.failCharge ?? null, spoolId, updatedAt: now,

@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { calcLine, calcQuote, estimateFromMesh, machineHourly, roundPrice, volumePct, type Rates } from '@/lib/pricing';
 import { DEFAULT_SETTINGS } from '@/lib/settings';
 
-const rt: Rates = { ...DEFAULT_SETTINGS.rates, rounding: { mode: 'none', step: 1 } };
+// motor v1 (cuentas que aún no migran): recargo 70 %, merma 8 %, IVA incluido
+const rt: Rates = { ...DEFAULT_SETTINGS.rates, engine: 'legacy', marginPct: 70, wastePct: 8, taxMode: 'incluido', rounding: { mode: 'none', step: 1 } };
 const machine = { purchaseValue: 480000, residualValue: 100000, lifeHours: 5000, watts: 130, maintCostHour: 150 };
 
-describe('motor de precios', () => {
+describe('motor de precios (legacy v1)', () => {
   it('suma los seis costos y aplica margen', () => {
     const b = calcLine({ qty: 1, gramsTotal: 100, hoursTotal: 5, costPerKg: 17000, machine, prepMinutes: 10 }, rt);
     // material: 100 g × 1,08 = 108 g → 1836; máquina: 5 h × (76 + 150) = 1130; energía: 5 × 0,13 × 180 = 117; prep: 10/60 × 6000 = 1000
@@ -36,7 +37,7 @@ describe('motor de precios', () => {
   it('estimación desde la malla', () => { const e = estimateFromMesh({ volumeCm3: 15.2, areaCm2: 47.5, infillPct: 15, density: 1.24, feedGph: 28 }); expect(e.grams).toBeGreaterThan(3); expect(e.grams).toBeLessThan(15.2 * 1.24); expect(e.hours).toBeGreaterThan(0); });
 });
 
-describe('precio final decidido por el usuario', () => {
+describe('precio final decidido por el usuario (legacy v1)', () => {
   const lines = [
     { id: 'a', qty: 2, suggestedUnit: 5000, finalUnit: null, cost: 4000 },
     { id: 'b', qty: 1, suggestedUnit: 10000, finalUnit: 8000, cost: 4000 },

@@ -1,3 +1,4 @@
+import { orderNet } from '@/lib/tax';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
@@ -42,7 +43,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const stepIdx = Math.max(0, STEPS.findIndex((k) => k === o.status));
   const vars = { cliente: o.customerName, numero: o.number, seguimiento: o.tracking ?? '' };
   const phone = o.customerPhone ?? cust?.phone;
-  const estCost = o.costEstimated; const real = o.costReal; const margin = o.total > 0 ? ((o.total / (st.rates.taxMode === 'incluido' ? 1 + st.rates.taxPct / 100 : 1) - (real ?? estCost)) / (o.total / (st.rates.taxMode === 'incluido' ? 1 + st.rates.taxPct / 100 : 1))) * 100 : null;
+  const estCost = o.costEstimated; const real = o.costReal; const onet = orderNet(o, st.rates); const margin = onet > 0 ? ((onet - (real ?? estCost)) / onet) * 100 : null;
   const today = new Date().toISOString().slice(0, 10);
   return (
     <>

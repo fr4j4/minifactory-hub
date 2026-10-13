@@ -1,3 +1,4 @@
+import { orderNet, saleNet } from './tax';
 import { and, desc, eq, gte, inArray, isNull, lte, ne, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSettings } from './settings';
@@ -25,18 +26,18 @@ const mon = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 export async function reportData(kind: string, r: { from: Date; to: Date }, costs: boolean, onlyUser?: string): Promise<ReportData> {
   const t = await getT();
   const db = await getDb(); const st = await getSettings(); const meta = REPORTS[kind];
-  const netOf = (g: number) => (st.rates.taxMode === 'incluido' ? g / (1 + st.rates.taxPct / 100) : g);
+  const netOf = (g: number) => saleNet(g, st.rates);
   const oc = [gte(s.orders.createdAt, r.from), lte(s.orders.createdAt, r.to), ne(s.orders.status, 'cancelado'), isNull(s.orders.deletedAt)]; if (onlyUser) oc.push(eq(s.orders.createdBy, onlyUser));
   const orders = await db.select().from(s.orders).where(and(...oc));
   const sc = [gte(s.sales.createdAt, r.from), lte(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada'), isNull(s.sales.deletedAt)]; if (onlyUser) sc.push(eq(s.sales.createdBy, onlyUser));
   const sales = await db.select().from(s.sales).where(and(...sc));
   const base = { title: t(meta.title), question: t(meta.question) };
   if (kind === 'ventas') {
-    const by = new Map<string, { month: string; orders: number; sales: number; revenue: number; cost: number }>();
-    const add = (d: Date, rev: number, cost: number, o: number, sl: number) => { const k = mon(d); const e = by.get(k) ?? { month: k, orders: 0, sales: 0, revenue: 0, cost: 0 }; e.orders += o; e.sales += sl; e.revenue += rev; e.cost += cost; by.set(k, e); };
-    for (const o of orders) add(o.createdAt, o.total, o.costReal ?? o.costEstimated, 1, 0);
-    for (const x of sales) add(x.createdAt, x.total, x.costTotal + x.commission + x.shipping, 0, 1);
-    const rows = [...by.values()].sort((a, b) => a.month.localeCompare(b.month)).map((e) => ({ ...e, margin: Math.round(netOf(e.revenue) - e.cost), marginPct: e.revenue ? ((netOf(e.revenue) - e.cost) / netOf(e.revenue)) * 100 : null }));
+    const by = new Map<string, { month: string; orders: number; sales: number; revenue: number; net: number; cost: number }>();
+    const add = (d: Date, rev: number, netRev: number, cost: number, o: number, sl: number) => { const k = mon(d); const e = by.get(k) ?? { month: k, orders: 0, sales: 0, revenue: 0, net: 0, cost: 0 }; e.orders += o; e.sales += sl; e.revenue += rev; e.net += netRev; e.cost += cost; by.set(k, e); };
+    for (const o of orders) add(o.createdAt, o.total, orderNet(o, st.rates), o.costReal ?? o.costEstimated, 1, 0);
+    for (const x of sales) add(x.createdAt, x.total, saleNet(x.total, st.rates), x.costTotal + x.commission + x.shipping, 0, 1);
+    const rows = [...by.values()].sort((a, b) => a.month.localeCompare(b.month)).map((e) => ({ ...e, margin: Math.round(e.net - e.cost), marginPct: e.net ? ((e.net - e.cost) / e.net) * 100 : null }));
     const cols: Col[] = [{ key: 'month', label: t('reports.month') }, { key: 'orders', label: t('common.orders'), fmt: 'num' }, { key: 'sales', label: t('reports.quickSales'), fmt: 'num' }, { key: 'revenue', label: t('common.sales'), fmt: 'money' }];
     if (costs) cols.push({ key: 'cost', label: t('common.cost'), fmt: 'money' }, { key: 'margin', label: t('common.margin'), fmt: 'money' }, { key: 'marginPct', label: t('reports.margin'), fmt: 'pct' });
     return { ...base, columns: cols, rows, summary: [{ label: t('reports.salesInThePeriod'), value: String(rows.reduce((a, x) => a + x.revenue, 0)) }] };
@@ -86,7 +87,7 @@ export async function reportData(kind: string, r: { from: Date; to: Date }, cost
   if (kind === 'canales') {
     const ch = await db.select().from(s.salesChannels); const by = new Map<string, { channel: string; n: number; revenue: number; commission: number; shipping: number; net: number }>();
     for (const x of sales) { const name = ch.find((c) => c.id === x.channelId)?.name ?? t('reports.noChannel'); const e = by.get(name) ?? { channel: name, n: 0, revenue: 0, commission: 0, shipping: 0, net: 0 }; e.n++; e.revenue += x.total; e.commission += x.commission; e.shipping += x.shipping; e.net += x.netMargin; by.set(name, e); }
-    for (const o of orders) { const name = `${t('common.orders')} · ${o.source ? tOr(t, `sources.${o.source}`, o.source) : t('reports.noSource')}`; const e = by.get(name) ?? { channel: name, n: 0, revenue: 0, commission: 0, shipping: 0, net: 0 }; e.n++; e.revenue += o.total; e.net += Math.round(netOf(o.total) - (o.costReal ?? o.costEstimated)); by.set(name, e); }
+    for (const o of orders) { const name = `${t('common.orders')} · ${o.source ? tOr(t, `sources.${o.source}`, o.source) : t('reports.noSource')}`; const e = by.get(name) ?? { channel: name, n: 0, revenue: 0, commission: 0, shipping: 0, net: 0 }; e.n++; e.revenue += o.total; e.net += Math.round(orderNet(o, st.rates) - (o.costReal ?? o.costEstimated)); by.set(name, e); }
     const rows = [...by.values()].sort((a, b) => b.revenue - a.revenue);
     return { ...base, columns: [{ key: 'channel', label: t('reports.channelSource') }, { key: 'n', label: t('common.sales'), fmt: 'num' }, { key: 'revenue', label: t('reports.amount'), fmt: 'money' }, { key: 'commission', label: t('reports.commissions'), fmt: 'money' }, { key: 'shipping', label: t('reports.shipping'), fmt: 'money' }, { key: 'net', label: t('common.netMargin'), fmt: 'money' }], rows };
   }

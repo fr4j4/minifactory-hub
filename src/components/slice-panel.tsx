@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calcLine } from '@/lib/pricing';
+import { priceLine, toItemMaterial } from '@/lib/item-price';
 import type { CalcContext } from '@/lib/context';
 import { dur, grams, money, num, cn } from '@/lib/format';
 import { sliceAction } from '@/actions/slicer';
@@ -34,8 +34,7 @@ export function useRunPolling(ids: string[], onDone?: () => void) {
 export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'filament'>, o: { machineId?: string | null; materialId?: string | null; qty?: number }) {
   const m = ctx.machines.find((x) => x.id === o.machineId); const mat = ctx.materials.find((x) => x.id === o.materialId);
   const g = run.filament.reduce((a, f) => a + f.g, 0); const h = (run.timeS ?? 0) / 3600;
-  const bd = calcLine({ qty: o.qty ?? 1, gramsTotal: g, hoursTotal: h, costPerKg: mat?.costPerKg ?? 0, machine: m?.cost ?? null, applyTimeFactor: true }, ctx.rates);
-  return bd;
+  return priceLine({ qty: o.qty ?? 1, gramsTotal: g, hoursTotal: h, mode: 'auto', originKind: 'slicer' }, { rates: ctx.rates, profiles: ctx.calcProfiles, material: toItemMaterial(mat), machine: m?.cost ?? null }).bd;
 }
 
 /** Panel de laminado en el servidor (OrcaSlicer): elige máquina, proceso y material; entrega tiempo, gramos y precio. */

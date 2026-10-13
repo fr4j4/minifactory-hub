@@ -6,7 +6,8 @@ import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { createJob } from './production';
-import { loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
+import { loadQuote, pricingContext, priceItem, quoteEnvOf, type ItemInput, type LinkInput } from './quotes';
+import { effectiveRates } from '../item-price';
 import { getT } from '@/i18n/server';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -15,35 +16,34 @@ type User = PermUser & { id: string };
 export interface OrderInput {
   customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null; dueDate?: string | null;
   priority?: string; notes?: string | null; shipMethod?: string | null; shipAddress?: string | null; quoteId?: string | null;
-  discount?: number; items: ItemInput[]; links?: LinkInput[]; deposit?: { amount: number; method: string } | null; approvedBy?: string | null; approvedChannel?: string | null;
+  discount?: number; applyTax?: boolean; calcProfileId?: string | null; channelId?: string | null; items: ItemInput[]; links?: LinkInput[]; deposit?: { amount: number; method: string } | null; approvedBy?: string | null; approvedChannel?: string | null;
 }
 
 /** Registro manual de un pedido (WhatsApp, Instagram, marketplace, feria…), con o sin presupuesto previo. Mixto: líneas a medida + productos de stock. */
 export async function createOrder(input: OrderInput, user: User): Promise<string> {
   const t = await getT();
   const ctx = await pricingContext();
-  const db = ctx.db; const rt = ctx.settings.rates;
-  let adj = 0;
-  if (input.customerId) {
-    const [c] = await db.select().from(s.customers).where(eq(s.customers.id, input.customerId));
-    if (c?.priceListId) { const [pl] = await db.select().from(s.priceLists).where(eq(s.priceLists.id, c.priceListId)); adj = pl?.adjustPct ?? 0; }
-  }
+  const db = ctx.db;
+  const env = await quoteEnvOf(ctx, { customerId: input.customerId, channelId: input.channelId, calcProfileId: input.calcProfileId });
+  const legacy = ctx.rates.engine === 'legacy';
+  const rt = effectiveRates({}, { rates: ctx.rates, profiles: ctx.profiles, ...env }).rt;
+  const applyTax = legacy ? false : !!(input.applyTax ?? ctx.rates.taxDefault);
   const priced = [] as Array<{ it: ItemInput; p: Awaited<ReturnType<typeof priceItem>>; finalUnit: number }>;
   const lines: QuoteLine[] = [];
   for (const it of input.items) {
-    const p = await priceItem(it, ctx, adj);
+    const p = await priceItem(it, ctx, env);
     const finalUnit = it.finalUnit != null ? Math.round(it.finalUnit) : p.suggestedUnit;
     priced.push({ it, p, finalUnit });
-    lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.costTotal - (it.shipping ?? 0), shipping: it.shipping });
+    lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.cost, shipping: it.shipping });
   }
-  const tt = calcQuote(lines, rt, { discount: input.discount ?? 0 });
+  const tt = calcQuote(lines, rt, { discount: input.discount ?? 0, applyTax });
   if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
   const number = await nextNumber('order');
   const hasProduct = input.items.some((i) => i.variantId), hasCustom = input.items.some((i) => !i.variantId);
   const [order] = await db.insert(s.orders).values({
     workspaceId: WORKSPACE_ID, number, kind: hasProduct && hasCustom ? 'mixto' : hasProduct ? 'solo_stock' : 'a_medida', status: 'recibido',
     customerId: input.customerId ?? null, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, quoteId: input.quoteId ?? null,
-    source: input.source ?? null, priority: input.priority ?? 'normal', dueDate: input.dueDate ?? null, title: input.title ?? null, total: tt.total, costEstimated: tt.cost,
+    source: input.source ?? null, priority: input.priority ?? 'normal', dueDate: input.dueDate ?? null, title: input.title ?? null, total: tt.total, taxAmount: tt.tax, taxMode: legacy ? null : applyTax ? 'sumado' : 'exento', costEstimated: tt.cost,
     shipAddress: input.shipAddress ?? null, shipMethod: input.shipMethod ?? 'retiro', notes: input.notes ?? null, approvedBy: input.approvedBy ?? null,
     approvedChannel: input.approvedChannel ?? null, approvedAt: input.approvedBy ? new Date() : null, createdBy: user.id,
   }).returning({ id: s.orders.id });
@@ -64,7 +64,7 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
       workspaceId: WORKSPACE_ID, orderId: order.id, position: pos++, kind: it.kind ?? (it.variantId ? 'producto' : it.models?.length ? 'modelo' : 'manual'), description: it.description, qty: it.qty,
       materialId: it.materialId ?? null, color: it.color ?? null, machineId: it.machineId ?? null, processProfileId: it.processProfileId ?? null,
       gramsTotal: it.gramsTotal ?? 0, hoursTotal: it.hoursTotal ?? 0, costBreakdown: p.breakdown as any, suggestedUnit: p.suggestedUnit, finalUnit,
-      costUnit: Math.round((p.costTotal - (it.shipping ?? 0)) / Math.max(1, it.qty)), variantId: it.variantId ?? null, fromStock,
+      costUnit: Math.round(p.cost / Math.max(1, it.qty)), variantId: it.variantId ?? null, fromStock,
       status: it.variantId && fromStock >= it.qty ? 'listo' : 'pendiente', sliceRunId: it.sliceRunId ?? null, createdBy: user.id,
     }).returning({ id: s.orderItems.id });
     for (const m of it.models ?? []) await db.insert(s.quoteItemModels).values({ workspaceId: WORKSPACE_ID, orderItemId: oi.id, modelFileId: m.modelFileId, fileVersionId: m.fileVersionId ?? null, qty: m.qty ?? 1 });
@@ -102,9 +102,9 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
   const orderId = await createOrder({
     customerId: q.customerId, customerName: q.customerName, customerPhone: q.customerPhone, source: q.source, title: q.title, quoteId: q.id, discount: q.discount,
     notes: q.notes, items: itemInputs, links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })), deposit: o.deposit, dueDate: o.dueDate ?? null,
-    approvedBy: o.by, approvedChannel: o.channel,
+    approvedBy: o.by, approvedChannel: o.channel, applyTax: q.applyTax, calcProfileId: q.calcProfileId, channelId: q.channelId,
   }, user);
-  await db.update(s.orders).set({ total: q.total }).where(eq(s.orders.id, orderId));
+  await db.update(s.orders).set({ total: q.total, taxAmount: q.taxAmount }).where(eq(s.orders.id, orderId));
   await db.update(s.quotes).set({ status: 'aprobado', frozen: true, approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() }).where(eq(s.quotes.id, quoteId));
   await audit('quote', quoteId, 'estado', { to: 'aprobado', by: o.by, channel: o.channel, orderId }, user.id);
   return orderId;
