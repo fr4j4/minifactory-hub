@@ -1,4 +1,8 @@
+import type { Page } from '@playwright/test';
 import { test, expect, login, shot } from './helpers';
+
+/** Abre «¿Por qué este precio?» (es un <details>: si ya está abierto, un clic lo cerraría). */
+async function openWhy(page: Page) { const w = page.getByTestId('why-price'); if ((await w.getAttribute('open')) === null) await w.locator('summary').click(); }
 
 test.describe('Calculadora v2', () => {
   test('calculadora rápida: niveles, IVA opcional, explicación y estimación sin archivo', async ({ page }) => {
@@ -16,7 +20,7 @@ test.describe('Calculadora v2', () => {
     await expect(page.getByTestId('quick-total')).toContainText('$');
     const net = await page.getByTestId('quick-total').innerText();
     // «¿Por qué este precio?» existe en todos los niveles
-    await page.getByTestId('why-price').locator('summary').click();
+    await openWhy(page);
     await expect(page.getByTestId('why-sentence')).toContainText(/margen|mínimo|material/i);
     await shot(page, 'C20-calculadora-basico');
     // el IVA es opcional y no cambia el precio neto
@@ -28,7 +32,7 @@ test.describe('Calculadora v2', () => {
     // Detallado: aparecen máquina, perfil, banda y desglose
     await page.getByTestId('level-detallado').click();
     await expect(page.getByTestId('line-machine')).toBeVisible(); await expect(page.getByTestId('line-profile')).toBeVisible(); await expect(page.getByTestId('price-band')).toBeVisible();
-    await page.getByTestId('why-price').locator('summary').click();
+    await openWhy(page);
     await expect(page.getByTestId('why-table')).toBeVisible();
     // cambiar de perfil cambia el precio y muestra la diferencia
     await page.getByTestId('line-profile').selectOption('func');
@@ -41,7 +45,7 @@ test.describe('Calculadora v2', () => {
     await expect(page.getByTestId('qty-table')).toBeVisible(); await expect(page.getByTestId('sens-list')).toBeVisible(); await expect(page.getByTestId('scenarios')).toBeVisible();
     await page.getByTestId('inverse-input').fill('1000');
     await expect(page.getByTestId('inverse-result')).toContainText(/costo|margen/i);
-    await page.getByTestId('why-price').locator('summary').click();
+    await openWhy(page);
     await expect(page.getByTestId('why-formula')).toBeVisible();
     await shot(page, 'C22-calculadora-experto', { full: true });
     await page.getByTestId('level-basico').click();
@@ -90,7 +94,7 @@ test.describe('Calculadora v2', () => {
     await page.getByTestId('open-wizard').click();
     await expect(page.getByTestId('calc-wizard')).toBeVisible();
     for (let i = 0; i < 5; i++) await page.getByTestId('wiz-next').click();
-    await expect(page.getByTestId('wiz-summary')).toContainText('equilibrio');
+    await expect(page.getByTestId('wiz-summary')).toContainText('debe rendir al menos');
     await shot(page, 'C26-asistente');
     await page.getByTestId('wiz-finish').click();
     await expect(page.getByText('Calculadora configurada')).toBeVisible();
