@@ -82,6 +82,7 @@ export async function seedDemo() {
     await mk('fPLA', 'filament', 'PLA Basic', 'Bambu PLA Basic @BBL A1');
     await mk('fPETG', 'filament', 'PETG Basic', 'Bambu PETG Basic @BBL A1');
     await mk('fPETGslow', 'filament', 'PETG lento piezas técnicas', 'Bambu PETG Basic @BBL A1', { nozzle_temperature: '250', filament_max_volumetric_speed: '8' });
+    await mk('fTPU', 'filament', 'TPU 95A', 'Bambu TPU 95A @BBL A1');
     await mk('fEnderPLA', 'filament', 'PLA genérico Ender', 'Creality Generic PLA @Ender-3V3-all');
   }
 
@@ -108,7 +109,7 @@ export async function seedDemo() {
     { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Azul', hex: '#2d6cdf', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local', filamentProfileId: prof.fPLA ?? null },
     { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PETG Basic', type: 'PETG', colorName: 'Negro', hex: '#222222', density: 1.27, costPerKg: 19000, stockMinG: 1000, tempNozzle: '230–260', tempBed: '70–80', supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPETG ?? null },
     { workspaceId: WORKSPACE_ID, manufacturer: 'eSun', line: 'PETG', type: 'PETG', colorName: 'Transparente', hex: '#cfe6ee', density: 1.27, costPerKg: 19000, stockMinG: 1000, supplierText: 'eSun', filamentProfileId: prof.fPETG ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu', filamentProfileId: prof.fPLA ?? null },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu', filamentProfileId: prof.fTPU ?? null },
     { workspaceId: WORKSPACE_ID, tech: 'resina', manufacturer: 'Elegoo', line: 'Standard', type: 'Resina estándar', colorName: 'Gris', hex: '#9aa0a6', density: 1.1, diameter: null, costPerKg: 28000, stockMinG: 500, supplierText: 'Elegoo' },
   ]).returning();
   const [plaNeg, plaBla, plaRoj, plaAzu, petgNeg, petgTra, tpu, resina] = M;
