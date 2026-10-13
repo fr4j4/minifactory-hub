@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
-import { cancelJob, completeMaintenance, createJob, finishJob, moveJob, pauseJob, resumeJob, scheduleMachine, startJob, type FinishInput } from '@/lib/services/production';
+import { cancelJob, completeMaintenance, createJob, finishJob, machineDeleteInfo, moveJob, pauseJob, removeMachine, resumeJob, scheduleMachine, startJob, type FinishInput } from '@/lib/services/production';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
 
@@ -36,3 +36,5 @@ export async function addPlanAction(i: { machineId: string; task: string; interv
 export async function completeMaintenanceAction(i: Parameters<typeof completeMaintenance>[0] & { machineId: string }) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); await completeMaintenance({ ...i, userId: u.id }); }, [`/maquinas/${i.machineId}`, '/']); }
 export async function addIncidentAction(i: { machineId: string; kind: string; description: string }) {
   const t = await getT(); return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.description.trim()) throw new Error(t('machines.describeTheIncident')); await db.insert(s.incidents).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, kind: i.kind, description: i.description, createdBy: u.id }); }, [`/maquinas/${i.machineId}`]); }
+export async function machineDeleteInfoAction(id: string) { return safe(async () => { await requirePerm('maquinas', 'V'); return machineDeleteInfo(id); }); }
+export async function removeMachineAction(id: string) { return safe(async () => { const u = await requirePerm('maquinas', 'X'); await removeMachine(id, u.id); }, ['/maquinas', '/maquinas/conectores', '/cola']); }

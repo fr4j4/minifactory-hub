@@ -1,11 +1,12 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addIncidentAction, addPlanAction, completeMaintenanceAction, saveMachineAction, setMachineStatusAction } from '@/actions/production';
+import { addIncidentAction, addPlanAction, completeMaintenanceAction, machineDeleteInfoAction, removeMachineAction, saveMachineAction, setMachineStatusAction } from '@/actions/production';
 import { Modal, useAction } from './client';
 import { machineHourly } from '@/lib/pricing';
 import { money } from '@/lib/format';
 import { useT } from '@/i18n/client';
+import { Rich } from '@/i18n/rich';
 
 export function MachineForm({ m, profiles, kwh }: { m?: any; profiles: Array<{ id: string; name: string; type: string }>; kwh: number }) {
   const t = useT();
@@ -58,4 +59,40 @@ export function IncidentForm({ machineId }: { machineId: string }) {
   const t = useT();
   const { run, pending } = useAction(); const [kind, setKind] = useState('atasco'); const [txt, setTxt] = useState('');
   return <form className="flex flex-col sm:flex-row gap-2" onSubmit={(e) => { e.preventDefault(); run(() => addIncidentAction({ machineId, kind, description: txt }), { ok: t('machines.incidentRecorded2'), onOk: () => setTxt('') }); }}><select className="input sm:!w-44" value={kind} onChange={(e) => setKind(e.target.value)} aria-label={t('common.typeLabel')}><option value="atasco">{t('machines.jam')}</option><option value="desnivel">{t('machines.unevenBed')}</option><option value="capa_desplazada">{t('machines.layerShift')}</option><option value="otro">{t('machines.other')}</option></select><input className="input" value={txt} onChange={(e) => setTxt(e.target.value)} placeholder={t('machines.whatHappened')} aria-label={t('common.description')} /><button className="btn-ghost shrink-0" disabled={pending || !txt.trim()}>{t('common.register')}</button></form>;
+}
+
+/**
+ * Elimina (soft-delete) una máquina, sea registrada manualmente, por LAN o por Bambu Cloud.
+ * Antes de confirmar, consulta si tiene una impresora vinculada o trabajos activos en la cola,
+ * y ajusta el mensaje: si hay vínculo se avisa que se desconectará solo; si hay trabajos activos
+ * se bloquea hasta que se resuelvan (no se puede perder una impresión en curso).
+ */
+export function DeleteMachineButton({ machineId, machineName, className, onDone, redirectTo }: { machineId: string; machineName: string; className?: string; onDone?: () => void; redirectTo?: string }) {
+  const t = useT(); const { run, pending } = useAction(); const router = useRouter();
+  const [info, setInfo] = useState<{ canDelete: boolean; activeJobCount: number; link: { mode: string; serial: string } | null } | null>(null);
+  const [open, setOpen] = useState(false); const [loading, setLoading] = useState(false);
+  const check = async () => {
+    setLoading(true); const r = await machineDeleteInfoAction(machineId); setLoading(false);
+    if (!r.ok) return; setInfo(r.data); setOpen(true);
+  };
+  const confirm = () => {
+    run(() => removeMachineAction(machineId), { ok: t('machines.machineDeleted'), onOk: () => { setOpen(false); onDone?.(); if (redirectTo) router.push(redirectTo); } });
+  };
+  return (<span onClick={(e) => e.preventDefault()}>
+    <button type="button" className={className ?? 'btn-ghost btn-sm text-red-600 dark:text-red-400'} disabled={loading} onClick={check} data-testid="delete-machine">{loading ? t('machines.checking') : t('common.deleteLabel')}</button>
+    <Modal open={open} onClose={() => setOpen(false)} title={t('machines.deleteTitle', { name: machineName })}>
+      <div className="space-y-3 text-sm">
+        {!info ? null : !info.canDelete ? (
+          <p role="alert" className="text-amber-800 dark:text-amber-300"><Rich text={t('machines.deleteBlocked', { count: info.activeJobCount })} /></p>
+        ) : (<>
+          <p><Rich text={t('machines.deleteInfo')} /></p>
+          {info.link && <p className="text-amber-800 dark:text-amber-300"><Rich text={t('machines.deleteLinked', { via: info.link.mode === 'cloud' ? 'Bambu Cloud' : 'LAN', serial: info.link.serial })} />{info.link.mode === 'cloud' && ` ${t('machines.deleteCloudNote')}`}</p>}
+        </>)}
+        <div className="flex justify-end gap-2 pt-2">
+          <button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button>
+          {info?.canDelete && <button className="btn-danger" disabled={pending} data-testid="delete-machine-confirm" onClick={confirm}>{pending ? t('machines.deleting') : t('machines.deleteMachine')}</button>}
+        </div>
+      </div>
+    </Modal>
+  </span>);
 }

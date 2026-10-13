@@ -8,6 +8,7 @@ import { consumeFromSpool, materialCostPerKg } from './inventory';
 import { machineCostOf } from './quotes';
 import { recomputeOrderStatus } from './orders';
 import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -259,6 +260,34 @@ export async function completeMaintenance(o: { planId: string; cost?: number; do
   await db.insert(s.maintenanceLogs).values({ workspaceId: WORKSPACE_ID, machineId: m.id, planId: p.id, task: p.task, doneAt: today, atHours: m.hoursTotal, cost: o.cost ?? 0, downtimeH: o.downtimeH ?? 0, parts: o.parts ?? [], notes: o.notes ?? null, createdBy: o.userId ?? null });
   await db.update(s.maintenancePlans).set({ lastDoneHours: m.hoursTotal, lastDoneAt: today }).where(eq(s.maintenancePlans.id, p.id));
   await audit('machine', m.id, 'mantenimiento', { task: p.task }, o.userId);
+}
+
+/* ───────── eliminar máquina ───────── */
+const ACTIVE_JOB_STATUSES = ['en_cola', 'imprimiendo', 'pausado'] as const;
+
+/** Qué impide eliminar una máquina, y si tiene una impresora vinculada (se desconecta sola al eliminar). */
+export async function machineDeleteInfo(machineId: string) {
+  const db = await getDb();
+  const activeJobs = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), inArray(s.printJobs.status, [...ACTIVE_JOB_STATUSES])));
+  const [link] = await db.select({ id: s.printerLinks.id, mode: s.printerLinks.mode, serial: s.printerLinks.serial }).from(s.printerLinks).where(and(eq(s.printerLinks.machineId, machineId), isNull(s.printerLinks.deletedAt)));
+  return { canDelete: activeJobs.length === 0, activeJobCount: activeJobs.length, link: link ?? null };
+}
+
+/**
+ * Elimina (soft-delete) una máquina registrada manualmente o conectada (LAN/Bambu Cloud).
+ * - Si tiene una impresora vinculada, la desconecta primero (reutiliza removePrinter; no toca su historial ni la cuenta Bambu Cloud).
+ * - Bloquea el borrado si hay trabajos activos en la cola para no perder una impresión en curso.
+ * - El historial (trabajos terminados, mantenciones, incidencias) se conserva; solo se oculta la máquina de las listas.
+ */
+export async function removeMachine(machineId: string, userId?: string | null) {
+  const db = await getDb();
+  const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId));
+  if (!m) throw new LocalizedError('machines.machineNotFound');
+  const info = await machineDeleteInfo(machineId);
+  if (!info.canDelete) throw new LocalizedError('machines.deleteHasJobs', { count: info.activeJobCount });
+  if (info.link) { const { removePrinter } = await import('./printers'); await removePrinter(info.link.id, userId); }
+  await db.update(s.machines).set({ deletedAt: new Date(), connection: {} }).where(eq(s.machines.id, machineId));
+  await audit('machine', machineId, 'eliminar', { name: m.name, hadPrinterLink: !!info.link }, userId);
 }
 
 /* ───────── producción para stock ───────── */
