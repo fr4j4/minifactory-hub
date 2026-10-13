@@ -11,12 +11,12 @@ export async function postJson(url: string, headers: Record<string, string>, bod
     if (!res.ok) {
       let msg = text.slice(0, 300);
       try { const j = JSON.parse(text); msg = j?.error?.message ?? j?.message ?? msg; } catch { /* texto plano */ }
-      throw new AIError(`El proveedor respondió ${res.status}: ${String(msg).slice(0, 200)}`, 'provider', res.status);
+      throw new AIError('ai.err.providerStatus', 'provider', { params: { status: res.status, msg: String(msg).slice(0, 200) }, status: res.status });
     }
-    try { return JSON.parse(text); } catch { throw new AIError('Respuesta del proveedor no es JSON', 'provider', res.status); }
+    try { return JSON.parse(text); } catch { throw new AIError('ai.err.notJson', 'provider', { status: res.status }); }
   } catch (e) {
     if (e instanceof AIError) throw e;
-    if ((e as Error).name === 'AbortError') throw new AIError(`El proveedor no respondió en ${Math.round(timeoutMs / 1000)} s`, 'timeout');
-    throw new AIError(`No se pudo conectar con el proveedor: ${(e as Error).message}`, 'provider');
+    if ((e as Error).name === 'AbortError') throw new AIError('ai.err.timeout', 'timeout', { params: { s: Math.round(timeoutMs / 1000) } });
+    throw new AIError('ai.err.connect', 'provider', { params: { msg: (e as Error).message } });
   } finally { clearTimeout(timer); }
 }

@@ -5,7 +5,9 @@ import type { PermUser } from '../perm';
 import { getAiConfig, type AiConfig } from './config';
 import { assertFeatureAccess, providerFor, runTask } from './run';
 import { spendThisMonth } from './budget';
-import { FEATURES, type FeatureKey } from './types';
+import { tDefault, errorText } from '@/i18n/errors';
+import type { TFn } from '@/i18n/translate';
+import { AIError, FEATURES, type FeatureKey } from './types';
 
 export { runTask, assertFeatureAccess } from './run';
 export { getAiConfig } from './config';
@@ -18,16 +20,16 @@ export async function aiAvailableFor(user: (PermUser & { id: string }) | null | 
 }
 
 /** Prueba de conexión: una llamada mínima con la configuración (guardada o sin guardar). */
-export async function pingAi(cfg?: AiConfig) {
+export async function pingAi(cfg?: AiConfig, t: TFn = tDefault) {
   const c = cfg ?? (await getAiConfig());
   const t0 = Date.now();
   try {
-    if (!c.configured) throw new Error('Falta configurar el proveedor (clave o URL).');
+    if (!c.configured) throw new AIError('ai.err.notConfigured', 'config');
     const p = providerFor(c);
     const r = await runTask({ feature: 'system.ping', tier: 'fast', system: 'Responde solo con JSON.', user: 'Devuelve {"ok":true}', schema: z.object({ ok: z.boolean() }), maxOutputTokens: 30, temperature: 0, timeoutMs: 20_000 },
       { config: { ...c, enabled: true }, skipFeatureCheck: true, noCache: true });
     return { ok: true as const, model: r.model, latencyMs: Date.now() - t0, vision: p.capabilities.vision };
-  } catch (e) { return { ok: false as const, error: (e as Error).message, latencyMs: Date.now() - t0 }; }
+  } catch (e) { return { ok: false as const, error: errorText(e, t), latencyMs: Date.now() - t0 }; }
 }
 
 /** Resumen de uso para la pantalla de configuración. */

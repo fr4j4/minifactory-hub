@@ -3,8 +3,9 @@ import sharp from 'sharp';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { getBuffer, newKey, putBuffer, putFile } from './storage';
 import { audit } from './audit';
+import { getT } from '@/i18n/server';
 
-export const STAGES: Record<string, string> = { durante: 'Durante la impresión', recien_impreso: 'Recién impreso', post_procesado: 'Post-procesado', producto_final: 'Producto final', empaque: 'Empaque', entregado: 'Entregado', falla: 'Falla (aprendizaje)' };
+export { STAGE_KEYS } from './photo-stages';
 export const RATIOS: Record<string, [number, number]> = { '1:1': [1, 1], '4:5': [4, 5], '9:16': [9, 16], '16:9': [16, 9] };
 
 /** Conversión a WebP en 320/800/1600 + original; corrige rotación EXIF y elimina metadatos (GPS). */
@@ -44,11 +45,12 @@ export async function ingestPhoto(o: { tmpPath: string; filename: string; userId
 
 /** Recorte a formato de redes con marca de agua opcional. */
 export async function exportPhoto(photoId: string, o: { ratio?: string; watermark?: { logo: Buffer; opacity: number; position: string } | null }): Promise<Buffer> {
+  const t = await getT();
   const { eq } = await import('drizzle-orm');
   const db = await getDb();
   const [p] = await db.select().from(s.photos).where(eq(s.photos.id, photoId));
-  if (!p) throw new Error('Foto no encontrada');
-  if (p.internalOnly) throw new Error('Esta foto es de solo uso interno (el cliente no dio permiso): no se puede exportar a redes.');
+  if (!p) throw new Error(t('gallery.photoNotFound'));
+  if (p.internalOnly) throw new Error(t('gallery.thisPhotoIsForInternal'));
   let img = sharp(await getBuffer(p.variants?.['1600'] ?? p.storageKey)).rotate();
   const r = o.ratio ? RATIOS[o.ratio] : null;
   if (r) { const meta = await img.metadata(); const W = meta.width ?? 1600; const H = Math.round((W * r[1]) / r[0]); img = img.resize({ width: W, height: H, fit: 'cover' }); }

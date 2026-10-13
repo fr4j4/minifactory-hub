@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config';
+import type { MessageKey } from '@/i18n/translate';
+import { LocalizedError } from '@/i18n/errors';
 
 export type ProfileType = 'machine' | 'process' | 'filament';
 export interface FactoryEntry {
@@ -97,7 +99,7 @@ function findEntry(type: ProfileType, name: string, preferVendor?: string): Fact
 export function resolveFactory(type: ProfileType, name: string, vendor?: string): Record<string, any> {
   const chain: Array<Record<string, any>> = [];
   let cur = findEntry(type, name, vendor);
-  if (!cur) throw new Error(`Perfil de fábrica no encontrado: ${type} "${name}"${vendor ? ` (${vendor})` : ''}`);
+  if (!cur) throw new LocalizedError('slicer.factoryNotFound', { type, name, vendor: vendor ? ` (${vendor})` : '' });
   const v = cur.vendor;
   let guard = 0;
   while (cur && guard++ < 12) {
@@ -140,38 +142,38 @@ export function buildCliProfile(type: ProfileType, o: { name: string; vendor?: s
 }
 
 /** Parámetros del editor simple (los que mueven el costo). */
-export const SIMPLE_PARAMS: Record<ProfileType, Array<{ key: string; label: string; kind: 'number' | 'select' | 'text'; unit?: string; options?: string[]; help?: string }>> = {
+export const SIMPLE_PARAMS: Record<ProfileType, Array<{ key: string; label: MessageKey; kind: 'number' | 'select' | 'text'; unit?: string; options?: string[]; help?: MessageKey }>> = {
   machine: [
-    { key: 'machine_max_acceleration_x', label: 'Aceleración máx. X', kind: 'number', unit: 'mm/s²' },
-    { key: 'machine_max_speed_x', label: 'Velocidad máx. X', kind: 'number', unit: 'mm/s' },
-    { key: 'printable_area', label: 'Área imprimible (lista de puntos)', kind: 'text' },
-    { key: 'printable_height', label: 'Altura imprimible', kind: 'number', unit: 'mm' },
+    { key: 'machine_max_acceleration_x', label: 'slicerParam.machine_max_acceleration_x', kind: 'number', unit: 'mm/s²' },
+    { key: 'machine_max_speed_x', label: 'slicerParam.machine_max_speed_x', kind: 'number', unit: 'mm/s' },
+    { key: 'printable_area', label: 'slicerParam.printable_area', kind: 'text' },
+    { key: 'printable_height', label: 'slicerParam.printable_height', kind: 'number', unit: 'mm' },
   ],
   process: [
-    { key: 'layer_height', label: 'Altura de capa', kind: 'number', unit: 'mm' },
-    { key: 'initial_layer_print_height', label: 'Altura primera capa', kind: 'number', unit: 'mm' },
-    { key: 'wall_loops', label: 'Perímetros (paredes)', kind: 'number' },
-    { key: 'sparse_infill_density', label: 'Relleno', kind: 'text', unit: '%', help: 'Ej. 15%' },
-    { key: 'sparse_infill_pattern', label: 'Patrón de relleno', kind: 'select', options: ['grid', 'gyroid', 'cubic', 'honeycomb', 'triangles', 'lightning', 'rectilinear', 'adaptivecubic', 'line', 'concentric'] },
-    { key: 'top_shell_layers', label: 'Capas superiores', kind: 'number' },
-    { key: 'bottom_shell_layers', label: 'Capas inferiores', kind: 'number' },
-    { key: 'enable_support', label: 'Soportes (0/1)', kind: 'select', options: ['0', '1'] },
-    { key: 'support_type', label: 'Tipo de soporte', kind: 'select', options: ['normal(auto)', 'tree(auto)', 'normal(manual)', 'tree(manual)'] },
-    { key: 'outer_wall_speed', label: 'Velocidad pared exterior', kind: 'number', unit: 'mm/s' },
-    { key: 'inner_wall_speed', label: 'Velocidad pared interior', kind: 'number', unit: 'mm/s' },
-    { key: 'sparse_infill_speed', label: 'Velocidad relleno', kind: 'number', unit: 'mm/s' },
-    { key: 'default_acceleration', label: 'Aceleración por defecto', kind: 'number', unit: 'mm/s²' },
-    { key: 'brim_type', label: 'Borde (brim)', kind: 'select', options: ['no_brim', 'auto_brim', 'outer_only', 'inner_only', 'outer_and_inner'] },
+    { key: 'layer_height', label: 'slicerParam.layer_height', kind: 'number', unit: 'mm' },
+    { key: 'initial_layer_print_height', label: 'slicerParam.initial_layer_print_height', kind: 'number', unit: 'mm' },
+    { key: 'wall_loops', label: 'slicerParam.wall_loops', kind: 'number' },
+    { key: 'sparse_infill_density', label: 'slicerParam.sparse_infill_density', kind: 'text', unit: '%', help: 'slicerParam.infillHelp' },
+    { key: 'sparse_infill_pattern', label: 'slicerParam.sparse_infill_pattern', kind: 'select', options: ['grid', 'gyroid', 'cubic', 'honeycomb', 'triangles', 'lightning', 'rectilinear', 'adaptivecubic', 'line', 'concentric'] },
+    { key: 'top_shell_layers', label: 'slicerParam.top_shell_layers', kind: 'number' },
+    { key: 'bottom_shell_layers', label: 'slicerParam.bottom_shell_layers', kind: 'number' },
+    { key: 'enable_support', label: 'slicerParam.enable_support', kind: 'select', options: ['0', '1'] },
+    { key: 'support_type', label: 'slicerParam.support_type', kind: 'select', options: ['normal(auto)', 'tree(auto)', 'normal(manual)', 'tree(manual)'] },
+    { key: 'outer_wall_speed', label: 'slicerParam.outer_wall_speed', kind: 'number', unit: 'mm/s' },
+    { key: 'inner_wall_speed', label: 'slicerParam.inner_wall_speed', kind: 'number', unit: 'mm/s' },
+    { key: 'sparse_infill_speed', label: 'slicerParam.sparse_infill_speed', kind: 'number', unit: 'mm/s' },
+    { key: 'default_acceleration', label: 'slicerParam.default_acceleration', kind: 'number', unit: 'mm/s²' },
+    { key: 'brim_type', label: 'slicerParam.brim_type', kind: 'select', options: ['no_brim', 'auto_brim', 'outer_only', 'inner_only', 'outer_and_inner'] },
   ],
   filament: [
-    { key: 'nozzle_temperature', label: 'Temp. boquilla', kind: 'number', unit: '°C' },
-    { key: 'nozzle_temperature_initial_layer', label: 'Temp. boquilla 1ª capa', kind: 'number', unit: '°C' },
-    { key: 'hot_plate_temp', label: 'Temp. cama (PEI liso)', kind: 'number', unit: '°C' },
-    { key: 'textured_plate_temp', label: 'Temp. cama (PEI texturizado)', kind: 'number', unit: '°C' },
-    { key: 'filament_flow_ratio', label: 'Factor de flujo', kind: 'number' },
-    { key: 'filament_max_volumetric_speed', label: 'Caudal volumétrico máx.', kind: 'number', unit: 'mm³/s' },
-    { key: 'filament_density', label: 'Densidad', kind: 'number', unit: 'g/cm³' },
-    { key: 'filament_cost', label: 'Costo', kind: 'number', unit: '$/kg' },
-    { key: 'fan_min_speed', label: 'Ventilador mín.', kind: 'number', unit: '%' },
+    { key: 'nozzle_temperature', label: 'slicerParam.nozzle_temperature', kind: 'number', unit: '°C' },
+    { key: 'nozzle_temperature_initial_layer', label: 'slicerParam.nozzle_temperature_initial_layer', kind: 'number', unit: '°C' },
+    { key: 'hot_plate_temp', label: 'slicerParam.hot_plate_temp', kind: 'number', unit: '°C' },
+    { key: 'textured_plate_temp', label: 'slicerParam.textured_plate_temp', kind: 'number', unit: '°C' },
+    { key: 'filament_flow_ratio', label: 'slicerParam.filament_flow_ratio', kind: 'number' },
+    { key: 'filament_max_volumetric_speed', label: 'slicerParam.filament_max_volumetric_speed', kind: 'number', unit: 'mm³/s' },
+    { key: 'filament_density', label: 'slicerParam.filament_density', kind: 'number', unit: 'g/cm³' },
+    { key: 'filament_cost', label: 'slicerParam.filament_cost', kind: 'number', unit: '$/kg' },
+    { key: 'fan_min_speed', label: 'slicerParam.fan_min_speed', kind: 'number', unit: '%' },
   ],
 };

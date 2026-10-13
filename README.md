@@ -34,9 +34,32 @@ npm test                 # unitarias + integración (incluye laminado real si Or
 npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas y videos en docs/reporte
 ```
 
-## Laminar en el sitio
+## Laminar en el servidor
 
 Laminador → **Configurar laminado**: elige qué impresora es cada máquina, la calidad por defecto y el filamento de cada material (se sugieren solos). Puedes **importar tus perfiles de Bambu Studio u OrcaSlicer** subiendo un proyecto `.3mf` (lo más fácil: guarda un proyecto con tu impresora, filamentos y proceso), un paquete `.bbscfg`/`.bbsflmt` (Archivo → Exportar → Exportar paquete de preajustes) o archivos `.json`, y crear **filamentos personalizados** con un formulario. Cada perfil se puede exportar de vuelta a Bambu Studio.
+
+## Eliminar y archivar
+
+Casi todos los registros (materiales, bobinas, repuestos e insumos, productos y variantes, clientes, presupuestos, pedidos cancelados, listas de precios, canales, usuarios, colecciones de fotos, planes de mantenimiento, incidencias, contactos y pagos) se pueden eliminar desde su pantalla con el botón **Eliminar** (permiso «eliminar» del módulo). Es un borrado lógico: el historial, los reportes y los movimientos se conservan. Antes de confirmar, el sistema avisa si hay algo que lo impide (stock, pedidos abiertos, la última cuenta de administrador…). Las reglas están en `src/lib/services/removal.ts`.
+
+**Archivados:** en *Configuración → Archivados* se listan los registros eliminados y se pueden **restaurar** (también sus variantes o bobinas eliminadas junto con ellos). No se restaura si el registro del que depende sigue eliminado o si su código, SKU o correo ya lo usa otro (`src/lib/services/archive.ts`).
+
+## Editar registros ya creados
+
+Pedidos, pagos, ventas rápidas, bobinas (lote, fecha y costo), planes de mantenimiento, incidencias, colecciones de fotos y contactos tienen un botón **Editar** (✎). Solo se aceptan los campos de una lista blanca por tipo (`EDIT_SPEC` en `src/lib/services/edits.ts`): totales, estados y claves no se tocan desde ahí. Corregir un pago recalcula lo pagado del pedido o la venta, y no se editan pedidos cancelados ni ventas anuladas. Cada cambio queda en la auditoría.
+
+## Idiomas (i18n)
+
+La interfaz está disponible en **español** (idioma por defecto) e **inglés**. El idioma se elige en el selector del menú de cuenta (o en la pantalla de ingreso) y se recuerda en la cookie `mf_lang`; sin cookie se usa `Accept-Language` y, si no coincide, español.
+
+- Los textos viven en `src/i18n/es/<área>.ts` y `src/i18n/en/<área>.ts` (un archivo por área: `orders`, `quotes`, `machines`…). El diccionario en español es la referencia y TypeScript obliga a que el inglés tenga las mismas claves.
+- En componentes de cliente: `const t = useT()`; en páginas, acciones y servicios de servidor: `const t = await getT()`. Ejemplo: `t('orders.registerOrder')`, con parámetros `t('orders.createdOn', { date })` (en el texto se escribe `{date}`).
+- Plurales: se definen `clave_one` y `clave_other` y se usa `t('clave', { count })`.
+- Valores internos (estados, canales, etapas…) se traducen con claves como `status.<estado>` o `tOr(t, 'gallery.stage.' + etapa, etapa)`.
+- Errores de bajo nivel (sin petición HTTP, como los conectores) usan `LocalizedError`; el texto queda en español para los registros y se traduce al idioma de la petición cuando se muestra al usuario.
+- Los textos que se guardan en la base (notas, avisos, datos de demostración y plantillas por defecto) se escriben en el idioma de quien los crea y no se traducen después.
+- Moneda, números y fechas siguen la convención del taller (CLP, `es-CL`, `dd-mm-aaaa`) en todos los idiomas.
+- Para agregar un idioma: añadirlo en `src/i18n/config.ts`, crear `src/i18n/<código>/` con el mismo árbol y registrarlo en `src/i18n/translate.ts`. `npm test` comprueba que no falten claves ni parámetros.
 
 ## Conector Bambu Lab (modo LAN)
 

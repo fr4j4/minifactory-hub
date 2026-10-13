@@ -24,4 +24,4 @@ export function can(user: PermUser | null | undefined, mod: Module, action: Acti
 export const canSeeCosts = (u: PermUser | null | undefined) => !!u && (u.role === 'admin' || u.role === 'ventas');
 export const canSetFinalPrice = (u: PermUser | null | undefined) => !!u && (u.role === 'admin' || u.role === 'ventas');
 export const canSellBelowCost = (u: PermUser | null | undefined) => !!u && u.role === 'admin';
-export const ROLE_LABEL: Record<Role, string> = { admin: 'Administrador', operador: 'Operador', ventas: 'Ventas' };
+

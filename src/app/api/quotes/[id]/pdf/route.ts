@@ -5,6 +5,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
+import { getT } from '@/i18n/server';
 
 export const maxDuration = 60;
 
@@ -17,10 +18,11 @@ function chromiumPath(): string | undefined {
 
 /** PDF del presupuesto: la plantilla HTML se imprime con Chromium (Playwright). Sin Chromium disponible, entrega la versión imprimible. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const t = await getT();
   const user = await getSession();
-  if (!user || !can(user, 'presupuestos', 'V')) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!user || !can(user, 'presupuestos', 'V')) return NextResponse.json({ error: t('common.unauthorized') }, { status: 401 });
   const { id } = await params; const db = await getDb();
-  const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id)); if (!q) return NextResponse.json({ error: 'No existe' }, { status: 404 });
+  const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id)); if (!q) return NextResponse.json({ error: t('common.doesNotExist') }, { status: 404 });
   const origin = new URL(req.url).origin; const sess = (await cookies()).get('mf_session')?.value;
   try {
     const { chromium } = await import('playwright');

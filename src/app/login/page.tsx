@@ -2,15 +2,18 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
 import { Mark } from '@/components/shell';
 import { LoginForm } from './form';
+import { getT } from '@/i18n/server';
+import { LocaleSwitcher } from '@/components/locale-switcher';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Ingresar' };
+export async function generateMetadata() { return { title: (await getT())('auth.submit') }; }
 
 // perfil de un jarrón: ancho de cada capa (de abajo hacia arriba)
 const LAYERS = Array.from({ length: 30 }, (_, i) => { const t = i / 29; return 52 + 30 * Math.sin(t * Math.PI * 1.15 + 0.35) - 14 * t; });
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   if (await getSession()) redirect('/');
+  const t = await getT();
   const { next } = await searchParams;
   return (
     <main className="min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
@@ -30,16 +33,17 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="mt-1 h-px bg-white/10" />
         </div>
         <div className="relative max-w-md">
-          <p className="font-display text-[2.6rem] leading-[1.02] font-semibold tracking-[-.03em]">Del archivo a la entrega,<br /><span className="text-[var(--accent)]">capa a capa.</span></p>
-          <p className="mt-4 text-sm text-white/70 max-w-sm">Pedidos, presupuestos, laminado en el servidor, inventario y cola de producción de tu taller, en un solo lugar.</p>
+          <p className="font-display text-[2.6rem] leading-[1.02] font-semibold tracking-[-.03em]">{t('auth.heroLine1')}<br /><span className="text-[var(--accent)]">{t('auth.heroLine2')}</span></p>
+          <p className="mt-4 text-sm text-white/70 max-w-sm">{t('auth.heroText')}</p>
         </div>
       </section>
       <section className="flex items-center justify-center p-5 sm:p-10">
         <div className="w-full max-w-sm">
+          <div className="flex justify-end mb-4"><LocaleSwitcher /></div>
           <div className="flex items-center gap-3 mb-10 lg:hidden"><Mark className="h-10 w-10" /><span className="font-display text-xl font-semibold tracking-tight">MiniFactory</span></div>
-          <div className="eyebrow mb-3 flex items-center gap-2"><span className="h-px w-6 bg-[var(--accent)]" />Acceso al taller</div>
-          <h1 className="h1 mb-2">Hola de nuevo</h1>
-          <p className="muted text-sm mb-7">Ingresa con tu correo del taller.</p>
+          <div className="eyebrow mb-3 flex items-center gap-2"><span className="h-px w-6 bg-[var(--accent)]" />{t('auth.eyebrow')}</div>
+          <h1 className="h1 mb-2">{t('auth.greeting')}</h1>
+          <p className="muted text-sm mb-7">{t('auth.intro')}</p>
           <LoginForm next={next} demo={process.env.DEMO_HINT === '1'} />
         </div>
       </section>

@@ -30,7 +30,7 @@ export function providerFor(cfg: Pick<AiConfig, 'provider'>): AIProvider {
   if (cfg.provider === 'anthropic') return anthropic;
   if (cfg.provider === 'openai-compat') return openaiCompat;
   if (cfg.provider === 'mock') return mock;
-  throw new AIError('No hay un proveedor de IA configurado', 'disabled');
+  throw new AIError('ai.err.noProvider', 'disabled');
 }
 
 /* Cortacircuitos: tras 3 fallos seguidos de una función, se pausa 5 min. */
@@ -62,14 +62,14 @@ const textOf = (c: AIContent) => (typeof c === 'string' ? c : c.map((p) => (p.ty
 
 /** Comprueba, en el servidor, que el usuario puede usar la función (interruptor maestro, función activa y rol permitido). */
 export function assertFeatureAccess(cfg: AiConfig, feature: string, user?: (PermUser & { id: string }) | null) {
-  if (!cfg.enabled) throw new AIError('La IA no está activada en este taller', 'disabled');
+  if (!cfg.enabled) throw new AIError('ai.err.disabled', 'disabled');
   const f = FEATURES[feature as keyof typeof FEATURES];
-  if (!f) throw new AIError('Función de IA desconocida', 'config');
-  if (cfg.features[feature as keyof typeof FEATURES] !== true) throw new AIError('Esta función de IA está desactivada', 'disabled');
-  if (!user) throw new AIError('Falta el usuario', 'forbidden');
-  if (!can(user, 'ia', 'C')) throw new AIError('No tienes permiso para usar la IA', 'forbidden');
+  if (!f) throw new AIError('ai.err.unknownFeature', 'config');
+  if (cfg.features[feature as keyof typeof FEATURES] !== true) throw new AIError('ai.err.featureOff', 'disabled');
+  if (!user) throw new AIError('ai.err.missingUser', 'forbidden');
+  if (!can(user, 'ia', 'C')) throw new AIError('ai.err.noPermission', 'forbidden');
   const roles = cfg.roles[feature as keyof typeof FEATURES] ?? ['admin'];
-  if (!roles.includes(user.role)) throw new AIError('Tu rol no tiene acceso a esta función de IA', 'forbidden');
+  if (!roles.includes(user.role)) throw new AIError('ai.err.roleDenied', 'forbidden');
 }
 
 async function logCall(row: Omit<typeof s.aiCalls.$inferInsert, 'workspaceId' | 'id' | 'createdAt'>, retentionDays: number) {
@@ -87,19 +87,19 @@ async function logCall(row: Omit<typeof s.aiCalls.$inferInsert, 'workspaceId' | 
 export async function runTask<T>(req: AIRequest<T>, ctx: RunContext = {}): Promise<RunResult<T>> {
   const cfg = ctx.config ?? (await getAiConfig());
   if (req.feature !== 'system.ping' || !ctx.skipFeatureCheck) assertFeatureAccess(cfg, req.feature, ctx.user);
-  else if (!cfg.configured) throw new AIError('Falta configurar el proveedor', 'config');
+  else if (!cfg.configured) throw new AIError('ai.err.notConfigured', 'config');
   const provider = providerFor(cfg);
   if (cfg.provider !== 'mock' && cfg.baseUrl) assertAiUrl(cfg.baseUrl, cfg.localOnly);
-  else if (cfg.provider === 'openai-compat') throw new AIError('Falta la URL base del proveedor', 'config');
-  else if (cfg.localOnly && cfg.provider === 'anthropic' && !cfg.baseUrl) throw new AIError('Modo «solo local» activo: Anthropic en la nube no está permitido', 'config');
+  else if (cfg.provider === 'openai-compat') throw new AIError('ai.err.missingBaseUrl', 'config');
+  else if (cfg.localOnly && cfg.provider === 'anthropic' && !cfg.baseUrl) throw new AIError('ai.err.anthropicLocalOnly', 'config');
 
   const hasImage = Array.isArray(req.user) && req.user.some((p) => p.type === 'image');
   if (hasImage) {
-    if (!cfg.privacy.sendImages) throw new AIError('El envío de imágenes está desactivado en la configuración de privacidad', 'forbidden');
-    if (!provider.capabilities.vision) throw new AIError('El proveedor no admite imágenes', 'config');
+    if (!cfg.privacy.sendImages) throw new AIError('ai.err.imagesOff', 'forbidden');
+    if (!provider.capabilities.vision) throw new AIError('ai.err.noVision', 'config');
   }
   const model = hasImage && cfg.models.vision ? cfg.models.vision : cfg.models[req.tier];
-  if (!model) throw new AIError('Falta el modelo para esta función', 'config');
+  if (!model) throw new AIError('ai.err.noModel', 'config');
 
   const key = hashInput(req.feature, ctx.promptVersion ?? '', model, req.system, Array.isArray(req.user) ? req.user.map((p) => (p.type === 'text' ? p.text : crypto.createHash('sha256').update(p.data).digest('hex'))) : req.user);
   const redactor = ctx.redactor ?? createRedactor(cfg.privacy.redactPII);
@@ -112,7 +112,7 @@ export async function runTask<T>(req: AIRequest<T>, ctx: RunContext = {}): Promi
   }
 
   const br = breaker().get(req.feature);
-  if (br && br.openUntil > Date.now()) throw new AIError('Esta función de IA está en pausa por errores repetidos del proveedor; reintenta en unos minutos', 'circuit');
+  if (br && br.openUntil > Date.now()) throw new AIError('ai.err.circuit', 'circuit');
   await assertBudget(cfg.budget, ctx.user?.id);
 
   const user = mapContent(req.user, redactor);
@@ -138,7 +138,7 @@ export async function runTask<T>(req: AIRequest<T>, ctx: RunContext = {}): Promi
     let parsed: z.ZodSafeParseResult<T>;
     try { parsed = req.schema.safeParse(extractJson(res.text)); } catch (e) { parsed = { success: false, error: new z.ZodError([{ code: 'custom', message: (e as Error).message, path: [] }]) } as z.ZodSafeParseResult<T>; }
     const keepLog = cfg.retention.logPromptsDays > 0 ? { system: req.system, user: textOf(user), response: res.text } : null;
-    await logCall({ ...base, model: res.model, inTokens: inTok, outTokens: outTok, costUsd, latencyMs: Date.now() - t0, ok: parsed.success, error: parsed.success ? null : 'Salida inválida', cacheHit: false, promptLog: keepLog }, cfg.retention.logPromptsDays);
+    await logCall({ ...base, model: res.model, inTokens: inTok, outTokens: outTok, costUsd, latencyMs: Date.now() - t0, ok: parsed.success, error: parsed.success ? null : 'invalid_output', cacheHit: false, promptLog: keepLog }, cfg.retention.logPromptsDays);
     if (parsed.success) {
       breaker().delete(req.feature);
       const out = { data: parsed.data, usage: total, model: res.model };
@@ -148,7 +148,7 @@ export async function runTask<T>(req: AIRequest<T>, ctx: RunContext = {}): Promi
     feedback = `\n\nTu respuesta anterior no cumplió el formato. Errores:\n${parsed.error.issues.slice(0, 6).map((i) => `- ${i.path.join('.') || '(raíz)'}: ${i.message}`).join('\n')}\nCorrige y responde de nuevo solo con el JSON.`;
   }
   trip(req.feature);
-  throw new AIError(`El proveedor no devolvió una respuesta con el formato esperado${lastText ? '' : ' (vacía)'}`, 'invalid');
+  throw new AIError('ai.err.invalid', 'invalid');
 }
 
 function appendText(c: AIContent, extra: string): AIContent {

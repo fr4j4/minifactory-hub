@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
+import { useT } from '@/i18n/client';
 
 export interface ViewerMachine { id: string; name: string; volX: number; volY: number; volZ: number }
 type Mode = 'solido' | 'alambrico' | 'rayosx' | 'normales';
@@ -14,7 +15,7 @@ const fits = (d: [number, number, number], v: [number, number, number]) => (d[0]
 function parseMesh(buf: ArrayBuffer) {
   const dv = new DataView(buf);
   const magic = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
-  if (magic !== 'MFM1') throw new Error('Formato de vista previa desconocido');
+  if (magic !== 'MFM1') throw new Error('Unknown preview format');
   const nv = dv.getUint32(4, true), ni = dv.getUint32(8, true), flags = dv.getUint32(12, true), origTris = dv.getUint32(16, true);
   const verts = new Float32Array(buf, 20, nv * 3);
   const idx = new Uint32Array(buf, 20 + nv * 12, ni);
@@ -28,6 +29,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
   analysis?: { dimX: number; dimY: number; dimZ: number; triangles: number } | null; className?: string; initialMode?: Mode;
   onCapture?: (dataUrl: string) => void;
 }) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null);
   const S = useRef<any>({}); // estado de three (no reactivo)
   const [status, setStatus] = useState<'cargando' | 'listo' | 'error'>('cargando');
@@ -47,11 +49,12 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
 
   /* ───────── escena ───────── */
   useEffect(() => {
+    setStatus('cargando'); setErr(''); setInfo(null); setMeasure(null);
     const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.localClippingEnabled = true;
-    el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'viewer-canvas'); renderer.domElement.setAttribute('aria-label', 'Visor 3D del modelo'); renderer.domElement.setAttribute('role', 'img');
+    el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'viewer-canvas'); renderer.domElement.setAttribute('aria-label', t('viewer.n3dModelViewer')); renderer.domElement.setAttribute('role', 'img');
     const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x161615 : 0xe8e5de);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000); camera.up.set(0, 0, 1);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.12; controls.screenSpacePanning = true;
@@ -88,7 +91,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     (async () => {
       try {
         const res = await fetch(`/api/files/v/${versionId}/mesh`);
-        if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? 'La vista previa aún se está generando. Recarga en unos segundos.' : 'No se pudo cargar el modelo');
+        if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? t('viewer.thePreviewIsStillBeing') : t('viewer.theModelCouldNotBe'));
         const m = parseMesh(await res.arrayBuffer()); if (disposed) return;
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(m.verts, 3)); geo.setIndex(new THREE.BufferAttribute(m.idx, 1));
@@ -184,67 +187,67 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     <div className={cn('card overflow-hidden', className)}>
       <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
         <div ref={host} className="absolute inset-0" data-testid="viewer-host"><div data-dim-labels className="pointer-events-none absolute inset-0 overflow-hidden" /></div>
-        {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">Cargando modelo…</div>}
+        {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingModel')}</div>}
         {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-red-600 dark:text-red-400" role="alert">{err}</div>}
         {status === 'listo' && (
           <>
-            <div className="absolute left-2 top-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]" role="toolbar" aria-label="Vistas">
-              {(['frente', 'arriba', 'lado', 'iso'] as const).map((v) => <button key={v} className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view(v)} data-testid={`view-${v}`}>{{ frente: 'Frente', arriba: 'Arriba', lado: 'Lateral', iso: 'Isométrica' }[v]}</button>)}
-              <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">Encuadrar</button>
+            <div className="absolute left-2 top-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]" role="toolbar" aria-label={t('viewer.views')}>
+              {(['frente', 'arriba', 'lado', 'iso'] as const).map((v) => <button key={v} className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view(v)} data-testid={`view-${v}`}>{{ frente: t('viewer.front'), arriba: t('viewer.top'), lado: t('viewer.side'), iso: t('viewer.isometric') }[v]}</button>)}
+              <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">{t('viewer.fitToView')}</button>
             </div>
-            {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge">{cur.ok ? `✓ Cabe en ${cur.m.name}` : `✕ No cabe en ${cur.m.name}`}</div>}
-            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? 'Elige el segundo punto' : <>Distancia <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
-            {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">Malla simplificada para el visor ({(info.tris / 1000).toFixed(0)}k de {(info.orig / 1000).toFixed(0)}k triángulos)</div>}
+            {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge">{cur.ok ? t('viewer.fitsIn', { m: cur.m.name }) : t('viewer.doesNotFitIn', { m: cur.m.name })}</div>}
+            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? t('viewer.chooseTheSecondPoint') : <>{t('viewer.distance')} <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
+            {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.simplifiedMesh', { shown: (info.tris / 1000).toFixed(0), total: (info.orig / 1000).toFixed(0) })}</div>}
           </>
         )}
       </div>
       {status === 'listo' && (
         <div className="border-t border-slate-200 dark:border-slate-700">
-          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>Herramientas {panel ? '▾' : '▸'}</button>
+          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>{t('viewer.tools')} {panel ? '▾' : '▸'}</button>
           <div className={cn('p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm', !panel && 'hidden md:grid')}>
             <div>
-              <div className="label">Modo de visualización</div>
-              <div className="flex flex-wrap gap-1">{([['solido', 'Sólido'], ['alambrico', 'Alámbrico'], ['rayosx', 'Rayos X'], ['normales', 'Normales']] as const).map(([k, l]) => <button key={k} className={btn(mode === k)} onClick={() => setMode(k)} aria-pressed={mode === k} data-testid={`mode-${k}`}>{l}</button>)}</div>
+              <div className="label">{t('viewer.displayMode')}</div>
+              <div className="flex flex-wrap gap-1">{([['solido', t('viewer.solid')], ['alambrico', t('viewer.wireframe')], ['rayosx', t('viewer.xRay')], ['normales', t('viewer.normals')]] as const).map(([k, l]) => <button key={k} className={btn(mode === k)} onClick={() => setMode(k)} aria-pressed={mode === k} data-testid={`mode-${k}`}>{l}</button>)}</div>
             </div>
             <div>
-              <div className="label">Herramienta</div>
+              <div className="label">{t('viewer.tool')}</div>
               <div className="flex flex-wrap gap-1">
-                <button className={btn(tool === 'orbitar')} onClick={() => setTool('orbitar')} aria-pressed={tool === 'orbitar'}>Orbitar</button>
-                <button className={btn(tool === 'medir')} onClick={() => { setTool('medir'); clearMeasure(); }} aria-pressed={tool === 'medir'} data-testid="tool-measure">Medir</button>
-                <button className={btn(tool === 'cara')} onClick={() => setTool('cara')} aria-pressed={tool === 'cara'} data-testid="tool-face">Cara a la cama</button>
-                {measure && <button className="btn-ghost btn-sm" onClick={clearMeasure}>Borrar medida</button>}
+                <button className={btn(tool === 'orbitar')} onClick={() => setTool('orbitar')} aria-pressed={tool === 'orbitar'}>{t('viewer.orbit')}</button>
+                <button className={btn(tool === 'medir')} onClick={() => { setTool('medir'); clearMeasure(); }} aria-pressed={tool === 'medir'} data-testid="tool-measure">{t('viewer.measure')}</button>
+                <button className={btn(tool === 'cara')} onClick={() => setTool('cara')} aria-pressed={tool === 'cara'} data-testid="tool-face">{t('viewer.faceOnBed')}</button>
+                {measure && <button className="btn-ghost btn-sm" onClick={clearMeasure}>{t('viewer.clearMeasurement')}</button>}
               </div>
-              <p className="text-xs muted mt-1">{tool === 'medir' ? 'Toca dos puntos sobre la pieza.' : tool === 'cara' ? 'Toca la cara que quieres apoyar en la cama.' : 'Arrastra para girar; dos dedos para desplazar y pellizcar para acercar.'}</p>
+              <p className="text-xs muted mt-1">{tool === 'medir' ? t('viewer.tapTwoPointsOnThe') : tool === 'cara' ? t('viewer.tapTheFaceYouWant') : t('viewer.dragToRotateTwoFingers')}</p>
             </div>
             <div>
-              <div className="label">Máquina (volumen de impresión)</div>
-              <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label="Máquina para verificar si cabe" data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
-              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label="Cabe en">{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}>{f.ok ? '✓' : '✕'} {f.m.name}</li>)}</ul>}
+              <div className="label">{t('viewer.machineBuildVolume')}</div>
+              <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label={t('viewer.machineToCheckFit')} data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
+              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}>{f.ok ? '✓' : '✕'} {f.m.name}</li>)}</ul>}
             </div>
             <div>
-              <div className="label">Dimensiones</div>
+              <div className="label">{t('viewer.dimensions')}</div>
               <div className="tabular font-medium" data-testid="dims">{dims ? `${f1(dims[0])} × ${f1(dims[1])} × ${f1(dims[2])} mm` : '—'}</div>
-              <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> Mostrar cotas en el visor</label>
+              <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> {t('viewer.showDimensionsInTheViewer')}</label>
             </div>
             <div>
-              <label className="label" htmlFor="scale">Escala de prueba: {scale}%</label>
+              <label className="label" htmlFor="scale">{t('viewer.testScale', { scale })}</label>
               <input id="scale" type="range" min={10} max={300} value={scale} onChange={(e) => setScale(+e.target.value)} className="w-full" data-testid="scale-slider" />
-              <div className="flex flex-wrap gap-1 mt-1.5">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className="btn-ghost btn-sm" onClick={() => rotate(a, 90)} data-testid={`rot-${a}`}>Girar {a.toUpperCase()} 90°</button>)}<button className="btn-ghost btn-sm" onClick={resetOrientation}>Restablecer</button></div>
+              <div className="flex flex-wrap gap-1 mt-1.5">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className="btn-ghost btn-sm" onClick={() => rotate(a, 90)} data-testid={`rot-${a}`}>{t('viewer.rotateAxis', { axis: a.toUpperCase() })}</button>)}<button className="btn-ghost btn-sm" onClick={resetOrientation}>{t('viewer.reset')}</button></div>
             </div>
             <div>
-              <div className="label">Plano de corte (sección)</div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.on} onChange={(e) => setSection((s) => ({ ...s, on: e.target.checked }))} data-testid="section-toggle" /> Activar</label>
-              {section.on && <div className="mt-1.5 space-y-1.5"><div className="flex gap-1">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className={btn(section.axis === a)} onClick={() => setSection((s) => ({ ...s, axis: a }))}>{a.toUpperCase()}</button>)}</div><input type="range" min={0} max={100} value={section.pos} onChange={(e) => setSection((s) => ({ ...s, pos: +e.target.value }))} className="w-full" aria-label="Posición del plano de corte" data-testid="section-slider" /></div>}
+              <div className="label">{t('viewer.cuttingPlaneSection')}</div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.on} onChange={(e) => setSection((s) => ({ ...s, on: e.target.checked }))} data-testid="section-toggle" /> {t('viewer.enable')}</label>
+              {section.on && <div className="mt-1.5 space-y-1.5"><div className="flex gap-1">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className={btn(section.axis === a)} onClick={() => setSection((s) => ({ ...s, axis: a }))}>{a.toUpperCase()}</button>)}</div><input type="range" min={0} max={100} value={section.pos} onChange={(e) => setSection((s) => ({ ...s, pos: +e.target.value }))} className="w-full" aria-label={t('viewer.cuttingPlanePosition')} data-testid="section-slider" /></div>}
             </div>
             <div>
-              <div className="label">Análisis de voladizos</div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> Resaltar caras en magenta</label>
-              {overhang.on && <div className="mt-1.5"><label className="text-xs muted" htmlFor="oh">Ángulo: {overhang.deg}°</label><input id="oh" type="range" min={20} max={80} value={overhang.deg} onChange={(e) => setOverhang((o) => ({ ...o, deg: +e.target.value }))} className="w-full" data-testid="overhang-angle" /></div>}
+              <div className="label">{t('viewer.overhangAnalysis')}</div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> {t('viewer.highlightFacesInMagenta')}</label>
+              {overhang.on && <div className="mt-1.5"><label className="text-xs muted" htmlFor="oh">{t('viewer.angle', { deg: overhang.deg })}</label><input id="oh" type="range" min={20} max={80} value={overhang.deg} onChange={(e) => setOverhang((o) => ({ ...o, deg: +e.target.value }))} className="w-full" data-testid="overhang-angle" /></div>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <div className="label">Captura</div>
-              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture">📷 Capturar imagen del visor</button>
-              <span className="text-xs muted">Se descarga como PNG para adjuntar al presupuesto.</span>
+              <div className="label">{t('viewer.capture')}</div>
+              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture">{t('viewer.captureViewerImage')}</button>
+              <span className="text-xs muted">{t('viewer.itIsDownloadedAsA')}</span>
             </div>
           </div>
         </div>

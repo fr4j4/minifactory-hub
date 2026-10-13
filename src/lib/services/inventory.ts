@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, ne, sql, desc } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
+import { getT } from '@/i18n/server';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -34,16 +35,17 @@ export async function materialStock(db?: Db): Promise<MaterialStock[]> {
 }
 
 export async function createSpool(o: { materialId: string; initialG?: number; tareG?: number; lot?: string; unitCost?: number; location?: string; boughtAt?: string; supplierText?: string; userId?: string | null }, db?: Db) {
+  const t = await getT();
   db = db ?? (await getDb());
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, o.materialId));
-  if (!m) throw new Error('Material no encontrado');
+  if (!m) throw new Error(t('inventory.materialNotFound'));
   const code = await nextSpoolCode(db);
   const initial = o.initialG ?? 1000;
   const [sp] = await db.insert(s.spools).values({
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,
     unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? new Date().toISOString().slice(0, 10), status: 'nueva', createdBy: o.userId ?? null,
   }).returning();
-  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? `Compra: ${o.supplierText}` : 'Compra', createdBy: o.userId ?? null });
+  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
   await audit('spool', sp.id, 'entrada', { initialG: initial, unitCost: o.unitCost ?? m.costPerKg }, o.userId);
   return sp;
 }
@@ -56,13 +58,14 @@ async function nextSpoolCode(db: Db) {
 
 /** Ajuste por pesaje: el usuario pesa la bobina con su carrete, el sistema resta la tara. */
 export async function weighSpool(spoolId: string, grossG: number, userId?: string | null) {
+  const t = await getT();
   const db = await getDb();
   const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, spoolId));
-  if (!sp) throw new Error('Bobina no encontrada');
+  if (!sp) throw new Error(t('common.spoolNotFound'));
   const net = Math.max(0, grossG - sp.tareG);
   const delta = net - sp.remainingG;
   await db.update(s.spools).set({ remainingG: net, status: net <= 0 ? 'agotada' : sp.status === 'nueva' ? 'abierta' : sp.status, updatedAt: new Date() }).where(eq(s.spools.id, spoolId));
-  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'ajuste', spoolId, qty: delta, note: `Pesaje: bruto ${grossG} g − tara ${sp.tareG} g = ${net} g`, createdBy: userId ?? null });
+  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'ajuste', spoolId, qty: delta, note: t('inventory.weighingGrossGTareG', { grossG, tare: sp.tareG, net }), createdBy: userId ?? null });
   await audit('spool', spoolId, 'pesaje', { before: sp.remainingG, after: net }, userId);
   await checkLowStock(sp.materialId);
   return { before: sp.remainingG, after: net, delta };
@@ -81,19 +84,20 @@ export async function consumeFromSpool(o: { spoolId: string; grams: number; kind
 
 /** Alerta de stock bajo (por peso total del material/color). */
 export async function checkLowStock(materialId: string) {
+  const t = await getT();
   const all = await materialStock();
   const st = all.find((x) => x.materialId === materialId);
   if (!st || !st.low) return;
   const db = await getDb();
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId));
-  const title = `Stock bajo: ${m.type} ${m.colorName}`;
+  const title = t('inventory.lowStock', { type: m.type, color: m.colorName });
   const [exists] = await db.select({ id: s.notifications.id }).from(s.notifications).where(and(eq(s.notifications.kind, 'stock_bajo'), eq(s.notifications.title, title), eq(s.notifications.read, false))).limit(1);
-  if (!exists) await notify('stock_bajo', title, `Quedan ${Math.round(st.availableG)} g disponibles (mínimo ${st.minG} g).`, '/inventario');
+  if (!exists) await notify('stock_bajo', title, t('inventory.gAvailableMinimumG', { grams: Math.round(st.availableG), min: st.minG }), '/inventario');
 }
 
 /** Lista de compras sugerida: lo que falta para llegar al doble del mínimo. */
 export async function shoppingList() {
-  const db = await getDb();
+  const t = await getT(); const db = await getDb();
   const st = await materialStock(db);
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
   const items = await db.select().from(s.inventoryItems).where(isNull(s.inventoryItems.deletedAt));
@@ -101,22 +105,23 @@ export async function shoppingList() {
   for (const x of st.filter((y) => y.low)) {
     const m = mats.find((q) => q.id === x.materialId)!;
     const target = x.minG * 2; const miss = Math.max(0, target - x.availableG);
-    out.push({ kind: 'Material', name: `${m.manufacturer ?? ''} ${m.type} ${m.colorName}`.trim(), missing: `${Math.ceil(miss / 1000)} bobina(s) (≈ ${Math.round(miss)} g)`, supplier: m.supplierText });
+    out.push({ kind: t('inventory.kindMaterial'), name: `${m.manufacturer ?? ''} ${m.type} ${m.colorName}`.trim(), missing: t('inventory.missingSpools', { count: Math.ceil(miss / 1000), grams: Math.round(miss) }), supplier: m.supplierText });
   }
   for (const it of items.filter((i) => i.stock <= i.minStock)) out.push({ kind: it.category, name: it.name, missing: `${Math.max(1, Math.ceil(it.minStock * 2 - it.stock))} ${it.unit}`, supplier: it.supplierText });
   return out;
 }
 
 export async function moveItem(o: { itemId: string; qty: number; kind: 'entrada' | 'consumo' | 'ajuste' | 'descarte'; unitCost?: number; note?: string; userId?: string | null }) {
+  const t = await getT();
   const db = await getDb();
   const [it] = await db.select().from(s.inventoryItems).where(eq(s.inventoryItems.id, o.itemId));
-  if (!it) throw new Error('Ítem no encontrado');
+  if (!it) throw new Error(t('inventory.itemNotFound'));
   const delta = o.kind === 'entrada' ? Math.abs(o.qty) : o.kind === 'ajuste' ? o.qty : -Math.abs(o.qty);
   const stock = it.stock + delta;
   let unitCost = it.unitCost;
   if (o.kind === 'entrada' && o.unitCost != null && stock > 0) unitCost = Math.round((it.stock * it.unitCost + Math.abs(o.qty) * o.unitCost) / stock);
   await db.update(s.inventoryItems).set({ stock, unitCost, updatedAt: new Date() }).where(eq(s.inventoryItems.id, o.itemId));
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.kind, itemId: o.itemId, qty: delta, unitCost: o.unitCost ?? it.unitCost, note: o.note ?? null, createdBy: o.userId ?? null });
-  if (stock <= it.minStock) await notify('stock_bajo', `Stock bajo: ${it.name}`, `Quedan ${stock} ${it.unit} (mínimo ${it.minStock}).`, '/inventario?tab=otros');
+  if (stock <= it.minStock) await notify('stock_bajo', t('inventory.lowStock2', { name: it.name }), t('inventory.leftMinimum', { stock, unit: it.unit, min: it.minStock }), '/inventario?tab=otros');
   return stock;
 }

@@ -24,13 +24,13 @@ export function isLocalHost(host: string): boolean {
 /** Valida la URL base de un proveedor. Nunca permite metadatos de nube (169.254.x) ni http hacia internet. */
 export function assertAiUrl(raw: string, localOnly: boolean): URL {
   let u: URL;
-  try { u = new URL(raw); } catch { throw new AIError('La URL del proveedor no es válida', 'config'); }
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new AIError('La URL debe empezar con http:// o https://', 'config');
-  if (u.username || u.password) throw new AIError('La URL no debe incluir usuario ni contraseña', 'config');
-  if (/^169\.254\./.test(u.hostname)) throw new AIError('Dirección no permitida', 'config');
+  try { u = new URL(raw); } catch { throw new AIError('ai.err.urlInvalid', 'config'); }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new AIError('ai.err.urlScheme', 'config');
+  if (u.username || u.password) throw new AIError('ai.err.urlCredentials', 'config');
+  if (/^169\.254\./.test(u.hostname)) throw new AIError('ai.err.urlForbidden', 'config');
   const local = isLocalHost(u.hostname);
-  if (localOnly && !local) throw new AIError('Modo «solo local» activo: el proveedor debe estar en tu red (localhost, 192.168.x.x, nombre de servicio…)', 'config');
-  if (u.protocol === 'http:' && !local) throw new AIError('Los proveedores fuera de tu red deben usar https://', 'config');
+  if (localOnly && !local) throw new AIError('ai.err.urlLocalOnly', 'config');
+  if (u.protocol === 'http:' && !local) throw new AIError('ai.err.urlHttps', 'config');
   return u;
 }
 

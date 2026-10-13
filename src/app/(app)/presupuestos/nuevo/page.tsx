@@ -7,10 +7,12 @@ import { loadEditorData } from '@/lib/editor-data';
 import { getSettings } from '@/lib/settings';
 import { getDb, s } from '@/db';
 import { eq } from 'drizzle-orm';
+import { getT } from '@/i18n/server';
 
-export const metadata = { title: 'Nuevo presupuesto' };
+export async function generateMetadata() { return { title: (await getT())('meta.newQuote') }; }
 
 export default async function NewQuote({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const t = await getT();
   const user = await pagePerm('presupuestos', 'C'); const sp = await searchParams;
   const { ctx, customers, models, variants } = await loadEditorData(); const st = await getSettings(); const db = await getDb();
   const valid = new Date(Date.now() + st.quoteValidDays * 86400_000).toISOString().slice(0, 10);
@@ -25,13 +27,13 @@ export default async function NewQuote({ searchParams }: { searchParams: Promise
       const mat = ctx.materials.find((x) => x.id === it.materialId); if (mat) it.color = mat.colorName;
       if (sp.run) {
         const [r] = await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, sp.run));
-        if (r?.status === 'done') { const g = (r.filament ?? []).reduce((a, f) => a + f.g, 0); const h = (r.timeS ?? 0) / 3600; Object.assign(it, { gramsTotal: g, hoursTotal: h, unitGrams: g / copies, unitHours: h / copies, sliceRunId: r.id, processProfileId: r.processProfileId ?? it.processProfileId, origin: { grams: 'slicer', hours: 'slicer', runId: r.id, engine: `OrcaSlicer ${r.engineVersion}` } }); }
+        if (r?.status === 'done') { const g = (r.filament ?? []).reduce((a, f) => a + f.g, 0); const h = (r.timeS ?? 0) / 3600; Object.assign(it, { gramsTotal: g, hoursTotal: h, unitGrams: g / copies, unitHours: h / copies, sliceRunId: r.id, processProfileId: r.processProfileId ?? it.processProfileId, origin: { grams: 'slicer', hours: 'slicer', runId: r.id, engine: t('quotes.orcaslicer', { version: r.engineVersion }) } }); }
       }
       items.push(it);
     }
   }
   const initial: QuoteState = { customerId: sp.customer ?? null, customerName: '', customerPhone: '', source: '', title: '', urgency: 'normal', discount: 0, finalTotal: null, priceReason: '', notes: '', validUntil: valid, items, links: [] };
   const c = customers.find((x) => x.id === initial.customerId); if (c) { initial.customerName = c.name; initial.customerPhone = c.phone ?? ''; }
-  return (<><PageHeader back={{ href: '/presupuestos', label: 'Presupuestos' }} title="Nuevo presupuesto" subtitle="Agrega uno o varios modelos. Se guarda solo como borrador mientras trabajas." />
+  return (<><PageHeader back={{ href: '/presupuestos', label: t('nav.quotes') }} title={t('common.newQuote')} subtitle={t('quotes.addOneOrMoreModels')} />
     <QuoteEditor initial={initial} ctx={ctx} customers={customers} models={models} variants={variants} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} /></>);
 }

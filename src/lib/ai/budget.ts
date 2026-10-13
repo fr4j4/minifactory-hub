@@ -35,11 +35,11 @@ export async function assertBudget(b: { monthlyUsd: number | null; perUserDailyC
   const db = await getDb();
   if (b.hardStop && b.monthlyUsd != null) {
     const { costUsd } = await spendThisMonth();
-    if (costUsd >= b.monthlyUsd) throw new AIError(`Se alcanzó el tope mensual de IA (US$ ${b.monthlyUsd.toFixed(2)}).`, 'budget');
+    if (costUsd >= b.monthlyUsd) throw new AIError('ai.err.budgetMonthly', 'budget', { params: { usd: b.monthlyUsd.toFixed(2) } });
   }
   if (userId && b.perUserDailyCalls > 0) {
     const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(s.aiCalls)
       .where(and(eq(s.aiCalls.workspaceId, WORKSPACE_ID), eq(s.aiCalls.userId, userId), gte(s.aiCalls.createdAt, dayStart()), eq(s.aiCalls.cacheHit, false)));
-    if (Number(r.n) >= b.perUserDailyCalls) throw new AIError('Alcanzaste el límite diario de usos de IA.', 'budget');
+    if (Number(r.n) >= b.perUserDailyCalls) throw new AIError('ai.err.budgetDaily', 'budget');
   }
 }

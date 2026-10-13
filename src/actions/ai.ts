@@ -8,6 +8,8 @@ import { assertAiUrl, getAiConfig, type AiConfig } from '@/lib/ai/config';
 import { pingAi } from '@/lib/ai';
 import { clearPromptLogs } from '@/lib/ai/run';
 import { FEATURE_KEYS, type AiSettings } from '@/lib/ai/types';
+import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 import { safe } from './common';
 
 const Roles = z.array(z.enum(['admin', 'operador', 'ventas']));
@@ -30,13 +32,13 @@ export type AiSettingsInput = z.infer<typeof Input>;
 
 function parse(raw: unknown): AiSettingsInput {
   const r = Input.safeParse(raw);
-  if (!r.success) throw new Error('Configuración de IA inválida: ' + r.error.issues[0]?.path.join('.') + ' ' + r.error.issues[0]?.message);
+  if (!r.success) throw new LocalizedError('ai.err.invalidSettings', { detail: `${r.error.issues[0]?.path.join('.')} ${r.error.issues[0]?.message}` });
   const i = r.data;
   i.features = Object.fromEntries(Object.entries(i.features).filter(([k]) => (FEATURE_KEYS as string[]).includes(k)));
   i.roles = Object.fromEntries(Object.entries(i.roles).filter(([k]) => (FEATURE_KEYS as string[]).includes(k)));
-  if (i.provider === 'openai-compat' && !i.baseUrl) throw new Error('Indica la URL base del proveedor (por ejemplo http://ollama:11434/v1)');
+  if (i.provider === 'openai-compat' && !i.baseUrl) throw new LocalizedError('ai.err.needBaseUrl');
   if (i.baseUrl) assertAiUrl(i.baseUrl, i.localOnly);
-  if (i.provider === 'anthropic' && i.localOnly && !i.baseUrl) throw new Error('«Solo local» no es compatible con Anthropic en la nube; usa un proveedor local');
+  if (i.provider === 'anthropic' && i.localOnly && !i.baseUrl) throw new LocalizedError('ai.err.localOnlyAnthropic');
   return i;
 }
 
@@ -67,7 +69,7 @@ export async function testAiConnectionAction(raw: AiSettingsInput) {
       configured: false, enabled: true,
     } as AiConfig;
     cfg.configured = cfg.provider === 'mock' || (cfg.provider === 'anthropic' && !!cfg.apiKey) || (cfg.provider === 'openai-compat' && !!cfg.baseUrl);
-    return pingAi(cfg);
+    return pingAi(cfg, await getT());
   });
 }
 

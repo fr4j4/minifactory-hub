@@ -9,7 +9,7 @@ export const anthropic: AIProvider = {
   id: 'anthropic',
   capabilities: { vision: true, jsonSchema: true, embeddings: false },
   async complete(req, o) {
-    if (!o.apiKey) throw new AIError('Falta la clave de API de Anthropic', 'config');
+    if (!o.apiKey) throw new AIError('ai.err.missingAnthropicKey', 'config');
     const base = (o.baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
     const body: Record<string, unknown> = {
       model: o.model, max_tokens: req.maxOutputTokens, temperature: req.temperature, system: req.system,
@@ -20,7 +20,7 @@ export const anthropic: AIProvider = {
     const parts: any[] = Array.isArray(j.content) ? j.content : [];
     const tool = parts.find((p) => p.type === 'tool_use');
     const text = tool ? JSON.stringify(tool.input) : parts.filter((p) => p.type === 'text').map((p) => p.text).join('');
-    if (!text) throw new AIError('El proveedor devolvió una respuesta vacía', 'provider');
+    if (!text) throw new AIError('ai.err.emptyResponse', 'provider');
     return { text, usage: { inTokens: j.usage?.input_tokens ?? 0, outTokens: j.usage?.output_tokens ?? 0 }, model: j.model ?? o.model };
   },
 };

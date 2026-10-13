@@ -1,17 +1,21 @@
 import type { z } from 'zod';
+import { LocalizedError } from '@/i18n/errors';
+import type { MessageKey, Params } from '@/i18n/translate';
 
 /** Funciones de IA conocidas. `available` pasa a true cuando se implementa (Fase 0 solo trae la fundación). */
 export const FEATURES = {
-  'profile.advisor': { label: 'Asesor de perfiles de impresión', desc: 'Propone candidatos de perfil, los lamina y los compara.', tier: 'smart', vision: false, available: false },
-  'profile.diagnose': { label: 'Diagnóstico de problemas de impresión', desc: 'Causas probables y cambios de parámetros desde texto o foto.', tier: 'smart', vision: true, available: false },
-  'slicer.explain': { label: 'Explicar errores de laminado', desc: 'Traduce errores del laminador a acciones concretas.', tier: 'fast', vision: false, available: false },
-  'intake.parse': { label: 'Captura de pedidos desde mensajes', desc: 'Convierte un mensaje en un borrador de pedido o presupuesto.', tier: 'smart', vision: true, available: false },
-  'messages.draft': { label: 'Redacción de mensajes', desc: 'Borradores de mensajes de presupuesto, seguimiento y entrega.', tier: 'fast', vision: false, available: false },
-  'files.tag': { label: 'Etiquetado de archivos 3D', desc: 'Etiquetas, nombre y carpeta sugeridos.', tier: 'fast', vision: true, available: false },
-  'production.classify': { label: 'Clasificar causa de falla', desc: 'Normaliza la causa de falla desde notas o fotos.', tier: 'fast', vision: true, available: false },
-  'reports.ask': { label: 'Preguntas sobre reportes', desc: 'Respuestas en lenguaje natural usando los reportes existentes.', tier: 'smart', vision: false, available: false },
-} as const satisfies Record<string, { label: string; desc: string; tier: Tier; vision: boolean; available: boolean }>;
+  'profile.advisor': { tier: 'smart', vision: false, available: false },
+  'profile.diagnose': { tier: 'smart', vision: true, available: false },
+  'slicer.explain': { tier: 'fast', vision: false, available: false },
+  'intake.parse': { tier: 'smart', vision: true, available: false },
+  'messages.draft': { tier: 'fast', vision: false, available: false },
+  'files.tag': { tier: 'fast', vision: true, available: false },
+  'production.classify': { tier: 'fast', vision: true, available: false },
+  'reports.ask': { tier: 'smart', vision: false, available: false },
+} as const satisfies Record<string, { tier: Tier; vision: boolean; available: boolean }>;
 export type FeatureKey = keyof typeof FEATURES;
+/** 'profile.advisor' → 'profileAdvisor' (clave de traducción: ai.features.<clave>.label / .desc). */
+export const featureI18n = (k: string) => k.replace(/\.(\w)/g, (_, c: string) => c.toUpperCase());
 export const FEATURE_KEYS = Object.keys(FEATURES) as FeatureKey[];
 export type Tier = 'fast' | 'smart';
 export type ProviderId = 'anthropic' | 'openai-compat' | 'mock';
@@ -61,6 +65,9 @@ export const DEFAULT_AI: AiSettings = {
   retention: { logPromptsDays: 0 },
 };
 
-export class AIError extends Error {
-  constructor(message: string, readonly code: 'disabled' | 'forbidden' | 'budget' | 'config' | 'provider' | 'invalid' | 'timeout' | 'circuit', readonly status?: number) { super(message); }
+export class AIError extends LocalizedError {
+  readonly status?: number;
+  constructor(key: MessageKey, readonly code: 'disabled' | 'forbidden' | 'budget' | 'config' | 'provider' | 'invalid' | 'timeout' | 'circuit', o: { params?: Params; status?: number } = {}) {
+    super(key, o.params); this.name = 'AIError'; this.status = o.status;
+  }
 }

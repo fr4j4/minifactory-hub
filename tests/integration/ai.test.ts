@@ -172,7 +172,7 @@ describe('ejecución con proveedor simulado (mock)', () => {
     await clearPromptLogs(); expect((await aiUsage()).recent.every((r) => r.promptLog === null)).toBe(true);
   });
   it('el cortacircuitos pausa la función tras 3 fallos seguidos', async () => {
-    setMockHandler(() => { throw new AIError('caído', 'provider', 500); });
+    setMockHandler(() => { throw new AIError('ai.err.connect', 'provider', { status: 500 }); });
     for (let i = 0; i < 3; i++) await expect(call()).rejects.toMatchObject({ code: 'provider' });
     await expect(call()).rejects.toMatchObject({ code: 'circuit' });
     expect(mockCalls().length).toBe(9); // 3 intentos (reintentos de 5xx) × 3 solicitudes

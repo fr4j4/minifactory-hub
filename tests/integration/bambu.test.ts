@@ -49,7 +49,7 @@ describe('conector Bambu Lab (contra el simulador)', () => {
     let fp: string | null = null; c.on('fingerprint', (f) => { fp = f; });
     const s = await c.waitReady(8000);
     expect(fp).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
-    expect(s).toMatchObject({ state: 'RUNNING', stateLabel: 'Imprimiendo', totalLayers: 100, file: 'pieza.3mf' });
+    expect(s).toMatchObject({ state: 'RUNNING', stateLabel: 'machines.state.RUNNING', totalLayers: 100, file: 'pieza.3mf' });
     expect(s.progress).toBeGreaterThanOrEqual(40);
     expect(s.ams[0].trays).toHaveLength(4);
     expect(s.ams[0].trays[0]).toMatchObject({ type: 'PLA', color: '#e8432e', active: true, slot: '0' }); expect(s.ams[0].trays[0].remain).toBeGreaterThan(55); expect(s.ams[0].trays[0].remain).toBeLessThanOrEqual(62);
@@ -57,9 +57,9 @@ describe('conector Bambu Lab (contra el simulador)', () => {
     // el informe delta (P1) se fusiona sin perder el AMS
     await new Promise((r) => setTimeout(r, 1500)); expect(c.status.ams[0].trays[2].type).toBe('PETG'); expect(c.status.nozzle.temp).toBeGreaterThan(200);
     const wait = (pred: () => boolean) => new Promise<void>((res, rej) => { const t = setTimeout(() => rej(new Error('tiempo')), 6000); const h = () => { if (pred()) { clearTimeout(t); c.off('status', h); res(); } }; c.on('status', h); h(); });
-    c.pause(); await wait(() => c.status.state === 'PAUSE'); expect(c.status.stage).toBe('Pausa del usuario');
+    c.pause(); await wait(() => c.status.state === 'PAUSE'); expect(c.status.stage).toBe('machines.stage.16');
     c.resume(); await wait(() => c.status.state === 'RUNNING');
-    c.speed(3); await wait(() => c.status.speed.label === 'Sport');
+    c.speed(3); await wait(() => c.status.speed.label === 'machines.speedMode.3');
     c.light(false); await wait(() => c.status.light === 'off');
     expect(p1s.commands.some((m) => m.pushing?.command === 'pushall')).toBe(true);
     expect(c.status.firmware).toBe('01.08.02.00');

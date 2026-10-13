@@ -6,6 +6,7 @@ import { calcLine, calcQuote, roundPrice, type CostBreakdown, type MachineCost, 
 import { materialCostPerKg } from './inventory';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
+import { getT } from '@/i18n/server';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -79,12 +80,13 @@ async function replaceLinks(db: Db, ownerType: string, ownerId: string, links: L
 }
 
 export async function saveQuote(input: QuoteInput, user: PermUser & { id: string }): Promise<string> {
+  const t = await getT();
   const ctx = await pricingContext();
   const db = ctx.db;
   const rt = ctx.settings.rates;
   let quoteId = input.id;
   const [existing] = quoteId ? await db.select().from(s.quotes).where(eq(s.quotes.id, quoteId)) : [];
-  if (existing?.frozen) throw new Error('El presupuesto ya fue enviado o aprobado: crea una nueva versión para modificarlo');
+  if (existing?.frozen) throw new Error(t('quotes.theQuoteHasAlreadyBeen'));
   // lista de precios del cliente
   let adj = 0;
   if (input.customerId) {
@@ -144,23 +146,23 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
     lines.push({ id: row.id, qty: Math.max(1, it.qty), optional: !!it.optional, suggestedUnit: priced.suggestedUnit, finalUnit, cost: priced.costTotal - (it.shipping ?? 0), shipping: it.shipping });
   }
   await replaceLinks(db, 'quote', quoteId, input.links, user.id);
-  const t = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal });
-  if ((t.belowCost || t.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) {
-    throw new Error('El precio final queda bajo el costo. Vender bajo el costo requiere la autorización del Administrador.');
+  const tt = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal });
+  if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) {
+    throw new Error(t('quotes.theFinalPriceIsBelow2'));
   }
-  if (t.belowCost && !(header.priceReason ?? '').trim()) throw new Error('Indica el motivo del precio: queda bajo el costo.');
+  if (tt.belowCost && !(header.priceReason ?? '').trim()) throw new Error(t('quotes.enterTheReasonForThe'));
   await db.update(s.quotes).set({
-    suggestedTotal: t.suggestedTotal, total: t.total, taxAmount: t.tax, costTotal: t.cost,
-    calc: { totals: { subtotal: t.subtotal, net: t.net, marginPct: t.marginPct, diffPct: t.diffPct, belowMin: t.belowMin, belowCost: t.belowCost }, lines: t.lines } as any,
+    suggestedTotal: tt.suggestedTotal, total: tt.total, taxAmount: tt.tax, costTotal: tt.cost,
+    calc: { totals: { subtotal: tt.subtotal, net: tt.net, marginPct: tt.marginPct, diffPct: tt.diffPct, belowMin: tt.belowMin, belowCost: tt.belowCost }, lines: tt.lines } as any,
   }).where(eq(s.quotes.id, quoteId));
-  await audit('quote', quoteId, existing ? 'editar' : 'crear', { total: t.total, suggested: t.suggestedTotal, final: header.finalTotal }, user.id);
+  await audit('quote', quoteId, existing ? 'editar' : 'crear', { total: tt.total, suggested: tt.suggestedTotal, final: header.finalTotal }, user.id);
   return quoteId;
 }
 
 export async function loadQuote(id: string) {
   const db = await getDb();
   const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id));
-  if (!q) return null;
+  if (!q || q.deletedAt) return null;
   const items = await db.select().from(s.quoteItems).where(eq(s.quoteItems.quoteId, id)).orderBy(asc(s.quoteItems.position));
   const ids = items.map((i) => i.id);
   const models = ids.length ? await db.select({ qm: s.quoteItemModels, name: s.modelFiles.name, thumb: s.fileVersions.thumbKey, vnum: s.fileVersions.number })
@@ -180,15 +182,16 @@ export async function sendQuote(id: string, userId: string) {
 
 export async function rejectQuote(id: string, reason: string, userId: string) {
   const db = await getDb();
-  await db.update(s.quotes).set({ status: 'rechazado', notes: sql`coalesce(${s.quotes.notes},'') || ${'\nRechazado: ' + reason}`, frozen: true, updatedAt: new Date() }).where(eq(s.quotes.id, id));
+  await db.update(s.quotes).set({ status: 'rechazado', notes: sql`coalesce(${s.quotes.notes},'') || ${'\n' + (await getT())('quotes.rejectedPrefix') + ' ' + reason}`, frozen: true, updatedAt: new Date() }).where(eq(s.quotes.id, id));
   await audit('quote', id, 'estado', { to: 'rechazado', reason }, userId);
 }
 
 /** Cada cambio pedido por el cliente crea una versión nueva y conserva las anteriores. */
 export async function newQuoteVersion(id: string, user: PermUser & { id: string }, recalc = false): Promise<string> {
+  const t = await getT();
   const db = await getDb();
   const data = await loadQuote(id);
-  if (!data) throw new Error('Presupuesto no encontrado');
+  if (!data) throw new Error(t('quotes.quoteNotFound'));
   const { quote: q, items, models, links } = data;
   const rootId = q.rootId ?? q.id;
   const [mx] = await db.select({ v: sql<number>`max(${s.quotes.version})` }).from(s.quotes).where(eq(s.quotes.rootId, rootId));
@@ -215,4 +218,3 @@ export async function expireQuotes() {
   await db.update(s.quotes).set({ status: 'vencido' }).where(and(inArray(s.quotes.status, ['enviado', 'borrador']), sql`${s.quotes.validUntil} < ${today}`, isNull(s.quotes.deletedAt)));
 }
 
-export const QUOTE_STATUS_LABEL: Record<string, string> = { borrador: 'Borrador', enviado: 'Enviado', aprobado: 'Aprobado', rechazado: 'Rechazado', vencido: 'Vencido', reemplazado: 'Reemplazado' };

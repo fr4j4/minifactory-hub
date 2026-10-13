@@ -7,14 +7,18 @@ import { adjustStock, createSale, saveProduct, setSaleStatus, type ProductInput,
 import { createProductionOrder } from '@/lib/services/production';
 import { addPayment } from '@/lib/services/orders';
 import { safe } from './common';
+import { getT } from '@/i18n/server';
 
-export async function saveProductAction(i: ProductInput) { return safe(async () => { const u = await requirePerm('catalogo', i.id ? 'E' : 'C'); if (!i.name.trim()) throw new Error('El producto necesita un nombre'); return saveProduct(i, u); }, ['/catalogo']); }
+export async function saveProductAction(i: ProductInput) {
+  const t = await getT(); return safe(async () => { const u = await requirePerm('catalogo', i.id ? 'E' : 'C'); if (!i.name.trim()) throw new Error(t('catalog.theProductNeedsAName')); return saveProduct(i, u); }, ['/catalogo']); }
 export async function updateVariantAction(id: string, p: { price?: number; minStock?: number; location?: string | null; weightG?: number; printH?: number; materialId?: string | null; active?: boolean; priceByChannel?: Record<string, number>; barcode?: string | null }) {
   return safe(async () => { const u = await requirePerm('catalogo', 'E'); const db = await getDb(); await db.update(s.productVariants).set({ ...p, updatedAt: new Date() }).where(eq(s.productVariants.id, id)); await audit('variant', id, 'editar', p, u.id); }, ['/catalogo']);
 }
 export async function adjustStockAction(i: Parameters<typeof adjustStock>[0]) { return safe(async () => { const u = await requirePerm('catalogo', 'E'); return adjustStock(i, u); }, ['/catalogo']); }
-export async function produceAction(variantId: string, qty: number) { return safe(async () => { const u = await requirePerm('cola', 'C'); if (qty < 1) throw new Error('Indica la cantidad a producir'); return createProductionOrder({ variantId, qty, userId: u.id }); }, ['/catalogo', '/cola']); }
-export async function createSaleAction(i: QuickSaleInput) { return safe(async () => { const u = await requirePerm('ventas', 'C'); if (!i.items.length) throw new Error('Agrega al menos un producto'); return createSale(i, u); }, ['/ventas', '/catalogo']); }
+export async function produceAction(variantId: string, qty: number) {
+  const t = await getT(); return safe(async () => { const u = await requirePerm('cola', 'C'); if (qty < 1) throw new Error(t('catalog.enterTheQuantityToProduce')); return createProductionOrder({ variantId, qty, userId: u.id }); }, ['/catalogo', '/cola']); }
+export async function createSaleAction(i: QuickSaleInput) {
+  const t = await getT(); return safe(async () => { const u = await requirePerm('ventas', 'C'); if (!i.items.length) throw new Error(t('catalog.addAtLeastOneProduct')); return createSale(i, u); }, ['/ventas', '/catalogo']); }
 export async function setSaleStatusAction(id: string, status: Parameters<typeof setSaleStatus>[1], o: { tracking?: string; returnToStock?: boolean; reason?: string } = {}) { return safe(async () => { const u = await requirePerm('ventas', 'E'); await setSaleStatus(id, status, u, o); }, ['/ventas', '/catalogo']); }
 export async function saleToggleChannelAction(i: { id?: string; name: string; kind: string; commissionPct: number; commissionFixed: number; avgShipping: number; active: boolean }) {
   return safe(async () => {
