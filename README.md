@@ -52,4 +52,5 @@ Máquinas → **Conectar impresoras**: detecta las Bambu Lab de la red (SSDP), p
 ## Documentación
 
 - `docs/reporte/index.html`: informe final con capturas, videos y métricas de usabilidad.
+- `docs/mejoras/README.md`: análisis de interfaces y propuesta de mejoras (perfiles y filamentos, biblioteca 3D, estudio de laminado, cotizaciones y PDF, calculadoras, sistema visual) con estimaciones. **Solo documentación; aún sin implementar.**
 - Variables de entorno: ver `.env.example`.
