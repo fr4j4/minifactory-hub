@@ -2,7 +2,7 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit } from '../audit';
 import { entryNozzle, findVendorOf, getIndex, listFactory, profileNozzle, resolveFactory, rowNozzle, type ProfileType } from './catalog';
-import { layerRange, normNozzle, nozzleFromName, numStr, qualityTemplates, standardLayer, type TemplateKey } from './nozzle';
+import { layerRange, normNozzle, nozzleFromName, numStr, qualityTemplates, scaleSpeeds, standardLayer, type TemplateKey } from './nozzle';
 import { getT } from '@/i18n/server';
 import { tDefault } from '@/i18n/errors';
 
@@ -143,6 +143,15 @@ export async function slicingReadiness() {
     done: { machines: ms.filter((m) => m.machineProfile && m.defaultProcess).length, materials: mats.filter((m) => m.filamentProfile && !m.mismatch).length } };
 }
 
+/** Registra la configuración vigente de la máquina (impresora + calidad) bajo su boquilla si aún no está: máquinas configuradas antes de «boquilla puesta». */
+async function currentSetups(db: Db, m: typeof s.machines.$inferSelect) {
+  const out = { ...(m.nozzleSetups ?? {}) };
+  if (!m.machineProfileId) return out;
+  const [cur] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.id, m.machineProfileId), isNull(s.slicerProfiles.deletedAt)));
+  const n = cur ? rowNozzle(cur) : null;
+  if (n && !out[n]) out[n] = { machineProfileId: cur.id, processProfileId: m.defaultProcessProfileId ?? null };
+  return out;
+}
 const sortNozzles = (l: string[]) => [...new Set(l)].sort((a, b) => Number(a) - Number(b));
 
 export async function setupMachine(machineId: string, machineBase: string, processBase: string | null, userId?: string | null) {
@@ -154,7 +163,7 @@ export async function setupMachine(machineId: string, machineBase: string, proce
   const nozzle = profileNozzle('machine', machineBase);
   // La boquilla se SUMA a las de la ficha (antes la reemplazaba y se perdían las demás) y queda como la activa.
   const nozzles = nozzle ? sortNozzles([...(m.nozzles ?? []).map((x) => normNozzle(x)).filter(Boolean) as string[], nozzle]) : m.nozzles ?? [];
-  const nozzleSetups = nozzle ? { ...(m.nozzleSetups ?? {}), [nozzle]: { machineProfileId: mpId, processProfileId: ppId } } : m.nozzleSetups ?? {};
+  const before = await currentSetups(db, m); const nozzleSetups = nozzle ? { ...before, [nozzle]: { machineProfileId: mpId, processProfileId: ppId } } : before;
   await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppId, nozzles, nozzleSetups, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
   await audit('machine', machineId, 'configurar_laminado', { machineBase, processBase: proc, nozzle }, userId);
   return { machineProfileId: mpId, processProfileId: ppId };
@@ -202,8 +211,13 @@ export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
   const tpl = qualityTemplates(nozzle, limits).filter((q) => i.keys.includes(q.key)); if (!tpl.length) throw new Error(t('nozzle.errPickOneQuality'));
   const prefix = i.prefix?.trim() || (machineBase ? short(machineBase).replace(/^Bambu Lab /, '').replace(/ \d\.\d+ nozzle$/, '') : t('nozzle.genericPrefix'));
   const ids: Array<{ id: string; name: string }> = [];
+  const baseNozzle = profileNozzle('process', baseName); const baseValues = resolveFactory('process', baseName, findVendorOf('process', baseName));
   for (const q of tpl) {
-    const changes = diffAgainstBase('process', baseName, q.changes); const label = t(q.label);
+    // sin calidad de fábrica para ese diámetro: las velocidades de la base (de otra boquilla) se reescalan
+    const speeds = baseNozzle && Number(baseNozzle) !== Number(nozzle) ? scaleSpeeds(baseValues, baseNozzle, nozzle) : {};
+    // todos los anchos de línea que traiga la base (skin, skeleton…) al ancho de la boquilla: uno menor que la capa hace que OrcaSlicer rechace el laminado
+    const widths = Object.fromEntries(Object.keys(baseValues).filter((k) => /_line_width$/.test(k) && !(k in q.changes)).map((k) => [k, /infill|skin|skeleton|inner/.test(k) ? q.changes.sparse_infill_line_width : q.changes.line_width]));
+    const changes = diffAgainstBase('process', baseName, { ...widths, ...q.changes, ...speeds }); const label = t(q.label);
     const id = await createProfileRow({ type: 'process', name: `${prefix} ${nozzle} · ${label} ${numStr(q.layer)}`, baseName, changes, nozzle, userId: i.userId, note: t('nozzle.noteTemplate', { label, nozzle }), notes: t('nozzle.noteTemplateLong', { label, nozzle, hint: t(q.hint) }) }, db);
     const [r] = await db.select({ name: s.slicerProfiles.name }).from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); ids.push({ id, name: r.name });
   }
@@ -216,10 +230,10 @@ export async function switchNozzle(machineId: string, nozzleIn: string, userId?:
   const nozzle = normNozzle(nozzleIn); if (!nozzle) throw new Error(t('nozzle.errBadNozzleRange'));
   const db = await getDb(); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m) throw new Error(t('slicer.machineNotFound'));
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)); const P = (id: string | null | undefined) => (id ? profs.find((p) => p.id === id) ?? null : null);
-  const known = (m.nozzleSetups ?? {})[nozzle];
+  const setups0 = await currentSetups(db, m); const known = setups0[nozzle];
   if (known && P(known.machineProfileId)) {
     const proc = P(known.processProfileId) ? known.processProfileId : null;
-    await db.update(s.machines).set({ machineProfileId: known.machineProfileId, defaultProcessProfileId: proc, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+    await db.update(s.machines).set({ machineProfileId: known.machineProfileId, defaultProcessProfileId: proc, nozzleSetups: setups0, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
     await audit('machine', machineId, 'cambiar_boquilla', { nozzle }, userId); return { machineProfileId: known.machineProfileId, processProfileId: proc, created: false };
   }
   const cur = P(m.machineProfileId); const base = cur?.baseName ?? suggestMachineBase(m);
@@ -232,7 +246,7 @@ export async function switchNozzle(machineId: string, nozzleIn: string, userId?:
   const curProc = P(m.defaultProcessProfileId);
   const [ppRow] = await createQualityFromTemplates({ machineBase: base, machineChanges: { min_layer_height: numStr(limits.min), max_layer_height: numStr(limits.max) }, nozzle, keys: ['estandar'], baseName: curProc?.baseName, prefix: short(cur?.name ?? base), userId }, db);
   const nozzles = sortNozzles([...(m.nozzles ?? []).map((x) => normNozzle(x)).filter(Boolean) as string[], nozzle]);
-  await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppRow.id, nozzles, nozzleSetups: { ...(m.nozzleSetups ?? {}), [nozzle]: { machineProfileId: mpId, processProfileId: ppRow.id } }, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppRow.id, nozzles, nozzleSetups: { ...setups0, [nozzle]: { machineProfileId: mpId, processProfileId: ppRow.id } }, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
   await audit('machine', machineId, 'cambiar_boquilla', { nozzle, custom: true }, userId);
   return { machineProfileId: mpId, processProfileId: ppRow.id, created: true };
 }

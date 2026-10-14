@@ -135,3 +135,26 @@ export function splitByNozzle<P extends { nozzle: string | null }>(profiles: P[]
   const ok = (p: P) => !p.nozzle || Number(p.nozzle) === Number(machineNozzle);
   return { compatible: profiles.filter(ok), others: profiles.filter((p) => !ok(p)) };
 }
+
+/** Velocidades que escalan con la boquilla (las plantillas las ajustan cuando no hay una calidad de fábrica para ese diámetro). */
+export const SPEED_KEYS = ['outer_wall_speed', 'inner_wall_speed', 'sparse_infill_speed', 'internal_solid_infill_speed', 'top_surface_speed'] as const;
+/**
+ * Factor de velocidad según el diámetro, con la 0,4 como referencia 1. Sale de los perfiles de Bambu (0,2 / 0,6 / 0,8 usan 120 mm/s
+ * de pared exterior frente a 200 con la 0,4 → 0,6) y baja más con las boquillas muy gruesas, donde manda el caudal máximo del filamento.
+ */
+export function speedFactor(nozzle: string | number): number {
+  const n = Number(nozzle);
+  if (n <= 0.2) return 0.6;
+  if (n < 0.4) return r2(0.6 + ((n - 0.2) / 0.2) * 0.4);
+  if (n === 0.4) return 1;
+  if (n < 0.6) return r2(1 - ((n - 0.4) / 0.2) * 0.4);
+  if (n < 1) return 0.6;
+  return 0.5;
+}
+/** Velocidades de una calidad de base pensada para otra boquilla, reescaladas a la boquilla pedida. */
+export function scaleSpeeds(base: Record<string, any>, fromNozzle: string | number, toNozzle: string | number): Record<string, string> {
+  const f = speedFactor(toNozzle) / speedFactor(fromNozzle); const out: Record<string, string> = {};
+  if (Math.abs(f - 1) < 0.02) return out;
+  for (const k of SPEED_KEYS) { const v = Number(String(Array.isArray(base[k]) ? base[k][0] : base[k]).replace(',', '.')); if (Number.isFinite(v) && v > 0) out[k] = String(Math.max(10, Math.round(v * f))); }
+  return out;
+}

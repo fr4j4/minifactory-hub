@@ -169,4 +169,7 @@ export const nozzle = {
   forNozzle: 'Para boquilla {n} mm',
   otherNozzleGroup: 'Pensadas para otra boquilla',
   mismatchWarn: 'Esta calidad es para boquilla {process} mm y la máquina tiene la {machine} mm: el tiempo y los gramos no serán reales.',
+  errSerialDup: 'Ese número de serie ya lo tiene la máquina «{name}».',
+  otherMaterial: 'Otro…',
+  otherMaterialAria: 'Otro tipo de material',
 };

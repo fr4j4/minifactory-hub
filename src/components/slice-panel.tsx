@@ -43,15 +43,18 @@ export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'fil
 export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName, ai }: { fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean } }) {
   const t = useT();
   const toast = useToast();
-  const slicers = ctx.machines.filter((m) => m.machineProfileId);
-  const [machineId, setMachineId] = useState(defaultMachineId && slicers.find((m) => m.id === defaultMachineId) ? defaultMachineId : slicers[0]?.id ?? '');
-  const machine = ctx.machines.find((m) => m.id === machineId);
+  const setups = ctx.setups;
+  const first = setups.find((x) => x.machineId === defaultMachineId && x.active) ?? setups.find((x) => x.machineId === defaultMachineId) ?? setups[0];
+  const [setupKey, setSetupKey] = useState(first?.key ?? '');
+  const setup = setups.find((x) => x.key === setupKey);
+  const machineId = setup?.machineId ?? '';
+  const machine = ctx.machines.find((m) => m.id === machineId) ? { ...ctx.machines.find((m) => m.id === machineId)!, nozzle: setup?.nozzle ?? null, machineProfileId: setup?.machineProfileId ?? null, defaultProcessProfileId: setup?.processProfileId ?? null } : undefined;
   const procs = ctx.profiles.filter((p) => p.type === 'process');
   const mats = ctx.materials.filter((m) => m.tech === 'fdm' && m.filamentProfileId);
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
   const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
-  useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [machineId]); // eslint-disable-line
+  useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [setupKey]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
   const busy = !!runId && (!run || run.status === 'queued' || run.status === 'running');
@@ -65,11 +68,11 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId, materialId, qty: copies }) : null;
   return (
     <div className="space-y-4" data-testid="slice-panel">
-      {(slicers.length === 0 || mats.length === 0) && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
-        {slicers.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
-      {slicers.length > 0 && mats.length > 0 && ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length > 0 && <p className="text-xs muted">{ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length} {t('slicer.materialsHidden')} · <Link href="/laminador/configurar" className="underline">{t('slicer.setUp')}</Link></p>}
+      {(setups.length === 0 || mats.length === 0) && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
+        {setups.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
+      {setups.length > 0 && mats.length > 0 && ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length > 0 && <p className="text-xs muted">{ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length} {t('slicer.materialsHidden')} · <Link href="/laminador/configurar" className="underline">{t('slicer.setUp')}</Link></p>}
       <div className="grid sm:grid-cols-2 gap-3">
-        <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} data-testid="slice-machine">{slicers.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
+        <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => setSetupKey(e.target.value)} data-testid="slice-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}{ctx.machines.find((m) => m.id === x.machineId)?.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
         <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
         <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>

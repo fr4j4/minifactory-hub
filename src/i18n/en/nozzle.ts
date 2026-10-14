@@ -172,4 +172,7 @@ export const nozzle: Shape<typeof es['nozzle']> = {
   forNozzle: 'For a {n} mm nozzle',
   otherNozzleGroup: 'Designed for another nozzle',
   mismatchWarn: 'This quality is for a {process} mm nozzle and the machine has the {machine} mm one: time and grams will not be realistic.',
+  errSerialDup: 'The machine «{name}» already has that serial number.',
+  otherMaterial: 'Other…',
+  otherMaterialAria: 'Other material type',
 };

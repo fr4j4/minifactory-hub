@@ -7,6 +7,7 @@ import { entryNozzle, getIndex, listFactory, profileNozzle, orcaAvailable } from
 import { createQualityFromTemplates, nozzleVariants, processesFor, setupMachine, slicingReadiness, switchNozzle } from '@/lib/slicer/setup';
 import { profileUsage, uniqueProfileName } from '@/lib/slicer/usage';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
+import { getCalcContext } from '@/lib/context';
 
 let db: Awaited<ReturnType<typeof getDb>>; let ws: string;
 beforeAll(async () => { fs.rmSync('data/test-storage', { recursive: true, force: true }); await seedDemo(); db = await getDb(); ws = (await db.select().from(s.machines))[0].workspaceId; });
@@ -63,6 +64,13 @@ describe('máquina con varias boquillas', () => {
     const ready = (await slicingReadiness()).machines.find((x) => x.id === m.id)!;
     expect(ready.nozzle).toBe('0.4'); expect(ready.setups.map((x) => x.nozzle).sort()).toEqual(['0.2', '0.4']); expect(ready.variants.map((v) => v.nozzle)).toEqual(['0.2', '0.4', '0.6', '0.8']);
   });
+  it('una máquina configurada antes de «boquilla puesta» no pierde su boquilla actual al cambiar', async () => {
+    const m = await newMachine('Heredada', 'A1', ['0.4', '0.6']); const r4 = await setupMachine(m.id, 'Bambu Lab A1 0.4 nozzle', null);
+    await db.update(s.machines).set({ nozzleSetups: {} }).where(eq(s.machines.id, m.id)); // como las máquinas anteriores a este cambio
+    await switchNozzle(m.id, '0.6'); let row = await machineRow(m.id);
+    expect(Object.keys(row.nozzleSetups ?? {}).sort()).toEqual(['0.4', '0.6']); expect(row.nozzleSetups!['0.4'].machineProfileId).toBe(r4.machineProfileId);
+    const back = await switchNozzle(m.id, '0.4'); expect(back.created).toBe(false); expect(back.machineProfileId).toBe(r4.machineProfileId);
+  });
   it('una boquilla sin perfil de fábrica (1,2) crea una copia de la impresora con ese diámetro y su calidad', async () => {
     const m = await newMachine('A1 gruesa', 'A1', ['0.4']); await setupMachine(m.id, 'Bambu Lab A1 0.4 nozzle', null);
     const r = await switchNozzle(m.id, '1,2'); const row = await machineRow(m.id);
@@ -70,7 +78,19 @@ describe('máquina con varias boquillas', () => {
     expect(mp).toMatchObject({ type: 'machine', baseName: 'Bambu Lab A1 0.4 nozzle', nozzle: '1.2' }); expect(mp.changes).toMatchObject({ nozzle_diameter: '1.2' });
     expect(pp).toMatchObject({ type: 'process', nozzle: '1.2' }); expect(pp.changes).toMatchObject({ layer_height: '0.6', line_width: '1.22' }); expect(pp.changes).not.toHaveProperty('wall_loops'); // 2 paredes = igual a la base
     expect(row.nozzles).toEqual(['0.4', '1.2']);
+    // sin calidad de fábrica para 1,2: las velocidades de la 0,4 se reescalan (200 → 100 mm/s en pared exterior)
+    expect(pp.changes).toMatchObject({ outer_wall_speed: '100', inner_wall_speed: '150' });
     await expect(switchNozzle(m.id, 'abc')).rejects.toThrow(/no válida/);
+  });
+});
+
+describe('máquina + boquilla como opción de laminado', () => {
+  it('cada boquilla configurada es una opción; con una sola boquilla se muestra solo el nombre', async () => {
+    const m = await newMachine('Doble boquilla', 'A1', ['0.2', '0.4']); await setupMachine(m.id, 'Bambu Lab A1 0.4 nozzle', null);
+    let ctx = await getCalcContext(); expect(ctx.setups.filter((x) => x.machineId === m.id).map((x) => x.label)).toEqual(['Doble boquilla']);
+    await switchNozzle(m.id, '0.2'); ctx = await getCalcContext();
+    const mine = ctx.setups.filter((x) => x.machineId === m.id); expect(mine.map((x) => [x.label, x.nozzle, x.active])).toEqual([['Doble boquilla · 0,2 mm', '0.2', true], ['Doble boquilla · 0,4 mm', '0.4', false]]);
+    expect(mine.every((x) => x.machineProfileId && x.processProfileId)).toBe(true); expect(new Set(mine.map((x) => x.key)).size).toBe(2);
   });
 });
 
@@ -122,6 +142,9 @@ describe.skipIf(!orcaAvailable())('laminar con boquilla 0,2 y 0,4 (OrcaSlicer re
     const go = (machineProfileId: string, processProfileId: string, label: string) => enqueueSlice({ fileVersionId: bar.currentVersionId!, machineProfileId, processProfileId, filamentProfileId: fil.id, label });
     const ids = [await go(a4.machineProfileId, a4.processProfileId, 'std 0.4'), await go(a2.machineProfileId, a2.processProfileId!, 'std 0.2'), await go(a2.machineProfileId, t06.id, 'fino 0.2'), await go(a4.machineProfileId, wide.id, 'funcional 0.4')];
     const rows = await waitForRuns(ids, 240_000); const [std4, std2, fino2, func4] = ids.map((id) => rows.find((r) => r.id === id)!);
+    // boquilla gruesa sin perfil de fábrica (1,2): la copia de la impresora y su calidad laminan, y salen menos capas que con la 0,4
+    const a12 = await switchNozzle(m.id, '1.2'); const thick = (await waitForRuns([await go(a12.machineProfileId, a12.processProfileId!, 'std 1.2')], 240_000))[0];
+    expect(thick.error ?? thick.status).toBe('done'); expect(thick.layers!).toBeLessThan(std4.layers!);
     for (const r of [std4, std2, fino2, func4]) expect(r.error ?? r.status).toBe('done');
     expect(std2.layers!).toBeGreaterThan(std4.layers! * 1.8); expect(fino2.layers!).toBeGreaterThan(std2.layers!);
     const g = (r: typeof std4) => (r.filament ?? []).reduce((a, f) => a + f.g, 0);

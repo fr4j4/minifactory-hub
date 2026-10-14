@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { COMMON_NOZZLES, layerChoices, layerRange, layersForThickness, lineWidth, loopsForThickness, normNozzle, nozzleFromName, parseNozzles, processWarnings, qualityTemplates, splitByNozzle, standardLayer, thicknessForLoops, wallThicknessOptions } from '@/lib/slicer/nozzle';
+import { COMMON_NOZZLES, layerChoices, layerRange, layersForThickness, lineWidth, loopsForThickness, normNozzle, nozzleFromName, parseNozzles, processWarnings, qualityTemplates, scaleSpeeds, speedFactor, splitByNozzle, standardLayer, thicknessForLoops, wallThicknessOptions } from '@/lib/slicer/nozzle';
 import { cleanChanges } from '@/lib/slicer/validate';
+import { canonicalMaterialType, canonicalMaterialTypes } from '@/lib/slicer/material-types';
 
 describe('boquillas', () => {
   it('normaliza coma decimal y sufijos', () => {
@@ -98,5 +99,25 @@ describe('limpieza de lo que se escribe en el editor', () => {
   });
   it('respeta valores en lista y claves desconocidas (importados)', () => {
     expect(cleanChanges('filament', { nozzle_temperature: ['250'], pressure_advance: ['0.04'], foo: 'bar' })).toEqual({ nozzle_temperature: ['250'], pressure_advance: ['0.04'], foo: 'bar' });
+  });
+});
+
+describe('velocidades por boquilla', () => {
+  it('factor con la 0,4 como referencia y los mismos 120/200 mm/s de Bambu en 0,2 / 0,6 / 0,8', () => {
+    expect([0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2].map(speedFactor)).toEqual([0.6, 0.7, 0.8, 1, 0.8, 0.6, 0.6, 0.5, 0.5]);
+  });
+  it('reescala las velocidades de una base pensada para otra boquilla', () => {
+    const base = { outer_wall_speed: ['200'], inner_wall_speed: '300', sparse_infill_speed: ['270'], top_surface_speed: ['x'] };
+    expect(scaleSpeeds(base, 0.4, 1.2)).toEqual({ outer_wall_speed: '100', inner_wall_speed: '150', sparse_infill_speed: '135' });
+    expect(scaleSpeeds(base, 0.4, 0.2).outer_wall_speed).toBe('120');
+    expect(scaleSpeeds(base, 0.4, 0.4)).toEqual({}); expect(scaleSpeeds(base, 0.6, 0.8)).toEqual({});
+  });
+});
+
+describe('tipos de material', () => {
+  it('misma grafía siempre, sin repetidos', () => {
+    expect(['pla', ' Petg ', 'petg cf', 'PETG_CF', 'Nylon 12', ''].map((x) => canonicalMaterialType(x))).toEqual(['PLA', 'PETG', 'PETG-CF', 'PETG-CF', 'NYLON-12', null]);
+    expect(canonicalMaterialTypes(['petg', 'PLA', 'pla', 'tpu', 'seda'])).toEqual(['PLA', 'PETG', 'TPU', 'SEDA']);
+    expect(canonicalMaterialTypes(['Seda'], ['PLA', 'Seda'])).toEqual(['Seda']);
   });
 });

@@ -65,7 +65,7 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
         </div>
         <div className="space-y-4">
           {spools.length > 0 && <Card title={t('machines.loadedMaterial')}>{spools.map(({ sp, m: mm }) => <Link key={sp.id} href={`/inventario/bobinas/${sp.id}`} className="flex justify-between text-sm py-1 hover:underline"><span>{sp.code} · {mm.type} {mm.colorName}</span><span className="tabular">{Math.round(sp.remainingG)} g</span></Link>)}</Card>}
-          {can(user, 'maquinas', 'E') && <Card title={t('machines.specifications')}><MachineForm m={m} profiles={profs.map((p) => ({ id: p.id, name: p.name, type: p.type, nozzle: p.type === 'filament' ? null : rowNozzle(p) }))} kwh={st.rates.kwh} /></Card>}
+          {can(user, 'maquinas', 'E') && <Card title={t('machines.specifications')}><MachineForm materialTypes={[...new Set((await db.select({ t: s.materials.type }).from(s.materials).where(isNull(s.materials.deletedAt))).map((x) => x.t.trim().toUpperCase()))]} m={m} profiles={profs.map((p) => ({ id: p.id, name: p.name, type: p.type, nozzle: p.type === 'filament' ? null : rowNozzle(p) }))} kwh={st.rates.kwh} /></Card>}
         </div>
       </div>
     </>
