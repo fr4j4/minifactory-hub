@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { eq, and, gt } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { can, type Action, type Module, type Role } from './perm';
+import { getT } from '@/i18n/server';
 
 const COOKIE = 'mf_session';
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
@@ -73,8 +74,9 @@ export async function requireUser(): Promise<SessionUser> {
 }
 /** Verifica permiso en el servidor; si falla redirige (páginas) o lanza (acciones). */
 export async function requirePerm(mod: Module, action: Action = 'V'): Promise<SessionUser> {
+  const t = await getT();
   const u = await requireUser();
-  if (!can(u, mod, action)) throw new Error(`Sin permiso: ${mod} (${action})`);
+  if (!can(u, mod, action)) throw new Error(t('auth.noPermission', { mod, action }));
   return u;
 }
 export async function pagePerm(mod: Module, action: Action = 'V'): Promise<SessionUser> {

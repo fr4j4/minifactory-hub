@@ -7,6 +7,7 @@ import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { createJob } from './production';
 import { loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
+import { getT } from '@/i18n/server';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 type User = PermUser & { id: string };
@@ -19,6 +20,7 @@ export interface OrderInput {
 
 /** Registro manual de un pedido (WhatsApp, Instagram, marketplace, feria…), con o sin presupuesto previo. Mixto: líneas a medida + productos de stock. */
 export async function createOrder(input: OrderInput, user: User): Promise<string> {
+  const t = await getT();
   const ctx = await pricingContext();
   const db = ctx.db; const rt = ctx.settings.rates;
   let adj = 0;
@@ -34,14 +36,14 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
     priced.push({ it, p, finalUnit });
     lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.costTotal - (it.shipping ?? 0), shipping: it.shipping });
   }
-  const t = calcQuote(lines, rt, { discount: input.discount ?? 0 });
-  if ((t.belowCost || t.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error('El precio final queda bajo el costo. Requiere autorización del Administrador.');
+  const tt = calcQuote(lines, rt, { discount: input.discount ?? 0 });
+  if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
   const number = await nextNumber('order');
   const hasProduct = input.items.some((i) => i.variantId), hasCustom = input.items.some((i) => !i.variantId);
   const [order] = await db.insert(s.orders).values({
     workspaceId: WORKSPACE_ID, number, kind: hasProduct && hasCustom ? 'mixto' : hasProduct ? 'solo_stock' : 'a_medida', status: 'recibido',
     customerId: input.customerId ?? null, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, quoteId: input.quoteId ?? null,
-    source: input.source ?? null, priority: input.priority ?? 'normal', dueDate: input.dueDate ?? null, title: input.title ?? null, total: t.total, costEstimated: t.cost,
+    source: input.source ?? null, priority: input.priority ?? 'normal', dueDate: input.dueDate ?? null, title: input.title ?? null, total: tt.total, costEstimated: tt.cost,
     shipAddress: input.shipAddress ?? null, shipMethod: input.shipMethod ?? 'retiro', notes: input.notes ?? null, approvedBy: input.approvedBy ?? null,
     approvedChannel: input.approvedChannel ?? null, approvedAt: input.approvedBy ? new Date() : null, createdBy: user.id,
   }).returning({ id: s.orders.id });
@@ -54,7 +56,7 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
         fromStock = Math.max(0, Math.min(it.qty, v.stock - v.reserved));
         if (fromStock > 0) {
           await db.update(s.productVariants).set({ reserved: v.reserved + fromStock, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
-          await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'reserva', qty: 0, reason: `Reserva de ${fromStock} u. para ${number}`, orderId: order.id, createdBy: user.id });
+          await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'reserva', qty: 0, reason: t('orders.reservationOfUnitsFor', { fromStock, number }), orderId: order.id, createdBy: user.id });
         }
       }
     }
@@ -69,19 +71,20 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
     for (const l of it.links ?? []) if (l.url) await db.insert(s.referenceLinks).values({ workspaceId: WORKSPACE_ID, url: normalizeUrl(l.url), title: l.title ?? null, kind: l.kind ?? 'otro', note: l.note ?? null, imageUrl: l.imageUrl ?? null, showInPdf: !!l.showInPdf, ownerType: 'order_item', ownerId: oi.id, createdBy: user.id });
   }
   for (const l of input.links ?? []) if (l.url) await db.insert(s.referenceLinks).values({ workspaceId: WORKSPACE_ID, url: normalizeUrl(l.url), title: l.title ?? null, kind: l.kind ?? 'otro', note: l.note ?? null, imageUrl: l.imageUrl ?? null, showInPdf: !!l.showInPdf, ownerType: 'order', ownerId: order.id, createdBy: user.id });
-  if (input.deposit && input.deposit.amount > 0) await addPayment({ orderId: order.id, amount: input.deposit.amount, method: input.deposit.method, note: 'Abono inicial' }, user);
+  if (input.deposit && input.deposit.amount > 0) await addPayment({ orderId: order.id, amount: input.deposit.amount, method: input.deposit.method, note: t('orders.initialDeposit') }, user);
   await recomputeOrderStatus(order.id);
-  await audit('order', order.id, 'crear', { number, total: t.total, source: input.source }, user.id);
+  await audit('order', order.id, 'crear', { number, total: tt.total, source: input.source }, user.id);
   return order.id;
 }
 
 /** El cliente aceptó el presupuesto (se registra a mano): se crea el pedido con sus líneas. */
 export async function approveQuote(quoteId: string, o: { by: string; channel: string; deposit?: { amount: number; method: string } | null; dueDate?: string | null }, user: User): Promise<string> {
+  const t = await getT();
   const data = await loadQuote(quoteId);
-  if (!data) throw new Error('Presupuesto no encontrado');
+  if (!data) throw new Error(t('orders.quoteNotFound'));
   const { quote: q, items, models, links } = data;
-  if (q.status === 'aprobado') throw new Error('El presupuesto ya está aprobado');
-  if (['rechazado', 'reemplazado'].includes(q.status)) throw new Error('Este presupuesto ya no está vigente');
+  if (q.status === 'aprobado') throw new Error(t('orders.theQuoteIsAlreadyApproved'));
+  if (['rechazado', 'reemplazado'].includes(q.status)) throw new Error(t('orders.thisQuoteIsNoLonger'));
   const db = await getDb();
   const st = await getSettings();
   // precio final por línea: si se fijó el total, se reparte
@@ -109,10 +112,11 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
 
 /** Crea los trabajos de impresión de las líneas a medida (y de lo que falte en stock). */
 export async function planProduction(orderId: string, user: User) {
+  const t = await getT();
   const db = await getDb();
   const [order] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
-  if (!order) throw new Error('Pedido no encontrado');
-  if (['cancelado', 'entregado'].includes(order.status)) throw new Error('El pedido ya está cerrado');
+  if (!order) throw new Error(t('orders.orderNotFound'));
+  if (['cancelado', 'entregado'].includes(order.status)) throw new Error(t('orders.theOrderIsAlreadyClosed'));
   const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, orderId)).orderBy(asc(s.orderItems.position));
   const existing = await db.select({ oi: s.jobItems.orderItemId }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId)).where(and(eq(s.printJobs.orderId, orderId), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado', 'terminado'])));
   const planned = new Set(existing.map((e) => e.oi));
@@ -128,7 +132,7 @@ export async function planProduction(orderId: string, user: User) {
     }
     const mm = await db.select({ f: s.modelFiles }).from(s.quoteItemModels).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.quoteItemModels.modelFileId)).where(eq(s.quoteItemModels.orderItemId, it.id));
     const dims = mm.length ? ([Math.max(...mm.map((x) => x.f.dimX ?? 0)), Math.max(...mm.map((x) => x.f.dimY ?? 0)), Math.max(...mm.map((x) => x.f.dimZ ?? 0))] as [number, number, number]) : null;
-    const id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || 'Pieza'} ×${qty}`, materialId, qty, estG, estH, orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id });
+    const id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || t('orders.part')} ×${qty}`, materialId, qty, estG, estH, orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id });
     await db.update(s.orderItems).set({ status: 'en_cola' }).where(eq(s.orderItems.id, it.id));
     created.push(id);
   }
@@ -159,10 +163,11 @@ export async function recomputeOrderStatus(orderId: string) {
 }
 
 export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' | 'post_proceso' | 'en_produccion' | 'recibido', user: User, o: { tracking?: string; shipMethod?: string } = {}) {
+  const t = await getT();
   const db = await getDb();
   const [ord] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
-  if (!ord) throw new Error('Pedido no encontrado');
-  if (ord.status === 'cancelado') throw new Error('El pedido está cancelado');
+  if (!ord) throw new Error(t('orders.orderNotFound'));
+  if (ord.status === 'cancelado') throw new Error(t('orders.theOrderIsCancelled'));
   const patch: Record<string, any> = { status: to, updatedAt: new Date() };
   if (o.tracking !== undefined) patch.tracking = o.tracking;
   if (o.shipMethod) patch.shipMethod = o.shipMethod;
@@ -175,8 +180,8 @@ export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' 
       const qty = it.fromStock;
       if (v && qty > 0) {
         await db.update(s.productVariants).set({ stock: v.stock - qty, reserved: Math.max(0, v.reserved - qty), updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
-        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -qty, unitCost: v.avgCost, orderId, reason: `Pedido ${ord.number}`, createdBy: user.id });
-        if (v.stock - qty <= v.minStock) await notify('stock_bajo', `Stock bajo de producto: ${v.sku}`, `Quedan ${v.stock - qty} u. (mínimo ${v.minStock}).`, '/catalogo');
+        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -qty, unitCost: v.avgCost, orderId, reason: t('orders.order', { number: ord.number }), createdBy: user.id });
+        if (v.stock - qty <= v.minStock) await notify('stock_bajo', t('orders.lowProductStock', { sku: v.sku }), t('orders.unitsLeftMinimum', { stock: v.stock - qty, min: v.minStock }), '/catalogo');
       }
     }
     await db.update(s.orderItems).set({ status: 'entregado' }).where(eq(s.orderItems.orderId, orderId));
@@ -186,10 +191,11 @@ export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' 
 }
 
 export async function cancelOrder(orderId: string, reason: string, user: User) {
+  const t = await getT();
   const db = await getDb();
   const [ord] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
-  if (!ord) throw new Error('Pedido no encontrado');
-  if (ord.status === 'entregado') throw new Error('Un pedido entregado no se puede cancelar');
+  if (!ord) throw new Error(t('orders.orderNotFound'));
+  if (ord.status === 'entregado') throw new Error(t('orders.aDeliveredOrderCannotBe'));
   const jobs = await db.select().from(s.printJobs).where(and(eq(s.printJobs.orderId, orderId), inArray(s.printJobs.status, ['en_cola', 'pausado'])));
   for (const j of jobs) await db.update(s.printJobs).set({ status: 'cancelado' }).where(eq(s.printJobs.id, j.id));
   const items = await db.select().from(s.orderItems).where(and(eq(s.orderItems.orderId, orderId), sql`${s.orderItems.variantId} is not null`));
@@ -202,8 +208,9 @@ export async function cancelOrder(orderId: string, reason: string, user: User) {
 }
 
 export async function addPayment(o: { orderId?: string; saleId?: string; amount: number; method: string; note?: string; receiptKey?: string; taxDocType?: string; taxDocFolio?: string; paidAt?: string }, user: User) {
+  const t = await getT();
   const db = await getDb();
-  if (o.amount <= 0) throw new Error('El monto debe ser mayor a cero');
+  if (o.amount <= 0) throw new Error(t('orders.theAmountMustBeGreater'));
   await db.insert(s.payments).values({
     workspaceId: WORKSPACE_ID, orderId: o.orderId ?? null, saleId: o.saleId ?? null, amount: Math.round(o.amount), method: o.method, paidAt: o.paidAt ?? new Date().toISOString().slice(0, 10),
     note: o.note ?? null, receiptKey: o.receiptKey ?? null, taxDocType: o.taxDocType ?? null, taxDocFolio: o.taxDocFolio ?? null, createdBy: user.id,
@@ -223,4 +230,9 @@ export function paymentStatus(total: number, paid: number): 'pendiente' | 'parci
   if (paid <= 0) return 'pendiente'; return paid >= total ? 'pagado' : 'parcial';
 }
 
-export const ORDER_STATUS_LABEL: Record<string, string> = { recibido: 'Recibido', en_produccion: 'En producción', post_proceso: 'Post-proceso', listo: 'Listo', entregado: 'Entregado', cancelado: 'Cancelado' };
+
+/** Recalcula lo pagado de un pedido o venta a partir de sus pagos vigentes. */
+export async function recomputePaid(db: Db, p: { orderId: string | null; saleId: string | null }) {
+  if (p.orderId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.orderId, p.orderId), isNull(s.payments.deletedAt))); await db.update(s.orders).set({ paid: Number(r.t), updatedAt: new Date() }).where(eq(s.orders.id, p.orderId)); }
+  if (p.saleId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.saleId, p.saleId), isNull(s.payments.deletedAt))); await db.update(s.sales).set({ paid: Number(r.t) }).where(eq(s.sales.id, p.saleId)); }
+}

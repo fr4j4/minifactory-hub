@@ -184,6 +184,8 @@ export const machines = pgTable('machines', {
   simulated: boolean('simulated').notNull().default(false),
   machineProfileId: uuid('machine_profile_id'),
   defaultProcessProfileId: uuid('default_process_profile_id'),
+  /** Por boquilla: qué perfil de impresora y qué calidad por defecto usar cuando esa boquilla está puesta (machineProfileId/defaultProcessProfileId reflejan la boquilla activa). */
+  nozzleSetups: jsonb('nozzle_setups').$type<Record<string, { machineProfileId: string; processProfileId: string | null }>>().default({}),
   feedGph: doublePrecision('feed_gph').notNull().default(25), // g/h típicos para estimar sin laminar
   timeFactor: doublePrecision('time_factor').notNull().default(1), // mediana(tiempo real ÷ estimado) de los últimos 20 trabajos
   connection: jsonb('connection').$type<Record<string, any>>().default({}),
@@ -262,6 +264,7 @@ export const slicerProfiles = pgTable('slicer_profiles', {
   name: text('name').notNull(),
   vendor: text('vendor'),
   baseName: text('base_name').notNull(), // perfil de fábrica de OrcaSlicer
+  nozzle: text('nozzle'), // boquilla (mm) para la que sirve: impresoras y calidades; se deduce de la base si está vacío
   changes: jsonb('changes').$type<Record<string, any>>().notNull().default({}),
   version: integer('version').notNull().default(1),
   simulated: boolean('simulated').notNull().default(false),
@@ -480,6 +483,7 @@ export const printJobs = pgTable('print_jobs', {
   realH: doublePrecision('real_h'),
   result: text('result'), // exito | falla_parcial | falla_total
   failCause: text('fail_cause'),
+  failCode: text('fail_code'), // catálogo cerrado (lib/production/fail-causes.ts); fail_cause guarda el detalle libre
   failCharge: text('fail_charge'), // taller | pedido
   reprintOfId: uuid('reprint_of_id'),
   sliceRunId: uuid('slice_run_id'),
@@ -699,3 +703,42 @@ export const cloudAccounts = pgTable('cloud_accounts', {
   lastError: text('last_error'),
   lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
 });
+
+/* ───────────── IA opcional (Fase 0) ───────────── */
+/** Propuestas generadas por IA y su ciclo de vida. Nada se aplica sin confirmación humana. */
+export const aiSuggestions = pgTable('ai_suggestions', {
+  ...base(),
+  feature: text('feature').notNull(),
+  subjectType: text('subject_type'),
+  subjectId: uuid('subject_id'),
+  inputHash: text('input_hash').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  proposal: jsonb('proposal').$type<Record<string, any>>().notNull().default({}),
+  rationale: jsonb('rationale').$type<Record<string, any>>().default({}),
+  status: text('status').notNull().default('proposed'), // proposed | applied | rejected | expired | superseded
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+  appliedBy: uuid('applied_by'),
+  outcome: jsonb('outcome').$type<Record<string, any>>().default({}),
+}, (t) => [index('ai_suggestions_subject_ix').on(t.subjectType, t.subjectId), index('ai_suggestions_hash_ix').on(t.inputHash)]);
+
+/** Telemetría de uso y costo de cada llamada al proveedor (el contenido solo se guarda si la retención lo permite). */
+export const aiCalls = pgTable('ai_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id'),
+  feature: text('feature').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  tier: text('tier').notNull().default('fast'),
+  inTokens: integer('in_tokens').notNull().default(0),
+  outTokens: integer('out_tokens').notNull().default(0),
+  costUsd: doublePrecision('cost_usd').notNull().default(0),
+  latencyMs: integer('latency_ms').notNull().default(0),
+  ok: boolean('ok').notNull().default(true),
+  error: text('error'),
+  cacheHit: boolean('cache_hit').notNull().default(false),
+  promptLog: jsonb('prompt_log').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('ai_calls_created_ix').on(t.createdAt)]);

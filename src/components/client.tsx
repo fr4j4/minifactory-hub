@@ -2,6 +2,7 @@
 import { useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { cn } from '@/lib/format';
+import { useT } from '@/i18n/client';
 
 /* ───────── Toasts ───────── */
 type Toast = { id: number; msg: string; tone: 'ok' | 'err' | 'info' };
@@ -42,23 +43,26 @@ export function useAction() {
 
 /* ───────── Modal ───────── */
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
+  // onClose suele ser una función inline: se guarda en una ref para que el efecto (que enfoca el primer campo) solo corra al abrir/cerrar
+  const closeRef = useRef(onClose); closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
     document.addEventListener('keydown', onKey);
     const prev = document.activeElement as HTMLElement | null;
     setTimeout(() => ref.current?.querySelector<HTMLElement>('input,select,textarea,button')?.focus(), 30);
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; prev?.focus?.(); };
-  }, [open, onClose]);
+  }, [open]);
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[90] flex items-end md:items-center justify-center bg-black/50 p-0 md:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={title} className={cn('bg-[var(--card)] w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
         <div className="sticky top-0 bg-inherit flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 z-10">
           <h2 className="font-semibold">{title}</h2>
-          <button onClick={onClose} aria-label="Cerrar" className="btn-ghost btn-sm !px-2.5">✕</button>
+          <button onClick={onClose} aria-label={t('common.close')} className="btn-ghost btn-sm !px-2.5">✕</button>
         </div>
         <div className="p-5">{children}</div>
       </div>
@@ -67,31 +71,42 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
 }
 
 export function ConfirmButton({ children, onConfirm, message, className, disabled }: { children: ReactNode; onConfirm: () => void; message: string; className?: string; disabled?: boolean }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" className={className ?? 'btn-ghost'} disabled={disabled} onClick={() => setOpen(true)}>{children}</button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Confirmar">
+      <Modal open={open} onClose={() => setOpen(false)} title={t('common.confirm')}>
         <p className="text-sm mb-4">{message}</p>
-        <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>Cancelar</button><button className="btn-danger" onClick={() => { setOpen(false); onConfirm(); }}>Confirmar</button></div>
+        <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button><button className="btn-danger" onClick={() => { setOpen(false); onConfirm(); }}>{t('common.confirm')}</button></div>
       </Modal>
     </>
   );
 }
 
+/** Copia al portapapeles; sin contexto seguro (HTTP por IP de red local) navigator.clipboard no existe, así que se cae a execCommand. */
+async function copyText(text: string): Promise<boolean> {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch { /* se prueba el respaldo */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  try { return document.execCommand('copy'); } catch { return false; } finally { document.body.removeChild(ta); }
+}
+
 /** Botón que copia texto (mensajes de WhatsApp, enlaces). */
-export function CopyButton({ text, label = 'Copiar', className }: { text: string; label?: string; className?: string }) {
-  const toast = useToast();
-  return <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={async () => { try { await navigator.clipboard.writeText(text); toast.push('Copiado al portapapeles'); } catch { toast.push('No se pudo copiar', 'err'); } }}>{label}</button>;
+export function CopyButton({ text, label, className }: { text: string; label?: string; className?: string }) {
+  const toast = useToast(); const t = useT();
+  return <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={async () => { if (await copyText(text)) toast.push(t('common.copied')); else toast.push(t('common.copyFailed'), 'err'); }}>{label ?? t('common.copy')}</button>;
 }
 
 export function Autofocus() { return null; }
 
 /** Selector con búsqueda sencilla (lista nativa + filtro). */
 export function SearchSelect<T extends { id: string; label: string; sub?: string }>({ items, value, onChange, placeholder, allowEmpty = true, id }: { items: T[]; value: string | null; onChange: (id: string | null) => void; placeholder?: string; allowEmpty?: boolean; id?: string }) {
+  const t = useT();
   return (
     <select id={id} className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value || null)}>
-      {allowEmpty && <option value="">{placeholder ?? '— Seleccionar —'}</option>}
+      {allowEmpty && <option value="">{placeholder ?? t('common.selectPlaceholder')}</option>}
       {items.map((i) => <option key={i.id} value={i.id}>{i.label}{i.sub ? ` · ${i.sub}` : ''}</option>)}
     </select>
   );

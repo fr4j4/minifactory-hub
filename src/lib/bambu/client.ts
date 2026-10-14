@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { TLSSocket } from 'node:tls';
 import mqtt, { type MqttClient } from 'mqtt';
 import { deepMerge, normalize, type PrinterStatus } from './state';
+import { LocalizedError, tDefault } from '@/i18n/errors';
 
 export interface ConnOpts { host: string; serial: string; accessCode: string; mqttPort?: number; fingerprint?: string | null }
 
@@ -31,7 +32,7 @@ export class BambuClient extends EventEmitter {
       const sock = (mq as unknown as { stream?: TLSSocket }).stream;
       const fp = sock?.getPeerCertificate?.()?.fingerprint256 ?? null;
       if (this.o.fingerprint && fp && fp !== this.o.fingerprint) {
-        this.fail('cert_changed', 'El certificado de la impresora cambió desde la primera conexión. Si la reemplazaste o reseteaste, vuelve a vincularla.');
+        this.fail('cert_changed', tDefault('connector.certChanged'));
         this.close(); return;
       }
       if (!this.o.fingerprint && fp) { this.o.fingerprint = fp; this.emit('fingerprint', fp); }
@@ -50,7 +51,7 @@ export class BambuClient extends EventEmitter {
     });
     mq.on('error', (e: Error & { code?: number | string }) => {
       const auth = e.code === 5 || e.code === 4 || /Not authorized|Bad username/i.test(e.message);
-      this.fail(auth ? 'auth' : 'connect', auth ? 'Código de acceso incorrecto (revísalo en la pantalla de la impresora: Red → Código de acceso).' : e.message);
+      this.fail(auth ? 'auth' : 'connect', auth ? tDefault('connector.wrongAccessCode') : e.message);
       if (auth) this.close();
     });
     mq.on('close', () => { if (this.push) clearInterval(this.push); this.push = null; if (this.online) { this.online = false; this.emit('offline'); this.emit('status', this.status); } });
@@ -63,16 +64,16 @@ export class BambuClient extends EventEmitter {
   /** Espera el primer estado completo (útil para probar una conexión nueva). */
   waitReady(ms = 10_000): Promise<PrinterStatus> {
     return new Promise((res, rej) => {
-      const t = setTimeout(() => { cleanup(); rej(Object.assign(new Error(this.lastError ?? 'La impresora no respondió a tiempo. Revisa la IP y que el «Modo LAN» esté activo.'), { code: 'timeout' })); }, ms);
+      const tt = setTimeout(() => { cleanup(); rej(Object.assign(new Error(this.lastError ?? tDefault('connector.printerTimeout')), { code: 'timeout' })); }, ms);
       const ok = (s: PrinterStatus) => { if (this.raw.print?.gcode_state) { cleanup(); res(s); } };
       const bad = (e: Error) => { cleanup(); rej(e); };
-      const cleanup = () => { clearTimeout(t); this.off('status', ok); this.off('error', bad); };
+      const cleanup = () => { clearTimeout(tt); this.off('status', ok); this.off('error', bad); };
       this.on('status', ok); this.on('error', bad);
     });
   }
 
   private send(payload: Record<string, any>) {
-    if (!this.mq?.connected) throw Object.assign(new Error('La impresora no está conectada'), { code: 'offline' });
+    if (!this.mq?.connected) throw Object.assign(new LocalizedError('connector.printerNotConnected'), { code: 'offline' });
     const [k] = Object.keys(payload); const body = { [k]: { sequence_id: String(this.seq++), ...payload[k] } };
     this.mq.publish(`device/${this.o.serial}/request`, JSON.stringify(body));
     return body;

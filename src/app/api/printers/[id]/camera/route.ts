@@ -4,12 +4,14 @@ import { camHub, cameraSnapshot } from '@/lib/bambu/manager';
 import { cloudCover } from '@/lib/services/printers';
 import { getDb, s } from '@/db';
 import { eq } from 'drizzle-orm';
+import { getT } from '@/i18n/server';
 
 export const dynamic = 'force-dynamic';
 
 /** Foto de la cámara (JPEG) o, con ?stream=1, video MJPEG compartido entre todos los visores. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const u = await getSession(); if (!u || !can(u, 'maquinas', 'V')) return new Response('No autorizado', { status: 401 });
+  const t = await getT();
+  const u = await getSession(); if (!u || !can(u, 'maquinas', 'V')) return new Response(t('common.unauthorized'), { status: 401 });
   const { id } = await params; const url = new URL(req.url);
   const db = await getDb(); const [link] = await db.select({ mode: s.printerLinks.mode }).from(s.printerLinks).where(eq(s.printerLinks.id, id));
   if (link?.mode === 'cloud') {

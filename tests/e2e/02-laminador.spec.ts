@@ -23,7 +23,8 @@ test.describe('Laminador en el servidor (OrcaSlicer)', () => {
 
   test('perfiles: duplicar, cambiar relleno y velocidades, usar la nueva versión y volver atrás', async ({ page, saveAs }) => {
     await login(page); await page.goto('/laminador'); await shot(page, '25-perfiles', { full: true });
-    await page.getByRole('row', { name: /A1 · 0,20 Standard/ }).getByRole('button', { name: 'Duplicar' }).click(); await expect(page.getByRole('link', { name: 'A1 · 0,20 Standard (copia)' })).toBeVisible();
+    await page.getByRole('row', { name: /A1 · 0,20 Standard/ }).getByRole('button', { name: 'Duplicar' }).click();
+    await expect(page.getByTestId('dup-name')).toHaveValue('A1 · 0,20 Standard (copia)'); await page.getByTestId('dup-confirm').click(); await expect(page.getByRole('link', { name: 'A1 · 0,20 Standard (copia)' })).toBeVisible();
     await page.getByRole('link', { name: 'A1 · 0,20 Standard (copia)' }).click(); await expect(page.getByTestId('param-sparse_infill_density')).toBeVisible();
     await page.getByTestId('param-sparse_infill_density').fill('50%'); await page.getByTestId('param-sparse_infill_pattern').selectOption('gyroid'); await page.getByTestId('param-outer_wall_speed').fill('60'); await shot(page, '26-editor-perfil');
     await page.getByTestId('profile-save').click(); await expect(page.getByTestId('profile-versions')).toContainText('v2'); await expect(page.getByTestId('profile-versions')).toContainText('Actual');

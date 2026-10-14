@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import mqtt, { type MqttClient } from 'mqtt';
 import { deepMerge, normalize, type PrinterStatus } from './state';
 import { cloudEndpoints, type Region } from './cloud';
+import { LocalizedError, tDefault } from '@/i18n/errors';
 
 /**
  * Sesión MQTT con la nube de Bambu Lab (us.mqtt.bambulab.com / cn.mqtt.bambulab.com, TLS con certificado
@@ -42,7 +43,7 @@ export class CloudSession extends EventEmitter {
     });
     mq.on('error', (e: Error & { code?: number | string }) => {
       const auth = e.code === 5 || e.code === 4 || /Not authorized|Bad user/i.test(e.message);
-      this.lastError = auth ? 'Bambu Cloud rechazó la sesión: el token expiró o se cerró la sesión. Vuelve a iniciar sesión.' : `Bambu Cloud: ${e.message}`;
+      this.lastError = auth ? tDefault('connector.cloudRejected') : tDefault('connector.cloudError', { message: e.message });
       for (const d of this.devices.values()) d.fail(auth ? 'auth' : 'connect', this.lastError);
       this.emit('session-error', Object.assign(new Error(this.lastError), { code: auth ? 'auth' : 'connect' }));
       if (auth) this.close();
@@ -51,7 +52,7 @@ export class CloudSession extends EventEmitter {
   }
   private watch(serial: string) {
     this.mq?.subscribe(`device/${serial}/report`, (err) => {
-      if (err) { this.devices.get(serial)?.fail('subscribe', 'Bambu Cloud no permitió leer esta impresora (¿pertenece a la cuenta?).'); return; }
+      if (err) { this.devices.get(serial)?.fail('subscribe', tDefault('connector.cloudCannotRead')); return; }
       this.publish(serial, { pushing: { command: 'pushall', version: 1, push_target: 1 } }); this.publish(serial, { info: { command: 'get_version' } });
     });
   }
@@ -63,7 +64,7 @@ export class CloudSession extends EventEmitter {
   close() { this.mq?.end(true); this.mq = null; this.connected = false; }
 }
 
-const readonly = () => { throw Object.assign(new Error('Bambu Lab no permite controlar la impresora desde programas externos a través de la nube. Usa Bambu Handy / Bambu Studio, o conéctala por LAN con el «Modo desarrollador».'), { code: 'cloud_readonly' }); };
+const readonly = () => { throw Object.assign(new LocalizedError('connector.cloudReadonly'), { code: 'cloud_readonly' }); };
 
 /** Misma interfaz que BambuClient (LAN), pero alimentada por la sesión de la nube y sin comandos de control. */
 export class CloudDeviceClient extends EventEmitter {
@@ -86,10 +87,10 @@ export class CloudDeviceClient extends EventEmitter {
   pushall() { this.session.publish(this.serial, { pushing: { command: 'pushall', version: 1, push_target: 1 } }); }
   waitReady(ms = 10_000): Promise<PrinterStatus> {
     return new Promise((res, rej) => {
-      const t = setTimeout(() => { cleanup(); rej(Object.assign(new Error(this.lastError ?? this.session.lastError ?? 'La impresora no respondió por la nube. ¿Está encendida y conectada a internet?'), { code: 'timeout' })); }, ms);
+      const tt = setTimeout(() => { cleanup(); rej(Object.assign(new Error(this.lastError ?? this.session.lastError ?? tDefault('connector.cloudTimeout')), { code: 'timeout' })); }, ms);
       const ok = (s: PrinterStatus) => { if (this.raw.print?.gcode_state) { cleanup(); res(s); } };
       const bad = (e: Error) => { cleanup(); rej(e); };
-      const cleanup = () => { clearTimeout(t); this.off('status', ok); this.off('error', bad); };
+      const cleanup = () => { clearTimeout(tt); this.off('status', ok); this.off('error', bad); };
       this.on('status', ok); this.on('error', bad);
     });
   }

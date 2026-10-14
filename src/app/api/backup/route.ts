@@ -6,6 +6,7 @@ import { getDb, schema } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { config } from '@/lib/config';
+import { getT } from '@/i18n/server';
 
 function walk(dir: string, base: string, out: Record<string, Uint8Array>, limit: { n: number }) {
   if (!fs.existsSync(dir)) return;
@@ -14,7 +15,8 @@ function walk(dir: string, base: string, out: Record<string, Uint8Array>, limit:
 
 /** Respaldo y exportación completa: todos los datos en JSON + los archivos (ZIP). Solo administradores. */
 export async function GET(req: Request) {
-  const user = await getSession(); if (!user || !can(user, 'config', 'E') || user.role !== 'admin') return NextResponse.json({ error: 'Solo el administrador puede exportar' }, { status: 403 });
+  const t = await getT();
+  const user = await getSession(); if (!user || !can(user, 'config', 'E') || user.role !== 'admin') return NextResponse.json({ error: t('api.onlyTheAdministratorCanExport') }, { status: 403 });
   const db = await getDb(); const files: Record<string, Uint8Array> = {}; const enc = new TextEncoder();
   for (const [name, table] of Object.entries(schema)) { if (name === 'sessions' || typeof table !== 'object' || !(table as any)?._?.name) continue; try { const rows = await (db as any).select().from(table); files[`datos/${(table as any)._.name}.json`] = enc.encode(JSON.stringify(rows)); } catch { /* tabla no exportable */ } }
   if (new URL(req.url).searchParams.get('archivos') !== '0') walk(config.storageDir, config.storageDir, files, { n: 400 * 1024 * 1024 });

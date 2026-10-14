@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { exists, stat, webStream } from '@/lib/storage';
+import { getT } from '@/i18n/server';
 
 const MIME: Record<string, string> = { webp: 'image/webp', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', gcode: 'text/plain', '3mf': 'model/3mf', json: 'application/json' };
 
 /** Archivos privados (fotos, comprobantes, G-code): solo con sesión activa. */
 export async function GET(req: Request, { params }: { params: Promise<{ key: string[] }> }) {
+  const t = await getT();
   const user = await getSession();
-  if (!user) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: t('common.unauthorized') }, { status: 401 });
   const { key: parts } = await params;
   const key = parts.map(decodeURIComponent).join('/');
-  if (key.includes('..') || !/^(photos|thumbs|attachments|gcode|preview)\//.test(key)) return NextResponse.json({ error: 'Ruta inválida' }, { status: 400 });
-  if (!(await exists(key))) return NextResponse.json({ error: 'No encontrado' }, { status: 404 });
+  if (key.includes('..') || !/^(photos|thumbs|attachments|gcode|preview)\//.test(key)) return NextResponse.json({ error: t('api.invalidPath') }, { status: 400 });
+  if (!(await exists(key))) return NextResponse.json({ error: t('common.notFound') }, { status: 404 });
   const st = await stat(key); const ext = key.split('.').pop() ?? '';
   const range = req.headers.get('range');
   const headers: Record<string, string> = { 'content-type': MIME[ext] ?? 'application/octet-stream', 'cache-control': 'private, max-age=86400', 'accept-ranges': 'bytes' };

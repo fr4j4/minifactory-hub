@@ -1,0 +1,33 @@
+import type { Shape } from '../translate';
+import type { es } from '../es';
+
+export const slicerParam: Shape<typeof es['slicerParam']> = {
+  machine_max_acceleration_x: 'Max. X acceleration',
+  machine_max_speed_x: 'Max. X speed',
+  printable_height: 'Printable height',
+  layer_height: 'Layer height',
+  initial_layer_print_height: 'First layer height',
+  wall_loops: 'Perimeters (walls)',
+  sparse_infill_density: 'Infill',
+  sparse_infill_pattern: 'Infill pattern',
+  top_shell_layers: 'Top layers',
+  bottom_shell_layers: 'Bottom layers',
+  enable_support: 'Supports (0/1)',
+  support_type: 'Support type',
+  outer_wall_speed: 'Outer wall speed',
+  inner_wall_speed: 'Inner wall speed',
+  sparse_infill_speed: 'Infill speed',
+  default_acceleration: 'Default acceleration',
+  brim_type: 'Brim',
+  nozzle_temperature: 'Nozzle temp.',
+  nozzle_temperature_initial_layer: 'Nozzle temp., first layer',
+  hot_plate_temp: 'Bed temp. (smooth PEI)',
+  textured_plate_temp: 'Bed temp. (textured PEI)',
+  filament_flow_ratio: 'Flow ratio',
+  filament_max_volumetric_speed: 'Max. volumetric flow',
+  filament_density: 'Density',
+  fan_min_speed: 'Min. fan',
+  printable_area: 'Printable area (list of points)',
+  filament_cost: 'Cost',
+  infillHelp: 'E.g. 15%',
+};

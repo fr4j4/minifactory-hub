@@ -8,6 +8,7 @@ import { analyze, decimate, renderThumbnail, toPreviewBin, weld } from './mesh/o
 import { extOf, parseMesh, SUPPORTED_MESH, GCODE_EXT, IMAGE_EXT } from './mesh/parse';
 import { buildGcodePreview, gcodePreviewToBin, hasSlicedData, parse3mfSliceMeta, parseGcodeMeta } from './gcode';
 import { audit } from './audit';
+import { getT } from '@/i18n/server';
 
 export const MODEL_EXT = [...SUPPORTED_MESH, ...GCODE_EXT, ...IMAGE_EXT] as string[];
 export const formatLabel = (ext: string) => ({ stp: 'STEP', step: 'STEP', gcode: 'G-code', gco: 'G-code', bgcode: 'BGCODE', jpg: 'JPG', jpeg: 'JPG' } as Record<string, string>)[ext] ?? ext.toUpperCase();
@@ -22,9 +23,10 @@ export interface IngestInput {
 
 /** Guarda el archivo, crea el modelo (o una versión nueva) y lanza el análisis en segundo plano. */
 export async function ingestModel(i: IngestInput) {
+  const t = await getT();
   const db = await getDb();
   const ext = extOf(i.filename);
-  if (!MODEL_EXT.includes(ext)) throw new Error(`Formato no soportado: .${ext}`);
+  if (!MODEL_EXT.includes(ext)) throw new Error(t('files.unsupportedFormat', { ext }));
   const sha = await sha256File(i.tmpPath);
   const size = (await fsp.stat(i.tmpPath)).size;
   const key = newKey('models', ext);
@@ -58,6 +60,7 @@ export async function ingestModel(i: IngestInput) {
 
 /** Análisis: dimensiones, volumen, malla cerrada, miniatura, vista previa y metadatos del laminador. */
 export async function processVersion(versionId: string) {
+  const t = await getT();
   const db = await getDb();
   const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId));
   if (!v) return;
@@ -92,7 +95,7 @@ export async function processVersion(versionId: string) {
     Object.assign(mfUpdate, { dimX: a.dimX, dimY: a.dimY, dimZ: a.dimZ, volumeCm3: a.volumeCm3, areaCm2: a.areaCm2, triangles: a.triangles, closed: a.closed });
   } else if (meta.kind === 'gcode') {
     if (ext === 'bgcode') {
-      meta.sliced = { slicer: 'PrusaSlicer (binario)', timeS: null, filaments: [], totalG: null, layers: null, layerHeight: null, maxZ: null, machine: null, notes: ['G-code binario (.bgcode): requiere la librería libbgcode; usa modo manual o exporta G-code ASCII.'] };
+      meta.sliced = { slicer: t('files.prusaslicerBinary'), timeS: null, filaments: [], totalG: null, layers: null, layerHeight: null, maxZ: null, machine: null, notes: [t('files.binaryGCodeBgcodeRequires')] };
     } else {
       const txt = new TextDecoder().decode(buf);
       const sm = parseGcodeMeta(txt);

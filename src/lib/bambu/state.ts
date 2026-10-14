@@ -2,29 +2,25 @@
  * Normaliza el informe MQTT (`device/<serie>/report`) a un estado tipado. La familia P1/A1 envía solo
  * los campos que cambian, así que el informe crudo se fusiona en profundidad antes de normalizar.
  */
+import type { MessageKey } from '@/i18n/translate';
 export type PrintState = 'IDLE' | 'PREPARE' | 'RUNNING' | 'PAUSE' | 'FINISH' | 'FAILED' | 'SLICING' | 'OFFLINE' | 'UNKNOWN';
-export const STATE_LABEL: Record<PrintState, string> = { IDLE: 'Libre', PREPARE: 'Preparando', RUNNING: 'Imprimiendo', PAUSE: 'En pausa', FINISH: 'Terminada', FAILED: 'Falló', SLICING: 'Laminando', OFFLINE: 'Sin conexión', UNKNOWN: 'Desconocido' };
-export const SPEED_LABEL: Record<number, string> = { 1: 'Silencioso', 2: 'Estándar', 3: 'Sport', 4: 'Ludicrous' };
+export const STATE_LABEL: Record<PrintState, MessageKey> = { IDLE: 'machines.state.IDLE', PREPARE: 'machines.state.PREPARE', RUNNING: 'machines.state.RUNNING', PAUSE: 'machines.state.PAUSE', FINISH: 'machines.state.FINISH', FAILED: 'machines.state.FAILED', SLICING: 'machines.state.SLICING', OFFLINE: 'machines.state.OFFLINE', UNKNOWN: 'machines.state.UNKNOWN' };
+export const SPEED_LABEL: Record<number, MessageKey> = { 1: 'machines.speedMode.1', 2: 'machines.speedMode.2', 3: 'machines.speedMode.3', 4: 'machines.speedMode.4' };
 
 /** Etapas (stg_cur / mc_print_stage) más comunes. */
-const STAGE: Record<number, string> = {
-  1: 'Nivelando la cama', 2: 'Precalentando la cama', 3: 'Barrido vibratorio', 4: 'Cambiando filamento', 5: 'Pausa por M400', 6: 'Pausa: sensor de filamento',
-  7: 'Calentando la boquilla', 8: 'Calibrando la extrusión', 9: 'Escaneando la superficie', 10: 'Inspeccionando la primera capa', 11: 'Identificando el tipo de cama',
-  12: 'Calibrando la cámara', 13: 'Llevando a origen', 14: 'Limpiando la boquilla', 15: 'Revisando la temperatura', 16: 'Pausa del usuario', 17: 'Pausa: tapa frontal',
-  18: 'Calibrando el micro lidar', 19: 'Calibrando el flujo', 20: 'Pausa: temperatura de boquilla', 21: 'Pausa: temperatura de cama', 22: 'Descargando filamento',
-  24: 'Cargando filamento', 25: 'Calibrando el motor',
-};
+/** Claves de mensaje de cada etapa conocida; el resto se muestra como «Etapa N». */
+const STAGE_KEYS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25]);
 
 export interface Tray { slot: string; ams: number; index: number; type: string | null; brand: string | null; color: string | null; remain: number | null; tempMin: number | null; tempMax: number | null; uuid: string | null; active: boolean; empty: boolean }
 export interface AmsUnit { id: number; humidity: number | null; temp: number | null; trays: Tray[] }
 export interface HmsItem { code: string; severity: 'fatal' | 'serio' | 'común' | 'info'; url: string }
 export interface PrinterStatus {
-  state: PrintState; stateLabel: string; stage: string | null;
+  state: PrintState; stateLabel: MessageKey; stage: string | null;
   progress: number | null; remainingMin: number | null; layer: number | null; totalLayers: number | null;
   file: string | null; task: string | null;
   nozzle: { temp: number | null; target: number | null; diameter: string | null }; bed: { temp: number | null; target: number | null }; chamber: number | null;
   fans: { part: number | null; aux: number | null; chamber: number | null };
-  speed: { level: number | null; label: string | null };
+  speed: { level: number | null; label: MessageKey | null };
   light: 'on' | 'off' | 'flashing' | null;
   ams: AmsUnit[]; external: Tray | null; trayNow: string | null;
   errorCode: string | null; hms: HmsItem[];
@@ -53,10 +49,10 @@ function colorOf(c: unknown): string | null {
   const rgb = c.slice(0, 6); const a = c.length >= 8 ? parseInt(c.slice(6, 8), 16) : 255;
   return a === 0 ? null : `#${rgb.toLowerCase()}`;
 }
-function tray(t: any, ams: number, trayNow: string | null): Tray {
-  const index = Number(t?.id ?? 0); const slot = ams === 255 ? '254' : String(ams * 4 + index);
-  const type = t?.tray_type || null; const remain = n(t?.remain);
-  return { slot, ams, index, type, brand: t?.tray_sub_brands || null, color: colorOf(t?.tray_color), remain: remain != null && remain >= 0 ? remain : null, tempMin: n(t?.nozzle_temp_min), tempMax: n(t?.nozzle_temp_max), uuid: t?.tray_uuid && !/^0+$/.test(t.tray_uuid) ? t.tray_uuid : null, active: trayNow === slot, empty: !type };
+function tray(tt: any, ams: number, trayNow: string | null): Tray {
+  const index = Number(tt?.id ?? 0); const slot = ams === 255 ? '254' : String(ams * 4 + index);
+  const type = tt?.tray_type || null; const remain = n(tt?.remain);
+  return { slot, ams, index, type, brand: tt?.tray_sub_brands || null, color: colorOf(tt?.tray_color), remain: remain != null && remain >= 0 ? remain : null, tempMin: n(tt?.nozzle_temp_min), tempMax: n(tt?.nozzle_temp_max), uuid: tt?.tray_uuid && !/^0+$/.test(tt.tray_uuid) ? tt.tray_uuid : null, active: trayNow === slot, empty: !type };
 }
 
 export function normalize(raw: Record<string, any> | null | undefined, online = true): PrinterStatus {
@@ -64,7 +60,7 @@ export function normalize(raw: Record<string, any> | null | undefined, online = 
   const st = String(p.gcode_state ?? '').toUpperCase();
   const state: PrintState = !online ? 'OFFLINE' : (['IDLE', 'PREPARE', 'RUNNING', 'PAUSE', 'FINISH', 'FAILED', 'SLICING'].includes(st) ? st : st ? 'UNKNOWN' : 'UNKNOWN') as PrintState;
   const trayNow = p.ams?.tray_now != null ? String(p.ams.tray_now) : null;
-  const ams: AmsUnit[] = Array.isArray(p.ams?.ams) ? p.ams.ams.map((u: any) => ({ id: Number(u.id ?? 0), humidity: n(u.humidity), temp: n(u.temp), trays: (Array.isArray(u.tray) ? u.tray : []).map((t: any) => tray(t, Number(u.id ?? 0), trayNow)) })) : [];
+  const ams: AmsUnit[] = Array.isArray(p.ams?.ams) ? p.ams.ams.map((u: any) => ({ id: Number(u.id ?? 0), humidity: n(u.humidity), temp: n(u.temp), trays: (Array.isArray(u.tray) ? u.tray : []).map((tt: any) => tray(tt, Number(u.id ?? 0), trayNow)) })) : [];
   const ext = p.vt_tray ? tray({ ...p.vt_tray, id: 0 }, 255, trayNow) : null;
   const stage = n(p.stg_cur);
   const err = n(p.print_error);
@@ -72,7 +68,7 @@ export function normalize(raw: Record<string, any> | null | undefined, online = 
   const lvl = n(p.spd_lvl);
   return {
     state, stateLabel: STATE_LABEL[state],
-    stage: stage != null && stage > 0 && stage !== 255 ? STAGE[stage] ?? `Etapa ${stage}` : null,
+    stage: stage != null && stage > 0 && stage !== 255 ? (STAGE_KEYS.has(stage) ? `machines.stage.${stage}` : `stage:${stage}`) : null,
     progress: n(p.mc_percent), remainingMin: n(p.mc_remaining_time), layer: n(p.layer_num), totalLayers: n(p.total_layer_num),
     file: p.gcode_file || null, task: p.subtask_name || null,
     nozzle: { temp: n(p.nozzle_temper), target: n(p.nozzle_target_temper), diameter: p.nozzle_diameter ?? null },
