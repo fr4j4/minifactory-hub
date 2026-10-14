@@ -60,8 +60,8 @@ Gravedad: **A** alta (resultado equivocado o pérdida de datos) · **M** media �
 | M3 | M | Los nombres «Perfil de máquina (laminador)» y «Proceso por defecto» no se entendían. | Renombrados («Perfil de impresora (tipo de máquina)», «Calidad por defecto») con una explicación en la ficha y una guía en Laminador. |
 | M4 | B | La ficha mostraba boquillas también para máquinas SLA/SLS. | Corregido (solo FDM). |
 | M5 | M | No había forma de eliminar una máquina desde la pantalla. | Resuelto en `development` por otro cambio (botón «Eliminar» con archivo). |
-| M6 | B | **Pendiente.** Número de serie sin validación de duplicados; «materiales compatibles» es texto libre y no se cruza con los tipos del inventario. | Recomendado. |
-| M7 | B | **Pendiente.** En el Comparador una máquina = una boquilla puesta; para comparar 0,2 vs 0,4 en un solo disparo hay que elegir la calidad de la otra boquilla (se avisa, pero el tiempo/gramos usan el perfil de impresora puesto). | Alternativa de diseño abajo. |
+| M6 | B | Número de serie sin validación de duplicados; «materiales compatibles» era texto libre («pla» ≠ «PLA»). | Corregido: el serie no se repite entre máquinas activas; los tipos se eligen con botones (los del inventario + habituales) y siempre se guardan con la misma grafía. |
+| M7 | B | En el Comparador y en Laminar una máquina era una sola boquilla. | Corregido: cada boquilla configurada es una opción («Bambu A1 · 0,2 mm», «Bambu A1 · 0,4 mm»); con una sola boquilla se ve solo el nombre. En las líneas de presupuesto se sigue usando la boquilla puesta. |
 
 ## 4. Qué se agregó (resumen funcional)
 
@@ -75,7 +75,9 @@ Gravedad: **A** alta (resultado equivocado o pérdida de datos) · **M** media �
 
 Elegí **una boquilla puesta por máquina** porque es lo que ocurre físicamente (una boquilla a la vez), no cambia ninguna pantalla que ya elige «máquina» (Archivos, Presupuestos, Comparador) y se cambia en un toque. Los datos quedan en `machines.nozzle_setups` (boquilla → impresora + calidad) y `slicer_profiles.nozzle`; `machine_profile_id` y `default_process_profile_id` reflejan la boquilla puesta, así que nada anterior se rompe.
 
-Alternativa descartada por ahora: tratar cada par *(máquina, boquilla)* como opción independiente en todos los selectores («A1 · 0,2», «A1 · 0,4»). Permitiría comparar boquillas en un solo disparo, a costa de tocar todos los lugares donde se elige máquina y de complicar costos y cola. Si lo necesitas, el dato ya está (`nozzle_setups`).
+Después se agregó el par *(máquina, boquilla)* como opción en Laminar y Comparador (`ctx.setups`), de modo que se pueden comparar boquillas en un solo disparo. Las líneas de presupuesto siguen usando la boquilla puesta.
+
+Otros ajustes de esta segunda vuelta: las plantillas reescalan las velocidades cuando no hay calidad de fábrica para ese diámetro (0,2 → ×0,6; 1,2 → ×0,5; referencia 0,4) y ajustan todos los anchos de línea de la base (OrcaSlicer rechazaba la 1,2 por `skin_infill_line_width` menor que la capa); y las máquinas configuradas antes de «boquilla puesta» ya no pierden su boquilla actual al cambiar.
 
 ## 6. Verificación
 

@@ -30,18 +30,27 @@ test.describe('Perfiles por boquilla', () => {
 
     // laminar: la lista de calidades pone primero las de la boquilla de la máquina y avisa si se elige otra
     await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
-    await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1' }); await expect(page.getByTestId('slice-nozzle')).toContainText('0.6');
+    await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1 · 0,6 mm' }); await expect(page.getByTestId('slice-nozzle')).toContainText('0.6');
+    // con dos boquillas configuradas, cada una es una opción de máquina
+    await expect(page.getByTestId('slice-machine').locator('option', { hasText: 'Bambu A1 #1 · 0,4 mm' })).toHaveCount(1);
     await page.getByTestId('slice-process').selectOption({ label: 'A1 · 0,20 Standard · Boquilla 0.4 mm' }); await expect(page.getByTestId('nozzle-mismatch')).toContainText('boquilla 0.4 mm'); await shot(page, 'P06-aviso-boquilla');
     // deja la máquina de demostración como estaba (las demás pruebas esperan la boquilla 0,4)
     await page.goto('/maquinas'); await page.getByRole('link', { name: /Bambu A1 #1/ }).click(); await page.getByTestId('set-nozzle-0.4').click(); await expect(page.getByText(/Boquilla 0,4 mm puesta/)).toBeVisible();
+    // comparador: la misma máquina con sus dos boquillas lado a lado
+    await page.goto('/laminador?tab=comparar'); await expect(page.getByTestId('cmp-machine-0').locator('option', { hasText: 'Bambu A1 #1 · 0,6 mm' })).toHaveCount(1); await expect(page.getByTestId('cmp-machine-0').locator('option', { hasText: 'Bambu A1 #1 · 0,4 mm' })).toHaveCount(1);
     saveAs('perfiles-boquillas');
   });
 
-  test('ficha de máquina: boquillas con un toque y «0,4» ya no se parte en «0» y «4»', async ({ page }) => {
+  test('ficha de máquina: boquillas con un toque, tipos de material normalizados y serie único', async ({ page }) => {
     await login(page); await page.goto('/maquinas/nueva'); await page.getByTestId('machine-name').fill('Ender 0,2'); 
-    await page.getByTestId('machine-nozzles').getByTestId('nozzle-0.2').click(); await page.getByTestId('machine-nozzles').getByTestId('nozzle-other').fill('1,2'); await page.getByRole('button', { name: 'Agregar' }).click();
+    await page.getByTestId('machine-nozzles').getByTestId('nozzle-0.2').click(); await page.getByTestId('machine-nozzles').getByTestId('nozzle-other').fill('1,2'); await page.getByTestId('machine-nozzles').getByRole('button', { name: 'Agregar' }).click();
     await expect(page.getByTestId('machine-nozzles').getByTestId('nozzle-1.2')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByTestId('machine-materials').getByTestId('mat-other').fill(' petg-cf '); await page.getByTestId('machine-materials').getByRole('button', { name: 'Agregar' }).click(); await expect(page.getByTestId('mat-PETG-CF')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByLabel('N° de serie').fill('SN-DUP-1');
     await page.getByTestId('machine-save').click(); await page.waitForURL(/\/maquinas\/[0-9a-f-]{36}$/);
     await page.goto('/maquinas'); await expect(page.getByRole('link', { name: /Ender 0,2/ })).toContainText('0,2 · 0,4 · 1,2');
+    // otra máquina con el mismo serie: se rechaza
+    await page.goto('/maquinas/nueva'); await page.getByTestId('machine-name').fill('Ender copia'); await page.getByLabel('N° de serie').fill('sn-dup-1'); await page.getByTestId('machine-save').click();
+    await expect(page.getByText(/ya lo tiene la máquina «Ender 0,2»/)).toBeVisible();
   });
 });

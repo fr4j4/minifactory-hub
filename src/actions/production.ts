@@ -2,6 +2,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { profileNozzle } from '@/lib/slicer/catalog';
 import { normNozzle } from '@/lib/slicer/nozzle';
+import { canonicalMaterialTypes, KNOWN_MATERIAL_TYPES } from '@/lib/slicer/material-types';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
@@ -23,7 +24,7 @@ export async function createTestJobAction(i: { title: string; machineId?: string
 
 export interface MachineInput { id?: string; name: string; brand?: string; model?: string; tech: string; serial?: string; volX: number; volY: number; volZ: number; nozzles: string[]; materialsOk: string[]; multicolorSlots: number; heatedBed: boolean; enclosed: boolean; purchaseValue: number; residualValue: number; lifeHours: number; watts: number; maintCostHour: number; feedGph: number; simulated: boolean; machineProfileId?: string | null; defaultProcessProfileId?: string | null }
 /** Valida y deja solo los campos de la ficha (el cliente no puede escribir horas, estado, borrado, etc.). */
-function cleanMachine(i: MachineInput, t: TFn) {
+function cleanMachine(i: MachineInput, t: TFn, knownTypes: string[]) {
   const name = String(i.name ?? '').trim(); if (!name) throw new Error(t('machines.theMachineNeedsAName'));
   const tech = ['FDM', 'SLA', 'SLS'].includes(i.tech) ? i.tech : 'FDM';
   const num = (v: unknown, label: MessageKey, o: { min?: number; max?: number; int?: boolean } = {}) => {
@@ -37,7 +38,7 @@ function cleanMachine(i: MachineInput, t: TFn) {
   return {
     name, brand: i.brand?.trim() || null, model: i.model?.trim() || null, tech, serial: i.serial?.trim() || null,
     volX: num(i.volX, 'nozzle.fldVolX', { min: 10, max: 5000 }), volY: num(i.volY, 'nozzle.fldVolY', { min: 10, max: 5000 }), volZ: num(i.volZ, 'nozzle.fldVolZ', { min: 10, max: 5000 }),
-    nozzles, materialsOk: list(i.materialsOk), multicolorSlots: num(i.multicolorSlots, 'nozzle.fldSlots', { min: 1, max: 32, int: true }),
+    nozzles, materialsOk: canonicalMaterialTypes(list(i.materialsOk), knownTypes), multicolorSlots: num(i.multicolorSlots, 'nozzle.fldSlots', { min: 1, max: 32, int: true }),
     heatedBed: !!i.heatedBed, enclosed: !!i.enclosed, simulated: !!i.simulated,
     purchaseValue: num(i.purchaseValue, 'nozzle.fldPurchase', { int: true }), residualValue: num(i.residualValue, 'nozzle.fldResidual', { int: true }), lifeHours: num(i.lifeHours, 'nozzle.fldLife', { min: 1, int: true }),
     watts: num(i.watts, 'nozzle.fldWatts', { max: 20000, int: true }), maintCostHour: num(i.maintCostHour, 'nozzle.fldMaint', { int: true }), feedGph: num(i.feedGph, 'nozzle.fldFeed', { min: 0.1, max: 5000 }),
@@ -47,7 +48,13 @@ export async function saveMachineAction(i: MachineInput) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('maquinas', i.id ? 'E' : 'C'); const db = await getDb();
-    const v = cleanMachine(i, t);
+    const inv = await db.selectDistinct({ t: s.materials.type }).from(s.materials).where(isNull(s.materials.deletedAt));
+    const v = cleanMachine(i, t, [...new Set([...KNOWN_MATERIAL_TYPES, ...inv.map((x) => x.t.trim().toUpperCase())])]);
+    // el número de serie identifica un equipo: no se repite entre máquinas activas
+    if (v.serial) {
+      const same = (await db.select({ id: s.machines.id, serial: s.machines.serial, name: s.machines.name }).from(s.machines).where(isNull(s.machines.deletedAt))).find((x) => x.id !== i.id && x.serial?.trim().toLowerCase() === v.serial!.toLowerCase());
+      if (same) throw new Error(t('nozzle.errSerialDup', { name: same.name }));
+    }
     // los perfiles del laminador deben existir y ser del tipo correcto
     const profile = async (id: string | null | undefined, type: 'machine' | 'process') => {
       if (!id) return null; const [p] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.id, id), isNull(s.slicerProfiles.deletedAt)));
