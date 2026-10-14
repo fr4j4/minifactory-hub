@@ -84,10 +84,19 @@ export function ConfirmButton({ children, onConfirm, message, className, disable
   );
 }
 
+/** Copia al portapapeles; sin contexto seguro (HTTP por IP de red local) navigator.clipboard no existe, así que se cae a execCommand. */
+async function copyText(text: string): Promise<boolean> {
+  try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch { /* se prueba el respaldo */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+  document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, text.length);
+  try { return document.execCommand('copy'); } catch { return false; } finally { document.body.removeChild(ta); }
+}
+
 /** Botón que copia texto (mensajes de WhatsApp, enlaces). */
 export function CopyButton({ text, label, className }: { text: string; label?: string; className?: string }) {
   const toast = useToast(); const t = useT();
-  return <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={async () => { try { await navigator.clipboard.writeText(text); toast.push(t('common.copied')); } catch { toast.push(t('common.copyFailed'), 'err'); } }}>{label ?? t('common.copy')}</button>;
+  return <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={async () => { if (await copyText(text)) toast.push(t('common.copied')); else toast.push(t('common.copyFailed'), 'err'); }}>{label ?? t('common.copy')}</button>;
 }
 
 export function Autofocus() { return null; }

@@ -2,7 +2,7 @@ import { pagePerm } from '@/lib/auth';
 import { canSeeCosts, canSetFinalPrice } from '@/lib/perm';
 import { PageHeader } from '@/components/ui';
 import { QuoteEditor, type QuoteState } from '@/components/quote-editor';
-import { newItem } from '@/components/line-editor';
+import { newItem } from '@/lib/item-state';
 import { loadEditorData } from '@/lib/editor-data';
 import { getSettings } from '@/lib/settings';
 import { getDb, s } from '@/db';

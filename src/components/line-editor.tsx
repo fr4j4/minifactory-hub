@@ -16,26 +16,8 @@ import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
-export interface ItemState {
-  uid: string; id?: string; kind: 'modelo' | 'placa' | 'manual' | 'producto'; description: string; qty: number; optional: boolean; groupName: string;
-  materialId: string | null; color: string; machineId: string | null; processProfileId: string | null;
-  mode: 'auto' | 'semi' | 'manual'; gramsTotal: number; hoursTotal: number; unitGrams: number; unitHours: number;
-  origin: { grams?: string; hours?: string; runId?: string; engine?: string; note?: string; stale?: boolean; corrected?: boolean; file?: string };
-  postMinutes: number; postSupplies: number; prepMinutes: number; shipping: number; finalUnit: number | null; sliceRunId: string | null; variantId: string | null;
-  models: Array<{ modelFileId: string; fileVersionId?: string | null; qty: number; name: string }>; links: LinkRow[]; open: boolean;
-}
-
-let seq = 0;
-export const uid = () => `i${Date.now().toString(36)}${seq++}`;
-export function newItem(ctx: CalcContext, over: Partial<ItemState> = {}): ItemState {
-  const m = ctx.machines.find((x) => x.tech === 'FDM' && !x.simulated) ?? ctx.machines[0];
-  const mat = ctx.materials.find((x) => x.tech === 'fdm');
-  return {
-    uid: uid(), kind: 'manual', description: '', qty: 1, optional: false, groupName: '', materialId: mat?.id ?? null, color: mat?.colorName ?? '', machineId: m?.id ?? null,
-    processProfileId: m?.defaultProcessProfileId ?? null, mode: 'manual', gramsTotal: 0, hoursTotal: 0, unitGrams: 0, unitHours: 0, origin: { grams: 'manual', hours: 'manual' },
-    postMinutes: 0, postSupplies: 0, prepMinutes: ctx.rates.prepMinutes, shipping: 0, finalUnit: null, sliceRunId: null, variantId: null, models: [], links: [], open: true, ...over,
-  };
-}
+export { uid, newItem, type ItemState } from '@/lib/item-state';
+import type { ItemState } from '@/lib/item-state';
 
 /** Costos y precio sugerido de una línea, en el navegador (el servidor recalcula con los mismos datos al guardar). */
 export function computeItem(it: ItemState, ctx: CalcContext, priceAdj = 0, variantInfo?: { price: number; avgCost: number }): { bd: CostBreakdown; suggestedUnit: number; cost: number } {
@@ -94,7 +76,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
     onChange(patch); setPick('');
   };
   const doSlice = async () => {
-    if (!firstModel || !mach?.machineProfileId || !mat?.filamentProfileId || !it.processProfileId) { toast.push(t('calculator.chooseAModelAMachine'), 'err'); return; }
+    const missing = !firstModel ? 'calculator.missingModel' : !mach?.machineProfileId ? 'calculator.missingMachineProfile' : !it.processProfileId ? 'calculator.missingProcess' : !mat?.filamentProfileId ? 'calculator.missingFilamentProfile' : null;
+    if (missing || !firstModel || !mach?.machineProfileId || !mat?.filamentProfileId || !it.processProfileId) { toast.push(tOr(t, missing ?? 'calculator.chooseAModelAMachine', t('calculator.chooseAModelAMachine'), { name: mat?.label ?? '' }), 'err'); return; }
     onChange({ origin: { ...it.origin, stale: false } });
     const r = await sliceAction({ fileVersionId: firstModel.versionId, machineProfileId: mach.machineProfileId, processProfileId: it.processProfileId, filamentProfileId: mat.filamentProfileId, copies: qty, label: `${firstModel.name} ×${qty}` });
     if (r.ok) setRunId(r.data); else toast.push(r.error, 'err');
@@ -154,7 +137,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   {showUp && <Uploader className="mt-2" compact intent={{ intent: 'model', sync: true }} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode" label={t('calculator.dropTheCustomerSFile')} onDone={(r) => { r.forEach((x) => x.ok && addModel(x.data.modelFileId)); setShowUp(false); }} />}
                 </div>
                 <div className="grid sm:grid-cols-3 gap-3">
-                  <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={it.materialId ?? ''} disabled={dis} onChange={(e) => { const m = mats.find((x) => x.id === e.target.value); onChange({ materialId: e.target.value || null, color: m?.colorName ?? it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} data-testid="line-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label} · {money(m.costPerKg)}/kg</option>)}</select></label>
+                  <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={it.materialId ?? ''} disabled={dis} onChange={(e) => { const m = mats.find((x) => x.id === e.target.value); onChange({ materialId: e.target.value || null, color: m?.colorName ?? it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} data-testid="line-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label} · {money(m.costPerKg)}/kg{m.tech === 'fdm' && !m.filamentProfileId ? ` · ${t('calculator.noSlicerProfile')}` : ''}</option>)}</select></label>
                   <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select></label>
                   <label className="block"><span className="label">{t('calculator.processProfile')}</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option><ProcessOptions profiles={ctx.profiles.filter((p) => p.type === 'process')} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle ?? null} /></select><NozzleMismatch processNozzle={ctx.profiles.find((p) => p.id === it.processProfileId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle} /></label>
                 </div>
