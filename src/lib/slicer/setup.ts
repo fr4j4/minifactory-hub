@@ -1,7 +1,8 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit } from '../audit';
-import { findVendorOf, getIndex, listFactory, resolveFactory, type ProfileType } from './catalog';
+import { entryNozzle, findVendorOf, getIndex, listFactory, profileNozzle, resolveFactory, rowNozzle, type ProfileType } from './catalog';
+import { layerRange, normNozzle, nozzleFromName, numStr, qualityTemplates, standardLayer, type TemplateKey } from './nozzle';
 import { getT } from '@/i18n/server';
 import { tDefault } from '@/i18n/errors';
 
@@ -27,14 +28,14 @@ export async function ensureProfile(type: ProfileType, baseName: string, name: s
   return createProfileRow({ type, name, baseName, vendor, changes: {}, userId, note: t('slicer.createdByTheGuidedSetup') }, db);
 }
 
-export async function createProfileRow(i: { type: ProfileType; name: string; baseName: string; vendor?: string; changes: Record<string, any>; userId?: string | null; note?: string; imported?: boolean; notes?: string | null }, db?: Db) {
+export async function createProfileRow(i: { type: ProfileType; name: string; baseName: string; vendor?: string; changes: Record<string, any>; userId?: string | null; note?: string; imported?: boolean; notes?: string | null; nozzle?: string | null }, db?: Db) {
   const t = await getT();
   db ??= await getDb();
   const vendor = i.vendor ?? findVendorOf(i.type, i.baseName); if (!vendor) throw new Error(t('slicer.theFactoryProfileDoesNot2', { name: i.baseName }));
   // nombre único: si ya existe, se agrega un número
   const names = new Set((await db.select({ n: s.slicerProfiles.name }).from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, i.type), isNull(s.slicerProfiles.deletedAt)))).map((x) => x.n));
   let name = i.name.trim(); for (let k = 2; names.has(name); k++) name = `${i.name.trim()} (${k})`;
-  const [r] = await db.insert(s.slicerProfiles).values({ workspaceId: WORKSPACE_ID, type: i.type, name, vendor, baseName: i.baseName, changes: i.changes, imported: !!i.imported, notes: i.notes ?? null, createdBy: i.userId ?? null }).returning({ id: s.slicerProfiles.id });
+  const [r] = await db.insert(s.slicerProfiles).values({ workspaceId: WORKSPACE_ID, type: i.type, name, vendor, baseName: i.baseName, changes: i.changes, imported: !!i.imported, notes: i.notes ?? null, nozzle: normNozzle(i.nozzle) ?? (i.type === 'filament' ? null : rowNozzle({ type: i.type, baseName: i.baseName, changes: i.changes })), createdBy: i.userId ?? null }).returning({ id: s.slicerProfiles.id });
   await db.insert(s.slicerProfileVersions).values({ profileId: r.id, version: 1, baseName: i.baseName, changes: i.changes, createdBy: i.userId ?? null, note: i.note ?? t('slicer.initialVersion') });
   await audit('slicer_profile', r.id, 'crear', { name, baseName: i.baseName }, i.userId);
   return r.id;
@@ -42,11 +43,11 @@ export async function createProfileRow(i: { type: ProfileType; name: string; bas
 
 /** Perfil de máquina sugerido según marca/modelo/boquilla de la ficha («Bambu Lab» + «A1» + 0.4 → «Bambu Lab A1 0.4 nozzle»). */
 export function suggestMachineBase(m: { brand: string | null; model: string | null; name: string; nozzles?: string[] | null }): string | null {
-  const idx = getIndex(); const nozzle = (m.nozzles?.[0] ?? '0.4').replace(',', '.');
+  const idx = getIndex(); const list = (m.nozzles ?? []).map((x) => normNozzle(x)).filter(Boolean) as string[]; const nozzle = list.includes('0.4') ? '0.4' : list[0] ?? '0.4';
   const machines = idx.all.filter((e) => e.type === 'machine' && e.instantiation);
   const hay = `${m.brand ?? ''} ${m.model ?? ''} ${m.name}`.toLowerCase().replace(/\s+/g, ' ');
   // el nombre de modelo más largo que aparezca en la ficha (para no confundir «A1» con «A1 mini»)
-  const cands = machines.filter((e) => e.nozzle == null || String(e.nozzle) === nozzle).map((e) => ({ e, model: e.name.replace(/ \d\.\d nozzle$/, '').toLowerCase() }))
+  const cands = machines.filter((e) => (entryNozzle(e) ?? '0.4') === nozzle).map((e) => ({ e, model: e.name.replace(/ \d\.\d nozzle$/, '').toLowerCase() }))
     .filter(({ model }) => { const bare = model.replace(/^bambu lab /, ''); return hay.includes(model) || (/bambu/.test(hay) && new RegExp(`(^|\\s)${bare.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\s|$)`).test(hay)); })
     .sort((a, b) => b.model.length - a.model.length);
   return cands[0]?.e.name ?? null;
@@ -70,10 +71,20 @@ export function processesFor(machineBase: string) {
   const all = listFactory('process', vendor, { machine: machineBase });
   const explicit = getIndex().all.some((e) => e.type === 'process' && e.vendor === vendor && e.compatiblePrinters.includes(machineBase));
   const list = explicit ? all : all.filter((p) => fitsMachine(p.name, machineBase));
-  // primero la calidad «equilibrada»: altura de capa más cercana a 0,20 mm y, a igualdad, la Standard
-  const lh = (n: string) => Number(n.match(/^(\d+\.\d+)mm/)?.[1] ?? 0.2);
+  // primero la calidad «estándar» de ESA boquilla: altura de capa más cercana a la mitad del diámetro
+  // (0,2 → 0,10 · 0,4 → 0,20 · 0,6 → 0,30 · 0,8 → 0,40) y, a igualdad, la Standard
+  const target = standardLayer(profileNozzle('machine', machineBase) ?? '0.4');
+  const lh = (n: string) => Number(n.match(/^(\d+\.\d+)mm/)?.[1] ?? target);
   const kind = (n: string) => (/standard/i.test(n) ? 0 : /optimal|balanced/i.test(n) ? 1 : /strength/i.test(n) ? 2 : /speed/i.test(n) ? 3 : 4);
-  return list.map((p) => p.name).sort((a, b) => Math.abs(lh(a) - 0.2) - Math.abs(lh(b) - 0.2) || kind(a) - kind(b) || a.localeCompare(b));
+  return list.map((p) => p.name).sort((a, b) => Math.abs(lh(a) - target) - Math.abs(lh(b) - target) || kind(a) - kind(b) || a.localeCompare(b));
+}
+
+/** Misma impresora con otras boquillas de fábrica: «Bambu Lab A1 0.4 nozzle» → [{0.2, «… 0.2 nozzle»}, {0.4, …}, {0.6, …}, {0.8, …}]. */
+export function nozzleVariants(machineBase: string): Array<{ nozzle: string; base: string }> {
+  const stem = machineBase.replace(/\s*\d\.\d+\s*nozzle$/i, ''); if (stem === machineBase) { const n = profileNozzle('machine', machineBase); return n ? [{ nozzle: n, base: machineBase }] : []; }
+  const vendor = findVendorOf('machine', machineBase);
+  return getIndex().all.filter((e) => e.type === 'machine' && e.instantiation && (!vendor || e.vendor === vendor) && e.name.startsWith(`${stem} `) && /^\d\.\d+ nozzle$/i.test(e.name.slice(stem.length + 1)))
+    .map((e) => ({ nozzle: entryNozzle(e) ?? nozzleFromName(e.name)!, base: e.name })).filter((v) => v.nozzle).sort((a, b) => Number(a.nozzle) - Number(b.nozzle));
 }
 
 /** Filamentos de fábrica disponibles: los de la marca de la impresora y los genéricos de OrcaSlicer. */
@@ -107,10 +118,12 @@ export async function slicingReadiness() {
   const P = (id: string | null) => (id ? profs.find((p) => p.id === id) ?? null : null);
   const ms = machines.map((m) => {
     const mp = P(m.machineProfileId); const base = mp?.baseName ?? suggestMachineBase(m);
-    return { id: m.id, name: m.name, brand: m.brand, model: m.model, nozzle: m.nozzles?.[0] ?? '0.4', simulated: m.simulated,
+    const nozzle = (mp ? rowNozzle(mp) : base ? profileNozzle('machine', base) : null) ?? normNozzle(m.nozzles?.[0]) ?? '0.4';
+    const setups = Object.entries(m.nozzleSetups ?? {}).filter(([, v]) => P(v.machineProfileId)).map(([n, v]) => ({ nozzle: n, machineProfile: P(v.machineProfileId)!.name, process: P(v.processProfileId)?.name ?? null }));
+    return { id: m.id, name: m.name, brand: m.brand, model: m.model, nozzle, nozzles: m.nozzles ?? [], simulated: m.simulated,
       machineProfile: mp ? { id: mp.id, name: mp.name, baseName: mp.baseName } : null, suggestedMachine: mp ? null : base,
       defaultProcess: P(m.defaultProcessProfileId) ? { id: m.defaultProcessProfileId!, name: P(m.defaultProcessProfileId)!.name } : null,
-      processes: base ? processesFor(base) : [] };
+      processes: base ? processesFor(base) : [], variants: base ? nozzleVariants(base) : [], setups };
   });
   const ref = ms.find((m) => m.machineProfile)?.machineProfile?.baseName ?? ms.find((m) => m.suggestedMachine)?.suggestedMachine ?? null;
   const mats = materials.map((m) => {
@@ -130,16 +143,98 @@ export async function slicingReadiness() {
     done: { machines: ms.filter((m) => m.machineProfile && m.defaultProcess).length, materials: mats.filter((m) => m.filamentProfile && !m.mismatch).length } };
 }
 
+const sortNozzles = (l: string[]) => [...new Set(l)].sort((a, b) => Number(a) - Number(b));
+
 export async function setupMachine(machineId: string, machineBase: string, processBase: string | null, userId?: string | null) {
   const t = await getT();
   const db = await getDb(); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m) throw new Error(t('slicer.machineNotFound'));
   const mpId = await ensureProfile('machine', machineBase, machineBase.replace(/ nozzle$/, ''), userId, db);
   const proc = processBase ?? processesFor(machineBase)[0]; if (!proc) throw new Error(t('slicer.thereAreNoQualityProfiles'));
-  const ppId = await ensureProfile('process', proc, `${short(machineBase).replace(/^Bambu Lab /, '').replace(/ \d\.\d nozzle$/, '')} · ${short(proc)}`, userId, db);
-  const nozzle = machineBase.match(/(\d\.\d) nozzle$/)?.[1];
-  await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppId, ...(nozzle ? { nozzles: [nozzle] } : {}), updatedAt: new Date() }).where(eq(s.machines.id, machineId));
-  await audit('machine', machineId, 'configurar_laminado', { machineBase, processBase: proc }, userId);
+  const ppId = await ensureProfile('process', proc, `${short(machineBase).replace(/^Bambu Lab /, '').replace(/ \d\.\d+ nozzle$/, '')} · ${short(proc)}`, userId, db);
+  const nozzle = profileNozzle('machine', machineBase);
+  // La boquilla se SUMA a las de la ficha (antes la reemplazaba y se perdían las demás) y queda como la activa.
+  const nozzles = nozzle ? sortNozzles([...(m.nozzles ?? []).map((x) => normNozzle(x)).filter(Boolean) as string[], nozzle]) : m.nozzles ?? [];
+  const nozzleSetups = nozzle ? { ...(m.nozzleSetups ?? {}), [nozzle]: { machineProfileId: mpId, processProfileId: ppId } } : m.nozzleSetups ?? {};
+  await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppId, nozzles, nozzleSetups, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  await audit('machine', machineId, 'configurar_laminado', { machineBase, processBase: proc, nozzle }, userId);
   return { machineProfileId: mpId, processProfileId: ppId };
+}
+
+/** Quita de `changes` lo que ya vale lo mismo en el perfil de fábrica: el perfil queda con «solo tus cambios». */
+export function diffAgainstBase(type: ProfileType, baseName: string, changes: Record<string, any>) {
+  const base = resolveFactory(type, baseName, findVendorOf(type, baseName)); const f = (v: unknown) => (Array.isArray(v) ? v[0] : v);
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(changes)) {
+    const b = f(base[k]); const x = f(v);
+    if (b != null && (String(b) === String(x) || (Number.isFinite(Number(b)) && Number.isFinite(Number(x)) && String(b) !== '' && String(x) !== '' && Number(b) === Number(x)))) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+/** Perfil de fábrica de calidad sobre el que se aplican las plantillas: el «Standard» de esa impresora (o el genérico del tipo). */
+export function templateBase(machineBase?: string | null) {
+  const std = machineBase ? processesFor(machineBase)[0] : null;
+  if (std) return std;
+  const g = getIndex().all.find((e) => e.type === 'process' && /^fdm_process_common$/.test(e.name)) ?? getIndex().all.find((e) => e.type === 'process' && /^fdm_.*common$/.test(e.name));
+  if (!g) throw new Error(tDefault('nozzle.errNoBaseProcess'));
+  return g.name;
+}
+
+/** Límites de altura de capa que declara el perfil de impresora (si los declara). */
+export function machineLayerLimits(machineBase: string, changes?: Record<string, any> | null) {
+  const b = resolveFactory('machine', machineBase, findVendorOf('machine', machineBase)); const f = (v: unknown) => Number(Array.isArray(v) ? v[0] : v);
+  const min = f(changes?.min_layer_height ?? b.min_layer_height), max = f(changes?.max_layer_height ?? b.max_layer_height);
+  return { min: Number.isFinite(min) && min > 0 ? min : undefined, max: Number.isFinite(max) && max > 0 ? max : undefined };
+}
+
+export interface TemplateInput { machineBase?: string | null; machineChanges?: Record<string, any> | null; nozzle: string; keys: TemplateKey[]; baseName?: string; prefix?: string; userId?: string | null }
+/** Crea perfiles de calidad «de la casa» (Borrador/Estándar/Fino/Resistente/Funcional) calculados para la boquilla. */
+export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
+  db ??= await getDb(); const t = await getT();
+  const nozzle = normNozzle(i.nozzle); if (!nozzle) throw new Error(t('nozzle.errBadNozzle'));
+  // la impresora «de ese diámetro» (A1 0.4 → A1 0.2) para partir de su calidad estándar y de sus límites de capa
+  let machineBase = i.machineBase ?? null; let machineChanges = i.machineChanges ?? null;
+  if (machineBase) { const v = nozzleVariants(machineBase).find((x) => Number(x.nozzle) === Number(nozzle)); if (v && v.base !== machineBase) { machineBase = v.base; machineChanges = null; } }
+  const baseName = i.baseName ?? templateBase(machineBase);
+  if (!findVendorOf('process', baseName)) throw new Error(t('slicer.theFactoryProfileDoesNot2', { name: baseName }));
+  const limits = machineBase ? machineLayerLimits(machineBase, machineChanges) : {};
+  const tpl = qualityTemplates(nozzle, limits).filter((q) => i.keys.includes(q.key)); if (!tpl.length) throw new Error(t('nozzle.errPickOneQuality'));
+  const prefix = i.prefix?.trim() || (machineBase ? short(machineBase).replace(/^Bambu Lab /, '').replace(/ \d\.\d+ nozzle$/, '') : t('nozzle.genericPrefix'));
+  const ids: Array<{ id: string; name: string }> = [];
+  for (const q of tpl) {
+    const changes = diffAgainstBase('process', baseName, q.changes); const label = t(q.label);
+    const id = await createProfileRow({ type: 'process', name: `${prefix} ${nozzle} · ${label} ${numStr(q.layer)}`, baseName, changes, nozzle, userId: i.userId, note: t('nozzle.noteTemplate', { label, nozzle }), notes: t('nozzle.noteTemplateLong', { label, nozzle, hint: t(q.hint) }) }, db);
+    const [r] = await db.select({ name: s.slicerProfiles.name }).from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); ids.push({ id, name: r.name });
+  }
+  return ids;
+}
+
+/** Cambia la boquilla puesta en una máquina: reutiliza lo que ya se configuró para esa boquilla o lo crea (de fábrica si existe; si no, una copia con el diámetro cambiado). */
+export async function switchNozzle(machineId: string, nozzleIn: string, userId?: string | null) {
+  const t = await getT();
+  const nozzle = normNozzle(nozzleIn); if (!nozzle) throw new Error(t('nozzle.errBadNozzleRange'));
+  const db = await getDb(); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m) throw new Error(t('slicer.machineNotFound'));
+  const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)); const P = (id: string | null | undefined) => (id ? profs.find((p) => p.id === id) ?? null : null);
+  const known = (m.nozzleSetups ?? {})[nozzle];
+  if (known && P(known.machineProfileId)) {
+    const proc = P(known.processProfileId) ? known.processProfileId : null;
+    await db.update(s.machines).set({ machineProfileId: known.machineProfileId, defaultProcessProfileId: proc, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+    await audit('machine', machineId, 'cambiar_boquilla', { nozzle }, userId); return { machineProfileId: known.machineProfileId, processProfileId: proc, created: false };
+  }
+  const cur = P(m.machineProfileId); const base = cur?.baseName ?? suggestMachineBase(m);
+  if (!base) throw new Error(t('nozzle.errPickPrinterFirst'));
+  const factory = nozzleVariants(base).find((v) => Number(v.nozzle) === Number(nozzle));
+  if (factory) { const r = await setupMachine(machineId, factory.base, null, userId); return { ...r, created: true }; }
+  // sin perfil de fábrica para esa boquilla (1,0 · 1,2 · impresoras de otras marcas): copia de la impresora con otro diámetro
+  const limits = layerRange(nozzle);
+  const mpId = await createProfileRow({ type: 'machine', name: `${(cur?.name ?? short(base)).replace(/\s*\d\.\d+(\s*nozzle)?$/i, '')} ${nozzle}`, baseName: base, vendor: cur?.vendor ?? undefined, nozzle, changes: { ...(cur?.changes ?? {}), nozzle_diameter: nozzle, min_layer_height: numStr(limits.min), max_layer_height: numStr(limits.max) }, userId, note: t('nozzle.noteNozzle', { nozzle }), notes: t('nozzle.noteCopyNozzle', { nozzle }) }, db);
+  const curProc = P(m.defaultProcessProfileId);
+  const [ppRow] = await createQualityFromTemplates({ machineBase: base, machineChanges: { min_layer_height: numStr(limits.min), max_layer_height: numStr(limits.max) }, nozzle, keys: ['estandar'], baseName: curProc?.baseName, prefix: short(cur?.name ?? base), userId }, db);
+  const nozzles = sortNozzles([...(m.nozzles ?? []).map((x) => normNozzle(x)).filter(Boolean) as string[], nozzle]);
+  await db.update(s.machines).set({ machineProfileId: mpId, defaultProcessProfileId: ppRow.id, nozzles, nozzleSetups: { ...(m.nozzleSetups ?? {}), [nozzle]: { machineProfileId: mpId, processProfileId: ppRow.id } }, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  await audit('machine', machineId, 'cambiar_boquilla', { nozzle, custom: true }, userId);
+  return { machineProfileId: mpId, processProfileId: ppRow.id, created: true };
 }
 
 export async function setupFilament(materialId: string, o: { base?: string; profileId?: string }, userId?: string | null) {

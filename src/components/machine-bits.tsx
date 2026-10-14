@@ -2,29 +2,35 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addIncidentAction, addPlanAction, completeMaintenanceAction, machineDeleteInfoAction, removeMachineAction, saveMachineAction, setMachineStatusAction } from '@/actions/production';
+import { switchNozzleAction } from '@/actions/slicer';
+import { NozzlePicker } from './nozzle-picker';
+import { NozzleMismatch, ProcessOptions } from './process-options';
 import { Modal, useAction } from './client';
 import { machineHourly } from '@/lib/pricing';
 import { money } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
 
-export function MachineForm({ m, profiles, kwh }: { m?: any; profiles: Array<{ id: string; name: string; type: string }>; kwh: number }) {
+export function MachineForm({ m, profiles, kwh }: { m?: any; profiles: Array<{ id: string; name: string; type: string; nozzle: string | null }>; kwh: number }) {
   const t = useT();
   const { run, pending } = useAction(); const router = useRouter();
-  const [v, setV] = useState({ name: m?.name ?? '', brand: m?.brand ?? '', model: m?.model ?? '', tech: m?.tech ?? 'FDM', serial: m?.serial ?? '', volX: m?.volX ?? 220, volY: m?.volY ?? 220, volZ: m?.volZ ?? 250, nozzles: (m?.nozzles ?? ['0.4']).join(', '), materialsOk: (m?.materialsOk ?? ['PLA']).join(', '), multicolorSlots: m?.multicolorSlots ?? 1, heatedBed: m?.heatedBed ?? true, enclosed: m?.enclosed ?? false, purchaseValue: m?.purchaseValue ?? 0, residualValue: m?.residualValue ?? 0, lifeHours: m?.lifeHours ?? 5000, watts: m?.watts ?? 150, maintCostHour: m?.maintCostHour ?? 0, feedGph: m?.feedGph ?? 25, simulated: m?.simulated ?? false, machineProfileId: m?.machineProfileId ?? '', defaultProcessProfileId: m?.defaultProcessProfileId ?? '' });
+  const [v, setV] = useState({ name: m?.name ?? '', brand: m?.brand ?? '', model: m?.model ?? '', tech: m?.tech ?? 'FDM', serial: m?.serial ?? '', volX: m?.volX ?? 220, volY: m?.volY ?? 220, volZ: m?.volZ ?? 250, nozzles: (m?.nozzles ?? ['0.4']) as string[], materialsOk: (m?.materialsOk ?? ['PLA']).join(', '), multicolorSlots: m?.multicolorSlots ?? 1, heatedBed: m?.heatedBed ?? true, enclosed: m?.enclosed ?? false, purchaseValue: m?.purchaseValue ?? 0, residualValue: m?.residualValue ?? 0, lifeHours: m?.lifeHours ?? 5000, watts: m?.watts ?? 150, maintCostHour: m?.maintCostHour ?? 0, feedGph: m?.feedGph ?? 25, simulated: m?.simulated ?? false, machineProfileId: m?.machineProfileId ?? '', defaultProcessProfileId: m?.defaultProcessProfileId ?? '' });
   const f = (k: string) => (e: React.ChangeEvent<any>) => setV({ ...v, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.type === 'number' ? +e.target.value : e.target.value });
   const hr = machineHourly({ purchaseValue: v.purchaseValue, residualValue: v.residualValue, lifeHours: v.lifeHours, watts: v.watts, maintCostHour: v.maintCostHour }, kwh); const perHour = hr.dep + hr.maint + hr.energy;
   return (
-    <form className="grid sm:grid-cols-3 gap-3" onSubmit={(e) => { e.preventDefault(); run(() => saveMachineAction({ id: m?.id, ...v, nozzles: v.nozzles.split(',').map((x: string) => x.trim()).filter(Boolean), materialsOk: v.materialsOk.split(',').map((x: string) => x.trim()).filter(Boolean) }), { ok: t('machines.machineSaved2'), onOk: (id) => { if (!m) router.push(`/maquinas/${id}`); } }); }}>
+    <form className="grid sm:grid-cols-3 gap-3" onSubmit={(e) => { e.preventDefault(); run(() => saveMachineAction({ id: m?.id, ...v, nozzles: v.nozzles, materialsOk: v.materialsOk.split(',').map((x: string) => x.trim()).filter(Boolean) }), { ok: t('machines.machineSaved2'), onOk: (id) => { if (!m) router.push(`/maquinas/${id}`); } }); }}>
       <label className="block sm:col-span-2"><span className="label">{t('common.name2')}</span><input className="input" required value={v.name} onChange={f('name')} data-testid="machine-name" /></label><label className="block"><span className="label">{t('machines.technology')}</span><select className="input" value={v.tech} onChange={f('tech')}><option>FDM</option><option>SLA</option><option>SLS</option></select></label>
       <label className="block"><span className="label">{t('machines.brand')}</span><input className="input" value={v.brand} onChange={f('brand')} /></label><label className="block"><span className="label">{t('machines.model')}</span><input className="input" value={v.model} onChange={f('model')} /></label><label className="block"><span className="label">{t('machines.serialNo')}</span><input className="input" value={v.serial} onChange={f('serial')} /></label>
       <div className="sm:col-span-3 grid grid-cols-3 gap-3"><label className="block"><span className="label">{t('machines.buildVolumeXMm')}</span><input type="number" className="input" value={v.volX} onChange={f('volX')} data-testid="machine-volx" /></label><label className="block"><span className="label">{t('machines.yMm')}</span><input type="number" className="input" value={v.volY} onChange={f('volY')} /></label><label className="block"><span className="label">{t('machines.zMm')}</span><input type="number" className="input" value={v.volZ} onChange={f('volZ')} /></label></div>
-      <label className="block"><span className="label">{t('machines.nozzles')}</span><input className="input" value={v.nozzles} onChange={f('nozzles')} /></label><label className="block"><span className="label">{t('machines.compatibleMaterials')}</span><input className="input" value={v.materialsOk} onChange={f('materialsOk')} /></label><label className="block"><span className="label">{t('machines.multicolorSlotsAmsMmu')}</span><input type="number" min={1} className="input" value={v.multicolorSlots} onChange={f('multicolorSlots')} /></label>
+      {v.tech === 'FDM' && <div className="sm:col-span-3"><NozzlePicker multi label={t('nozzle.machineNozzles')} value={v.nozzles} onChange={(n) => setV({ ...v, nozzles: n })} hint={t('nozzle.machineNozzlesHint')} testId="machine-nozzles" /></div>}<label className="block"><span className="label">{t('machines.compatibleMaterials')}</span><input className="input" value={v.materialsOk} onChange={f('materialsOk')} /></label><label className="block"><span className="label">{t('machines.multicolorSlotsAmsMmu')}</span><input type="number" min={1} className="input" value={v.multicolorSlots} onChange={f('multicolorSlots')} /></label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.heatedBed} onChange={f('heatedBed')} /> {t('machines.heatedBed')}</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.enclosed} onChange={f('enclosed')} /> {t('machines.enclosedChamber')}</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.simulated} onChange={f('simulated')} /> {t('machines.simulatedMachineNoPhysicalDevice')}</label>
       <div className="sm:col-span-3 grid grid-cols-2 sm:grid-cols-5 gap-3"><label className="block"><span className="label">{t('machines.purchaseValue')}</span><input type="number" className="input" value={v.purchaseValue} onChange={f('purchaseValue')} /></label><label className="block"><span className="label">{t('machines.residualValue')}</span><input type="number" className="input" value={v.residualValue} onChange={f('residualValue')} /></label><label className="block"><span className="label">{t('machines.serviceLifeH')}</span><input type="number" className="input" value={v.lifeHours} onChange={f('lifeHours')} /></label><label className="block"><span className="label">{t('machines.powerDrawW')}</span><input type="number" className="input" value={v.watts} onChange={f('watts')} /></label><label className="block"><span className="label">{t('machines.maintenanceH')}</span><input type="number" className="input" value={v.maintCostHour} onChange={f('maintCostHour')} /></label></div>
       <div className="sm:col-span-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-3 text-sm" data-testid="cost-hour">{t('machines.calculatedCostPerHour')} <b className="tabular">{money(Math.round(perHour))}</b> <span className="muted">({t('machines.hourlyBreakdown', { dep: money(Math.round(hr.dep)), maint: money(Math.round(hr.maint)), energy: money(Math.round(hr.energy)) })})</span></div>
-      <label className="block"><span className="label">{t('machines.machineProfileSlicer')}</span><select className="input" value={v.machineProfileId} onChange={f('machineProfileId')}><option value="">{t('machines.noProfile')}</option>{profiles.filter((p) => p.type === 'machine').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label className="block"><span className="label">{t('machines.defaultProcess')}</span><select className="input" value={v.defaultProcessProfileId} onChange={f('defaultProcessProfileId')}><option value="">—</option>{profiles.filter((p) => p.type === 'process').map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <div className="sm:col-span-3 rounded-xl border border-[var(--line)] p-3 grid sm:grid-cols-2 gap-3">
+        <p className="sm:col-span-2 text-xs muted">{t('nozzle.forSlicingNote')}</p>
+        <label className="block"><span className="label">{t('nozzle.printerProfileLabel')}</span><select className="input" value={v.machineProfileId} onChange={f('machineProfileId')} data-testid="machine-profile"><option value="">{t('machines.noProfile')}</option>{profiles.filter((p) => p.type === 'machine').map((p) => <option key={p.id} value={p.id}>{p.name}{p.nozzle ? ` · ${t('nozzle.nozzleMm', { n: p.nozzle })}` : ''}</option>)}</select></label>
+        <label className="block"><span className="label">{t('nozzle.defaultQualityLabel')}</span><select className="input" value={v.defaultProcessProfileId} onChange={f('defaultProcessProfileId')} data-testid="machine-process"><option value="">—</option><ProcessOptions profiles={profiles.filter((p) => p.type === 'process')} machineNozzle={profiles.find((p) => p.id === v.machineProfileId)?.nozzle ?? null} /></select><NozzleMismatch processNozzle={profiles.find((p) => p.id === v.defaultProcessProfileId)?.nozzle} machineNozzle={profiles.find((p) => p.id === v.machineProfileId)?.nozzle} /></label>
+      </div>
       <label className="block"><span className="label">{t('machines.typicalFlowRateGH')}</span><input type="number" className="input" value={v.feedGph} onChange={f('feedGph')} /></label>
       <div className="sm:col-span-3 flex justify-end"><button className="btn-primary" disabled={pending} data-testid="machine-save">{t('machines.saveMachine')}</button></div>
     </form>
@@ -95,4 +101,22 @@ export function DeleteMachineButton({ machineId, machineName, className, onDone,
       </div>
     </Modal>
   </span>);
+}
+
+/** «Boquilla puesta»: cambia en un toque el perfil de impresora y la calidad por defecto que usa el laminador. */
+export function ActiveNozzle({ machineId, nozzles, active, setups }: { machineId: string; nozzles: string[]; active: string | null; setups: Record<string, { machine: string; process: string | null }> }) {
+  const t = useT(); const { run, pending } = useAction();
+  const all = [...new Set([...nozzles, ...(active ? [active] : [])])].sort((a, b) => Number(a) - Number(b));
+  if (!all.length) return null;
+  const cur = active ? setups[active] : null;
+  return (
+    <div className="card p-4" data-testid="active-nozzle">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div><div className="label !mb-1">{t('nozzle.nozzleSetLabel')}</div>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{all.map((n) => <button key={n} type="button" role="radio" aria-checked={n === active} disabled={pending} onClick={() => n !== active && run(() => switchNozzleAction(machineId, n), { ok: t('nozzle.nozzleSwitched', { n: n.replace('.', ',') }) })} data-testid={`set-nozzle-${n}`}
+            className={`num min-h-[36px] px-3 rounded-xl border text-sm ${n === active ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{t('nozzle.mm', { n: n.replace('.', ',') })}{setups[n] ? '' : ' ·'}</button>)}</div></div>
+        <p className="text-xs muted flex-1 min-w-[220px]">{cur ? <>{t('nozzle.slicesWithPrinter')} <b>{cur.machine}</b>{cur.process ? <> {t('nozzle.andQuality')} <b>{cur.process}</b></> : ''}. {t('nozzle.markWhenChanging')}</> : t('nozzle.noPrinterProfileYet')}{all.some((n) => !setups[n]) && ` ${t('nozzle.dotNozzlesAutoSetup')}`}</p>
+      </div>
+    </div>
+  );
 }

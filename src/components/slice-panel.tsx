@@ -10,6 +10,7 @@ import { GcodeViewer } from './gcode-viewer';
 import { SliceErrorHelp } from './slice-error-help';
 import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
+import { NozzleMismatch, ProcessOptions } from './process-options';
 
 export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
 
@@ -68,8 +69,8 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         {slicers.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
       {slicers.length > 0 && mats.length > 0 && ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length > 0 && <p className="text-xs muted">{ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length} {t('slicer.materialsHidden')} · <Link href="/laminador/configurar" className="underline">{t('slicer.setUp')}</Link></p>}
       <div className="grid sm:grid-cols-2 gap-3">
-        <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} data-testid="slice-machine">{slicers.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select></label>
-        <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process">{procs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+        <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} data-testid="slice-machine">{slicers.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
+        <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
         <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>
       </div>

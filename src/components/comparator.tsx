@@ -8,6 +8,7 @@ import { dur, grams, money, num, cn } from '@/lib/format';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
 import { useT } from '@/i18n/client';
+import { NozzleMismatch, ProcessOptions } from './process-options';
 
 interface Combo { key: number; machineId: string; processId: string; materialId: string }
 
@@ -46,7 +47,7 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
           <tbody>{combos.map((c, i) => (
             <tr key={c.key}><td className="td">{i + 1}</td>
               <td className="td min-w-[170px]">{sel(slicers, c.machineId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, machineId: v } : x))), t('slicer.machine', { i: i + 1 }), `cmp-machine-${i}`)}</td>
-              <td className="td min-w-[200px]">{sel(procs, c.processId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, processId: v } : x))), t('slicer.process2', { i: i + 1 }), `cmp-process-${i}`)}</td>
+              <td className="td min-w-[200px]"><select className="input" value={c.processId} onChange={(e) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, processId: e.target.value } : x)))} aria-label={t('slicer.process2', { i: i + 1 })} data-testid={`cmp-process-${i}`}><ProcessOptions profiles={procs} machineNozzle={ctx.machines.find((x) => x.id === c.machineId)?.nozzle ?? null} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === c.processId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === c.machineId)?.nozzle} /></td>
               <td className="td min-w-[170px]">{sel(mats, c.materialId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, materialId: v } : x))), t('slicer.material', { i: i + 1 }), `cmp-material-${i}`)}</td>
               <td className="td"><button className="btn-ghost btn-sm" onClick={() => setCombos(combos.filter((x) => x.key !== c.key))} disabled={combos.length <= 1} aria-label={t('slicer.removeCombination', { i: i + 1 })}>✕</button></td></tr>
           ))}</tbody></table>
