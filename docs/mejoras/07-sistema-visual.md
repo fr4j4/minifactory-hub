@@ -1,5 +1,7 @@
 # 07 · Propuesta: sistema visual y usabilidad transversal («más fancy», sin perder identidad)
 
+> **Actualización (segunda ronda):** en lugar de un kit propio se **adopta una librería de componentes** (recomendada: shadcn/ui, a confirmar con el spike S8; alternativa Mantine), con contrato responsivo y matriz de pruebas, y se añade el sistema de **paletas de color** y la derivación desde la marca (`10` §N8 y §N9).
+
 Resuelve: **UX-01 … UX-09**, **PDF-03** (marca), base visual de todos los demás documentos.
 
 ## 1. Punto de partida: qué conservar

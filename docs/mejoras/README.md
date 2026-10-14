@@ -30,7 +30,7 @@
 - **Calculadoras y mantenedores:** la calculadora **ya está especificada** (`docs/spec-calculadora.md`); aquí se agregan complementos (barra de costos «en capas», selectores ricos, enlace al Estudio, chips «¿y si…?») y se coordinan totales/IVA con presupuestos y PDF; materiales agrupados por línea con carretes visuales; «Mis perfiles» con diff → `06`.
 - **Visual y usabilidad:** kit de componentes (Select rico, Tabs sin recarga, Drawer, DataTable…), esqueletos de carga, íconos unificados, fechas es-CL, regresión visual → `07`.
 
-**Esfuerzo (orden de magnitud):** ≈ **94–144 jornadas**, probable **≈ 118** (≈ 136 con 15 % de contingencia), sin la edición de placa opcional (+10–15). Entregable en **6 releases** (R1 «Cimientos y PDF» ≈ 18,5 d es el primero y el más visible). La calculadora v2 de su spec se estima aparte (≈ 31–56 d; **no** incluida) → `09`.
+**Esfuerzo (orden de magnitud), tras la segunda ronda:** ≈ **163–268 jornadas**, probable **≈ 210** (≈ 241 con 15 % de contingencia), sin opcionales (editor de bloques, widgets de Inicio y edición de placa suman ≈ 41 más). Antes de la segunda ronda eran ≈ 118: la ampliación (+91,5) viene de las decisiones D14/E2/E3 y de diez requisitos nuevos (asistente inicial, importador MakerWorld, editor de documentos, librería visual con temas, alta masiva de filamentos, multicolor/AMS, etiquetas por IA, detalle y vista tabla de cotizaciones). Entregable en **R0 + 6 releases** y con «recortes posibles» si hay que acotar → `09`, `10`.
 
 ## Índice
 
@@ -44,32 +44,57 @@
 | [`06-calculadoras-y-mantenedores.md`](06-calculadoras-y-mantenedores.md) | Alineación con la spec de calculadora, filamentos, perfiles, máquinas |
 | [`07-sistema-visual.md`](07-sistema-visual.md) | Principios, kit de componentes, mejoras visuales, migración |
 | [`08-otras-mejoras.md`](08-otras-mejoras.md) | Robustez, rendimiento, flujo, calidad de código, arreglos rápidos y lo que **no** conviene hacer |
-| [`09-plan-y-estimaciones.md`](09-plan-y-estimaciones.md) | Paquetes de trabajo, estimaciones (opt./prob./pes.), releases, dependencias, riesgos |
+| [`09-plan-y-estimaciones.md`](09-plan-y-estimaciones.md) | Paquetes de trabajo, estimaciones (opt./prob./pes.), releases, dependencias, recortes, riesgos |
+| [`10-decisiones-y-alcance-ampliado.md`](10-decisiones-y-alcance-ampliado.md) | **Segunda ronda:** decisiones D1–E3 respondidas, su impacto y los requisitos N1–N10 (color y AMS en 3MF, etiquetas por IA, importador MakerWorld, alta masiva de filamentos, detalle y vista tabla de cotizaciones, editor de documentos, librería visual, temas, asistente inicial) |
 
-## Decisiones abiertas (necesito tu respuesta antes de planificar)
+## Decisiones tomadas (primera ronda)
 
-| # | Tema | Recomendación | Doc |
-|---|---|---|---|
-| D1 | ¿Conservar `filament_profile_id` del material como «preferencia» opcional o eliminarlo? | Preferencia opcional | 02 |
-| D2 | ¿Calidades independientes de la máquina (presets de intención)? | Sí | 02 |
-| D3 | ¿Temperaturas del material como texto libre? | No; mostrarlas desde el perfil resuelto | 02 |
-| D4 | STEP: ¿convertir a malla o solo adjuntar? | Según uso real; si no, adjuntar y corregir texto | 03 |
-| D5 | ¿Importar por URL (Printables, etc.)? | Posponer | 03 |
-| D6 | ¿Reparación de mallas en el sitio? | Fase posterior | 03 |
-| D7 | **Ambición del Estudio:** A (parámetros+preview+exploración) · B (+edición de placa) · C (+pintado) | **A**, luego B; C no | 04 |
-| D8 | ¿«Vista rápida aproximada» no apta para cotizar? | Sí si los tiempos de laminado son altos (spike S3) | 04 |
-| D9 | Etiquetas de parámetros (el sitio es es/en con prueba de paridad): ¿cuántos traducir al inicio? | ≈ 120 curados en es y en; el resto con la clave de Orca | 04 |
-| D10 | PDF: ¿mantener Chromium o librería sin navegador? | Chromium bien operado + snapshot | 05 |
-| D11 | ¿Enlace público de solo lectura para el cliente? | No (fuera de alcance actual) | 05 |
-| D12 | ¿Datos de transferencia/anticipo/plazo siempre en el PDF? | Configurables, visibles por defecto | 05 |
-| D13 | ¿Tablero kanban de cotizaciones? | Sí, opcional | 05 |
-| D14 | ¿Agrupar materiales por línea (marca/línea → colores)? | Sí, en segunda iteración | 06 |
+Respondidas por el equipo; el detalle y su impacto están en [`10-decisiones-y-alcance-ampliado.md`](10-decisiones-y-alcance-ampliado.md) §1.
+
+| # | Decisión |
+|---|---|
+| D1 | **Eliminar** el perfil de filamento del material (el color del filamento se ve en el visor 3D y se detecta el AMS en 3MF) |
+| D2 | Calidades como presets de intención |
+| D3 | Temperaturas del material desde el perfil resuelto (solo lectura) |
+| D4 | STEP: solo adjuntar y corregir el texto |
+| D5 | Importación por URL **incluida** en R4 (mejor esfuerzo) |
+| D6 | Reparación de mallas: fase posterior (avisar y guiar) |
+| D7 | Estudio de laminado nivel **A** (parámetros, vista previa, exploración) |
+| D8 | «Vista rápida aproximada»: decidir tras medir tiempos (S3) |
+| D9 | ≈ 120 parámetros curados en es y en |
+| D10 | PDF con Chromium persistente y copia guardada al enviar |
+| D11 | Sin enlace público para el cliente |
+| D12 | Transferencia, anticipo y plazo: configurables y visibles por defecto |
+| D13 | Kanban de cotizaciones como vista opcional |
+| D14 | Materiales agrupados por marca y línea **desde el inicio** |
+| E1 | Orden R1 → R2 → R3 → R4 → R5 → R6 |
+| E2 | Fase 1 de la spec de calculadora **antes** de R3 |
+| E3 | Spikes **ahora**, antes de comprometer fechas |
+
+## Decisiones abiertas (segunda ronda)
+
+Se responden en el artefacto de la propuesta (ver `10 §4`). Resumen:
+
+| # | Pregunta | Recomendación |
+|---|---|---|
+| Q-F1 | «Ver detalles» de la cotización: ¿sitio, anexo PDF o ambos? | Ambos |
+| Q-F2 | Vista tabla: ¿listado, líneas o ambos? | Ambos |
+| Q-F3 | Editor de documentos: ¿L1, L1→L2 o L2 directo? | L1 primero |
+| Q-F4 | Librería visual: shadcn/ui, Mantine o decidir tras el spike S8 | Decidir tras S8 (shadcn/ui favorita) |
+| Q-F5 | Paletas: ¿solo del taller o también por usuario? | Ambas |
+| Q-F6 | Seguridad del primer arranque | Token en logs; `ADMIN_*` para desatendido; sin contraseña por defecto |
+| Q-F7 | Licencias de modelos importados al cotizar | Advertir en la línea |
+| Q-F8 | Etiquetas por IA: ¿sugerir o aplicar? ¿miniatura a la nube? | Sugerir; miniatura solo a IA local salvo autorización |
+| Q-F9 | Catálogo inicial de marcas/colores | Bambu Lab, Sunlu, eSun, Polymaker, Creality, Elegoo, Grilon3, genéricos |
+| Q-F10 | ¿Recordar la última elección de filamento por (usuario, material, máquina)? | Sí, como preferencia de usuario |
+
+Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
 ## Próximos pasos sugeridos
 
-1. Revisar el resumen y responder las decisiones **D7, D10, D1/D2** (condicionan el mayor esfuerzo y riesgo) y las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
-2. Ejecutar los **spikes S1–S5** (≈ 4 jornadas) para confirmar el alcance del Estudio y afinar las cifras de R5.
-3. Empezar por **R1 · Cimientos y PDF** (valor visible rápido y deja listo el kit visual).
+1. Responder las preguntas de la segunda ronda (sobre todo **Q-F4 librería visual** y **Q-F6 seguridad del primer arranque**) y las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**.
+2. Ejecutar **R0 · Spikes S1–S8** (≈ 9,5 jornadas probables): alcance del Estudio, MakerWorld con token real, 3MF multicolor y piloto comparativo de librería visual.
+3. Empezar por **R1 · Cimientos, PDF y arranque** (asistente inicial, PDF v2, librería y temas).
 4. Mantener este directorio como fuente de verdad: al implementar, marcar cada ID como resuelto y actualizar el README principal.
 
 ## Convenciones

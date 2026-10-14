@@ -1,5 +1,7 @@
 # 06 · Propuesta: calculadoras y mantenedores (filamentos, perfiles, máquinas)
 
+> **Actualización (segunda ronda):** D14 queda en **«agrupar desde el inicio»** (líneas de marca con colores como hijos) y se suma el **alta masiva** de filamentos y stock (`10` §N4).
+
 Resuelve: **MAT-01 … MAT-04**, **PFC-09**, **UX-07** y aporta los complementos visuales de **CLC-01 … CLC-03** (la calculadora en sí ya está especificada en `docs/spec-calculadora.md`).
 
 ## 1. Calculadora v2 — alineación con `docs/spec-calculadora.md`

@@ -1,5 +1,7 @@
 # 04 · Propuesta: «Estudio de laminado» (slicer embebido y configurable)
 
+> **Actualización (segunda ronda):** D7 fija el **nivel A**; D8 se decide tras el spike S3; los spikes S1–S5 se ejecutan primero (R0). El Estudio también debe mostrar el **color del material** y los **colores por ranura AMS** (`10` §N1).
+
 Resuelve: **VIS-01 … VIS-08**, **PFC-06**, **BIB-07/08**, **TEC-01**.
 Depende de: `02-perfiles-filamentos-calidad.md` (resolvedor, calidades, ajustes de sesión).
 Se apoya en lo ya construido: **asesor de perfiles** (Fase 1 de `docs/spec-ia.md`: candidatos validados + laminado real + ranking), **ficha de desempeño** y **explicación de errores** (`lib/slicer/performance.ts`, `explain.ts`, `slice-error-help.tsx`), **validador determinista** (`lib/slicer/validate.ts`) y **etiquetas de parámetros por i18n** (`src/i18n/{es,en}/slicerParam.ts`).

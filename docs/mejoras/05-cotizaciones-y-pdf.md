@@ -1,5 +1,7 @@
 # 05 · Propuesta: gestor de cotizaciones, detalle, layouts y generación de PDF
 
+> **Actualización (segunda ronda):** decididos D10 (Chromium persistente + copia guardada), D11 (sin enlace público), D12 y D13 (kanban opcional). Se suman: detalle desplegable y «Ver detalles» (`10` §N5), vista tabla recordada (§N6) y editor de documentos (§N7). La Fase 1 de la spec de calculadora (IVA opcional, totales netos) se ejecuta antes (E2).
+
 Resuelve: **COT-01 … COT-08**, **PDF-01 … PDF-07**, parte de **UX-03/UX-06**.
 
 > **Coordinación con `docs/spec-calculadora.md`:** esa spec cambia el modelo de totales del presupuesto (§7): **cálculo siempre neto**, **IVA opcional por presupuesto** (`quotes.applyTax`, se retira `taxMode='incluido'`), margen sobre venta neta, «Recalcular con tarifas actuales» con vista previa, selector de **perfil de cálculo** por presupuesto y avisos de piso/mínimo por pedido. Este documento **no duplica** esa lógica: el detalle, el editor y el PDF propuestos aquí **consumen** esos campos (ver «Dependencias» en `09-plan-y-estimaciones.md`). Mientras la spec no se implemente, el diseño usa el modelo actual (`taxMode`).

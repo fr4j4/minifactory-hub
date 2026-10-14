@@ -1,5 +1,7 @@
 # 03 · Propuesta: biblioteca de modelos 3D (importación, gestión y visualización)
 
+> **Actualización (segunda ronda):** D4 (STEP: solo adjuntar y corregir el texto) y D5 (importación por URL **incluida** en R4) están decididas. La importación por URL se detalla —con factibilidad de MakerWorld, esquema `model_sources` y manejo de licencias— en `10` §N3; el etiquetado por IA en §N2; el color del material y el multicolor/AMS en §N1.
+
 Resuelve: **BIB-01 … BIB-11**, parte de **VIS-02** (vista) y **UX-04**.
 Relacionado: el Estudio de laminado (`04-estudio-de-laminado.md`) absorbe el visor, el análisis y el laminado en una sola pantalla.
 

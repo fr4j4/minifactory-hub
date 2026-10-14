@@ -1,5 +1,7 @@
 # 02 · Propuesta: simplificar Calidad y Filamento, y desacoplar el material del perfil
 
+> **Actualización (segunda ronda):** la decisión D1 **elimina por completo** el vínculo material → perfil de filamento: se descarta la tabla `material_profile_prefs` y el resolvedor queda en (1) elección explícita, (2) sugerido automático, (3) genérico por tipo; ver `10-decisiones-y-alcance-ampliado.md` §1.1. Donde este documento menciona «preferencias» de filamento, léase «última elección recordada» (Q-F10) o nada.
+
 Resuelve: **PFC-01, 02, 04, 06, 08, 10, 11** (y completa 03, 05, 07, 09, ya parcialmente corregidos), **BIB-08** (parcialmente), base de **VIS-01** (ajustes de sesión).
 
 > **Cómo encaja con lo ya construido** (`development` @ `54a4bc6`, ver `docs/revision-perfiles-maquinas.md`): la **boquilla** ya es una dimensión de primera clase (`machines.nozzle_setups`, `slicer_profiles.nozzle`, `lib/slicer/nozzle.ts` con reglas de altura de capa 20–70 % del diámetro, ancho de línea, espesor de pared y plantillas Borrador 60 % · Estándar 50 % · Fino 30 %). Esta propuesta **no la reemplaza: la generaliza**. Las «plantillas por boquilla» pasan de _crear filas_ a ser la **definición de los presets de calidad**, y la boquilla pasa a ser una entrada más del resolvedor.
