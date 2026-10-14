@@ -65,6 +65,7 @@ Detalle /archivos/[id]: pestañas (Visor · Laminar y cotizar · Versiones · V�
 | **Insignias de estado** | «Cabe en A1/P1S» (según volumen de máquinas), «malla abierta», «N laminados», «usado en N cotizaciones», «última corrida: tiempo/gramos». Datos ya disponibles (`slice_runs`, `quote_item_models`). | BIB-06 |
 | **Vista lista densa** | Tabla ordenable (nombre, formato, dimensiones, volumen, versión, cliente, actualizado). | BIB-05 |
 | **Colecciones / proyectos** | Agrupar modelos por trabajo/cliente con portada y notas (reutiliza `collections` de la galería o un modelo propio). | BIB-11 |
+| **Papelera real y archivado** | Hoy `deleteFileAction` solo marca `deleted_at` y el aviso dice que se recupera «desde la base de datos». Los demás módulos ya tienen archivar/restaurar (`remove-button`, `restore-button`, pantalla de archivados): extender ese patrón a modelos _(por verificar que hoy no los cubra)_ y evitar el borrado si el modelo está en presupuestos/pedidos. | BIB-05 |
 
 ## 5. Detalle del modelo
 
@@ -89,6 +90,7 @@ Detalle /archivos/[id]: pestañas (Visor · Laminar y cotizar · Versiones · V�
 - Unitarias: normalización de etiquetas/carpetas, hash previo, aplicación de orientación.
 - Integración: ingesta con reinicio simulado (job reanudable), ZIP con subcarpetas, duplicado con las 3 decisiones.
 - E2E a actualizar: `01-visor-archivos` (grilla, filtros, detalle), `07-movil`.
+- i18n: textos nuevos en `src/i18n/es` y `src/i18n/en` (hay prueba de paridad).
 - Rendimiento: lista con 1 000 modelos sintéticos; miniaturas turntable (tiempo de generación por modelo grande).
 
 ## 8. Decisiones que necesito de ti

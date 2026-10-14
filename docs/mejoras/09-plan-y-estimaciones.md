@@ -5,6 +5,8 @@
 - **Unidad:** _jornada_ = 1 persona-día de ≈ 6 h efectivas de desarrollo. Incluye: implementación, pruebas (unitarias/integración, actualización de e2e), ajuste visual (claro/oscuro, móvil) y revisión de código. **No incluye:** QA manual del usuario, datos de producción, despliegue ni capacitación.
 - **Tres cifras por paquete:** optimista / probable / pesimista. Son estimaciones de orden de magnitud (± 30 %) hechas **sin ejecutar la app ni los spikes**; se refinan tras los spikes S1–S5 (doc 04) y la validación de decisiones (README).
 - **Contingencia:** no incluida; se sugiere **+15 %** sobre el total probable.
+- **Línea base:** `development` @ `54a4bc6`. Las estimaciones descuentan lo ya construido (guarda de borrado, perfiles por boquilla, i18n, asesor de IA, ficha de desempeño) y **no incluyen** el trabajo ya especificado por otros documentos (calculadora v2, IA fases 2–4), que se estima aparte (§3.1).
+- **i18n es/en:** el sitio es bilingüe y tiene pruebas de paridad; las cadenas de pantallas nuevas se cuentan en WP-6.4 (transversal), no dentro de cada WP.
 - **Una sola persona desarrolladora**, sin asumir aceleración por asistentes de IA. El orden y las dependencias importan más que la fecha.
 - **Sin cambios de alcance de producto** más allá de lo documentado en `02`–`08`.
 
@@ -15,9 +17,9 @@
 | WP | Descripción | Hallazgos | Opt. | Prob. | Pes. |
 |---|---|---|---:|---:|---:|
 | 0.1 | `loading.tsx` / `error.tsx` / `not-found.tsx` y esqueletos por sección | UX-01 | 1 | 1,5 | 2 |
-| 0.2 | Bloqueo/reemplazo al eliminar perfiles y materiales en uso | PFC-05 | 0,5 | 0,75 | 1 |
+| 0.2 | Completar la guarda de borrado existente (`lib/slicer/usage.ts`): «reemplazar por…»/archivar y cubrir materiales, líneas de presupuesto y productos | PFC-05 (resuelto en parte), OM-03 | 0,5 | 0,75 | 1 |
 | 0.3 | Filtros de compatibilidad en selectores (proceso/filamento por máquina) | PFC-03 | 1 | 1,25 | 1,5 |
-| 0.4 | Aviso «orientación solo de prueba» y arreglos de copy (resultado, calculadora) | BIB-08, VIS-07, CAL-01 | 0,5 | 0,5 | 1 |
+| 0.4 | Aviso «orientación solo de prueba» y arreglos de copy (resultado, calculadora) | BIB-08, VIS-07, CLC-01 | 0,5 | 0,5 | 1 |
 | 0.5 | Salud del sistema (Orca/Chromium/ffmpeg), fallo explícito del PDF, `playwright` a `dependencies`, Dockerfile sin `\|\| true` | PDF-01/02, TEC-03, OM-01 | 1 | 1,25 | 1,5 |
 | 0.6 | Iconografía unificada con `lucide-react` | UX-05 | 1 | 1,5 | 2 |
 | 0.7 | Campo de fecha es-CL | UX-06 | 0,5 | 0,75 | 1 |
@@ -61,10 +63,10 @@
 
 | WP | Descripción | Opt. | Prob. | Pes. |
 |---|---|---:|---:|---:|
-| 4.1 | Calculadora v2 (barra de costos, escalera, inverso, «¿y si…?», escenarios) | 4 | 5 | 6 |
+| 4.1 | Complementos visuales de la calculadora v2: `LayerBar`, selectores ricos, «Ajustar en el Estudio», chips «¿Y si…?», miniaturas (el resto está en `docs/spec-calculadora.md`, ver §3.1) | 2 | 2,5 | 3 |
 | 4.2 | Mantenedor de filamentos v2 (tarjetas/carretes, Drawer, fuente única densidad/costo; agrupación por línea opcional) | 3 | 4 | 5 |
 | 4.3 | Ficha de máquina: pestaña «Laminado» y estado | 1 | 1 | 2 |
-| | **Subtotal F4** | **8** | **10** | **13** |
+| | **Subtotal F4** | **6** | **7,5** | **10** |
 
 ### Fase 5 · Estudio de laminado (doc 04)
 
@@ -85,16 +87,34 @@
 | 6.1 | Kit base (Select rico, Tabs cliente, Drawer, Segmented, DataTable, Stat/Delta, LayerBar, Spool, Skeleton/Empty, Toast con acción, `Kbd`/paleta de acciones) | 5 | 6 | 7 |
 | 6.2 | Barrido en pantallas restantes (clientes, pedidos, cola, máquinas, ventas, galería, reportes, configuración) | 6 | 7,5 | 9 |
 | 6.3 | Regresión visual automática, a11y y móvil | 2 | 2,5 | 3 |
-| | **Subtotal F6** | **13** | **16** | **19** |
+| 6.4 | **Transversal:** textos es/en de todas las pantallas nuevas y prueba de paridad (se reparte entre R1–R6) | 4 | 5 | 6 |
+| | **Subtotal F6** | **17** | **21** | **25** |
 
 ## 3. Totales
 
 | Alcance | Optimista | **Probable** | Pesimista | Probable +15 % |
 |---|---:|---:|---:|---:|
-| Fases 0–6, **sin** edición de placa (5.5) | 92 | **115,75** | 141 | ≈ 133 |
-| Con 5.5 | 102 | **128,25** | 156 | ≈ 147 |
+| Fases 0–6, **sin** edición de placa (5.5) | 94 | **118,25** | 144 | ≈ 136 |
+| Con 5.5 | 104 | **130,75** | 159 | ≈ 150 |
 
-Referencia de calendario con una persona (20 jornadas productivas/mes): ≈ 5,8 meses (probable, sin contingencia) · ≈ 6,7 meses (con 15 %).
+Referencia de calendario con una persona (20 jornadas productivas/mes): ≈ 5,9 meses (probable, sin contingencia) · ≈ 6,8 meses (con 15 %).
+
+### 3.1 Trabajo ya especificado (no incluido en los totales anteriores)
+
+**Calculadora v2** (`docs/spec-calculadora.md`, fases propias; la spec no trae esfuerzos, estos son **míos**):
+
+| Fase de la spec | Opt. | Prob. | Pes. |
+|---|---:|---:|---:|
+| 1 · Correcciones (neto, IVA opcional, margen sobre neto, falla con encogimiento, redondeo único, perfil Heredado) | 4 | 5 | 7 |
+| 2 · Motor v2 (mano de obra, costos fijos, pisos, multicolor, comisiones, confianza; privacidad de costos `CAL-76`) | 6 | 8 | 11 |
+| 3 · Perfiles y configuración (cascada, asistente, Estándar/Avanzado, vista previa) | 8 | 11 | 15 |
+| 4 · Calculadora nueva (niveles, banda, «¿por qué este precio?», historial, «No sé») | 7 | 9 | 12 |
+| 5 · Realismo guiado (referencias, calibración, escenarios, sensibilidad, inverso) | 6 | 8 | 11 |
+| **Total spec calculadora** | **31** | **41** | **56** |
+
+Combinado con este paquete: ≈ **125 / 159 / 200** jornadas (opt./prob./pes.) sin edición de placa. La **Fase 1** de la spec conviene ejecutarla **antes** de WP-3.2/3.4 (cambia totales e IVA del presupuesto y del PDF).
+
+**IA opcional** (`docs/spec-ia.md`): Fases 0–1 implementadas; Fases 2–4 son incrementales y no se estiman aquí.
 
 ## 4. Entregas sugeridas (releases)
 
@@ -102,11 +122,12 @@ Referencia de calendario con una persona (20 jornadas productivas/mes): ≈ 5,8 
 |---|---|---:|---:|---:|---|
 | **R1 · Cimientos y PDF** | F0 completa + WP-6.1 (kit) + WP-3.4 (PDF v2) | 14,5 | **18,5** | 23 | PDF presentable y fiable; sin pantallas en blanco; íconos y fechas correctos; salud del sistema |
 | **R2 · Perfiles simples** | F1 completa + WP-4.2 (filamentos v2) | 16 | **20,25** | 24,5 | Calidad y filamento simples; materiales independientes del perfil |
-| **R3 · Cotizaciones y calculadora** | WP-3.1, 3.2, 3.3, 3.5 + WP-4.1 | 14,5 | **18,5** | 22,5 | Gestor de cotizaciones con detalle completo; calculadora v2 |
+| **R3 · Cotizaciones y calculadora** | WP-3.1, 3.2, 3.3, 3.5 + WP-4.1 (complementos; la calculadora en sí = spec) | 12,5 | **16** | 19,5 | Gestor de cotizaciones con detalle completo; calculadora con kit visual |
 | **R4 · Biblioteca** | F2 completa | 11 | **14,5** | 18 | Importación robusta, biblioteca escalable |
 | **R5 · Estudio de laminado** | F5 núcleo (5.0–5.4) | 27 | **33** | 39 | Slicer configurable embebido con exploración |
 | **R6 · Pulido y cierre** | WP-6.2, 6.3, 4.3 | 9 | **11** | 14 | Consistencia visual total y regresión automática |
-| | **Total** | **92** | **115,75** | **141** | |
+| **Transv.** | WP-6.4 i18n es/en (reparto en R1–R6) | 4 | **5** | 6 | Todo en español e inglés con pruebas de paridad |
+| | **Total** | **94** | **118,25** | **144** | |
 
 ### Dependencias
 
@@ -133,7 +154,7 @@ flowchart LR
 - R3 y R4 son independientes entre sí; se pueden intercambiar según prioridad comercial.
 
 ### Orden alternativo (si se prioriza lo más visible para clientes)
-R1 → R3 (sin la parte de calidad/filamento nueva; adaptada al modelo actual) → R2 → R4 → R5 → R6. Costo: parte de R3 se rehace al llegar R2 (≈ +2–3 jornadas).
+R1 → R3 (sin la parte de calidad/filamento nueva; adaptada al modelo actual) → R2 → R4 → R5 → R6. Costo: parte de R3 se rehace al llegar R2 (≈ +2–3 jornadas). Si se quiere además el cambio de IVA/margen, intercalar la Fase 1 de la spec de calculadora antes de R3.
 
 ## 5. Riesgos del proyecto
 
@@ -146,6 +167,9 @@ R1 → R3 (sin la parte de calidad/filamento nueva; adaptada al modelo actual) �
 | PDF: Chromium no disponible en algún entorno | Media | Medio | Fallo explícito, _healthcheck_, alternativa «versión imprimible» visible |
 | Cambios de perfiles de fábrica al actualizar Orca | Media | Medio | Resolvedor tolerante + prueba de contrato (OM-20) |
 | Alcance creciente en el Estudio («que sea igual a Bambu Studio») | Alta | Alto | Documento 04 §1 como contrato de alcance; D7 |
+| **Trabajo concurrente en `development`** (la rama avanzó ≈ 280 archivos de UI mientras se hacía este análisis: i18n, boquillas, IA) → conflictos y supuestos que caducan | Alta | Medio | Integrar `development` antes de cada release, PR pequeños y frecuentes, revalidar `01-diagnostico.md §0.1` al empezar cada fase |
+| Solapamiento con `docs/spec-calculadora.md` (totales/IVA/perfiles de precio) | Media | Medio | Ejecutar la Fase 1 de la spec antes de WP-3.2/3.4; vocabulario «perfil de precio» vs «perfil de laminado» |
+| Calidades como preset vs perfiles por boquilla ya creados por el taller | Media | Medio | Backfill que conserva los perfiles existentes como `custom`; presets nuevos conviven (doc 02 §5) |
 
 ## 6. Criterios de aceptación por release (resumen)
 
@@ -157,8 +181,8 @@ R1 → R3 (sin la parte de calidad/filamento nueva; adaptada al modelo actual) �
 
 ## 7. Quick wins sin dependencias (≤ 1 jornada cada uno)
 
-1. Bloquear eliminación de perfiles en uso (WP-0.2).
-2. Filtrar procesos/filamentos por compatibilidad en selectores (WP-0.3).
+1. Extender la guarda de borrado con «reemplazar por…» (WP-0.2; el bloqueo base ya existe).
+2. Filtrar procesos/filamentos por compatibilidad de impresora, además del orden por boquilla que ya existe (WP-0.3).
 3. Aviso «orientación solo de prueba» en el visor (WP-0.4).
 4. Fallo explícito del PDF y `playwright` a `dependencies` (WP-0.5).
 5. Color de marca del PDF alineado y logo en el encabezado (adelanto parcial de 3.4, ≈ 0,5 d).

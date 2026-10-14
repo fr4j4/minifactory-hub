@@ -1,11 +1,34 @@
 # 01 · Diagnóstico de interfaces e interacciones
 
 > Alcance: análisis estático del código (`src/**`) y de las capturas ya generadas en `docs/reporte/media/screens`.
-> **No se ejecutó la aplicación ni se modificó código.** Lo que no pude comprobar con certeza está marcado como _(por verificar)_.
-> Convención: cada hallazgo tiene un ID (`PFC-01`…) que se referencia en los demás documentos y en el plan de estimaciones.
+> **No se ejecutó la aplicación ni se modificó código.** Lo que no pude comprobar con certeza está marcado _(por verificar)_.
+> **Línea base:** rama `development` en el commit `54a4bc6` (incluye i18n es/en, perfiles por boquilla, guarda de borrado, asesor de IA y las specs `docs/spec-calculadora.md`, `docs/spec-ia.md`, `docs/revision-perfiles-maquinas.md`). El primer borrador de este análisis se hizo sobre un commit anterior; todo se revalidó después de integrar esos cambios (ver §0.1).
+> Convención: cada hallazgo tiene un ID (`PFC-01`…) que se referencia en los demás documentos y en el plan de estimaciones. Los IDs `CAL-xx` pertenecen a `docs/spec-calculadora.md`; los de calculadora de este documento son `CLC-xx`.
+> Referencias de línea (`archivo.tsx:NN`) corresponden al código previo a la migración i18n y pueden haberse movido unas líneas; el archivo y el símbolo citados siguen siendo la referencia válida.
 > Severidad: **Alta** = bloquea o confunde un flujo principal · **Media** = fricción frecuente o deuda con riesgo · **Baja** = pulido.
 
-## 0. Mapa de pantallas analizadas
+## 0.1 Estado de los hallazgos tras integrar `development`
+
+| ID | Estado | Detalle |
+|---|---|---|
+| PFC-01 | **Vigente** | `slice-panel.tsx` y `comparator.tsx` siguen filtrando `m.filamentProfileId`; `materials.filament_profile_id` sigue siendo la relación |
+| PFC-02 | **Vigente (agravado)** | Las _plantillas por boquilla_ y «Configurar laminado» siguen creando filas de perfil por impresora/boquilla/calidad (ver PFC-11) |
+| PFC-03 | **Parcial** | Ahora las calidades se ordenan por la boquilla de la máquina y se avisa si no coincide (`docs/revision-perfiles-maquinas.md` P4, `process-options.tsx`); sigue sin filtrarse por compatibilidad de impresora/marca (`compatible_printers`) |
+| PFC-04 | **Vigente** | Doble fuente de verdad material ↔ perfil de filamento (densidad, costo, temperaturas) |
+| PFC-05 | **Resuelto** | Guarda de borrado con quién lo usa (`lib/slicer/usage.ts`, P6). Falta «reemplazar por…» y cubrir líneas de presupuesto/productos _(por verificar)_ |
+| PFC-06 | **Parcial** | Editor con grupos, plantillas por boquilla, ayudas de espesor de pared, «Cambiar base», validación y versiones (P7, P9, P11); sigue siendo una lista corta + buscador de claves, sin tooltips por parámetro ni diff vs. fábrica |
+| PFC-07 | **Parcial** | `SIMPLE_PARAMS` ya tiene una sola fuente (`lib/slicer/params.ts`, P8); persisten `FIELDS`/`TYPES` en `slicing-setup.tsx` frente a `CUSTOM_FILAMENT_FIELDS` en `setup.ts` |
+| PFC-08 | **Vigente** | Siguen `importProfileAction` y `importSelectedAction` |
+| PFC-09 | **Parcial** | Filtro y columna por boquilla, guía «¿Para qué sirve cada perfil?» |
+| PFC-10 | **Vigente** | El asistente ahora además pide la boquilla puesta |
+| VIS-05 | **Parcial** | El comparador ya trata cada (máquina, boquilla) como opción (`ctx.setups`); la selección inicial sigue por regex de nombres |
+| VIS-06 | **Vigente** | La pestaña pasó a llamarse «Laminados» (antes «Corridas»); mismo contenido |
+| UX-06 | **Vigente** | Hay selector de idioma es/en (i18n), pero el `<input type=date>` sigue el idioma del navegador |
+| Resto | **Vigente** | BIB-*, VIS-01…04/07/08, COT-*, PDF-*, CLC-*, MAT-*, UX-01…05/07/08, TEC-* sin cambios funcionales (el PDF solo se tradujo) |
+
+**Nuevo desde la integración:** el sitio es bilingüe (es/en). Toda cadena nueva debe agregarse a `src/i18n/es/*` y `src/i18n/en/*` y pasa por pruebas de paridad (`tests/unit/i18n.test.ts`); el costo de las mejoras propuestas ya incluye esto como línea explícita en el plan (WP-6.4).
+
+## 0.2 Mapa de pantallas analizadas
 
 | Ruta | Componentes clave | Observación general |
 |---|---|---|
@@ -38,14 +61,15 @@ quote_items.process_profile_id / products.process_profile_id ──► slicer_pr
 |---|---|---|---|
 | **PFC-01** | Alta | **El material del inventario está atado a un perfil de filamento.** Si no tiene perfil, _desaparece_ del Laminador y del Comparador («N materiales no aparecen porque no tienen perfil») y el asistente obliga a asignarlo. Un dato comercial (marca, color, costo, stock) queda condicionado a un dato técnico del laminador. | `schema.ts:111` (`materials.filamentProfileId`); `slice-panel.tsx:45`, `comparator.tsx` (`mats = … && m.filamentProfileId`); `slicing-setup.tsx` paso 2 |
 | **PFC-02** | Alta | **«Calidad» es una fila de BD por máquina.** `setupMachine` → `ensureProfile` crea perfiles tipo «A1 · 0,20 Standard» con **0 cambios** (idénticos al de fábrica). En la captura `25-perfiles.png`, 5 de 7 perfiles de proceso, 4 de 5 de filamento y las 3 máquinas tienen 0 cambios: ruido que oculta los pocos perfiles realmente personalizados («A1 lenta», «relleno 40 % giroide», «PETG lento»). | `lib/slicer/setup.ts:17,129`; `docs/reporte/media/screens/25-perfiles.png` |
-| **PFC-03** | Alta | **Los selectores no filtran por compatibilidad.** El panel de laminado, el editor de líneas y el comparador listan _todos_ los procesos (`ctx.profiles.filter(type==='process')`), incluso los de otra marca → error de laminado `-17` («perfil no compatible») que recién se ve tras esperar el trabajo. | `slice-panel.tsx:44`, `line-editor.tsx` (`line-process`), `lib/slicer/run.ts` (`ERR_MAP[-17]`) |
+| **PFC-03** | Media _(era Alta; ver §0.1)_ | **Los selectores no filtran por compatibilidad.** El panel de laminado, el editor de líneas y el comparador listan _todos_ los procesos (`ctx.profiles.filter(type==='process')`), incluso los de otra marca → error de laminado `-17` («perfil no compatible») que recién se ve tras esperar el trabajo. | `slice-panel.tsx:44`, `line-editor.tsx` (`line-process`), `lib/slicer/run.ts` (`ERR_MAP[-17]`) |
 | **PFC-04** | Media | **Doble fuente de verdad** de densidad, costo y temperaturas: `materials.density/costPerKg/tempNozzle/tempBed` (texto libre) vs. `filament_density/filament_cost/nozzle_temperature` del perfil. Los gramos del laminador usan la densidad del perfil; el estimador desde malla usa la del material → cifras distintas para el mismo material. | `schema.ts:96-113`; `lib/pricing.ts` `estimateFromMesh`; `lib/slicer/setup.ts` `CUSTOM_FILAMENT_FIELDS` |
-| **PFC-05** | Media | **Eliminar un perfil no verifica uso.** `deleteProfileAction` solo marca `deletedAt`; las máquinas, materiales, líneas de presupuesto o productos que lo referencian quedan con ids huérfanos (los selectores simplemente dejan de mostrarlo). La lista muestra «Usado en» pero no bloquea ni advierte. | `actions/slicer.ts:91`; `laminador/page.tsx` (`usedBy`) |
-| **PFC-06** | Media | **Editor de perfil pobre para el objetivo «slicer configurable».** Muestra una lista plana de 8 (proceso) a 14 (filamento) campos «que mueven el costo» y, para todo lo demás, un buscador de claves **en inglés** (`retraction`, `ironing`…) sin descripción, rango, unidad ni agrupación. No hay diff contra fábrica ni versión comparada. | `profile-bits.tsx:46` (`ProfileEditor`); `lib/slicer/catalog.ts:143` (`SIMPLE_PARAMS`) |
-| **PFC-07** | Baja | **Código triplicado:** `SIMPLE_PARAMS` (catalog.ts y params.ts), `FIELDS` (slicing-setup.tsx:155) vs `CUSTOM_FILAMENT_FIELDS` (setup.ts:151), listas `TYPES`. Cualquier cambio exige tocar 2–3 sitios. | archivos citados |
+| **PFC-05** | ~~Media~~ **Resuelto** | _(Texto original, ya corregido en `development`; ver §0.1.)_ **Eliminar un perfil no verificaba uso.** `deleteProfileAction` solo marca `deletedAt`; las máquinas, materiales, líneas de presupuesto o productos que lo referencian quedan con ids huérfanos (los selectores simplemente dejan de mostrarlo). La lista muestra «Usado en» pero no bloquea ni advierte. | `actions/slicer.ts:91`; `laminador/page.tsx` (`usedBy`) |
+| **PFC-06** | Media _(parcial)_ | **Editor de perfil pobre para el objetivo «slicer configurable».** Muestra una lista plana de 8 (proceso) a 14 (filamento) campos «que mueven el costo» y, para todo lo demás, un buscador de claves **en inglés** (`retraction`, `ironing`…) sin descripción, rango, unidad ni agrupación. No hay diff contra fábrica ni versión comparada. | `profile-bits.tsx:46` (`ProfileEditor`); `lib/slicer/catalog.ts:143` (`SIMPLE_PARAMS`) |
+| **PFC-07** | Baja _(parcial)_ | **Código triplicado:** `SIMPLE_PARAMS` (catalog.ts y params.ts), `FIELDS` (slicing-setup.tsx:155) vs `CUSTOM_FILAMENT_FIELDS` (setup.ts:151), listas `TYPES`. Cualquier cambio exige tocar 2–3 sitios. | archivos citados |
 | **PFC-08** | Media | **Dos rutas de importación** (`importProfileAction` JSON legado y `previewImportAction`/`importSelectedAction`) con lógica de herencia duplicada. | `actions/slicer.ts` (`importProfileAction`, `importSelectedAction`) y `lib/slicer/import.ts` |
-| **PFC-09** | Baja | **Lista de perfiles:** tres tablas idénticas apiladas, sin búsqueda, filtros ni agrupación por máquina; acciones solo «Duplicar/Eliminar». | `laminador/page.tsx` |
+| **PFC-09** | Baja _(parcial)_ | **Lista de perfiles:** tres tablas idénticas apiladas, sin búsqueda, filtros ni agrupación por máquina; acciones solo «Duplicar/Eliminar». | `laminador/page.tsx` |
 | **PFC-10** | Media | **El asistente exige 3 pasos** aunque con una impresora bien definida el sistema podría laminar con valores por defecto razonables (filamento genérico por tipo, calidad estándar). Para el taller, «configurar» se siente obligatorio antes de poder cotizar. | `slicing-setup.tsx`; `slicingReadiness()` |
+| **PFC-11** | Media | **La dimensión «boquilla» multiplica los perfiles.** Las plantillas por boquilla (Borrador/Estándar/Fino/Resistente/Funcional × diámetros 0,2–1,2 × impresoras) se guardan como filas de `slicer_profiles` (+ `machines.nozzle_setups` boquilla → impresora + calidad). Funciona, pero convierte «calidad» en un catálogo grande de copias por boquilla en vez de una intención que se resuelve en el momento. | `lib/slicer/nozzle.ts`, `machines.nozzle_setups` (`schema.ts`), `docs/revision-perfiles-maquinas.md` §5 |
 
 ---
 
@@ -104,13 +128,13 @@ quote_items.process_profile_id / products.process_profile_id ──► slicer_pr
 
 ---
 
-## 4. Calculadoras y mantenedores (CAL, MAT)
+## 4. Calculadoras y mantenedores (CLC, MAT)
 
 | ID | Sev. | Hallazgo | Evidencia |
 |---|---|---|---|
-| **CAL-01** | Media | **La «Calculadora rápida» es el editor de líneas completo con una sola línea**, con tres modos y todos los campos; el parámetro `whatsappTpl` llega vacío (`""`) y no se usa. Sin historial ni escenarios guardados. | `quick-calc.tsx:12`; `calculadora/page.tsx` |
-| **CAL-02** | Media | **El costo no se «ve»:** el desglose está en un `<details>` colapsado y solo con permiso de costos; no hay escalera de precios por cantidad (aunque existen `volumeTiers`), ni cálculo inverso (precio objetivo ↔ margen). | `line-editor.tsx` (desglose); `pricing.ts` |
-| **CAL-03** | Baja | No se puede responder rápido «¿y si lo hago en PLA en vez de PETG?» o «¿y a 0,28 mm?» sin editar la línea y comparar mentalmente. | — |
+| **CLC-01** | Media | **La «Calculadora rápida» es el editor de líneas completo con una sola línea**, con tres modos y todos los campos; el parámetro `whatsappTpl` llega vacío (`""`) y no se usa. Sin historial ni escenarios guardados. | `quick-calc.tsx:12`; `calculadora/page.tsx` |
+| **CLC-02** | Media | **El costo no se «ve»:** el desglose está en un `<details>` colapsado y solo con permiso de costos; no hay escalera de precios por cantidad (aunque existen `volumeTiers`), ni cálculo inverso (precio objetivo ↔ margen). | `line-editor.tsx` (desglose); `pricing.ts` |
+| **CLC-03** | Baja | No se puede responder rápido «¿y si lo hago en PLA en vez de PETG?» o «¿y a 0,28 mm?» sin editar la línea y comparar mentalmente. | — |
 | **MAT-01** | Media | **`MaterialForm`: un modal de 13 campos** en 3 columnas; temperaturas como texto libre; el perfil del laminador convive con datos comerciales (costo, proveedor). | `inventory-bits.tsx:7` |
 | **MAT-02** | Media | **Una fila por color repite** marca/línea/tipo/densidad/costo/perfil. Cambiar el costo de «Sunlu PETG» exige editar cada color. | `schema.ts:96`; `inventario/page.tsx` |
 | **MAT-03** | Baja | Tabla de materiales sin búsqueda/filtros ni agrupación; bobinas sin representación visual del carrete. | `inventario/page.tsx` |
@@ -145,3 +169,4 @@ quote_items.process_profile_id / products.process_profile_id ──► slicer_pr
 - Versionado de perfiles con vuelta atrás; importación desde Bambu Studio/OrcaSlicer; exportación de vuelta.
 - Congelado de precios al enviar un presupuesto, versiones y auditoría.
 - Accesibilidad verificada con axe y navegación móvil dedicada.
+- **Ya implementado en `development` (conservar y aprovechar):** i18n es/en con pruebas de paridad; perfiles por boquilla con reglas verificadas contra los perfiles reales de OrcaSlicer 2.4.2 (`lib/slicer/nozzle.ts`); guarda de borrado de perfiles en uso; ficha de **desempeño** por perfil, explicación de errores de laminado y **asesor de perfiles** (con IA opcional y validación determinista); archivar/restaurar registros y edición de registros ya creados; especificación de la calculadora v2.

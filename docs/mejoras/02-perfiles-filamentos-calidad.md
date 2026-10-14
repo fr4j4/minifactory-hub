@@ -1,6 +1,8 @@
 # 02 · Propuesta: simplificar Calidad y Filamento, y desacoplar el material del perfil
 
-Resuelve: **PFC-01 … PFC-10**, **BIB-08** (parcialmente), base de **VIS-01** (ajustes de sesión).
+Resuelve: **PFC-01, 02, 04, 06, 08, 10, 11** (y completa 03, 05, 07, 09, ya parcialmente corregidos), **BIB-08** (parcialmente), base de **VIS-01** (ajustes de sesión).
+
+> **Cómo encaja con lo ya construido** (`development` @ `54a4bc6`, ver `docs/revision-perfiles-maquinas.md`): la **boquilla** ya es una dimensión de primera clase (`machines.nozzle_setups`, `slicer_profiles.nozzle`, `lib/slicer/nozzle.ts` con reglas de altura de capa 20–70 % del diámetro, ancho de línea, espesor de pared y plantillas Borrador 60 % · Estándar 50 % · Fino 30 %). Esta propuesta **no la reemplaza: la generaliza**. Las «plantillas por boquilla» pasan de _crear filas_ a ser la **definición de los presets de calidad**, y la boquilla pasa a ser una entrada más del resolvedor.
 
 ## 1. Principios
 
@@ -46,19 +48,19 @@ type ProfileRef =
 - «Personalizar» crea una fila `slicer_profiles` (ya existe) con `baseName` + `changes`, y la referencia pasa a `kind:'custom'`.
 - `slicer_profiles` queda como **«Perfiles avanzados»**: solo lo personalizado/importado. Se acaba el ruido de copias con 0 cambios (PFC-02).
 
-### 2.2 Calidad (`quality_presets`) — nuevo
+### 2.2 Calidad (`quality_presets`) — nuevo (generaliza las plantillas por boquilla)
 
 | Campo | Descripción |
 |---|---|
 | `name`, `icon`, `sort`, `is_system` | «Borrador», «Estándar», «Fino», «Resistente» (sistema, editables) + los que cree el taller |
 | `intent` | `draft` \| `standard` \| `fine` \| `strong` \| `custom` |
-| `layer_height` | Altura objetivo (0,28 / 0,20 / 0,12…) |
+| `layer_height` | Altura objetivo, expresada **como fracción del diámetro de boquilla** (Borrador 60 % · Estándar 50 % · Fino 30 %, las mismas reglas de `lib/slicer/nozzle.ts`) para que el preset sirva con 0,2 · 0,4 · 0,6 · 0,8 · 1,2 mm |
 | `overrides` (jsonb) | Claves Orca a imponer: `wall_loops`, `sparse_infill_density`, `sparse_infill_pattern`, `top_shell_layers`, `enable_support`… |
 | `speed_factor` (opcional) | Multiplicador de velocidades sobre el proceso base |
 
 **Resolución a proceso concreto** (en servidor, al laminar):
 
-1. Tomar `processesFor(machineBase)` (ya existe en `lib/slicer/setup.ts`) → procesos de fábrica compatibles con esa impresora y boquilla.
+1. Tomar `processesFor(machineBase)` (ya existe en `lib/slicer/setup.ts`) → procesos de fábrica compatibles con esa impresora **y la boquilla puesta**. Si no hay perfil de fábrica para ese diámetro (p. ej. 1,0 · 1,2 mm), usar la **plantilla de `nozzle.ts`** (reescala velocidades y anchos de línea, como ya hace hoy «Plantillas por boquilla») en memoria, sin crear filas.
 2. Elegir el de altura de capa más cercana a `layer_height` y, a igualdad, el de `intent` más afín (Standard/Strength/Quality/Speed; el heurístico ya existe en `processesFor`).
 3. Aplicar `overrides` encima → perfil de proceso efectivo.
 
@@ -79,8 +81,8 @@ Resultado: el mismo preset «Fino» funciona en una A1, una P1S o una Prusa sin 
 
 ### 2.4 Máquina
 
-- `machines.machine_profile_id` → `machine_ref` (`ProfileRef`); `default_process_profile_id` → `default_quality_id`.
-- El asistente solo pide **qué impresora es** (se sugiere por marca/modelo; ya existe `suggestMachineBase`).
+- `machines.machine_profile_id` → `machine_ref` (`ProfileRef`); `default_process_profile_id` → `default_quality_id`. Con la boquilla ya modelada, `machines.nozzle_setups` pasa de `{boquilla → {machineProfileId, processProfileId}}` a `{boquilla → {machine_ref, default_quality_id}}` (mismo diseño, referencias en lugar de ids de fila).
+- El asistente solo pide **qué impresora es y qué boquilla tiene puesta** (se sugiere por marca/modelo; ya existen `suggestMachineBase` y el selector de boquillas). `ctx.setups` (máquina × boquilla) sigue siendo la opción que ven Laminar y Comparador.
 
 ### 2.5 Datos de una corrida (`slice_runs`)
 
@@ -103,16 +105,16 @@ Calidad    ( Borrador 0,28 )  ( ● Estándar 0,20 )  ( Fino 0,12 )  ( Resistent
            Estándar · 0,20 mm · 2 paredes · 15 % relleno   → «0.20mm Standard @BBL A1»  [Ver / ajustar]
 ```
 
-## 4. Reglas de integridad (corrige PFC-05)
+## 4. Reglas de integridad (completa PFC-05)
 
-- Un perfil `custom` **no se puede eliminar** si está en uso: se muestra la lista («Usado por: máquina A1 #1, 3 líneas de presupuesto») con la opción de **reemplazar por…** o **archivar**.
+- **Ya existe** la guarda de borrado (`lib/slicer/usage.ts`): bloquea y dice quién usa el perfil. Se **extiende** para (a) cubrir líneas de presupuesto/pedido y productos _(por verificar qué consulta hoy)_, y (b) ofrecer **reemplazar por…** o **archivar** en lugar de solo bloquear.
 - Las referencias `factory` pueden quedar «huérfanas» si cambia la versión de Orca; el resolvedor avisa («el perfil ya no existe en OrcaSlicer 2.5; se usó el más cercano») y registra la sustitución en la corrida.
 
 ## 5. Plan de migración (expandir → migrar → contraer)
 
 1. **Expandir:** crear `quality_presets`, `material_profile_prefs`, columnas `*_ref`/`inputs` (nullables). Ninguna ruptura.
 2. **Backfill (script idempotente):**
-   - `machines.machine_profile_id` → `machine_ref` (`custom` si el perfil tiene cambios; `factory` si no).
+   - `machines.machine_profile_id` y cada entrada de `machines.nozzle_setups` → `machine_ref` (`custom` si el perfil tiene cambios; `factory` si no).
    - Procesos con 0 cambios → `factory`; con cambios → crear un preset de calidad «Personalizado: …» que referencia su `overrides` o mantener `custom`.
    - `materials.filament_profile_id` → `material_profile_prefs` (origen `manual`).
    - Perfiles `custom` con 0 cambios y sin uso → archivar tras confirmación del usuario (lista previa; **nunca** automático).
@@ -123,9 +125,10 @@ Compatibilidad: los `slice_runs` históricos conservan `profile_versions` (snaps
 
 ## 6. Pruebas
 
-- Unitarias: resolvedor de filamento (5 niveles), resolución calidad→proceso por máquina (Bambu A1/P1S, Prusa MK4S, Creality), inyección de densidad/costo, compatibilidad.
+- Unitarias: resolvedor de filamento (5 niveles), resolución calidad→proceso por (máquina, boquilla) (Bambu A1/P1S, Prusa MK4S, Creality; boquillas 0,2 · 0,4 · 0,6 · 1,2), inyección de densidad/costo, compatibilidad. Reutilizar casos de `tests/unit/nozzle.test.ts` y `tests/integration/nozzles.test.ts`.
 - Integración: backfill sobre la semilla de demo; corrida con filamento genérico sin preferencia; borrado con y sin uso.
-- E2E a actualizar: `02-laminador`, `12-laminado-config`, `03-presupuesto` (selectores).
+- E2E a actualizar: `02-laminador`, `12-laminado-config`, `15-perfiles-boquillas`, `03-presupuesto` (selectores).
+- i18n: cada etiqueta nueva (calidades, orígenes «automático/preferencia/manual», avisos) en `src/i18n/es` y `src/i18n/en`.
 - Riesgo principal: **nombres de perfiles de fábrica** cambian entre versiones de Orca → el resolvedor debe ser tolerante y probado contra el árbol real instalado (`scripts/install-orca.sh` fija 2.4.2).
 
 ## 7. Decisiones que necesito de ti

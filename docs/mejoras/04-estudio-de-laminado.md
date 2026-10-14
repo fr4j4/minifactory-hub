@@ -2,6 +2,7 @@
 
 Resuelve: **VIS-01 … VIS-08**, **PFC-06**, **BIB-07/08**, **TEC-01**.
 Depende de: `02-perfiles-filamentos-calidad.md` (resolvedor, calidades, ajustes de sesión).
+Se apoya en lo ya construido: **asesor de perfiles** (Fase 1 de `docs/spec-ia.md`: candidatos validados + laminado real + ranking), **ficha de desempeño** y **explicación de errores** (`lib/slicer/performance.ts`, `explain.ts`, `slice-error-help.tsx`), **validador determinista** (`lib/slicer/validate.ts`) y **etiquetas de parámetros por i18n** (`src/i18n/{es,en}/slicerParam.ts`).
 
 ## 1. Qué es posible (y qué no) — punto de partida realista
 
@@ -63,6 +64,7 @@ Total spikes ≈ **3,5–4 jornadas** (paquete 5.0 del plan de estimaciones, pre
 
 - **Esquema de parámetros** (`src/lib/slicer/schema/*.json`): por clave Orca → `{ label_es, tooltip_es, group, page, kind, unit, min, max, options[], mode: simple|advanced|expert, dependsOn }`.
   - Fuente: S2 (si el AppImage trae los textos) o lista curada de ~120 parámetros (los que se usan en la práctica) con _fallback genérico_ para el resto (clave cruda editable, como hoy).
+  - **i18n:** cada `label`/`tooltip` es una `MessageKey` con versión **es y en** (mismo mecanismo que `SIMPLE_PARAMS` en `lib/slicer/params.ts`); el esquema curado **extiende** `SIMPLE_PARAMS` (hoy 7 de máquina, 14 de proceso y 9 de filamento) en lugar de crear una segunda lista (evita repetir PFC-07). El generador de S2 solo propone claves; la traducción se revisa a mano.
 - Organización como en Orca: **Calidad · Resistencia · Velocidad · Soportes · Otros** (proceso) · **Filamento** (temperaturas, flujo, enfriamiento) · **Máquina** (límites, G-code, retracción).
 - **Valor modificado resaltado** (punto de color + «↺ restablecer»), contador por grupo («3 cambios») y **filtro «solo modificados»**.
 - **Búsqueda difusa** en español e inglés (reemplaza el buscador de claves en inglés).
@@ -133,6 +135,18 @@ Es la parte de **mayor riesgo y esfuerzo**; se estima aparte (5.5) y se recomien
 - **Máquinas:** «Enviar a imprimir» desde el resultado cuando la máquina tiene conector Bambu (hoy solo en `/maquinas/[id]`; reutiliza `sendableRuns`).
 - **Cola/producción:** botón «Agregar a la cola con esta configuración».
 
+### 6.1 Asesor de IA, desempeño y errores (ya existentes) dentro del Estudio
+
+| Hoy | En el Estudio |
+|---|---|
+| Botón «Mejorar con IA» en el panel de laminado; los candidatos se laminan como **perfiles «fantasma»** (filas con borrado lógico que _no se purgan todavía_, según `docs/spec-ia.md`) | Cada candidato es un conjunto de **ajustes de sesión** (`overrides`) sobre la base: **sin filas fantasma**. «Usar para este trabajo» = cargar los overrides en el Estudio; «Guardar» = promover a perfil (la misma acción que hoy) |
+| Comparación de candidatos con `comparator.tsx` | La vista **Explorar** (§5) es la misma tabla/gráfico; los candidatos de IA aparecen como un origen más de variantes |
+| Validación determinista (`validate.ts`: lista permitida, rangos por boquilla/material/máquina) | Se reutiliza para **validar todo cambio manual del panel de parámetros** (avisos en línea), no solo los de IA |
+| Ficha de desempeño por perfil y reglas «qué probar» | Insignia en el Estudio («este perfil falla 3/10 por despegue») con enlace a la ficha |
+| Explicación de errores de laminado (`slice-error-help.tsx`) | Se muestra en la barra de resultados cuando una corrida falla, con acciones de un clic (rotar, escalar, menos copias) |
+
+Regla: la IA sigue siendo **opcional y apagada por defecto**; el Estudio debe funcionar completo sin ella.
+
 ## 7. Cambios técnicos principales
 
 | Pieza | Cambio |
@@ -153,6 +167,7 @@ Es la parte de **mayor riesgo y esfuerzo**; se estima aparte (5.5) y se recomien
 | Etiquetas/rangos de parámetros no extraíbles automáticamente | Lista curada de 120 + fallback genérico; ampliar por demanda |
 | Cambios del CLI entre versiones de Orca | Fijar versión (ya se hace), pruebas de contrato en CI con el binario real |
 | CPU compartida con la web | Worker aislado (5.4) y límites de concurrencia |
+| Mantener dos listas de parámetros (curada y `SIMPLE_PARAMS`) | Una sola fuente: el esquema extiende `SIMPLE_PARAMS` |
 | Expectativa de «igual que el programa de escritorio» | Comunicar el alcance (§1) y ofrecer «Abrir en Bambu Studio» (exportar 3MF/perfiles; la exportación de perfiles ya existe) |
 
 ## 9. Decisiones que necesito de ti
@@ -161,4 +176,4 @@ Es la parte de **mayor riesgo y esfuerzo**; se estima aparte (5.5) y se recomien
 |---|---|---|
 | D7 | **Nivel de ambición:** A) parámetros + previsualización + exploración · B) A + edición de placa multiobjeto · C) incluir pintado | **A primero**, B después de validar; C descartado |
 | D8 | ¿Incluir «vista rápida aproximada» etiquetada como no apta para cotizar? | Sí, si S3 muestra tiempos > 15 s en piezas habituales |
-| D9 | ¿Idioma de parámetros? | Español con el nombre de Orca en inglés entre paréntesis (ayuda a buscar en foros) |
+| D9 | Etiquetas de parámetros: el sitio es bilingüe (es/en) y ya hay prueba de paridad de claves. ¿Cuántos parámetros traducir al inicio? | Los ≈ 120 curados en es y en; el resto se muestra con la clave de Orca. En es, nombre de Orca entre paréntesis (ayuda a buscar en foros) |

@@ -2,6 +2,8 @@
 
 Resuelve: **COT-01 … COT-08**, **PDF-01 … PDF-07**, parte de **UX-03/UX-06**.
 
+> **Coordinación con `docs/spec-calculadora.md`:** esa spec cambia el modelo de totales del presupuesto (§7): **cálculo siempre neto**, **IVA opcional por presupuesto** (`quotes.applyTax`, se retira `taxMode='incluido'`), margen sobre venta neta, «Recalcular con tarifas actuales» con vista previa, selector de **perfil de cálculo** por presupuesto y avisos de piso/mínimo por pedido. Este documento **no duplica** esa lógica: el detalle, el editor y el PDF propuestos aquí **consumen** esos campos (ver «Dependencias» en `09-plan-y-estimaciones.md`). Mientras la spec no se implemente, el diseño usa el modelo actual (`taxMode`).
+
 ## 1. Estado actual (resumen)
 
 - Flujo: `borrador` (editor con autoguardado) → `enviado` (congela precios, `frozen`) → `aprobado` (crea pedido y, opcionalmente, trabajos en cola) | `rechazado` | `vencido` | `reemplazado` (nueva versión).
@@ -123,10 +125,11 @@ Modal con **resumen previo** de lo que ocurrirá: «Se creará el pedido PE-… 
 | **Encabezado/pie** | Repetidos por página; número de página «Página X de Y»; datos de contacto |
 | **Tabla** | `thead` repetido, `tr` sin cortes (`break-inside: avoid`), miniaturas más grandes (≈ 72–96 px) y hasta 3 por línea; respeta `showInPdf` de enlaces |
 | **Opcionales** | Sección propia con precios |
+| **Totales / IVA** | Siguen `applyTax` cuando exista (spec de calculadora §7.4): marcada → «Neto · IVA 19 % · Total»; desmarcada → solo «Total», sin línea de IVA ni texto «IVA incluido». Hoy depende de `taxMode` |
 | **Cierre comercial** | Anticipo requerido (`depositPct`/`minDepositPct`), plazo de entrega estimado, datos de transferencia (nuevos campos en Configuración), validez destacada, QR opcional (WhatsApp o pago) |
 | **Condiciones** | Texto de plantilla en secciones; salto a página 2 si es largo |
 | **Borrador** | Marca de agua «BORRADOR» cuando el estado no es `enviado/aprobado` |
-| **Opciones de generación** | Mostrar miniaturas · mostrar plazo por línea · ocultar precios unitarios · idioma (es-CL por defecto) |
+| **Opciones de generación** | Mostrar miniaturas · mostrar plazo por línea · ocultar precios unitarios · idioma (es/en, el del usuario o el del cliente si se registra; el PDF ya usa `getT()`) |
 | **Accesibilidad/impresión** | `@page { size: A4; margin }`, fuentes incrustadas (`@font-face` locales), alto contraste, escala de grises legible |
 
 ### 5.2 Arquitectura de generación (PDF-01, PDF-02, PDF-06)
@@ -154,6 +157,7 @@ Con la opción A:
 ## 6. Pruebas y cuidados
 
 - E2E a actualizar: `03-presupuesto`, `06-permisos` (costos ocultos por rol), `07-movil`, `08-accesibilidad`.
+- i18n: todo texto nuevo del detalle y del PDF en `src/i18n/es` y `src/i18n/en`.
 - Permisos: las pestañas **Costos** y columnas de margen solo con `canSeeCosts`; la «Vista cliente» y el PDF **nunca** muestran costos ni precio sugerido (hoy ya es así en `/imprimir`; añadir prueba que lo garantice).
 - Datos históricos: presupuestos ya enviados sin PDF guardado → se genera la primera copia al primer acceso y se marca «reconstruido».
 

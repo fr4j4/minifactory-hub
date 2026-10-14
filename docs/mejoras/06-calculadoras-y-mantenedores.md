@@ -1,45 +1,45 @@
 # 06 · Propuesta: calculadoras y mantenedores (filamentos, perfiles, máquinas)
 
-Resuelve: **CAL-01 … CAL-03**, **MAT-01 … MAT-04**, **PFC-09**, **UX-07**.
+Resuelve: **MAT-01 … MAT-04**, **PFC-09**, **UX-07** y aporta los complementos visuales de **CLC-01 … CLC-03** (la calculadora en sí ya está especificada en `docs/spec-calculadora.md`).
 
-## 1. Calculadora v2
+## 1. Calculadora v2 — alineación con `docs/spec-calculadora.md`
 
-### 1.1 Problemas (resumen)
-La «Calculadora rápida» es el `LineEditor` completo con una sola línea (tres modos, orígenes, opciones), sin historial; el costo no se visualiza y no hay escenarios (CAL-01…03).
+Ya existe una **especificación completa** de la calculadora (482 líneas, 15 secciones numeradas §0–§14 y un anexo, 5 fases, requisitos `CAL-xx`): motor v2 (cálculo neto, costos fijos, pisos, falla con encogimiento), perfiles de cálculo en cascada, configuración Estándar/Avanzado con asistente, calculadora con niveles Básico/Detallado/Experto y calibración con historial. **Esa spec es la fuente de verdad** de motor, tarifas, perfiles y comportamiento. Esta sección no la duplica: mapea mis hallazgos contra ella, agrega complementos de UX/visual y señala integraciones con el resto de este paquete.
 
-### 1.2 Propuesta
+### 1.1 Mis hallazgos frente a la spec
 
-```
-┌ Calculadora ───────────────────────────────────────────────────────────────┐
-│ ENTRADA                                │ RESULTADO                          │
-│ Modelo  [ Engranaje 16 dientes ▾ ] 🧊  │  Precio al cliente      $3.000     │
-│   o  ( ) Manual: [  g ] [ h ] [ min ]  │  Margen 62 % · mín. cumplido ✓     │
-│ Cantidad  [ 10 ]                       │                                    │
-│ Material  ● PETG Negro · 12 kg · $18/kg│  Costo  ▇▇▇▇▇▇▇▇▇▇ $1.140          │
-│ Máquina   Bambu A1 #1  ✓ cabe          │   material ▇▇▇▇ 38 %               │
-│ Calidad   (Borr)(●Std)(Fino)(Resist.)  │   máquina  ▇▇▇ 24 %  energía ▇ 4 % │
-│ ▸ Más opciones (post-proceso, envío…)  │   prep. ▇▇ 16 %  post ▇ 9 % riesgo ▇ │
-│                                        │ ─ Escalera por cantidad ─────────── │
-│ Precio objetivo [ $ ____ ] ⇄ Margen [__]│  1 u $4.200 │ 5 u $3.400 │ 10 u … │
-│                                        │ ─ ¿Y si…? ───────────────────────── │
-│                                        │  PLA en vez de PETG   −$180  (−6 %) │
-│                                        │  Calidad Borrador     −$420  −0:20 h│
-│ [Guardar escenario] [Copiar WhatsApp]  │  [Convertir en presupuesto]         │
-└────────────────────────────────────────────────────────────────────────────┘
-```
-
-| Mejora | Detalle |
+| Hallazgo (doc 01) | Cubierto por la spec |
 |---|---|
-| **Modo único y claro** | Por defecto: modelo de la biblioteca (laminado automático) **o** manual (gramos/horas). Los modos «semi» y avanzados quedan en «Más opciones» |
-| **Costo visible** | Barra apilada «capas» (brand): material · máquina · energía · preparación · post-proceso · riesgo; con permiso de costos. Sin permiso, solo precio |
-| **Escalera de precios** | Tabla por cantidad (1, 5, 10, 25, 50 y los tramos de `volumeTiers`) usando `calcLine` (puro, ya existe) |
-| **Cálculo inverso** | Precio objetivo ↔ margen (bidireccional); aviso de bajo costo/bajo margen mínimo |
-| **«¿Y si…?»** | Chips que recalculan con un cambio (otro material, otra calidad, otra máquina) y muestran deltas de precio y tiempo. Con modelo laminado, usa la exploración del Estudio; sin él, estimación |
-| **Escenarios** | Guardar/comparar hasta N escenarios (tabla nueva `calc_scenarios` ligada al usuario; o `localStorage` si se desea sin persistencia de servidor) |
-| **Atajos** | Copiar respuesta WhatsApp (el parámetro `whatsappTpl` hoy llega vacío: usar `st.templates`), convertir en presupuesto (ya existe) |
-| **Reutilizar el motor** | `computeItem`/`calcLine` se conservan; solo cambia la presentación |
+| CLC-01 Calculadora = `LineEditor` completo con una línea | §6 reescritura de `quick-calc.tsx`, niveles, historial reciente, varias piezas |
+| CLC-02 El costo no se «ve»; sin escalera por cantidad ni cálculo inverso | §6.3 desglose en tabla + barra apilada, §6.4 tabla por cantidades y precio inverso, §3.7 salida del motor |
+| CLC-03 Sin «¿y si…?» | §6.4 escenarios (hasta 3 columnas) y sensibilidad |
+| `whatsappTpl` huérfano | §6.6 «Copiar respuesta» con plantilla editable en Configuración |
 
-Código: nuevo `components/calculator/*`; `quick-calc.tsx` se reemplaza; `LineEditor` deja de usarse allí.
+Es decir: **no hay que diseñar una segunda calculadora**; el esfuerzo propio de este paquete se limita a los complementos de §1.2.
+
+### 1.2 Complementos que propongo (no definidos en la spec)
+
+| Complemento | Detalle |
+|---|---|
+| **`LayerBar` compartido** | La «barra apilada» del desglose (spec §6.3) se construye como componente del kit visual (`07-sistema-visual.md`): capas por concepto (material · máquina · energía · prep. · supervisión · post · falla · margen) con la identidad «capa a capa». Se reutiliza en el detalle de cotización (doc 05) y en el resultado del Estudio (doc 04) |
+| **Selectores ricos** | Material (muestra, stock, costo/kg), máquina/boquilla (estado, «cabe») y perfil de precio con el `Select` del kit en lugar de `<select>` nativos |
+| **Entrada «modelo» ↔ Estudio** | Nivel Básico: laminado automático con calidad Estándar sin abrir nada. Detallado/Experto: botón «Ajustar en el Estudio» que vuelve con la corrida (gramos/horas con su origen y confianza) |
+| **Calidad y filamento con el resolvedor del doc 02** | Calidad como preset de intención y filamento «automático»; la calculadora nunca queda bloqueada por falta de perfil (hoy el aviso de «perfil de laminado faltante» ya existe: pasa a ser informativo) |
+| **Chips «¿Y si…?»** | Atajos de un clic («PLA en vez de PETG», «Calidad Borrador», «otra máquina») que abren una columna de escenario con los deltas de precio y tiempo (la UI del §6.4 de la spec) |
+| **Miniatura del modelo** | En el resultado y en «Historial reciente» |
+| **Vocabulario** | La spec introduce «perfil» de cálculo (precio) y el laminador tiene «perfil» de laminado: en la UI llamarlos **«Perfil de precio»** y **«Perfil de laminado»** para no confundir a quien cotiza |
+
+### 1.3 Integraciones y orden
+
+- **Fase 1 de la spec** (cálculo neto + IVA opcional en el presupuesto + margen sobre neto + redondeo único) **cambia totales y PDF**: conviene hacerla **antes o junto con** el PDF v2 y el detalle de cotización (ver dependencias en `09`) para no rehacer totales dos veces.
+- **Fase 3** (perfiles de precio, asistente, Estándar/Avanzado) es independiente del desacople de perfiles de laminado (doc 02) y puede avanzar en paralelo.
+- Las **10 decisiones abiertas** de la spec (§14: costos fijos, mano de obra, IVA de compras, comisiones, margen, perfiles de partida, cotizaciones reales, niveles, una/varias piezas, cuentas existentes) siguen sin responder y **bloquean la Fase 2**.
+
+### 1.4 Observaciones sobre la spec (sin cuestionar su diseño)
+
+- **Riesgo de adopción:** agrega muchos parámetros nuevos a `settings.rates` (costos fijos, horas productivas, pisos, comisiones, tiempos de mano de obra). Si el taller no completa el asistente, todo queda en valores por defecto: el medidor de completitud (§8.4) y el perfil «Heredado (v1)» son la salvaguarda correcta y deben entrar en la primera entrega.
+- **Cliente/servidor:** exige paridad de motor (`CAL-70`) y que costos no viajen al navegador sin permiso (`CAL-76`): hoy `getCalcContext` envía `cost` de máquina y `costPerKg` a todos los roles con acceso a la calculadora → es un cambio de arquitectura real (el servidor entrega solo el precio para roles sin permiso de costos) y no solo de UI.
+- **Estimación:** la spec no trae esfuerzos; los estimo en `09-plan-y-estimaciones.md` (bloque aparte, ≈ 31–56 jornadas) y **no** están sumados en el total de este paquete.
 
 ## 2. Mantenedor de filamentos / materiales
 
@@ -83,7 +83,7 @@ Inventario › Filamentos                          [＋ Línea/Material] [Entrad
 
 ## 5. Pruebas
 
-- Unitarias: escalera de precios, cálculo inverso (precio↔margen), agregación de costo promedio.
+- Pruebas de la calculadora: las define la spec (§12). Aquí solo: agregación del costo promedio por material en una consulta (MAT-04) y paridad visual del `LayerBar`.
 - E2E a actualizar: `05-catalogo-ventas`, `12-laminado-config`, `03-presupuesto` (calculadora → presupuesto), `08-accesibilidad`.
 - Migración `filament_lines`: script idempotente que agrupa por `(manufacturer, line, type, density)` y deja colores como hijos; con vista previa y reversa.
 
@@ -92,4 +92,4 @@ Inventario › Filamentos                          [＋ Línea/Material] [Entrad
 | # | Decisión | Recomendación |
 |---|---|---|
 | D14 | ¿Agrupar materiales por línea (marca/línea → colores)? | Sí, en una segunda iteración (tras desacoplar el perfil) |
-| D15 | ¿Escenarios de calculadora persistentes en servidor o solo locales? | Locales al inicio (sin migración); persistentes si el equipo los comparte |
+| ~~D15~~ | _Retirada:_ la spec define historial reciente por usuario en servidor (`quick_calcs`, últimos 20) | — |

@@ -13,7 +13,8 @@ El lenguaje «capa a capa» (papel técnico cálido, panel grafito, naranja de b
 3. **Sin recargas:** cambios de pestaña, filtros y acciones actualizan solo lo necesario; se conserva scroll, cámara del visor y selección.
 4. **Nunca en blanco:** esqueletos de carga, estados vacíos con acción guiada, errores con salida clara.
 5. **Un clic para lo común, profundidad para lo raro:** modo simple/avanzado, secciones colapsables, «Más opciones».
-6. **Móvil-primero donde se opera** (cola, inventario, escaneo, fotos); **escritorio-primero donde se diseña** (Estudio, cotizaciones).
+6. **Bilingüe por diseño:** todo componente nuevo recibe textos por `t()`/`MessageKey` (es y en); nada de cadenas literales ni de textos incrustados en SVG/imagen.
+7. **Móvil-primero donde se opera** (cola, inventario, escaneo, fotos); **escritorio-primero donde se diseña** (Estudio, cotizaciones).
 
 ## 3. Biblioteca de componentes base (nueva, `src/components/kit/`)
 
@@ -51,7 +52,7 @@ El lenguaje «capa a capa» (papel técnico cálido, panel grafito, naranja de b
 
 - **Estados de carga/error:** `loading.tsx` con esqueletos por sección y `error.tsx` con «Reintentar» y detalle técnico plegable; `not-found.tsx` útil (UX-01).
 - **Acciones sin recarga completa:** `useAction` pasa a invalidación **granular** (revalidar solo la ruta/segmento o actualizar estado local con optimismo) y mantener foco/scroll (UX-02).
-- **Fechas y números es-CL:** reemplazar `<input type="date">` por un campo con máscara `dd-mm-aaaa` y selector (consistente con la zona horaria del taller) (UX-06).
+- **Fechas y números según el idioma elegido (es/en):** reemplazar `<input type="date">` (sigue el idioma del navegador, no el del sitio) por un campo con máscara (`dd-mm-aaaa` en es-CL) y selector, con la zona horaria del taller (UX-06). El selector de idioma ya existe (`locale-switcher.tsx`).
 - **Formularios:** validación en línea, errores junto al campo, guardado con atajo `Ctrl+S`, aviso de cambios sin guardar (ya existe en cotizaciones; generalizar).
 - **Paleta global (`Ctrl+K`)** con acciones: «Laminar archivo X», «Nuevo presupuesto para cliente Y», «Ir a bobina B-0003».
 - **Atajos** documentados en un diálogo `?`.
