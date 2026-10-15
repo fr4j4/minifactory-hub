@@ -74,3 +74,48 @@ export async function addTagsAction(modelFileId: string, tags: Array<{ name: str
     return next;
   }, [`/archivos/${modelFileId}`, '/archivos']);
 }
+
+export type BulkOp =
+  | { kind: 'addTags'; tags: string[] } | { kind: 'removeTag'; tag: string }
+  | { kind: 'folder'; folder: string | null } | { kind: 'favorite'; value: boolean } | { kind: 'customer'; customerId: string | null };
+/** Acciones masivas sobre varios modelos de la biblioteca (máx. 200). */
+export async function bulkFilesAction(ids: string[], op: BulkOp) {
+  return safe(async () => {
+    const u = await requirePerm('archivos', 'E'); const db = await getDb();
+    const list = [...new Set(ids)].slice(0, 200); if (!list.length) return 0;
+    const { normalizeTag } = await import('@/lib/library/tags');
+    const rows = await db.select().from(s.modelFiles).where(and(inArray(s.modelFiles.id, list), isNull(s.modelFiles.deletedAt)));
+    for (const f of rows) {
+      const patch: Partial<typeof s.modelFiles.$inferInsert> = { updatedAt: new Date() };
+      if (op.kind === 'addTags') {
+        const cur = new Set((f.tags ?? []).map(normalizeTag)); const next = [...(f.tags ?? [])]; const meta = { ...(f.tagMeta ?? {}) };
+        for (const t of op.tags) { const n = normalizeTag(t); if (n && !cur.has(n)) { cur.add(n); next.push(n); meta[n] = { source: 'manual' }; } }
+        patch.tags = next; patch.tagMeta = meta;
+      } else if (op.kind === 'removeTag') {
+        const n = normalizeTag(op.tag); patch.tags = (f.tags ?? []).filter((t) => normalizeTag(t) !== n); const meta = { ...(f.tagMeta ?? {}) }; delete meta[n]; patch.tagMeta = meta;
+      } else if (op.kind === 'folder') patch.folder = op.folder?.trim() || null;
+      else if (op.kind === 'favorite') patch.favorite = op.value;
+      else if (op.kind === 'customer') patch.customerId = op.customerId;
+      await db.update(s.modelFiles).set(patch).where(eq(s.modelFiles.id, f.id));
+    }
+    await audit('model_file', rows[0]?.id ?? list[0], 'masivo', { op: op.kind, n: rows.length }, u.id);
+    return rows.length;
+  }, ['/archivos']);
+}
+
+/** Renombra o combina una etiqueta en toda la biblioteca («llaveros» → «llavero»). */
+export async function renameTagAction(from: string, to: string) {
+  return safe(async () => {
+    const u = await requirePerm('archivos', 'E'); const db = await getDb();
+    const { normalizeTag } = await import('@/lib/library/tags'); const a = normalizeTag(from), b = normalizeTag(to);
+    if (!a || !b) throw new Error('tag');
+    const rows = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)); let n = 0;
+    for (const f of rows) {
+      if (!(f.tags ?? []).some((t) => normalizeTag(t) === a)) continue;
+      const next = [...new Set((f.tags ?? []).map((t) => (normalizeTag(t) === a ? b : t)))]; const meta = { ...(f.tagMeta ?? {}) }; if (meta[a]) { meta[b] = meta[b] ?? meta[a]; delete meta[a]; }
+      await db.update(s.modelFiles).set({ tags: next, tagMeta: meta, updatedAt: new Date() }).where(eq(s.modelFiles.id, f.id)); n++;
+    }
+    await audit('model_file', 'tags', 'renombrar_etiqueta', { from: a, to: b, n }, u.id);
+    return n;
+  }, ['/archivos']);
+}

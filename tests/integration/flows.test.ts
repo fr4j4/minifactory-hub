@@ -245,3 +245,18 @@ describe('origen y etiquetas del modelo (N2/N3)', () => {
     await expect(attachSource(mf.id, 'javascript:alert(1)', null, getter)).rejects.toThrow();
   });
 });
+
+describe('biblioteca: ZIP y acciones masivas (R4)', () => {
+  it('un ZIP crea un modelo por archivo compatible y usa las carpetas internas', async () => {
+    const fsx = await import('node:fs'); const { zipSync } = await import('fflate'); const { ingestZip } = await import('@/lib/files');
+    const stl = new Uint8Array(fsx.readFileSync('samples/engranaje.stl')); const dbx = await getDb(); const [u] = await dbx.select().from(s.users).limit(1);
+    const z = zipSync({ 'pack/llaveros/a.stl': stl, 'pack/b.stl': stl, '__MACOSX/pack/._a.stl': stl, 'leeme.txt': new Uint8Array([1, 2]), '../../etc/x.stl': stl });
+    fsx.writeFileSync('data/test-data-pack.zip', z);
+    const r = await ingestZip({ tmpPath: 'data/test-data-pack.zip', filename: 'pack.zip', userId: u.id, folder: 'Importados' });
+    expect(r.created).toBe(2);
+    const rows = await dbx.select().from(s.modelFiles).where(eq(s.modelFiles.format, 'stl'));
+    const folders = rows.filter((m) => ['a', 'b'].includes(m.name)).map((m) => m.folder).sort();
+    expect(folders).toEqual(['Importados/pack', 'Importados/pack/llaveros']);
+  });
+});
+});

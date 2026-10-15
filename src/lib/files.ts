@@ -148,3 +148,38 @@ export async function currentVersion(modelFileId: string) {
 
 /** Ruta absoluta del archivo de una versión (para el laminador). */
 export const versionPath = (storageKey: string) => absPath(storageKey);
+
+
+/** Límites de un ZIP de modelos: cantidad de archivos y tamaño total descomprimido. */
+export const ZIP_LIMITS = { files: 200, totalBytes: 1.5 * 1024 * 1024 * 1024 };
+/**
+ * Descomprime un .zip de modelos y crea un modelo por cada archivo compatible; la estructura de carpetas pasa a `folder`.
+ * Ignora carpetas del sistema (`__MACOSX`, archivos ocultos) y entradas con rutas peligrosas.
+ */
+export async function ingestZip(i: { tmpPath: string; filename: string; userId?: string | null; folder?: string | null; tags?: string[]; customerId?: string | null }) {
+  const { unzipSync } = await import('fflate'); const os = await import('node:os'); const path = await import('node:path'); const crypto = await import('node:crypto');
+  const t = await getT();
+  const zip = new Uint8Array(await fsp.readFile(i.tmpPath));
+  let total = 0; let count = 0;
+  const entries = unzipSync(zip, { filter: (f) => {
+    const n = f.name.replace(/\\/g, '/');
+    if (n.endsWith('/') || n.split('/').some((p) => p === '..' || p.startsWith('.') || p === '__MACOSX') || !MODEL_EXT.includes(extOf(n))) return false;
+    if (++count > ZIP_LIMITS.files) throw new Error(t('files.zipTooMany', { n: ZIP_LIMITS.files }));
+    total += f.originalSize; if (total > ZIP_LIMITS.totalBytes) throw new Error(t('files.zipTooBig'));
+    return true;
+  } });
+  const names = Object.keys(entries); if (!names.length) throw new Error(t('files.zipEmpty'));
+  const created: Array<{ modelFileId: string; name: string }> = []; const failed: string[] = [];
+  for (const name of names) {
+    const clean = name.replace(/\\/g, '/'); const parts = clean.split('/'); const file = parts.pop()!; const sub = parts.join('/');
+    const tmp = path.join(os.tmpdir(), `${crypto.randomUUID()}-${file.replace(/[^\w.-]/g, '_')}`);
+    try {
+      await fsp.writeFile(tmp, entries[name]);
+      const folder = [i.folder, sub].filter(Boolean).join('/') || null;
+      const r = await ingestModel({ tmpPath: tmp, filename: file, userId: i.userId, folder, tags: i.tags, customerId: i.customerId });
+      created.push({ modelFileId: r.modelFileId, name: file });
+    } catch { failed.push(file); await fsp.rm(tmp, { force: true }); }
+  }
+  await fsp.rm(i.tmpPath, { force: true });
+  return { zip: true as const, created: created.length, failed, modelFileId: created[0]?.modelFileId ?? null, models: created };
+}

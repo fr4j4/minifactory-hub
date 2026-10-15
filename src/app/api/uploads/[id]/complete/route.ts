@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
-import { ingestModel } from '@/lib/files';
+import { ingestModel, ingestZip } from '@/lib/files';
 import { ingestPhoto } from '@/lib/photos';
 import { newKey, putFile } from '@/lib/storage';
 import { getT } from '@/i18n/server';
@@ -31,7 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       result = { key, name: u.filename };
     } else {
       if (!can(user, 'archivos', 'C')) throw new Error(t('api.noPermission'));
-      const r = await ingestModel({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, modelFileId: body.modelFileId, comment: body.comment, customerId: body.customerId, folder: body.folder, tags: body.tags, sync: !!body.sync });
+      const r = /\.zip$/i.test(u.filename) ? await ingestZip({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, folder: body.folder, tags: body.tags, customerId: body.customerId }) : await ingestModel({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, modelFileId: body.modelFileId, comment: body.comment, customerId: body.customerId, folder: body.folder, tags: body.tags, sync: !!body.sync });
       result = r;
     }
     await db.delete(s.uploadSessions).where(eq(s.uploadSessions.id, id));

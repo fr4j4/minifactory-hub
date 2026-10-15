@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { PageHeader, Badge, Empty, Card } from '@/components/ui';
 import { Uploader } from '@/components/uploader';
-import { FavButton } from '@/components/file-bits';
+import { FileGrid, type FileCard } from '@/components/file-grid';
 import { formatLabel } from '@/lib/files';
 import { num } from '@/lib/format';
 import { getT } from '@/i18n/server';
@@ -23,10 +23,19 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
   const rows = await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).leftJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(and(...conds)).orderBy(desc(s.modelFiles.favorite), desc(s.modelFiles.updatedAt)).limit(200);
   const all = await db.select({ tags: s.modelFiles.tags, folder: s.modelFiles.folder }).from(s.modelFiles).where(isNull(s.modelFiles.deletedAt));
   const tags = [...new Set(all.flatMap((a) => a.tags ?? []))].sort(); const folders = [...new Set(all.map((a) => a.folder).filter(Boolean) as string[])].sort();
+  // insignias de uso: cabe en máquinas, laminados y presupuestos (una consulta por tipo, no por modelo)
+  const machines = await db.select({ name: s.machines.name, x: s.machines.volX, y: s.machines.volY, z: s.machines.volZ }).from(s.machines).where(isNull(s.machines.deletedAt));
+  const vIds = rows.map((r) => r.v?.id).filter(Boolean) as string[]; const fIds = rows.map((r) => r.f.id);
+  const sliceCount = new Map((vIds.length ? await db.select({ id: s.sliceRuns.fileVersionId, n: sql<number>`count(*)::int` }).from(s.sliceRuns).where(inArray(s.sliceRuns.fileVersionId, vIds)).groupBy(s.sliceRuns.fileVersionId) : []).map((r) => [r.id, Number(r.n)]));
+  const quoteCount = new Map((fIds.length ? await db.select({ id: s.quoteItemModels.modelFileId, n: sql<number>`count(distinct ${s.quoteItemModels.quoteItemId})::int` }).from(s.quoteItemModels).where(inArray(s.quoteItemModels.modelFileId, fIds)).groupBy(s.quoteItemModels.modelFileId) : []).map((r) => [r.id, Number(r.n)]));
+  const fitsOf = (f: (typeof rows)[number]['f']) => !f.dimX || !f.dimY || !f.dimZ || f.format === 'gcode' ? [] : machines.filter((m) => { const d = [f.dimX!, f.dimY!, f.dimZ!].sort((p, q) => q - p), v = [m.x, m.y, m.z].sort((p, q) => q - p); return d.every((n, i) => n <= v[i]); }).map((m) => m.name);
+  const cards: FileCard[] = rows.map(({ f, v }) => ({ id: f.id, name: f.name, format: formatLabel(f.format ?? ''), versionId: v?.id ?? null, hasThumb: !!v?.thumbKey, dims: f.dimX ? `${num(f.dimX, 1)}×${num(f.dimY, 1)}×${num(f.dimZ, 1)} mm${f.volumeCm3 ? ` · ${num(f.volumeCm3, 1)} cm³` : ''}` : '—', tags: f.tags ?? [], favorite: f.favorite, closed: f.closed, version: v?.number ?? 1, fits: fitsOf(f), slices: v ? sliceCount.get(v.id) ?? 0 : 0, quotes: quoteCount.get(f.id) ?? 0, multicolor: !!(v?.meta as any)?.ams?.multicolor }));
+  const tagCount = new Map<string, number>(); for (const a of all) for (const tg of a.tags ?? []) tagCount.set(tg, (tagCount.get(tg) ?? 0) + 1);
+  const vocabulary = [...tagCount.entries()].map(([tag, n]) => ({ tag, n })).sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag));
   return (
     <>
       <PageHeader title={t('files.n3dFiles')} subtitle={t('files.modelLibraryWithVersionsAutomati')} />
-      {can(user, 'archivos', 'C') && <Card className="mb-4"><Uploader intent={{ intent: 'model' }} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode,.gco,.bgcode,.png,.jpg,.jpeg,.webp,.pdf" label={t('files.dropYourModelsHereStl')} hint={t('files.upTo500MbPer')} testId="model-uploader" /></Card>}
+      {can(user, 'archivos', 'C') && <Card className="mb-4"><Uploader intent={{ intent: 'model' }} accept=".zip,.stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode,.gco,.bgcode,.png,.jpg,.jpeg,.webp,.pdf" label={t('files.dropYourModelsHereStl')} hint={t('files.upTo500MbPer')} testId="model-uploader" /></Card>}
       <form className="flex flex-wrap gap-2 mb-4" role="search">
         <input name="q" defaultValue={sp.q} placeholder={t('files.searchByNameTagSource')} className="input sm:max-w-xs" aria-label={t('files.searchFiles')} />
         <select name="tag" defaultValue={sp.tag ?? ''} className="input sm:!w-44" aria-label={t('common.tag')}><option value="">{t('files.allTags')}</option>{tags.map((tt) => <option key={tt}>{tt}</option>)}</select>
@@ -35,21 +44,7 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
         <button className="btn-ghost">{t('common.filter')}</button>
       </form>
       {rows.length === 0 ? <Card><Empty title={t('files.noFiles')} hint={t('files.uploadAnStlOr3mf')} /></Card> : (
-        <ul className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5" data-testid="file-grid">
-          {rows.map(({ f, v }) => (
-            <li key={f.id} className="card overflow-hidden flex flex-col">
-              <Link href={`/archivos/${f.id}`} className="block aspect-[4/3] bg-slate-100 dark:bg-slate-800 relative" aria-label={t('files.open', { name: f.name })}>
-                {v?.thumbKey ? <img src={`/api/files/v/${v.id}/thumb`} alt={t('files.thumbnailOf', { name: f.name })} className="w-full h-full object-cover" loading="lazy" /> : <div className="w-full h-full grid place-items-center text-slate-400 text-sm">{(v?.meta as any)?.status === 'processing' ? t('files.processing') : formatLabel(f.format ?? '')}</div>}
-                <span className="absolute left-1.5 top-1.5 badge bg-white/90 dark:bg-slate-900/80 border-transparent">{formatLabel(f.format ?? '')}</span>
-              </Link>
-              <div className="p-3 flex-1 flex flex-col gap-1.5">
-                <div className="flex items-start justify-between gap-1"><Link href={`/archivos/${f.id}`} className="font-medium text-sm leading-snug hover:underline line-clamp-2">{f.name}</Link><FavButton id={f.id} fav={f.favorite} /></div>
-                <div className="text-xs muted tabular">{f.dimX ? `${num(f.dimX, 1)}×${num(f.dimY, 1)}×${num(f.dimZ, 1)} mm` : '—'}{f.volumeCm3 ? ` · ${num(f.volumeCm3, 1)} cm³` : ''}</div>
-                <div className="flex flex-wrap gap-1 mt-auto">{f.closed === false && <Badge tone="amber">{t('files.openMesh')}</Badge>}{v && v.number > 1 && <Badge>v{v.number}</Badge>}{(f.tags ?? []).slice(0, 3).map((tt) => <Badge key={tt}>{tt}</Badge>)}</div>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <FileGrid canEdit={can(user, 'archivos', 'E')} vocabulary={vocabulary} cards={cards} />
       )}
     </>
   );
