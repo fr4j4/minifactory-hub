@@ -17,9 +17,9 @@ import { getT } from '@/i18n/server';
 
 export async function generateMetadata() { return { title: (await getT())('meta.slicer') }; }
 
-export default async function SlicerPage({ searchParams }: { searchParams: Promise<{ tab?: string; file?: string; nozzle?: string }> }) {
+export default async function SlicerPage({ searchParams }: { searchParams: Promise<{ tab?: string; file?: string; nozzle?: string; own?: string }> }) {
   const t = await getT();
-  const user = await pagePerm('laminador', 'V'); const { tab = 'perfiles', file, nozzle: nozzleFilter } = await searchParams; const db = await getDb();
+  const user = await pagePerm('laminador', 'V'); const { tab = 'perfiles', file, nozzle: nozzleFilter, own } = await searchParams; const db = await getDb();
   const ctx = await getCalcContext(); const engine = await engineVersion();
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)).orderBy(s.slicerProfiles.type, s.slicerProfiles.name);
   const runs = tab === 'laminados' ? await db.select({ r: s.sliceRuns, f: s.modelFiles.name }).from(s.sliceRuns).innerJoin(s.fileVersions, eq(s.fileVersions.id, s.sliceRuns.fileVersionId)).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.fileVersions.modelFileId)).orderBy(desc(s.sliceRuns.createdAt)).limit(60) : [];
@@ -28,7 +28,8 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
   const nz = new Map(profs.map((p) => [p.id, p.type === 'filament' ? null : rowNozzle(p)] as const));
   const machineProfiles = profs.filter((p) => p.type === 'machine').map((p) => ({ id: p.id, name: p.name, baseName: p.baseName, nozzle: nz.get(p.id) ?? null }));
   const nozzlesInUse = [...new Set([...nz.values()].filter(Boolean) as string[])].sort((a, b) => Number(a) - Number(b));
-  const shown = (kind: string) => profs.filter((p) => p.type === kind && (!nozzleFilter || kind === 'filament' || !nz.get(p.id) || Number(nz.get(p.id)) === Number(nozzleFilter)));
+  const isOwn = (p: (typeof profs)[number]) => p.imported || Object.keys(p.changes ?? {}).length > 0;
+  const shown = (kind: string) => profs.filter((p) => p.type === kind && (!own || isOwn(p)) && (!nozzleFilter || kind === 'filament' || !nz.get(p.id) || Number(nz.get(p.id)) === Number(nozzleFilter)));
   const usedBy = (id: string, type: string) => type === 'machine' ? ctx.machines.filter((m) => m.machineProfileId === id).map((m) => `${m.name}${m.nozzle ? ` (${m.nozzle})` : ''}`) : type === 'filament' ? ctx.materials.filter((m) => m.filamentProfileId === id).map((m) => m.label) : ctx.machines.filter((m) => m.defaultProcessProfileId === id).map((m) => m.name);
   return (
     <>
@@ -42,6 +43,10 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
             <div className="font-medium">{t('slicer.missingSetup', { machines: ready.machines.length - ready.done.machines, materials: ready.materials.length - ready.done.materials })}</div>
             <div className="text-sm muted mt-0.5">{t('slicer.opensTheGuidedSetupPick')}</div></Link>}
           <ProfilesGuide open={profs.length === 0} />
+          <nav className="flex flex-wrap items-center gap-1.5" aria-label={t('slicer.ownFilter')} data-testid="own-filter">
+            <span className="text-sm muted mr-1">{t('slicer.ownFilterLabel')}</span>
+            {[['', t('slicer.ownAll')], ['1', t('slicer.ownMine')]].map(([k, l]) => <Link key={k} href={`/laminador?${new URLSearchParams({ ...(k ? { own: k } : {}), ...(nozzleFilter ? { nozzle: nozzleFilter } : {}) })}`} aria-current={(own ?? '') === k ? 'true' : undefined} className={`btn-sm rounded-lg px-2.5 border ${(own ?? '') === k ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent' : 'btn-ghost'}`}>{l}</Link>)}
+          </nav>
           {nozzlesInUse.length > 1 && <nav className="flex flex-wrap items-center gap-1.5" aria-label={t('nozzle.filterByNozzle')} data-testid="nozzle-filter">
             <span className="text-sm muted mr-1">{t('nozzle.filterLabel')}</span>
             {[['', t('nozzle.all')], ...nozzlesInUse.map((n) => [n, t('nozzle.mm', { n: n.replace('.', ',') })])].map(([n, l]) => <Link key={n} href={n ? `/laminador?nozzle=${n}` : '/laminador'} aria-current={(nozzleFilter ?? '') === n ? 'true' : undefined} className={`num min-h-[36px] px-3 rounded-xl border text-sm inline-flex items-center ${(nozzleFilter ?? '') === n ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</Link>)}

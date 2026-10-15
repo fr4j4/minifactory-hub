@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
-import { createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
+import { bulkUpdateLine, createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
 
@@ -67,4 +67,9 @@ export async function previewBulkAction(c: BulkCommon, rows: BulkRow[]) {
 export async function applyBulkAction(c: BulkCommon, rows: BulkRow[]) {
   const t = await getT();
   return safe(async () => { const u = await requirePerm('inventario', 'C'); bulkCheck(c, rows, t); return applyBulkMaterials(c, rows, u.id); }, ['/inventario']);
+}
+
+/** Cambia costo por kg y/o stock mínimo de todos los colores de una marca + línea. */
+export async function bulkUpdateLineAction(line: { manufacturer: string | null; line: string | null }, patch: { costPerKg?: number; stockMinG?: number }) {
+  return safe(async () => { const u = await requirePerm('inventario', 'E'); return bulkUpdateLine(line, patch, u.id); }, ['/inventario']);
 }

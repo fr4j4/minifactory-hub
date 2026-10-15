@@ -332,3 +332,16 @@ describe('papelera de archivos 3D (P4)', () => {
     const [back] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id)); expect(back.deletedAt).toBeNull();
   });
 });
+
+describe('edición masiva por línea de filamento (P2)', () => {
+  it('cambia costo y stock mínimo de todos los colores de una marca + línea', async () => {
+    const { bulkUpdateLine } = await import('@/lib/services/inventory');
+    const [m] = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.manufacturer, 'Cicla 3D'))).limit(1);
+    const target = m ?? (await db.select().from(s.materials).where(isNull(s.materials.deletedAt)))[0];
+    const n = await bulkUpdateLine({ manufacturer: target.manufacturer, line: target.line }, { costPerKg: 12345, stockMinG: 777 }, admin.id);
+    expect(n).toBeGreaterThanOrEqual(1);
+    const rows = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), target.manufacturer ? eq(s.materials.manufacturer, target.manufacturer) : isNull(s.materials.manufacturer), target.line ? eq(s.materials.line, target.line) : isNull(s.materials.line)));
+    expect(rows.every((r) => r.costPerKg === 12345 && r.stockMinG === 777)).toBe(true);
+    expect(await bulkUpdateLine({ manufacturer: target.manufacturer, line: target.line }, {}, admin.id)).toBe(0);
+  });
+});

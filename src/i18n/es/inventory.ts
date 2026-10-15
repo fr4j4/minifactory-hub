@@ -1,4 +1,12 @@
 export const inventory = {
+  lineNone: 'Sin marca',
+  lineColors_one: '{n} color',
+  lineColors_other: '{n} colores',
+  lineEditTitle: 'Editar línea «{name}»',
+  lineEditHint: 'Se aplica a los {n} colores de esta línea. Deja vacío lo que no quieras cambiar.',
+  lineCost: 'Costo por kg',
+  lineStockMin: 'Stock mínimo (g)',
+  lineSaved: 'Línea actualizada',
   enterTheTypeAndColor: 'Indica tipo y color',
   invalidWeight: 'Peso inválido',
   discarded: 'Descartada',

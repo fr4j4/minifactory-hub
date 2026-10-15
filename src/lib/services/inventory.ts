@@ -181,3 +181,16 @@ export async function listSuppliers(db?: Db, onlyActive = true) {
   const rows = await db.select().from(s.suppliers).where(isNull(s.suppliers.deletedAt));
   return rows.filter((r) => !onlyActive || r.active).sort((a, b) => (a.country === 'CL' ? 0 : 1) - (b.country === 'CL' ? 0 : 1) || a.name.localeCompare(b.name));
 }
+
+/** Edición masiva por marca + línea («Bambu Lab PLA Basic»): costo por kg y/o stock mínimo para todos sus colores. */
+export async function bulkUpdateLine(line: { manufacturer: string | null; line: string | null }, patch: { costPerKg?: number; stockMinG?: number }, userId?: string | null) {
+  const db = await getDb();
+  const set: Record<string, number | Date> = {};
+  if (patch.costPerKg != null && Number.isFinite(patch.costPerKg) && patch.costPerKg >= 0) set.costPerKg = Math.round(patch.costPerKg);
+  if (patch.stockMinG != null && Number.isFinite(patch.stockMinG) && patch.stockMinG >= 0) set.stockMinG = Math.round(patch.stockMinG);
+  if (!Object.keys(set).length) return 0;
+  const cond = and(isNull(s.materials.deletedAt), line.manufacturer ? eq(s.materials.manufacturer, line.manufacturer) : isNull(s.materials.manufacturer), line.line ? eq(s.materials.line, line.line) : isNull(s.materials.line));
+  const rows = await db.update(s.materials).set({ ...set, updatedAt: new Date() }).where(cond).returning({ id: s.materials.id });
+  await audit('material', null, 'editar_linea', { line, patch: set, count: rows.length }, userId);
+  return rows.length;
+}

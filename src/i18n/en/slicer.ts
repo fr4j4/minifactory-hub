@@ -2,6 +2,10 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const slicer: Shape<typeof es['slicer']> = {
+  ownFilter: 'Filter profiles',
+  ownFilterLabel: 'Show:',
+  ownAll: 'All',
+  ownMine: 'My profiles (customised and imported)',
   progress: 'Slicing progress',
   autoOrient: 'Auto-orient',
   autoOrientHint: 'The slicer looks for the resting face that needs the fewest supports.',

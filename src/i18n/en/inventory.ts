@@ -2,6 +2,14 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const inventory: Shape<typeof es['inventory']> = {
+  lineNone: 'No brand',
+  lineColors_one: '{n} color',
+  lineColors_other: '{n} colors',
+  lineEditTitle: 'Edit line “{name}”',
+  lineEditHint: 'Applies to all {n} colors in this line. Leave empty what you do not want to change.',
+  lineCost: 'Cost per kg',
+  lineStockMin: 'Minimum stock (g)',
+  lineSaved: 'Line updated',
   enterTheTypeAndColor: 'Enter the type and color',
   invalidWeight: 'Invalid weight',
   discarded: 'Discarded',

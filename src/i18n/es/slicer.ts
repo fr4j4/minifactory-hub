@@ -1,4 +1,8 @@
 export const slicer = {
+  ownFilter: 'Filtrar perfiles',
+  ownFilterLabel: 'Mostrar:',
+  ownAll: 'Todos',
+  ownMine: 'Mis perfiles (personalizados e importados)',
   progress: 'Progreso del laminado',
   autoOrient: 'Orientar automáticamente',
   autoOrientHint: 'El laminador busca la cara de apoyo que necesita menos soportes.',
