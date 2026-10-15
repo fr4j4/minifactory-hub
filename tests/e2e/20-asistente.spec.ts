@@ -34,7 +34,7 @@ test.describe('Asistente inicial (N10)', () => {
     await expect(page.getByTestId('load-demo')).toBeVisible();
     await page.getByTestId('load-demo').click(); await expect(page.getByTestId('load-demo')).toBeDisabled({ timeout: 60_000 });
     await page.getByRole('button', { name: /Terminar/ }).click(); await expect(page).toHaveURL(U + '/');
-    await expect(page.getByText(/Taller de Ana|Buenos|Hello|Good/).first()).toBeVisible();
+    await expect(page.getByText(/Taller de Ana|Buenos|Buenas|Hello|Good/).first()).toBeVisible();
     // el token ya no sirve y el asistente no vuelve solo
     await page.goto(U + '/bienvenida'); await expect(page).toHaveURL(U + '/');
     // reabrir desde Configuración → Sistema
