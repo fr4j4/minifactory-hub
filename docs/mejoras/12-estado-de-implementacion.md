@@ -11,7 +11,7 @@ Convención: ✅ hecho y probado · ◐ hecho en parte (se indica el recorte) ·
 |---|---|---|
 | N10 asistente inicial | ◐ | Token de un solo uso (hash, regenerado en cada arranque), creación de cuenta en una sola operación, **sin contraseña `admin1234`**, lista de puesta en marcha (datos fiscales y marca con formulario; el resto enlaza a su pantalla) y alertas en Inicio por lo omitido. **Falta:** modo Rápido/Completo, paso «datos de demostración», re-ejecución desde Configuración |
 | F0 0.1 / 0.5 / 0.7 | ✅ | `loading` / `error` / `not-found`; salud del sistema (Orca, Chromium, ffmpeg, almacenamiento) en Configuración → Sistema; fallo explícito del PDF; `playwright` a dependencias y Dockerfile sin `\|\| true`; fecha `dd-mm-aaaa` |
-| F0 0.2 / 0.3 / 0.4 / 0.6 | ✗ | Guarda de borrado «reemplazar/archivar», filtros de compatibilidad, arreglos de copy, unificar iconos |
+| F0 0.2 / 0.3 / 0.4 / 0.6 | ✅ | Hechos en la fase de pendientes (ver más abajo) |
 | WP-6.1' kit + temas | ◐ | Arquitectura de temas y marca derivada con contraste AA. **No se adoptó shadcn/Radix**: ningún componente se migró (la decisión de S8 sigue vigente para cuando se haga) |
 
 ## R2 · Perfiles y filamentos (+ R2b)
@@ -56,6 +56,27 @@ Convención: ✅ hecho y probado · ◐ hecho en parte (se indica el recorte) ·
 | 6.3 regresión | ◐ | Prueba estructural (24 pantallas × 360/768/1280, claro/oscuro): sin desborde horizontal, sin pantalla de error, sin violaciones graves de axe; matriz paleta×tema de contraste. **Sin comparación de capturas** (las líneas base no son portables entre máquinas) |
 | 4.3 ficha de máquina | ✅ | Tarjeta «Laminado» (lista/falta configurar, impresora, calidad, boquilla, últimos laminados) |
 | 6.2 barrido de pantallas | ◐ | Solo lo que encontró la regresión (nombre accesible del logo, campo de logo, desborde de enlaces). Sin rediseño de clientes/pedidos/cola/ventas/galería/reportes |
+
+## Fase de pendientes (P0–P5) · rama `feature/p0-estabilizacion` → `development` y `feature/p4-biblioteca`
+Plan: [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pendientes.md). Lo que sigue pendiente: [`13-pendientes.md`](13-pendientes.md).
+
+| Paquete | Estado | Notas |
+|---|---|---|
+| P0 estabilización | ✅ | Pestañas de Reportes sin corte, recuperación de análisis «procesando» al arrancar, desbordes de `/notificaciones` y `/cola` corregidos (reproducidos con datos de e2e), e2e con esperas de hidratación y navegación por `href` (los clics tras `networkidle` se perdían de forma intermitente) |
+| N10 modo Rápido / Completo | ✅ | Elegir modo, cargar datos de demostración desde el asistente (sin usuarios de ejemplo), reabrir desde Configuración → Sistema; e2e con segunda instancia y base vacía (`20-asistente`) |
+| F0.2 guarda de borrado | ✅ | Un material en presupuestos/pedidos abiertos o variantes activas no se elimina; se ofrece «Reemplazar y eliminar» |
+| F0.3 compatibilidad | ✅ | Las calidades de otra impresora quedan en un grupo aparte (misma impresora con otra boquilla sigue siendo compatible) en laminador, Estudio, comparador y línea de cotización |
+| F0.4 / F0.6 | ✅ | Aviso «orientación solo de prueba» en el visor (copy VIS-07 ya estaba) · iconos del shell sobre `lucide-react` |
+| Kit de componentes | ◐ | `components/ui/kit.tsx` con Dialog, Select, Tabs, Dropdown y Switch (Radix). **Solo el modal propio se migró a Dialog** (con foco al primer campo); el resto queda disponible para migrar por pantalla |
+| P2 proveedores | ✅ | Marcar «verificado» registra fecha y quién; se muestra en la lista |
+| P2 recalcular con tarifas actuales | ✅ | Vista previa línea a línea (antes/ahora/diferencia) y nueva versión; no cambia la versión original |
+| P3 versiones y actividad | ✅ | Diff entre versiones (líneas agregadas/quitadas/cambiadas y total), pestaña «Actividad» con los eventos del presupuesto |
+| P3 tablero | ✅ | Vista «Tablero» por estado (solo lectura: los estados siguen su flujo) |
+| P3 seguimiento | ✅ | Plazos configurables (días tras enviar, por defecto 3 y 7); una notificación por plazo, sin repetir |
+| P4 duplicados | ✅ | SHA-256 en el navegador y diálogo antes de subir (omitir / subir igual / ver el existente) |
+| P4 papelera | ✅ | Los archivos 3D eliminados van a «Archivados» y se restauran |
+| P5 `--orient` | ✅ | Casilla «Orientar automáticamente» en el laminador; entra en la clave de caché; probado con Orca real |
+| P5 `--pipe` | ✅ | Progreso real (porcentaje y etapa) con tubería con nombre; la barra aparece en el panel de laminado |
 
 ## Decisiones técnicas que conviene revisar
 1. **Compatibilidad hacia atrás por encima de la limpieza:** nada se eliminó (columnas heredadas, modelo de precios histórico, `taxMode`). Cada «contraer» necesita su propia migración con vista previa.
