@@ -66,6 +66,17 @@ export function fitsMachine(profileName: string, machineBase: string) {
   const tn = toks.find((tt) => /^\d\.\d+$/.test(tt)) ?? '0.4';
   return Number(tn) === Number(nozzle) && toks.filter((tt) => !/^\d\.\d+$/.test(tt)).every((tt) => words.includes(tt) || words.some((w) => w.replace(/-/g, '') === tt.replace(/-/g, '')));
 }
+/**
+ * ¿Sirve esta calidad (perfil de proceso) para esta impresora? Un perfil de otro fabricante nunca sirve; con lista explícita de
+ * impresoras compatibles se respeta; sin lista se usa el nombre («@Creality Ender3V3SE 0.4»). Sin datos de fábrica se asume que sirve.
+ */
+export function processFitsMachineBase(proc: { baseName: string; vendor?: string | null }, machineBase: string): boolean {
+  const mv = findVendorOf('machine', machineBase); const pv = proc.vendor ?? findVendorOf('process', proc.baseName);
+  if (mv && pv && mv !== pv) return false;
+  const entries = getIndex().byName.get(`process|${proc.baseName}`) ?? []; const e = entries.find((x) => x.vendor === (pv ?? x.vendor)) ?? entries[0];
+  if (e?.compatiblePrinters?.length) return e.compatiblePrinters.includes(machineBase);
+  return fitsMachine(proc.baseName, machineBase);
+}
 export function processesFor(machineBase: string) {
   const vendor = findVendorOf('machine', machineBase) ?? 'BBL';
   const all = listFactory('process', vendor, { machine: machineBase });

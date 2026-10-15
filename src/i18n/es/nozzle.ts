@@ -167,6 +167,7 @@ export const nozzle = {
   add: 'Agregar',
   otherError: 'Escribe un diámetro entre 0,1 y 2 mm (ej. 0,25 o 1,2).',
   forNozzle: 'Para boquilla {n} mm',
+  otherPrinterGroup: 'Pensadas para otras impresoras',
   otherNozzleGroup: 'Pensadas para otra boquilla',
   mismatchWarn: 'Esta calidad es para boquilla {process} mm y la máquina tiene la {machine} mm: el tiempo y los gramos no serán reales.',
   errSerialDup: 'Ese número de serie ya lo tiene la máquina «{name}».',

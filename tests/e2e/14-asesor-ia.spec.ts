@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect, login, shot } from './helpers';
 
 async function openSlicePanel(page: import('@playwright/test').Page) {
-  await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
+  await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle');
   await page.getByRole('link', { name: 'Laminar y cotizar' }).click(); await expect(page.getByTestId('slice-panel')).toBeVisible();
 }
 

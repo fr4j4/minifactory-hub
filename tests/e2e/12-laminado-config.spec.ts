@@ -41,7 +41,7 @@ test.describe('Configurar el laminado sin JSON', () => {
     const dl = page.waitForEvent('download'); await page.getByTestId('profile-export').click(); const file = await dl;
     const json = JSON.parse(fs.readFileSync((await file.path())!, 'utf8')); expect(json).toMatchObject({ name: 'Mi PLA rápido', inherits: 'Bambu PLA Basic @BBL A1', type: 'filament', nozzle_temperature: ['225'] });
     // laminar en la P1S nueva con el PETG personalizado
-    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
     await page.getByTestId('slice-machine').selectOption({ label: 'P1S Nueva' }); await page.getByTestId('slice-material').selectOption({ label: 'Sunlu PETG Negro' });
     await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 120_000 });
     await shot(page, 'L06-laminado-con-filamento-personalizado');

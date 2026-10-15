@@ -121,3 +121,13 @@ describe('tipos de material', () => {
     expect(canonicalMaterialTypes(['Seda'], ['PLA', 'Seda'])).toEqual(['Seda']);
   });
 });
+
+describe('calidades por impresora (F0.3)', () => {
+  it('una calidad de la A1 no sirve para una Ender ni una Prusa', async () => {
+    const { processFitsMachineBase } = await import('@/lib/slicer/setup');
+    const a1 = { baseName: '0.20mm Standard @BBL A1', vendor: 'BBL' };
+    expect(processFitsMachineBase(a1, 'Bambu Lab A1 0.4 nozzle')).toBe(true);
+    expect(processFitsMachineBase(a1, 'Creality Ender-3 V3 SE 0.4 nozzle')).toBe(false);
+    expect(processFitsMachineBase(a1, 'Prusa MK4S 0.4 nozzle')).toBe(false);
+  });
+});

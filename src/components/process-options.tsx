@@ -2,14 +2,22 @@
 import { useT } from '@/i18n/client';
 import { splitByNozzle } from '@/lib/slicer/nozzle';
 
-/** Opciones de un <select> de calidades: primero las de la boquilla de la máquina; las de otra boquilla quedan aparte y con aviso. */
-export function ProcessOptions({ profiles, machineNozzle }: { profiles: Array<{ id: string; name: string; nozzle: string | null }>; machineNozzle: string | null }) {
+type Opt = { id: string; name: string; nozzle: string | null };
+
+/** Opciones de un <select> de calidades: primero las de la impresora y boquilla de la máquina; las de otra boquilla o de otra impresora quedan aparte y con aviso. */
+export function ProcessOptions({ profiles, machineNozzle, compatibleIds }: { profiles: Opt[]; machineNozzle: string | null; /** si se indica, las calidades que no son de esta impresora van en un grupo aparte */ compatibleIds?: string[] | null }) {
   const t = useT();
-  const { compatible, others } = splitByNozzle(profiles, machineNozzle);
-  if (!others.length) return <>{compatible.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</>;
+  const ok = compatibleIds ? new Set(compatibleIds) : null;
+  const mine = ok ? profiles.filter((p) => ok.has(p.id)) : profiles;
+  const foreign = ok ? profiles.filter((p) => !ok.has(p.id)) : [];
+  const { compatible, others } = splitByNozzle(mine, machineNozzle);
+  const plain = (list: Opt[]) => list.map((p) => <option key={p.id} value={p.id}>{p.name}</option>);
+  const foreignGroup = foreign.length ? <optgroup label={t('nozzle.otherPrinterGroup')}>{plain(foreign)}</optgroup> : null;
+  if (!others.length && !foreignGroup) return <>{plain(compatible)}</>;
   return <>
-    <optgroup label={t('nozzle.forNozzle', { n: machineNozzle })}>{compatible.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</optgroup>
-    <optgroup label={t('nozzle.otherNozzleGroup')}>{others.map((p) => <option key={p.id} value={p.id}>{p.name} · {t('nozzle.nozzleMm', { n: p.nozzle })}</option>)}</optgroup>
+    {others.length || foreignGroup ? <optgroup label={t('nozzle.forNozzle', { n: machineNozzle })}>{plain(compatible)}</optgroup> : plain(compatible)}
+    {others.length ? <optgroup label={t('nozzle.otherNozzleGroup')}>{others.map((p) => <option key={p.id} value={p.id}>{p.name} · {t('nozzle.nozzleMm', { n: p.nozzle })}</option>)}</optgroup> : null}
+    {foreignGroup}
   </>;
 }
 

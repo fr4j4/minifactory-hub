@@ -63,7 +63,7 @@ test.describe('Conector Bambu Lab', () => {
   test('envía un laminado a la A1 y protege contra el modelo equivocado', async ({ page, saveAs }) => {
     await login(page);
     // laminar el barquito para la A1 (perfil de la máquina «Bambu A1 #1»)
-    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
     await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1' }); await page.getByTestId('slice-material').selectOption({ index: 0 });
     await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 90_000 });
     // conectar la A1 simulada a la máquina que ya existe en el taller

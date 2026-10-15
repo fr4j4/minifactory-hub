@@ -170,6 +170,7 @@ export const nozzle: Shape<typeof es['nozzle']> = {
   add: 'Add',
   otherError: 'Enter a diameter between 0.1 and 2 mm (e.g. 0.25 or 1.2).',
   forNozzle: 'For a {n} mm nozzle',
+  otherPrinterGroup: 'Designed for other printers',
   otherNozzleGroup: 'Designed for another nozzle',
   mismatchWarn: 'This quality is for a {process} mm nozzle and the machine has the {machine} mm one: time and grams will not be realistic.',
   errSerialDup: 'The machine «{name}» already has that serial number.',
