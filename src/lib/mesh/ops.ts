@@ -140,6 +140,17 @@ export function toPreviewBin(ix: Indexed, info: { origTriangles: number; decimat
 }
 
 /* ───────────────────────── Miniatura (rasterizador por software) ───────────────────────── */
+/** Miniatura giratoria: WebP animado con vueltas de la pieza (12 cuadros de 30°). Devuelve null si no se pudo armar. */
+export async function renderTurntable(mesh: Mesh, o: { frames?: number; w?: number; h?: number; delayMs?: number } = {}): Promise<Buffer | null> {
+  const n = o.frames ?? 12; const w = o.w ?? 240, h = o.h ?? 180;
+  try {
+    const sharp = (await import('sharp')).default;
+    const frames: Buffer[] = [];
+    for (let i = 0; i < n; i++) frames.push(await renderThumbnail(mesh, { w, h, format: 'webp', az: -35 + (360 / n) * i }));
+    return await sharp(frames, { join: { animated: true } }).webp({ loop: 0, delay: Array(n).fill(o.delayMs ?? 110), quality: 70 }).toBuffer();
+  } catch { return null; }
+}
+
 export async function renderThumbnail(mesh: Mesh, o: { w?: number; h?: number; color?: [number, number, number]; format?: 'png' | 'webp'; az?: number; el?: number } = {}): Promise<Buffer> {
   const W = o.w ?? 480, H = o.h ?? 360;
   const [cr, cg, cb] = o.color ?? [0.25, 0.5, 0.95];

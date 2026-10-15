@@ -23,3 +23,13 @@ describe('reparar un archivo de la biblioteca', () => {
     const [still] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, r.versionId)); expect((still.meta as any).analysis.closed).toBe(false);
   });
 });
+
+describe('miniatura giratoria', () => {
+  it('al analizar una malla se guarda un WebP animado con 12 cuadros', async () => {
+    const { getBuffer } = await import('@/lib/storage'); const sharp = (await import('sharp')).default;
+    const [fv] = (await db.select().from(s.fileVersions)).filter((x) => (x.meta as any)?.turnKey);
+    expect(fv).toBeTruthy();
+    const meta = await sharp(await getBuffer((fv.meta as any).turnKey), { animated: true }).metadata();
+    expect(meta.pages).toBe(12);
+  });
+});

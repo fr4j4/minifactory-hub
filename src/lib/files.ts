@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer } from './storage';
-import { analyze, decimate, renderThumbnail, toPreviewBin, weld } from './mesh/ops';
+import { analyze, decimate, renderThumbnail, renderTurntable, toPreviewBin, weld } from './mesh/ops';
 import { extOf, parseMesh, SUPPORTED_MESH, GCODE_EXT, IMAGE_EXT } from './mesh/parse';
 import { parseAms } from './mesh/threemf-ams';
 import { buildGcodePreview, gcodePreviewToBin, hasSlicedData, parse3mfSliceMeta, parseGcodeMeta } from './gcode';
@@ -80,6 +80,7 @@ export async function processVersion(versionId: string) {
     meta.previewKey = await putBuffer(newKey('preview', 'mfm'), toPreviewBin(dec, { origTriangles: origTri, decimated: dec !== ix }));
     meta.decimated = dec !== ix;
     thumbKey = await putBuffer(newKey('thumbs', 'webp'), await renderThumbnail(mesh, { format: 'webp' }));
+    if (mesh.positions.length / 9 <= 400_000) { const turn = await renderTurntable(mesh); if (turn) meta.turnKey = await putBuffer(newKey('thumbs', 'webp'), turn); }
     if (ext === '3mf') {
       const ams = parseAms(buf); if (ams) meta.ams = ams;
       const sm = parse3mfSliceMeta(buf);

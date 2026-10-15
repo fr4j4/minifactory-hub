@@ -26,6 +26,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   } else if (kind === 'mesh') { key = meta.previewKey; type = 'application/octet-stream'; }
   else if (kind === 'gcode') { key = meta.gcodePreviewKey; type = 'application/octet-stream'; }
   else if (kind === 'thumb') { key = v.thumbKey; type = 'image/webp'; }
+  else if (kind === 'turn') { key = meta.turnKey; type = 'image/webp'; }
   if (!key || !(await exists(key))) return NextResponse.json({ error: t('api.notAvailable') }, { status: kind === 'raw' ? 404 : 202 });
   const st = await stat(key);
   const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, max-age=3600', 'content-length': String(st.size) };
