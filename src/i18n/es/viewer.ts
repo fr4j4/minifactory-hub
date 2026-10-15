@@ -1,4 +1,7 @@
 export const viewer = {
+  mode_ventilador: 'Ventilador',
+  mode_temperatura: 'Temperatura',
+  mode_herramienta: 'Herramienta',
   mode_flujo: 'Caudal',
   layerPreviewIsNotAvailable: 'La vista previa de capas no está disponible para este archivo',
   loadingToolpaths: 'Cargando trayectorias…',

@@ -2,6 +2,9 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const viewer: Shape<typeof es['viewer']> = {
+  mode_ventilador: 'Fan',
+  mode_temperatura: 'Temperature',
+  mode_herramienta: 'Tool',
   mode_flujo: 'Flow rate',
   layerPreviewIsNotAvailable: 'Layer preview is not available for this file',
   loadingToolpaths: 'Loading toolpaths…',
