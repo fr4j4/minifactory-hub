@@ -137,4 +137,8 @@ export const files: Shape<typeof es['files']> = {
   uploadStartFailed: 'Could not start the upload',
   uploadError: 'Upload error',
   uploadCompleteFailed: 'Could not complete the upload',
+  amsTitle: 'Multicolor: uses {n} filaments',
+  amsSlot: 'Slot {n}',
+  amsPainted: 'It also has per-face painting: the viewer only shows per-object color.',
+  amsHint: 'When slicing on the server, one material per slot will be assigned (needs a printer with AMS or manual swaps).',
 };

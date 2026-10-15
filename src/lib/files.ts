@@ -6,6 +6,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer } from './storage';
 import { analyze, decimate, renderThumbnail, toPreviewBin, weld } from './mesh/ops';
 import { extOf, parseMesh, SUPPORTED_MESH, GCODE_EXT, IMAGE_EXT } from './mesh/parse';
+import { parseAms } from './mesh/threemf-ams';
 import { buildGcodePreview, gcodePreviewToBin, hasSlicedData, parse3mfSliceMeta, parseGcodeMeta } from './gcode';
 import { audit } from './audit';
 import { getT } from '@/i18n/server';
@@ -80,6 +81,7 @@ export async function processVersion(versionId: string) {
     meta.decimated = dec !== ix;
     thumbKey = await putBuffer(newKey('thumbs', 'webp'), await renderThumbnail(mesh, { format: 'webp' }));
     if (ext === '3mf') {
+      const ams = parseAms(buf); if (ams) meta.ams = ams;
       const sm = parse3mfSliceMeta(buf);
       if (sm) { meta.sliced = sm; if (hasSlicedData(sm)) meta.hasSlicedData = true; }
       // 3MF laminado con G-code embebido: vista previa de capas

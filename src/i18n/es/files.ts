@@ -134,4 +134,8 @@ export const files = {
   uploadStartFailed: 'No se pudo iniciar la subida',
   uploadError: 'Error de subida',
   uploadCompleteFailed: 'No se pudo completar la subida',
+  amsTitle: 'Multicolor: usa {n} filamentos',
+  amsSlot: 'Ranura {n}',
+  amsPainted: 'Además tiene pintura por cara: el visor muestra solo el color por objeto.',
+  amsHint: 'Al laminar en el servidor se asignará un material por ranura (se necesita una impresora con AMS o cambio manual).',
 };

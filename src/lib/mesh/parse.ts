@@ -2,6 +2,7 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { parseAms } from './threemf-ams';
 
 /** Malla como "sopa de triángulos": 9 floats por triángulo. colors (opcional) = 9 floats RGB 0..1 por triángulo. */
 export interface Mesh {
@@ -226,6 +227,10 @@ export function parse3MF(buf: Uint8Array): Mesh {
   const cache: Record<string, ReturnType<typeof loadModel>> = { [rootName]: root };
   const pos: number[] = []; const col: number[] = [];
   let anyColor = false;
+  // color por extrusor (Bambu/Orca): cada objeto de la placa toma el color de su filamento si el 3MF no trae paleta propia
+  const ams = parseAms(buf); const extColor = new Map<string, [number, number, number]>();
+  if (ams?.multicolor) for (const o of ams.objects) { const f = ams.filaments[o.extruder - 1]; if (f) extColor.set(o.id, hexToRgb(f.color)); }
+  let rootColor: [number, number, number] | undefined;
   const emit = (od: ObjDef, m: Mat) => {
     if (!od.mesh) return;
     const { v, t: tt, tri } = od.mesh;
@@ -234,7 +239,8 @@ export function parse3MF(buf: Uint8Array): Mesh {
       const pid = tri[i].pid ?? od.pid; const pi = tri[i].p1 ?? od.pindex;
       const c = pid !== undefined && pi !== undefined ? palettes[pid]?.[pi] : undefined;
       if (c) anyColor = true;
-      const cc = c ?? [0.8, 0.8, 0.8];
+      if (!c && rootColor) anyColor = true;
+      const cc = c ?? rootColor ?? [0.8, 0.8, 0.8];
       for (let k = 0; k < 3; k++) col.push(cc[0], cc[1], cc[2]);
     }
   };
@@ -252,8 +258,8 @@ export function parse3MF(buf: Uint8Array): Mesh {
       walk(target, c.id, mulMat(c.m, m), depth + 1);
     }
   };
-  if (root.items.length) for (const it of root.items) walk(root, it.id, it.m);
-  else for (const id of Object.keys(root.objs)) walk(root, id, IDENT);
+  if (root.items.length) for (const it of root.items) { rootColor = extColor.get(it.id); walk(root, it.id, it.m); }
+  else for (const id of Object.keys(root.objs)) { rootColor = extColor.get(id); walk(root, id, IDENT); }
   if (!pos.length) throw new LocalizedError('parse.mf3NoGeometry');
   return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined };
 }

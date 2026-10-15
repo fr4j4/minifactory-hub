@@ -8,14 +8,6 @@
   "note": "incluye subida por partes, análisis y miniatura"
  },
  {
-  "name": "Armar y guardar un presupuesto con 2 líneas",
-  "seconds": 1.4,
-  "steps": 0,
-  "limitS": 120,
-  "ok": true,
-  "note": "objetivo de la spec: menos de 2 min"
- },
- {
   "name": "Registrar un pedido manual (WhatsApp)",
   "seconds": 0.5,
   "steps": 0,
@@ -81,5 +73,13 @@
   "steps": 0,
   "limitS": 60,
   "ok": true
+ },
+ {
+  "name": "Armar y guardar un presupuesto con 2 líneas",
+  "seconds": 1.2,
+  "steps": 0,
+  "limitS": 120,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 2 min"
  }
 ]
