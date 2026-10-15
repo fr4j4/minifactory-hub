@@ -93,3 +93,20 @@ describe('STEP (OpenCascade)', () => {
     expect(a.triangles).toBeGreaterThanOrEqual(12); expect(a.dimX).toBeCloseTo(10, 0); expect(a.dimY).toBeCloseTo(10, 0); expect(a.dimZ).toBeCloseTo(10, 0);
   });
 });
+
+describe('pintura por cara (paint_color)', () => {
+  it('decodifica el estado de la raíz: hojas, extensión y subdivisiones', async () => {
+    const { paintState } = await import('@/lib/mesh/parse');
+    expect(paintState('4')).toBe(1); expect(paintState('8')).toBe(2); expect(paintState('0')).toBe(0);
+    expect(paintState('1C')).toBe(4); // estado 3 + siguiente símbolo
+    expect(paintState('44B')).toBe(1); // raíz dividida (B): se toma la primera hoja
+    expect(paintState('zz')).toBe(0);
+  });
+  it('un 3MF con caras pintadas toma el color del filamento de cada cara', () => {
+    const model = `<?xml version="1.0"?><model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources><object id="1"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="10" y="0" z="0"/><vertex x="0" y="10" z="0"/><vertex x="10" y="10" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2" paint_color="4"/><triangle v1="1" v2="3" v3="2" paint_color="8"/></triangles></mesh></object></resources><build><item objectid="1"/></build></model>`;
+    const settings = JSON.stringify({ filament_colour: ['#ff0000', '#00ff00'], filament_type: ['PLA', 'PLA'] });
+    const m = parse3MF(zipSync({ '3D/3dmodel.model': strToU8(model), 'Metadata/project_settings.config': strToU8(settings) }));
+    expect(m.colors).toBeTruthy(); expect([...m.colors!.slice(0, 3)]).toEqual([1, 0, 0]); expect([...m.colors!.slice(9, 12)]).toEqual([0, 1, 0]);
+  });
+});
+

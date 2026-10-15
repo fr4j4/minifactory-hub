@@ -190,7 +190,24 @@ function applyMat(m: Mat, x: number, y: number, z: number): [number, number, num
 }
 const arr = <T,>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
-interface ObjDef { mesh?: { v: Float32Array; t: Uint32Array; tri: Array<{ pid?: string; p1?: number }> }; comps?: Array<{ id: string; path?: string; m: Mat }>; pid?: string; pindex?: number }
+/**
+ * Estado (extrusor) de una cara pintada en Bambu Studio / OrcaSlicer. `paint_color` guarda un árbol de subdivisiones en hexadecimal,
+ * leído desde el final: el primer símbolo es la raíz. Una hoja es `estado << 2`; el estado 3 se amplía con el símbolo siguiente (+3).
+ * Si la cara está subdividida (varios colores en un triángulo) se devuelve el de su primera hoja: es una aproximación.
+ * 0 = sin pintura (usa el color del objeto); n ≥ 1 = extrusor n.
+ */
+export function paintState(code: string): number {
+  const nib = (i: number) => parseInt(code[code.length - 1 - i], 16);
+  let i = 0; const guard = code.length;
+  while (i < guard) {
+    const n = nib(i); if (!Number.isFinite(n)) return 0;
+    if ((n & 3) === 0) { const st = n >> 2; if (st === 3) { const m = nib(i + 1); return Number.isFinite(m) ? m + 3 : 0; } return st; }
+    i++; // nodo dividido: se baja a su primer hijo
+  }
+  return 0;
+}
+
+interface ObjDef { mesh?: { v: Float32Array; t: Uint32Array; tri: Array<{ pid?: string; p1?: number; paint?: string }> }; comps?: Array<{ id: string; path?: string; m: Mat }>; pid?: string; pindex?: number }
 
 export function parse3MF(buf: Uint8Array): Mesh {
   const files = unzipSync(buf);
@@ -213,8 +230,8 @@ export function parse3MF(buf: Uint8Array): Mesh {
         const vs = arr<any>(o.mesh.vertices?.vertex), ts = arr<any>(o.mesh.triangles?.triangle);
         const v = new Float32Array(vs.length * 3), tt = new Uint32Array(ts.length * 3);
         vs.forEach((q, i) => { v[i * 3] = +q['@_x']; v[i * 3 + 1] = +q['@_y']; v[i * 3 + 2] = +q['@_z']; });
-        const tri: Array<{ pid?: string; p1?: number }> = [];
-        ts.forEach((q, i) => { tt[i * 3] = +q['@_v1']; tt[i * 3 + 1] = +q['@_v2']; tt[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined }); });
+        const tri: Array<{ pid?: string; p1?: number; paint?: string }> = [];
+        ts.forEach((q, i) => { tt[i * 3] = +q['@_v1']; tt[i * 3 + 1] = +q['@_v2']; tt[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined, paint: q['@_paint_color'] ? String(q['@_paint_color']) : undefined }); });
         def.mesh = { v, t: tt, tri };
       }
       if (o.components) def.comps = arr<any>(o.components.component).map((c) => ({ id: c['@_objectid'], path: c['@_path'], m: parseTransform(c['@_transform']) }));
@@ -240,7 +257,10 @@ export function parse3MF(buf: Uint8Array): Mesh {
       const c = pid !== undefined && pi !== undefined ? palettes[pid]?.[pi] : undefined;
       if (c) anyColor = true;
       if (!c && rootColor) anyColor = true;
-      const cc = c ?? rootColor ?? [0.8, 0.8, 0.8];
+      // pintura por cara de Bambu Studio/Orca: manda sobre el color del objeto
+      const ps = tri[i].paint ? paintState(tri[i].paint!) : 0; const pf = ps > 0 && ams?.filaments[ps - 1] ? hexToRgb(ams.filaments[ps - 1].color) : undefined;
+      if (pf) anyColor = true;
+      const cc = pf ?? c ?? rootColor ?? [0.8, 0.8, 0.8];
       for (let k = 0; k < 3; k++) col.push(cc[0], cc[1], cc[2]);
     }
   };
