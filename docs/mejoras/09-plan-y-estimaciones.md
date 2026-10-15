@@ -3,7 +3,7 @@
 ## 1. Supuestos y cómo leer las cifras
 
 - **Unidad:** _jornada_ = 1 persona-día de ≈ 6 h efectivas de desarrollo. Incluye: implementación, pruebas (unitarias/integración, actualización de e2e), ajuste visual (claro/oscuro, móvil) y revisión de código. **No incluye:** QA manual del usuario, datos de producción, despliegue ni capacitación.
-- **Tres cifras por paquete:** optimista / probable / pesimista. Son estimaciones de orden de magnitud (± 30 %) hechas **sin ejecutar la app ni los spikes**; se refinan tras los spikes S1–S5 (doc 04) y la validación de decisiones (README).
+- **Tres cifras por paquete:** optimista / probable / pesimista. Son estimaciones de orden de magnitud (± 30 %) hechas **antes de los spikes**; R0 ya ejecutado (ver `spikes/`), se refinan tras los spikes S1–S5 (doc 04) y la validación de decisiones (README).
 - **Contingencia:** no incluida; se sugiere **+15 %** sobre el total probable.
 - **Línea base:** `development` @ `54a4bc6`. Las estimaciones descuentan lo ya construido (guarda de borrado, perfiles por boquilla, i18n, asesor de IA, ficha de desempeño) y **no incluyen** el trabajo ya especificado por otros documentos (calculadora v2, IA fases 2–4), que se estima aparte (§3.1).
 - **i18n es/en:** el sitio es bilingüe y tiene pruebas de paridad; las cadenas de pantallas nuevas se cuentan en WP-6.4 (transversal), no dentro de cada WP.
@@ -231,3 +231,12 @@ flowchart LR
 4. Fallo explícito del PDF y `playwright` a `dependencies` (WP-0.5).
 5. Color de marca del PDF alineado y logo en el encabezado (adelanto parcial de 3.4, ≈ 0,5 d).
 6. Corregir copy del resultado de laminado y tarjeta «¿Cabe en mis máquinas?» (WP-0.4 / 2.4 parcial).
+
+
+## Actualización tras R0 (spikes ejecutados)
+
+Ver `spikes/R0-S1-S5-informe.md` y `spikes/R0-S6-S7-S8-informe.md`.
+- **R4:** +0,5 j (soldado de vértices y transformaciones horneadas en 3MF) y +1 j (endurecer generador de esquema); −0,5 j (progreso real vía `--pipe`). Neto ≈ +1 j.
+- **R1:** librería visual decidida: shadcn/ui (Radix) + Tailwind; S8 cerrado.
+- **R3 (N3 MakerWorld):** S6 no verificable desde el sandbox → riesgo sin mitigar; implementar ruta A (metadatos + 3MF a mano) primero.
+- **R5:** laminado casi en vivo viable (≈1 s en piezas chicas); ajustes por objeto y multicolor por extrusor verificados.

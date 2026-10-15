@@ -14,12 +14,15 @@
 
 `makerworld.com` y `api.bambulab.com` devuelven 403 en el túnel de red del entorno, así que no se pudo medir formato de respuesta, límites ni descarga. No hay token de usuario. Se deja `scripts/spikes/s6-makerworld.sh <id> [token]` para ejecutarlo en una máquina con acceso. Hasta entonces el importador se diseña como **mejor esfuerzo**: (1) pegar URL → intento de metadatos (JSON-LD/OpenGraph + API pública si responde); (2) si falla, formulario manual precargado y subida del 3MF descargado a mano por el usuario. Riesgo: ToS/Cloudflare; mantener `model_sources` tolerante a campos ausentes. Esto mantiene la estimación del importador en su rango alto (R3 sin cambios, pero marcado como riesgo).
 
-## S8 · Librería visual (parcial)
+## S8 · Librería visual (piloto de tamaño + compatibilidad)
 
-No se montó el piloto comparativo en pantalla; solo se verificó compatibilidad por manifiesto (npm):
-| | React 19 | Tailwind 3.4 | Notas |
+Misma pantalla mínima (diálogo + input + select + switch + tabs + menú [+ tabla en Mantine]) empaquetada con esbuild (minificado, React 19, gzip). Línea base React+ReactDOM: 68,9 kB.
+
+| | JS gz | CSS gz | Costo sobre la base |
 |---|---|---|---|
-| shadcn/ui (Radix `react-dialog` 1.3.1) | ✅ peer incluye 19 | ✅ nativo (copiar componentes, `class-variance-authority`) | Sin runtime CSS-in-JS; se integra con los tokens/paletas actuales (variables CSS) y con `lucide-react` ya instalado. |
-| Mantine 9.7 | ✅ requiere ^19.2 (el proyecto usa 19.3) | ⚠️ trae su propio CSS/tema; convive pero duplica sistema de diseño | Componentes ricos (tabla, selects, fechas) pero segunda fuente de verdad de estilos y temas. |
+| Mantine 9.7 | 139,0 kB | 36,0 kB | ≈ 106 kB |
+| Radix (base de shadcn/ui) | 107,6 kB | 0 (estilos con Tailwind ya existente) | ≈ 39 kB |
 
-**Recomendación provisional:** shadcn/ui (Radix) sobre Tailwind actual, por encajar con las paletas por variables CSS (F5) y el peso. Piloto visual completo (1 pantalla, bundle, tema oscuro, móvil) sigue pendiente (~0,5 jornada) antes de cerrar la decisión.
+Compatibilidad: ambos admiten React 19 (Mantine exige ^19.2; el proyecto usa 19.3). Mantine trae su propio sistema de CSS/tema (duplica tokens y paletas F5); shadcn/Radix usa las variables CSS y Tailwind 3.4 actuales, y `lucide-react` ya instalado.
+
+**Decisión recomendada:** shadcn/ui sobre Radix, adopción componente a componente, coexistiendo con `.btn/.input/.card`. Pendiente solo la verificación visual (tema oscuro/móvil) que ocurre en R1 con la primera pantalla migrada; no bloquea.
