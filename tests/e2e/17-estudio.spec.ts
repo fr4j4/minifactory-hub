@@ -21,6 +21,7 @@ test.describe('Estudio de laminado (R5)', () => {
     expect(await page.getByTestId('res-grams').innerText()).toMatch(/\+/); // delta visible contra la base
     void g0; void g1;
     await shot(page, 'R5-estudio');
+    await page.getByTestId('studio-ab').check(); await expect(page.getByTestId('studio-ab-view')).toBeVisible(); await page.getByTestId('studio-ab').uncheck();
     // restablecer vuelve a la base y marca sin cambios
     await page.getByTestId('param-row-sparse_infill_density').getByRole('button', { name: /Restablecer|Reset/ }).click();
     await page.getByTestId('only-modified').check();

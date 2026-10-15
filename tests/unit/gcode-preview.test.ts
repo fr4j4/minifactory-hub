@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildGcodePreview, gcodePreviewToBin } from '@/lib/gcode';
+import { GCODE_TYPES, buildGcodePreview, gcodePreviewToBin } from '@/lib/gcode';
 
 describe('vista previa de G-code v2 (MFG3)', () => {
   const p = buildGcodePreview(fs.readFileSync('samples/barquito-a1.gcode', 'utf8'));
@@ -21,5 +21,11 @@ describe('vista previa de G-code v2 (MFG3)', () => {
     const p = buildGcodePreview(g);
     expect(p.fans![0]).toBe(50); expect(p.temps![0]).toBe(215); expect(p.tools![0]).toBe(1);
     expect(p.fans![1]).toBe(0); expect(p.tools![1]).toBe(0); expect(p.stats.tools).toBe(2); expect(p.stats.fan).toEqual([0, 50]);
+  });
+  it('registra los movimientos en vacío como «viaje» y cuenta las retracciones', () => {
+    const g = [';LAYER_CHANGE', 'G1 Z.2', ';TYPE:Outer wall', 'G1 X0 Y0 F3000', 'G1 X10 Y0 E1', 'G1 E-0.8', 'G1 X50 Y50', 'G1 E0.8', 'G1 X60 Y50 E2', 'G1 X60.5 Y50'].join('\n');
+    const p = buildGcodePreview(g); const ti = GCODE_TYPES.indexOf('viaje');
+    const travel = p.layers[0].t.find(([t]) => t === ti); expect(travel).toBeTruthy(); expect(travel![2]).toBe(1); // el movimiento de 0,5 mm se omite
+    expect(p.stats.retractions).toBe(1); expect(p.stats.travelMm).toBeGreaterThan(50); expect(p.stats.byType[ti].timeS).toBe(0);
   });
 });

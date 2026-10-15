@@ -30,7 +30,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
   const [processId, setProcessId] = useState(setup?.processProfileId ?? procs[0]?.id ?? ''); const [materialId, setMaterialId] = useState(mats[0]?.id ?? ''); const [copies, setCopies] = useState(1);
   const [ov, setOv] = useState<Ov>(EMPTY); const [base, setBase] = useState<Ov>(EMPTY); const [baseRunId, setBaseRunId] = useState<string | null>(null);
   const [filId, setFilId] = useState<string | null>(null); const [runId, setRunId] = useState<string | null>(null); const [lastGood, setLastGood] = useState<string | null>(null); const [stale, setStale] = useState(false); const [auto, setAuto] = useState(true); const [exploring, setExploring] = useState(false);
-  const [advisorOpen, setAdvisorOpen] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const [ab, setAb] = useState(false);
   const schemaV = useMemo(() => { extendSchema(extraParams ?? []); return extraParams?.length ?? 0; }, [extraParams]);
   const inflight = useRef<string | null>(null); const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const machine = setup ? ctx.machines.find((m) => m.id === setup.machineId) : undefined; const material = ctx.materials.find((m) => m.id === materialId);
@@ -121,7 +121,10 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
           {run?.status === 'error' && <div role="alert" className="mt-2 rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 p-2.5 text-sm text-red-800 dark:text-red-200" data-testid="studio-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
           <label className="flex items-center gap-2 text-xs mt-2"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} data-testid="studio-auto" />{t('studio.autoSlice')}</label>
         </div>
-        {shown?.status === 'done' ? <div className={stale ? 'opacity-60' : ''}><GcodeViewer src={`/api/runs/${shown.id}/preview`} /></div> : <div className="card grid place-items-center text-sm muted" style={{ height: 320 }} role="status">{busy ? t('studio.slicing') : t('studio.noResult')}</div>}
+        {shown?.status === 'done' && baseRun?.status === 'done' && baseRun.id !== shown.id && <label className="flex items-center gap-2 text-xs mb-2"><input type="checkbox" checked={ab} onChange={(e) => setAb(e.target.checked)} data-testid="studio-ab" />{t('studio.compareBase')}</label>}
+        {shown?.status === 'done' ? (ab && baseRun?.status === 'done' && baseRun.id !== shown.id
+          ? <div className={`grid gap-3 md:grid-cols-2 ${stale ? 'opacity-60' : ''}`} data-testid="studio-ab-view"><div><p className="text-xs font-semibold mb-1">A · {t('studio.base')}</p><GcodeViewer src={`/api/runs/${baseRun.id}/preview`} /></div><div><p className="text-xs font-semibold mb-1">B · {t('studio.withChanges')}</p><GcodeViewer src={`/api/runs/${shown.id}/preview`} /></div></div>
+          : <div className={stale ? 'opacity-60' : ''}><GcodeViewer src={`/api/runs/${shown.id}/preview`} /></div>) : <div className="card grid place-items-center text-sm muted" style={{ height: 320 }} role="status">{busy ? t('studio.slicing') : t('studio.noResult')}</div>}
         <div className="flex flex-wrap gap-2">
           {shown?.status === 'done' && <Link className="btn-primary" href={`/presupuestos/nuevo?file=${fileId}&run=${shown.id}&machine=${machine?.id ?? ''}&material=${materialId}&copies=${copies}`} data-testid="studio-use-in-quote">{t('slicer.useInAQuote')}</Link>}
           {shown?.status === 'done' && <a className="btn-ghost" href={`/api/runs/${shown.id}/gcode`}>{t('slicer.gCode')}</a>}

@@ -2,6 +2,8 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const viewer: Shape<typeof es['viewer']> = {
+  travelStats: '{n} retractions · {m} m of travel moves (turn them on with “Travel moves”)',
+  travel: 'Travel moves',
   mode_ventilador: 'Fan',
   mode_temperatura: 'Temperature',
   mode_herramienta: 'Tool',

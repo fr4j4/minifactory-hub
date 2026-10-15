@@ -6,10 +6,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
 import { useT } from '@/i18n/client';
 
-const TYPE_LABEL = ['viewer.perimeters', 'viewer.infill', 'viewer.surfaces', 'viewer.supports', 'viewer.other'] as const;
-const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780];
+const TYPE_LABEL = ['viewer.perimeters', 'viewer.infill', 'viewer.surfaces', 'viewer.supports', 'viewer.other', 'viewer.travel'] as const;
+const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780, 0xc084fc];
+const NT = TYPE_COLOR.length; const TRAVEL = NT - 1; const range = (n: number) => Array.from({ length: n }, (_, i) => i);
 
-interface Stats { byType: Array<{ timeS: number; mm: number }>; layerTimeS: number[]; speed: [number, number]; width: [number, number]; fan?: [number, number]; temp?: [number, number]; tools?: number }
+interface Stats { byType: Array<{ timeS: number; mm: number }>; layerTimeS: number[]; speed: [number, number]; width: [number, number]; fan?: [number, number]; temp?: [number, number]; tools?: number; retractions?: number; travelMm?: number }
 interface Parsed { bbox: { min: number[]; max: number[] }; layers: Array<{ z: number; t: Array<[number, number, number]> }>; types: string[]; total: number; sampled: boolean; seg: Float32Array; speed?: Float32Array; width?: Float32Array; fan?: Float32Array; temp?: Float32Array; tool?: Float32Array; stats?: Stats }
 type ColorMode = 'tipo' | 'velocidad' | 'ancho' | 'tiempoCapa' | 'flujo' | 'ventilador' | 'temperatura' | 'herramienta';
 /** Escala azul → verde → amarillo → rojo para t en 0…1. */
@@ -31,7 +32,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   const t = useT();
   const host = useRef<HTMLDivElement>(null); const S = useRef<any>({});
   const [data, setData] = useState<Parsed | null>(null); const [err, setErr] = useState(''); const [layer, setLayer] = useState(0);
-  const [flowR, setFlowR] = useState<[number, number]>([0, 0]); const [mode, setMode] = useState<ColorMode>('tipo'); const [show, setShow] = useState<boolean[]>([true, true, true, true, true]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
+  const [flowR, setFlowR] = useState<[number, number]>([0, 0]); const [mode, setMode] = useState<ColorMode>('tipo'); const [show, setShow] = useState<boolean[]>([true, true, true, true, true, false]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
 
   useEffect(() => {
     const el = host.current!; const dark = isDarkNow(); let disposed = false;
@@ -51,10 +52,10 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
         const d = parse(await r.arrayBuffer()); if (disposed) return;
         const mn = d.bbox.min, mx = d.bbox.max; const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2;
         // una geometría por tipo, ordenada por capa (para recortar con drawRange)
-        const per: number[][] = [[], [], [], [], []]; const idx: number[][] = [[], [], [], [], []]; const attr: Array<{ s: number[]; w: number[]; l: number[]; f: number[]; p: number[]; o: number[] }> = [0, 1, 2, 3, 4].map(() => ({ s: [], w: [], l: [], f: [], p: [], o: [] }));
+        const per: number[][] = range(NT).map(() => []); const idx: number[][] = range(NT).map(() => []); const attr: Array<{ s: number[]; w: number[]; l: number[]; f: number[]; p: number[]; o: number[] }> = range(NT).map(() => ({ s: [], w: [], l: [], f: [], p: [], o: [] }));
         d.layers.forEach((l, li) => { for (const [ti, off, cnt] of l.t) { idx[ti][li] = per[ti].length / 6; for (let k = 0; k < cnt; k++) { const o = (off + k) * 4; per[ti].push(d.seg[o] - cx, d.seg[o + 1] - cy, l.z, d.seg[o + 2] - cx, d.seg[o + 3] - cy, l.z); attr[ti].s.push(d.speed?.[off + k] ?? 0); attr[ti].w.push(d.width?.[off + k] ?? 0); attr[ti].l.push(li); attr[ti].f.push(d.fan?.[off + k] ?? 0); attr[ti].p.push(d.temp?.[off + k] ?? 0); attr[ti].o.push(d.tool?.[off + k] ?? 0); } } });
-        const lines: THREE.LineSegments[] = []; const ends: number[][] = [[], [], [], [], []];
-        for (let ti = 0; ti < 5; ti++) {
+        const lines: THREE.LineSegments[] = []; const ends: number[][] = range(NT).map(() => []);
+        for (let ti = 0; ti < NT; ti++) {
           const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(per[ti]), 3));
           const ls = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: TYPE_COLOR[ti], transparent: true, opacity: 0.85 })); ls.frustumCulled = false; root.add(ls); lines.push(ls);
           // fin (en segmentos) de cada capa para ese tipo
@@ -71,7 +72,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
 
   useEffect(() => {
     const st = S.current; if (!st.lines) return;
-    for (let ti = 0; ti < 5; ti++) { const e = st.ends[ti]; let end = 0; for (let l = layer; l >= 0; l--) if (e[l] != null) { end = e[l]; break; } st.lines[ti].geometry.setDrawRange(0, end * 2); st.lines[ti].visible = show[ti]; st.lines[ti].material.opacity = onlyCurrent ? 0.15 : 0.85; }
+    for (let ti = 0; ti < NT; ti++) { const e = st.ends[ti]; let end = 0; for (let l = layer; l >= 0; l--) if (e[l] != null) { end = e[l]; break; } st.lines[ti].geometry.setDrawRange(0, end * 2); st.lines[ti].visible = show[ti]; st.lines[ti].material.opacity = onlyCurrent ? 0.15 : 0.85; }
     // capa actual resaltada
     if (st.cur) { st.root.remove(st.cur); st.cur.geometry.dispose(); st.cur = null; }
     const L = st.d.layers[layer]; if (L) {
@@ -89,10 +90,10 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
     const layerH = (l: number) => Math.max(0.05, (data.layers[l]?.z ?? 0) - (l > 0 ? data.layers[l - 1].z : 0));
     const flowOf = (k: number, a: any) => a.w[k] * layerH(a.l[k]) * a.s[k];
     let flowRange: [number, number] = [0, 1];
-    if (mode === 'flujo') { let lo = Infinity, hi = 0; for (let ti = 0; ti < 5; ti++) { const a = st.attr[ti]; for (let k = 0; k < a.l.length; k++) { const f = flowOf(k, a); if (f < lo) lo = f; if (f > hi) hi = f; } } flowRange = [Number.isFinite(lo) ? lo : 0, hi || 1]; setFlowR(flowRange); }
-    for (let ti = 0; ti < 5; ti++) {
+    if (mode === 'flujo') { let lo = Infinity, hi = 0; for (let ti = 0; ti < TRAVEL; ti++) { const a = st.attr[ti]; for (let k = 0; k < a.l.length; k++) { const f = flowOf(k, a); if (f < lo) lo = f; if (f > hi) hi = f; } } flowRange = [Number.isFinite(lo) ? lo : 0, hi || 1]; setFlowR(flowRange); }
+    for (let ti = 0; ti < NT; ti++) {
       const ls = st.lines[ti] as THREE.LineSegments; const m = ls.material as THREE.LineBasicMaterial; const a = st.attr[ti];
-      if (mode === 'tipo' || !stt) { ls.geometry.deleteAttribute('color'); m.vertexColors = false; m.color.setHex(TYPE_COLOR[ti]); m.needsUpdate = true; continue; }
+      if (mode === 'tipo' || !stt || ti === TRAVEL) { ls.geometry.deleteAttribute('color'); m.vertexColors = false; m.color.setHex(TYPE_COLOR[ti]); m.needsUpdate = true; continue; }
       const n = a.l.length; const col = new Float32Array(n * 6);
       for (let k = 0; k < n; k++) {
         const t = mode === 'ventilador' ? (a.f[k] - (stt.fan?.[0] ?? 0)) / Math.max(1e-6, (stt.fan?.[1] ?? 100) - (stt.fan?.[0] ?? 0)) : mode === 'temperatura' ? (a.p[k] - (stt.temp?.[0] ?? 0)) / Math.max(1e-6, (stt.temp?.[1] ?? 1) - (stt.temp?.[0] ?? 0)) : mode === 'herramienta' ? (stt.tools && stt.tools > 1 ? a.o[k] / (stt.tools - 1) : 0) : mode === 'flujo' ? (flowOf(k, a) - flowRange[0]) / Math.max(1e-6, flowRange[1] - flowRange[0]) : mode === 'velocidad' ? (a.s[k] - stt.speed[0]) / Math.max(1e-6, stt.speed[1] - stt.speed[0]) : mode === 'ancho' ? (a.w[k] - stt.width[0]) / Math.max(1e-6, stt.width[1] - stt.width[0]) : (lt[a.l[k]] - ltMin) / Math.max(1e-6, ltMax - ltMin);
@@ -128,6 +129,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyCurrent} onChange={(e) => setOnlyCurrent(e.target.checked)} /> {t('viewer.highlightOnlyTheCurrentLayer')}</label>
           </div>
           {data.stats && mode !== 'tipo' && <div className="flex items-center gap-2 text-xs muted" data-testid="gcode-legend"><span>{mode === 'ventilador' ? `${data.stats.fan?.[0] ?? 0} %` : mode === 'temperatura' ? `${data.stats.temp?.[0] ?? 0} °C` : mode === 'herramienta' ? 'T0' : mode === 'flujo' ? `${(flowR[0]).toFixed(1)} mm³/s` : mode === 'velocidad' ? `${data.stats.speed[0].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[0].toFixed(2)} mm` : t('viewer.slowLayers')}</span><span className="h-2 flex-1 max-w-48 rounded" style={{ background: 'linear-gradient(90deg, hsl(240 85% 50%), hsl(120 85% 50%), hsl(60 85% 50%), hsl(0 85% 50%))' }} /><span>{mode === 'ventilador' ? `${data.stats.fan?.[1] ?? 0} %` : mode === 'temperatura' ? `${data.stats.temp?.[1] ?? 0} °C` : mode === 'herramienta' ? `T${(data.stats.tools ?? 1) - 1}` : mode === 'flujo' ? `${(flowR[1]).toFixed(1)} mm³/s` : mode === 'velocidad' ? `${data.stats.speed[1].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[1].toFixed(2)} mm` : t('viewer.fastLayers')}</span></div>}
+          {data.stats?.retractions != null && <p className="text-xs muted" data-testid="gcode-travel-stats">{t('viewer.travelStats', { n: data.stats.retractions, m: Math.round((data.stats.travelMm ?? 0) / 10) / 100 })}</p>}
           {data.stats && mode === 'tipo' && (() => { const tot = data.stats.byType.reduce((a, x) => a + x.timeS, 0) || 1; return <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs muted" data-testid="gcode-time-by-type">{data.stats.byType.map((x, i) => x.timeS > 0 && <li key={i}>{t(TYPE_LABEL[i])}: <b>{Math.round((x.timeS / tot) * 100)}%</b></li>)}</ul>; })()}
         </div>
       )}

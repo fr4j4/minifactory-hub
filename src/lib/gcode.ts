@@ -142,7 +142,7 @@ export function hasSlicedData(m: SliceMeta | null): m is SliceMeta {
 }
 
 /* ───────────────────────── Vista previa por capas ───────────────────────── */
-export const GCODE_TYPES = ['perimetro', 'relleno', 'superficie', 'soporte', 'otro'] as const;
+export const GCODE_TYPES = ['perimetro', 'relleno', 'superficie', 'soporte', 'otro', 'viaje'] as const;
 export type GType = (typeof GCODE_TYPES)[number];
 
 function classify(label: string): GType {
@@ -162,6 +162,8 @@ export interface PreviewStats {
   speed: [number, number]; width: [number, number];
   /** ventilador (%), temperatura de boquilla (°C) y cantidad de herramientas (T0…Tn) */
   fan?: [number, number]; temp?: [number, number]; tools?: number;
+  /** retracciones (el filamento retrocede) y largo total de movimientos en vacío (mm) */
+  retractions?: number; travelMm?: number;
 }
 export interface GcodePreview {
   bbox: { min: [number, number, number]; max: [number, number, number] };
@@ -178,7 +180,7 @@ export interface GcodePreview {
 
 export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodePreview {
   let x = 0, y = 0, z = 0, e = 0, relE = false, absPos = true, curType: GType = 'otro';
-  let layerIdx = -1; let curLayerZ = -Infinity; let feed = 0; let curWidth = 0.42; let curFan = 0, curTemp = 0, curTool = 0, maxTool = 0;
+  let layerIdx = -1; let curLayerZ = -Infinity; let feed = 0; let curWidth = 0.42; let curFan = 0, curTemp = 0, curTool = 0, maxTool = 0; let retractions = 0, travelMm = 0;
   const perLayer: Array<{ z: number; segs: Record<number, number[]>; spd: Record<number, number[]>; wid: Record<number, number[]>; fan: Record<number, number[]>; tmp: Record<number, number[]>; tol: Record<number, number[]> }> = [];
   const typeAcc = GCODE_TYPES.map(() => ({ timeS: 0, mm: 0 }));
   let total = 0;
@@ -216,6 +218,12 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
       else if (ch === 'F') feed = v / 60;
     }
     const extruding = hasE && ne > e + 1e-6 && (nx !== x || ny !== y);
+    if (!extruding && layerIdx >= 0) {
+      if (hasE && ne < e - 1e-6) retractions++;
+      const tl = Math.hypot(nx - x, ny - y);
+      // movimiento en vacío: se guarda como tipo «viaje» (los muy cortos se omiten para no saturar la vista)
+      if (tl > 2) { travelMm += tl; const ti = GCODE_TYPES.indexOf('viaje'); (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); (perLayer[layerIdx].spd[ti] ??= []).push(feed > 0 ? feed : 60); (perLayer[layerIdx].wid[ti] ??= []).push(0); (perLayer[layerIdx].fan[ti] ??= []).push(curFan); (perLayer[layerIdx].tmp[ti] ??= []).push(curTemp); (perLayer[layerIdx].tol[ti] ??= []).push(curTool); }
+    }
     if (extruding) {
       if (nz !== curLayerZ || layerIdx < 0) { curLayerZ = nz; layerIdx = perLayer.length; perLayer.push({ z: nz, segs: {}, spd: {}, wid: {}, fan: {}, tmp: {}, tol: {} }); }
       const len = Math.hypot(nx - x, ny - y); const spd = feed > 0 ? feed : 60; const ti0 = GCODE_TYPES.indexOf(curType);
@@ -231,15 +239,15 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
     }
     x = nx; y = ny; z = nz; e = ne;
   }
-  const flat: number[] = []; const fs: number[] = []; const fw: number[] = []; const ff: number[] = []; const ft: number[] = []; const fo: number[] = [];
+  const rs: number[] = [], rw: number[] = []; const flat: number[] = []; const fs: number[] = []; const fw: number[] = []; const ff: number[] = []; const ft: number[] = []; const fo: number[] = [];
   const layers = perLayer.map((l) => {
     const tt: Array<[number, number, number]> = [];
-    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); for (const v of l.spd[ti]) fs.push(v); for (const v of l.wid[ti]) fw.push(v); for (const v of l.fan[ti]) ff.push(v); for (const v of l.tmp[ti]) ft.push(v); for (const v of l.tol[ti]) fo.push(v); }
+    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; const isTravel = ti === GCODE_TYPES.indexOf('viaje'); tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); for (const v of l.spd[ti]) { fs.push(v); if (!isTravel) rs.push(v); } for (const v of l.wid[ti]) { fw.push(v); if (!isTravel) rw.push(v); } for (const v of l.fan[ti]) ff.push(v); for (const v of l.tmp[ti]) ft.push(v); for (const v of l.tol[ti]) fo.push(v); }
     return { z: l.z, t: tt };
   });
   if (!isFinite(min[0])) { min.fill(0); max.fill(0); }
   const rng = (a: number[]): [number, number] => (a.length ? [a.reduce((m, v) => Math.min(m, v), Infinity), a.reduce((m, v) => Math.max(m, v), -Infinity)] : [0, 0]);
-  const stats: PreviewStats = { byType: typeAcc.map((x) => ({ timeS: +x.timeS.toFixed(1), mm: +x.mm.toFixed(0) })), layerTimeS: perLayer.map((l) => +(((l as any).t ?? 0) as number).toFixed(1)), speed: rng(fs), width: rng(fw), fan: rng(ff), temp: rng(ft), tools: maxTool + 1 };
+  const stats: PreviewStats = { byType: typeAcc.map((x) => ({ timeS: +x.timeS.toFixed(1), mm: +x.mm.toFixed(0) })), layerTimeS: perLayer.map((l) => +(((l as any).t ?? 0) as number).toFixed(1)), speed: rng(rs), width: rng(rw), fan: rng(ff), temp: rng(ft), tools: maxTool + 1, retractions, travelMm: Math.round(travelMm) };
   return { bbox: { min, max }, layers, segments: Float32Array.from(flat), speeds: Float32Array.from(fs), widths: Float32Array.from(fw), fans: Float32Array.from(ff), temps: Float32Array.from(ft), tools: Float32Array.from(fo), stats, total, sampled: stride > 1 };
 }
 

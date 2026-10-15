@@ -1,4 +1,6 @@
 export const viewer = {
+  travelStats: '{n} retracciones · {m} m de movimientos en vacío (actívalos con «Viajes»)',
+  travel: 'Viajes',
   mode_ventilador: 'Ventilador',
   mode_temperatura: 'Temperatura',
   mode_herramienta: 'Herramienta',
