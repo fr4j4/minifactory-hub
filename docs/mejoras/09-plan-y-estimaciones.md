@@ -203,7 +203,7 @@ flowchart LR
 | Cambios de perfiles de fábrica al actualizar Orca | Media | Medio | Resolvedor tolerante + prueba de contrato (OM-20) |
 | Alcance creciente en el Estudio («que sea igual a Bambu Studio») | Alta | Alto | Documento 04 §1 como contrato de alcance; D7 (decidido: nivel A) |
 | **MakerWorld sin API oficial:** cambios, Cloudflare, token que expira, modelos protegidos, términos de uso sin verificar | Alta | Medio | Ruta A (metadatos + 3MF subido a mano) como base; ruta B como mejor esfuerzo; S6 con token real antes de comprometer N3 |
-| **Licencias de modelos importados** (uso comercial) | Media | Alto (legal) | Registrar licencia y uso comercial al importar; advertir al cotizar (Q-F7) |
+| **Licencias de modelos importados** (uso comercial) | Media | Alto (legal) | Registrar licencia y uso comercial al importar; advertir al cotizar (F7, decidido) |
 | **Asistente inicial abierto:** quien llegue primero al servidor se queda el administrador | Media | Alto (seguridad) | Token de configuración de un solo uso; eliminar la contraseña por defecto; `ADMIN_*` para instalaciones desatendidas |
 | **Migrar a una librería de componentes** con 280 archivos de UI en movimiento | Alta | Medio | S8 comparativo; adopción componente a componente; coexistencia con `.btn/.input/.card` |
 | **El plan se duplicó** (≈ 118 → ≈ 210 jornadas) | Alta | Alto | Releases independientes y «Recortes posibles» (§4); revisar prioridades tras R1 |
