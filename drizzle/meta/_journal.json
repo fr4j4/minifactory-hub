@@ -92,6 +92,13 @@
       "when": 1792030367757,
       "tag": "0012_orientacion_modelo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792030427757,
+      "tag": "0013_cola_jobs",
+      "breakpoints": true
     }
   ]
 }

@@ -38,6 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const t = await getT();
   const db = await getDb();
   ensureWorker(); ensureBambu();
+  (await import('@/lib/jobs')).ensureJobWorker();
   await expireQuotes().catch(() => {});
   await followUpQuotes().catch(() => {});
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.read, false), or(isNull(s.notifications.userId), eq(s.notifications.userId, user.id))));

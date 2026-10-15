@@ -1,4 +1,9 @@
 export const settings = {
+  jobsTitle: 'Procesos en segundo plano',
+  jobsSummary: 'En espera: {queued} · En curso: {running} · Con error: {error}',
+  jobRetry: 'Reintentar',
+  jobRetried: 'Reintento en cola',
+  'jobKind_file.process': 'Análisis de archivo',
   group_shop: 'Taller',
   group_prices: 'Precios y ventas',
   group_team: 'Equipo',

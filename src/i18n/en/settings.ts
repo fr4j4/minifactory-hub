@@ -2,6 +2,11 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const settings: Shape<typeof es['settings']> = {
+  jobsTitle: 'Background processes',
+  jobsSummary: 'Waiting: {queued} · Running: {running} · Failed: {error}',
+  jobRetry: 'Retry',
+  jobRetried: 'Retry queued',
+  'jobKind_file.process': 'File analysis',
   group_shop: 'Shop',
   group_prices: 'Prices and sales',
   group_team: 'Team',

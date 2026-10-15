@@ -795,3 +795,17 @@ export const aiCalls = pgTable('ai_calls', {
   promptLog: jsonb('prompt_log').$type<Record<string, any>>(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('ai_calls_created_ix').on(t.createdAt)]);
+
+/** Cola persistente de trabajos en segundo plano (análisis de archivos, etc.): sobrevive a reinicios y reintenta con espera. */
+export const jobs = pgTable('jobs', {
+  ...base(),
+  kind: text('kind').notNull(), // file.process
+  payload: jsonb('payload').$type<Record<string, any>>().notNull().default({}),
+  status: text('status').notNull().default('queued'), // queued | running | done | error
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(3),
+  error: text('error'),
+  runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+}, (t) => [index('jobs_status_ix').on(t.status, t.runAfter)]);

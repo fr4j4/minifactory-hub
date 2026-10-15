@@ -1,5 +1,5 @@
 import fsp from 'node:fs/promises';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 import { getDb, s, WORKSPACE_ID } from '@/db';
@@ -52,10 +52,10 @@ export async function ingestModel(i: IngestInput) {
   }).returning({ id: s.fileVersions.id });
   await db.update(s.modelFiles).set({ currentVersionId: v.id, hash: sha, format: ext, updatedAt: new Date() }).where(eq(s.modelFiles.id, modelId));
   await audit('model_file', modelId, number === 1 ? 'crear' : 'nueva_version', { filename: i.filename, version: number }, i.userId);
-  const job = processVersion(v.id).catch(async (e) => {
-    await db.update(s.fileVersions).set({ meta: { status: 'error', error: (e as Error).message } }).where(eq(s.fileVersions.id, v.id));
-  });
-  if (i.sync) await job;
+  // el análisis va a la cola persistente (reintenta y sobrevive a reinicios); en modo sync se espera su resultado
+  const { enqueueJob, runJobNow } = await import('./jobs');
+  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId });
+  if (i.sync) await runJobNow(jobId);
   return { modelFileId: modelId, versionId: v.id, version: number, duplicateOf: dup && dup.id !== modelId ? dup : null };
 }
 
@@ -195,9 +195,11 @@ export async function ingestZip(i: { tmpPath: string; filename: string; userId?:
 export async function recoverPendingVersions(): Promise<number> {
   const db = await getDb();
   const rows = await db.select({ id: s.fileVersions.id }).from(s.fileVersions).where(and(isNull(s.fileVersions.deletedAt), sql`${s.fileVersions.meta}->>'status' = 'processing'`));
-  for (const r of rows) {
+  // los que ya tienen un trabajo vivo en la cola los atiende el worker
+  const live = new Set((await db.select({ p: s.jobs.payload }).from(s.jobs).where(and(eq(s.jobs.kind, 'file.process'), inArray(s.jobs.status, ['queued', 'running'])))).map((j) => String((j.p as any)?.versionId)));
+  for (const r of rows.filter((x) => !live.has(x.id))) {
     try { await processVersion(r.id); }
     catch (e) { await db.update(s.fileVersions).set({ meta: { status: 'error', error: (e as Error).message } }).where(eq(s.fileVersions.id, r.id)); }
   }
-  return rows.length;
+  return rows.filter((x) => !live.has(x.id)).length;
 }
