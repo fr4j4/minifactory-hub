@@ -68,4 +68,11 @@ export const viewer: Shape<typeof es['viewer']> = {
   angle: 'Angle: {deg}°',
   material: 'Material color',
   materialDefault: 'Default color',
+  colorBy: 'Color by',
+  mode_tipo: 'Line type',
+  mode_velocidad: 'Speed',
+  mode_ancho: 'Line width',
+  mode_tiempoCapa: 'Layer time',
+  slowLayers: 'slow layers',
+  fastLayers: 'fast layers',
 };

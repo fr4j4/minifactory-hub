@@ -65,4 +65,11 @@ export const viewer = {
   angle: 'Ángulo: {deg}°',
   material: 'Color del material',
   materialDefault: 'Color por defecto',
+  colorBy: 'Color por',
+  mode_tipo: 'Tipo de línea',
+  mode_velocidad: 'Velocidad',
+  mode_ancho: 'Ancho de línea',
+  mode_tiempoCapa: 'Tiempo de capa',
+  slowLayers: 'capas lentas',
+  fastLayers: 'capas rápidas',
 };

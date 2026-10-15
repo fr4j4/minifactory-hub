@@ -76,7 +76,7 @@
  },
  {
   "name": "Subir un STL y ver su análisis",
-  "seconds": 1.9,
+  "seconds": 1.1,
   "steps": 0,
   "limitS": 30,
   "ok": true,

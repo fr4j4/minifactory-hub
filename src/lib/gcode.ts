@@ -154,18 +154,29 @@ function classify(label: string): GType {
   return 'otro';
 }
 
+export interface PreviewStats {
+  /** tiempo (s) y largo extruido (mm) por tipo, en el orden de GCODE_TYPES */
+  byType: Array<{ timeS: number; mm: number }>;
+  /** tiempo estimado de extrusión de cada capa (s) */
+  layerTimeS: number[];
+  speed: [number, number]; width: [number, number];
+}
 export interface GcodePreview {
   bbox: { min: [number, number, number]; max: [number, number, number] };
   layers: Array<{ z: number; t: Array<[number, number, number]> /* tipo, offset, cantidad (en segmentos) */ }>;
   segments: Float32Array; // x1,y1,x2,y2 por segmento
+  /** velocidad (mm/s) y ancho de línea (mm) por segmento, en el mismo orden que `segments` */
+  speeds: Float32Array; widths: Float32Array;
+  stats: PreviewStats;
   total: number;
   sampled: boolean;
 }
 
 export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodePreview {
   let x = 0, y = 0, z = 0, e = 0, relE = false, absPos = true, curType: GType = 'otro';
-  let layerIdx = -1; let curLayerZ = -Infinity;
-  const perLayer: Array<{ z: number; segs: Record<number, number[]> }> = [];
+  let layerIdx = -1; let curLayerZ = -Infinity; let feed = 0; let curWidth = 0.42;
+  const perLayer: Array<{ z: number; segs: Record<number, number[]>; spd: Record<number, number[]>; wid: Record<number, number[]> }> = [];
+  const typeAcc = GCODE_TYPES.map(() => ({ timeS: 0, mm: 0 }));
   let total = 0;
   const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   const lines = text.split('\n');
@@ -176,6 +187,7 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
     const c = line.charCodeAt(0);
     if (c === 59 /* ; */) {
       if (line.startsWith(';TYPE:') || line.startsWith('; FEATURE:')) curType = classify(line.replace(/^;\s*(TYPE|FEATURE):/, ''));
+      else if (line.startsWith('; LINE_WIDTH:')) { const w = parseFloat(line.slice(13)); if (Number.isFinite(w)) curWidth = w; }
       continue;
     }
     if (c !== 71 /* G */ && c !== 77 /* M */) continue;
@@ -193,14 +205,17 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
       const v = parseFloat(tok.slice(1)); if (!Number.isFinite(v)) continue;
       if (ch === 'X') nx = absPos ? v : x + v; else if (ch === 'Y') ny = absPos ? v : y + v; else if (ch === 'Z') nz = absPos ? v : z + v;
       else if (ch === 'E') { hasE = true; ne = relE ? e + v : v; }
+      else if (ch === 'F') feed = v / 60;
     }
     const extruding = hasE && ne > e + 1e-6 && (nx !== x || ny !== y);
     if (extruding) {
-      if (nz !== curLayerZ || layerIdx < 0) { curLayerZ = nz; layerIdx = perLayer.length; perLayer.push({ z: nz, segs: {} }); }
+      if (nz !== curLayerZ || layerIdx < 0) { curLayerZ = nz; layerIdx = perLayer.length; perLayer.push({ z: nz, segs: {}, spd: {}, wid: {} }); }
+      const len = Math.hypot(nx - x, ny - y); const spd = feed > 0 ? feed : 60; const ti0 = GCODE_TYPES.indexOf(curType);
+      typeAcc[ti0].mm += len; typeAcc[ti0].timeS += len / spd; (perLayer[layerIdx] as any).t = ((perLayer[layerIdx] as any).t ?? 0) + len / spd;
       const keep = stride === 1 || curType !== 'relleno' || counter++ % stride === 0;
       if (keep) {
         const ti = GCODE_TYPES.indexOf(curType);
-        (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); total++;
+        (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); (perLayer[layerIdx].spd[ti] ??= []).push(spd); (perLayer[layerIdx].wid[ti] ??= []).push(curWidth); total++;
       }
       if (x < min[0]) min[0] = x; if (nx < min[0]) min[0] = nx; if (x > max[0]) max[0] = x; if (nx > max[0]) max[0] = nx;
       if (y < min[1]) min[1] = y; if (ny < min[1]) min[1] = ny; if (y > max[1]) max[1] = y; if (ny > max[1]) max[1] = ny;
@@ -208,18 +223,22 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
     }
     x = nx; y = ny; z = nz; e = ne;
   }
-  const flat: number[] = [];
+  const flat: number[] = []; const fs: number[] = []; const fw: number[] = [];
   const layers = perLayer.map((l) => {
     const tt: Array<[number, number, number]> = [];
-    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); }
+    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); fs.push(...l.spd[ti]); fw.push(...l.wid[ti]); }
     return { z: l.z, t: tt };
   });
   if (!isFinite(min[0])) { min.fill(0); max.fill(0); }
-  return { bbox: { min, max }, layers, segments: Float32Array.from(flat), total, sampled: stride > 1 };
+  const rng = (a: number[]): [number, number] => (a.length ? [a.reduce((m, v) => Math.min(m, v), Infinity), a.reduce((m, v) => Math.max(m, v), -Infinity)] : [0, 0]);
+  const stats: PreviewStats = { byType: typeAcc.map((x) => ({ timeS: +x.timeS.toFixed(1), mm: +x.mm.toFixed(0) })), layerTimeS: perLayer.map((l) => +(((l as any).t ?? 0) as number).toFixed(1)), speed: rng(fs), width: rng(fw) };
+  return { bbox: { min, max }, layers, segments: Float32Array.from(flat), speeds: Float32Array.from(fs), widths: Float32Array.from(fw), stats, total, sampled: stride > 1 };
 }
 
 export function gcodePreviewToBin(p: GcodePreview): Buffer {
-  const head = Buffer.from(JSON.stringify({ bbox: p.bbox, layers: p.layers, types: GCODE_TYPES, total: p.total, sampled: p.sampled }));
-  const len = Buffer.alloc(8); len.write('MFG1', 0, 'ascii'); len.writeUInt32LE(head.length, 4);
-  return Buffer.concat([len, head, Buffer.from(p.segments.buffer, p.segments.byteOffset, p.segments.byteLength)]);
+  // MFG2: posiciones, luego velocidad y ancho por segmento (el visor también lee MFG1, sin atributos)
+  const head = Buffer.from(JSON.stringify({ bbox: p.bbox, layers: p.layers, types: GCODE_TYPES, total: p.total, sampled: p.sampled, stats: p.stats, segCount: p.segments.length / 4 }));
+  const len = Buffer.alloc(8); len.write('MFG2', 0, 'ascii'); len.writeUInt32LE(head.length, 4);
+  const b = (a: Float32Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
+  return Buffer.concat([len, head, b(p.segments), b(p.speeds), b(p.widths)]);
 }
