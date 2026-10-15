@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/format';
-import { useToast } from './client';
+import { Modal, useToast } from './client';
 import { useT } from '@/i18n/client';
 import type { TFn } from '@/i18n/translate';
 
@@ -34,6 +34,16 @@ export async function uploadChunked(file: File, intent: Record<string, any>, t: 
   return data;
 }
 
+const HASH_MAX = 150 * 1024 * 1024;
+/** SHA-256 en el navegador (para detectar duplicados antes de subir); null si el archivo es muy grande o no hay `crypto.subtle`. */
+export async function sha256Hex(file: File): Promise<string | null> {
+  try {
+    if (file.size > HASH_MAX || !globalThis.crypto?.subtle) return null;
+    const buf = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
+    return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch { return null; }
+}
+
 export function Uploader({ intent, accept, multiple = true, label, hint, onDone, capture, className, compact, testId }: {
   intent: Record<string, any>; accept?: string; multiple?: boolean; label?: string; hint?: string; capture?: boolean;
   onDone?: (r: UploadResult[]) => void; className?: string; compact?: boolean; testId?: string;
@@ -41,6 +51,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
   const t = useT();
   const router = useRouter(); const toast = useToast();
   const [items, setItems] = useState<Array<{ name: string; p: number; state: 'up' | 'ok' | 'err'; msg?: string }>>([]);
+  const [dup, setDup] = useState<{ file: string; existing: { id: string; name: string }; resolve: (v: 'skip' | 'upload') => void } | null>(null);
   const [drag, setDrag] = useState(false); const input = useRef<HTMLInputElement>(null);
   const go = useCallback(async (files: File[]) => {
     if (!files.length) return;
@@ -48,6 +59,16 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
     const results: UploadResult[] = [];
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
+      // archivo nuevo de la biblioteca: si ya existe uno idéntico, se pregunta antes de subir
+      if (intent.intent === 'model' && !intent.modelFileId && !/\.zip$/i.test(f.name)) {
+        const h = await sha256Hex(f);
+        const ex = h ? await fetch(`/api/files/check?hash=${h}`).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+        if (ex?.duplicate) {
+          const choice = await new Promise<'skip' | 'upload'>((resolve) => setDup({ file: f.name, existing: ex.duplicate, resolve }));
+          setDup(null);
+          if (choice === 'skip') { setItems((x) => x.map((it, k) => (k === i ? { ...it, p: 1, state: 'ok', msg: t('files.skippedDuplicate') } : it))); results.push({ filename: f.name, ok: true, data: { skipped: true, duplicateOf: ex.duplicate } }); continue; }
+        }
+      }
       try {
         const data = await uploadChunked(f, intent, t, (p) => setItems((x) => x.map((it, k) => (k === i ? { ...it, p } : it))));
         setItems((x) => x.map((it, k) => (k === i ? { ...it, p: 1, state: 'ok' } : it))); results.push({ filename: f.name, ok: true, data });
@@ -60,8 +81,20 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
     onDone?.(results); router.refresh();
     setTimeout(() => setItems([]), 4000);
   }, [intent, onDone, router, toast]);
+  const dupDialog = dup && (
+    <Modal open onClose={() => dup.resolve('skip')} title={t('files.duplicateTitle')}>
+      <div className="space-y-3 text-sm" data-testid="duplicate-dialog">
+        <p>{t('files.duplicateBody', { f: dup.file, name: dup.existing.name })}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          <a className="btn-ghost" href={`/archivos/${dup.existing.id}`} target="_blank" rel="noopener noreferrer">{t('files.duplicateOpen')}</a>
+          <button className="btn-ghost" onClick={() => dup.resolve('skip')} data-testid="duplicate-skip">{t('files.duplicateSkip')}</button>
+          <button className="btn-primary" onClick={() => dup.resolve('upload')} data-testid="duplicate-upload">{t('files.duplicateUpload')}</button>
+        </div>
+      </div>
+    </Modal>);
   return (
     <div className={className}>
+      {dupDialog}
       <div data-testid={testId} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); go([...e.dataTransfer.files]); }}
         className={cn('rounded-xl border-2 border-dashed text-center transition-colors', compact ? 'p-3' : 'p-6', drag ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'border-slate-300 dark:border-slate-600')}>
         <p className="text-sm font-medium">{label ?? t('files.dropFilesHere')}</p>

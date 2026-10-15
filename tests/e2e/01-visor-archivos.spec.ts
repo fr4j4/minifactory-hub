@@ -40,6 +40,16 @@ test.describe('Archivos 3D: subida, análisis y visor', () => {
     await page.getByTestId('scale-slider').fill('80'); await expect(page.getByTestId('fit-badge')).toContainText('Cabe'); // 240 mm ya entra en 256
   });
 
+  test('un archivo idéntico se avisa antes de subir y se puede omitir', async ({ page }) => {
+    await login(page); await page.goto('/archivos'); await page.waitForLoadState('networkidle');
+    const before = await page.getByRole('link', { name: 'engranaje', exact: false }).count();
+    await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles(path.join(SAMPLES, 'engranaje.stl'));
+    await expect(page.getByTestId('duplicate-dialog')).toBeVisible();
+    await page.getByTestId('duplicate-skip').click();
+    await expect(page.getByTestId('duplicate-dialog')).toHaveCount(0);
+    await page.reload(); await page.waitForLoadState('networkidle');
+    expect(await page.getByRole('link', { name: 'engranaje', exact: false }).count()).toBe(before);
+  });
   test('G-code y 3MF laminados: metadatos y vista previa por capas', async ({ page, saveAs }) => {
     await login(page); await page.goto('/archivos');
     await page.waitForLoadState('networkidle'); await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles([path.join(SAMPLES, 'barquito-a1.gcode'), path.join(SAMPLES, 'llavero-a1.3mf')]);

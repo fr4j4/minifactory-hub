@@ -1,4 +1,10 @@
 export const files = {
+  duplicateTitle: 'Este archivo ya está en la biblioteca',
+  duplicateBody: '«{f}» es idéntico a «{name}», que ya existe. ¿Qué quieres hacer?',
+  duplicateOpen: 'Ver el existente',
+  duplicateSkip: 'No subir',
+  duplicateUpload: 'Subir igual',
+  skippedDuplicate: 'Omitido: ya existe',
   n3dViewer: 'Visor 3D',
   sliceQuote: 'Laminar y cotizar',
   versions: 'Versiones ({versions})',

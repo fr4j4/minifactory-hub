@@ -2,6 +2,12 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const files: Shape<typeof es['files']> = {
+  duplicateTitle: 'This file is already in the library',
+  duplicateBody: '“{f}” is identical to “{name}”, which already exists. What do you want to do?',
+  duplicateOpen: 'View the existing one',
+  duplicateSkip: 'Do not upload',
+  duplicateUpload: 'Upload anyway',
+  skippedDuplicate: 'Skipped: already exists',
   n3dViewer: '3D viewer',
   sliceQuote: 'Slice & quote',
   versions: 'Versions ({versions})',
