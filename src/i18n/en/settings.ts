@@ -152,6 +152,8 @@ export const settings: Shape<typeof es['settings']> = {
   supplierCountry: 'Country',
   supplierCity: 'City',
   supplierVerifiedOn: 'verified on {date}',
+  quoteFollowUpDays: 'Follow-up reminder after (days)',
+  quoteFollowUpHint: 'Days after sending a quote with no answer, comma-separated. Empty = no reminders.',
   supplierVerified: 'Verified',
   supplierSaved: 'Supplier saved',
   supplierNeedsName: 'Enter the supplier name.',

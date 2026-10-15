@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
-import { audit } from '../audit';
+import { audit, notify } from '../audit';
 import { getSettings, nextNumber } from '../settings';
 import { calcLine, calcQuote, roundPrice, type CostBreakdown, type MachineCost, type QuoteLine } from '../pricing';
 import { materialCostPerKg } from './inventory';
@@ -225,6 +225,30 @@ export async function previewRecalc(id: string) {
   }
   const oldTotal = lines.reduce((a, l) => a + l.oldUnit * l.qty, 0); const newTotal = lines.reduce((a, l) => a + l.newUnit * l.qty, 0);
   return { lines, oldTotal, newTotal, delta: newTotal - oldTotal };
+}
+
+/**
+ * Avisos de seguimiento: a los N días de enviado un presupuesto que sigue sin respuesta se crea una notificación
+ * (una vez por presupuesto y plazo; queda anotado en la actividad del presupuesto).
+ */
+export async function followUpQuotes(now = new Date()) {
+  const db = await getDb(); const st = await getSettings(); const days = [...(st.quoteFollowUpDays ?? [])].filter((d) => d > 0).sort((a, b) => a - b);
+  if (!days.length) return 0;
+  const t = await getT();
+  const sent = await db.select({ q: s.quotes }).from(s.quotes).where(and(eq(s.quotes.status, 'enviado'), isNull(s.quotes.deletedAt)));
+  let made = 0;
+  for (const { q } of sent) {
+    const log = await db.select().from(s.activityLog).where(and(eq(s.activityLog.entity, 'quote'), eq(s.activityLog.entityId, q.id)));
+    const sentAt = log.filter((a) => a.action === 'estado' && (a.changes as any)?.to === 'enviado').map((a) => a.createdAt).sort((a, b) => +b - +a)[0]; if (!sentAt) continue;
+    const done = new Set(log.filter((a) => a.action === 'seguimiento').map((a) => Number((a.changes as any)?.day)));
+    const due = days.filter((d) => !done.has(d) && now.getTime() >= sentAt.getTime() + d * 86400_000);
+    if (!due.length) continue;
+    const d = due[due.length - 1]; // si hubo varios plazos vencidos, se avisa solo por el último
+    for (const x of due) await audit('quote', q.id, 'seguimiento', { day: x });
+    await notify('seguimiento', t('quotes.followUpTitle', { number: q.number }), t('quotes.followUpBody', { days: d, customer: q.customerName ?? '—' }), `/presupuestos/${q.id}`);
+    made++;
+  }
+  return made;
 }
 
 /** Presupuestos enviados o en borrador cuya vigencia ya pasó pasan a "vencido". */

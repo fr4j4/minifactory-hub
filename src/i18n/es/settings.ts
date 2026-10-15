@@ -148,6 +148,8 @@ export const settings = {
   supplierKind: 'Tipo',
   supplierCountry: 'País',
   supplierCity: 'Ciudad',
+  quoteFollowUpDays: 'Avisar seguimiento a los (días)',
+  quoteFollowUpHint: 'Días después de enviar un presupuesto sin respuesta, separados por coma. Vacío = sin avisos.',
   supplierVerified: 'Verificado',
   supplierVerifiedOn: 'verificado el {date}',
   supplierSaved: 'Proveedor guardado',

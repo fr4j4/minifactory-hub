@@ -20,12 +20,13 @@ import { RemoveButton } from '@/components/remove-button';
 import { LineDetail } from '@/components/line-detail';
 import { QuoteDocument } from '@/components/quote-document';
 import { buildQuoteDoc } from '@/lib/services/quote-doc';
+import { diffQuotes } from '@/lib/quote-diff';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quote') }; }
 
-export default async function QuotePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function QuotePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ vs?: string }> }) {
   const t = await getT();
-  const user = await pagePerm('presupuestos', 'V'); const { id } = await params;
+  const user = await pagePerm('presupuestos', 'V'); const { id } = await params; const { vs } = await searchParams;
   const data = await loadQuote(id); if (!data) notFound();
   const { quote: q, items, models, links, customer } = data; const db = await getDb(); const st = await getSettings();
   const editable = q.status === 'borrador' && can(user, 'presupuestos', 'E');
@@ -55,6 +56,11 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   const versions = await db.select().from(s.quotes).where(and(eq(s.quotes.rootId, q.rootId ?? q.id), isNull(s.quotes.deletedAt))).orderBy(desc(s.quotes.version));
   const adj = await db.select().from(s.priceAdjustments).where(and(eq(s.priceAdjustments.ownerType, 'quote_item'), inArray(s.priceAdjustments.ownerId, items.map((i) => i.id).concat(['00000000-0000-0000-0000-000000000000'])))).orderBy(desc(s.priceAdjustments.createdAt));
   const [order] = await db.select().from(s.orders).where(eq(s.orders.quoteId, q.id)).limit(1);
+  const toDiff = (d: NonNullable<Awaited<ReturnType<typeof loadQuote>>>) => ({ total: d.quote.total, items: d.items.map((i) => ({ description: i.description, qty: i.qty, unit: i.finalUnit ?? i.suggestedUnit, grams: i.gramsTotal, hours: i.hoursTotal, materialId: i.materialId })) });
+  const other = vs && versions.some((v) => v.id === vs) && vs !== q.id ? await loadQuote(vs) : null;
+  const diff = other ? (other.quote.version < q.version ? diffQuotes(toDiff(other), toDiff(data)) : diffQuotes(toDiff(data), toDiff(other))) : null;
+  const acts = await db.select().from(s.activityLog).where(and(eq(s.activityLog.entity, 'quote'), inArray(s.activityLog.entityId, versions.map((v) => v.id)))).orderBy(desc(s.activityLog.createdAt)).limit(30);
+  const actUsers = new Map((await db.select({ id: s.users.id, name: s.users.name }).from(s.users)).map((u) => [u.id, u.name]));
   const msg = fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) });
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; suggestedTotal: number; finalTotal: number; cost: number; marginPct: number | null }>;
   const tot = (q.calc as any)?.totals ?? {};
@@ -94,7 +100,15 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
             </dl>
             {q.priceReason && <p className="text-xs muted mt-2">{t('quotes.reasonForThePrice')} {q.priceReason}</p>}
           </Card>
-          <Card title={t('quotes.versions')}><ul className="text-sm space-y-1.5">{versions.map((v) => <li key={v.id} className="flex items-center justify-between"><Link className={v.id === q.id ? 'font-semibold' : 'underline'} href={`/presupuestos/${v.id}`}>v{v.version} · {dmy(v.createdAt)}</Link><span className="flex items-center gap-2"><span className="tabular text-xs">{money(v.total)}</span><StatusBadge status={v.status} /></span></li>)}</ul></Card>
+          <Card title={t('quotes.versions')}><ul className="text-sm space-y-1.5">{versions.map((v) => <li key={v.id} className="flex items-center justify-between"><Link className={v.id === q.id ? 'font-semibold' : 'underline'} href={`/presupuestos/${v.id}`}>v{v.version} · {dmy(v.createdAt)}</Link>{v.id !== q.id && <Link className="text-xs underline muted" href={`/presupuestos/${q.id}?vs=${v.id}`} data-testid={`compare-v${v.version}`}>{t('quotes.compareWith')}</Link>}<span className="flex items-center gap-2"><span className="tabular text-xs">{money(v.total)}</span><StatusBadge status={v.status} /></span></li>)}</ul></Card>
+          {diff && other && <Card title={t('quotes.diffTitle', { a: Math.min(q.version, other.quote.version), b: Math.max(q.version, other.quote.version) })}><div className="text-sm space-y-2" data-testid="quote-diff">
+            <p className="tabular">{t('quotes.diffTotal')}: {money(diff.totalBefore)} → <b>{money(diff.totalAfter)}</b> <span className="muted">({diff.delta >= 0 ? '+' : '−'}{money(Math.abs(diff.delta))})</span></p>
+            {!diff.added.length && !diff.removed.length && !diff.changed.length && <p className="muted">{t('quotes.diffNone')}</p>}
+            {diff.added.map((i, k) => <p key={`a${k}`}><Badge tone="green">{t('quotes.diffAdded')}</Badge> {i.description} × {i.qty}</p>)}
+            {diff.removed.map((i, k) => <p key={`r${k}`}><Badge tone="red">{t('quotes.diffRemoved')}</Badge> {i.description} × {i.qty}</p>)}
+            {diff.changed.map((c, k) => <p key={`c${k}`}><Badge tone="amber">{t('quotes.diffChanged')}</Badge> {c.description}: {c.changes.map((x) => `${t(`quotes.diffField_${x.field}`)} ${x.field === 'unit' ? money(Number(x.before)) : String(x.before ?? '—')} → ${x.field === 'unit' ? money(Number(x.after)) : String(x.after ?? '—')}`).join(' · ')}</p>)}
+          </div></Card>}
+          <Card title={t('quotes.activity')}>{acts.length === 0 ? <p className="text-xs muted">{t('quotes.activityNone')}</p> : <ul className="text-xs space-y-1.5" data-testid="quote-activity">{acts.map((a) => <li key={a.id}>{dmyHm(a.createdAt)} · <b>{tOr(t, a.action === 'estado' ? `quotes.act_estado_${(a.changes as any)?.to}` : `quotes.act_${a.action}`, a.action)}</b>{a.userId && actUsers.get(a.userId) ? <span className="muted"> · {actUsers.get(a.userId)}</span> : null}</li>)}</ul>}</Card>
           {costs && adj.length > 0 && <Card title={t('quotes.finalPriceHistory')}><ul className="text-xs space-y-1.5">{adj.map((a) => <li key={a.id}>{dmyHm(a.createdAt)} · {t('quotes.suggestedAmount', { amount: money(a.suggested) })} → <b>{a.next != null ? money(a.next) : t('quotes.suggestedWord')}</b>{a.belowCost && <Badge tone="red" className="ml-1">{t('quotes.belowCost')}</Badge>}{a.reason && <span className="muted"> · {a.reason}</span>}</li>)}</ul></Card>}
         </div>
       </div>

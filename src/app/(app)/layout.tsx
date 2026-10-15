@@ -8,7 +8,7 @@ import { can, type Module } from '@/lib/perm';
 import { getT } from '@/i18n/server';
 import type { MessageKey } from '@/i18n/translate';
 import { AppShell, type NavItem } from '@/components/shell';
-import { expireQuotes } from '@/lib/services/quotes';
+import { expireQuotes, followUpQuotes } from '@/lib/services/quotes';
 import { ensureWorker } from '@/lib/slicer/queue';
 import { ensureBambu } from '@/lib/bambu/manager';
 
@@ -39,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const db = await getDb();
   ensureWorker(); ensureBambu();
   await expireQuotes().catch(() => {});
+  await followUpQuotes().catch(() => {});
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.read, false), or(isNull(s.notifications.userId), eq(s.notifications.userId, user.id))));
   const nav: NavItem[] = NAV.filter((n) => can(user, n.mod, 'V')).map((n) => ({ href: n.href, label: t(n.label), icon: n.icon, group: n.group }));
   return <AppShell nav={nav} user={{ name: user.name, role: t(`roles.${user.role}`) }} unread={Number(n)} shopPalette={(await getSettings()).shop.palette}>{children}</AppShell>;

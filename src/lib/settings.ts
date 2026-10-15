@@ -8,6 +8,8 @@ export interface AppSettings {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string; /** paleta por defecto de la interfaz (cada persona puede elegir otra en su navegador) */ palette?: string };
   rates: Rates;
   quoteValidDays: number;
+  /** días después de enviar un presupuesto en que se avisa para hacer seguimiento (vacío = sin avisos) */
+  quoteFollowUpDays: number[];
   reservationDays: number;
   minDepositPct: number;
   numbering: { quote: string; order: string; sale: string; job: string; production: string };
@@ -29,7 +31,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     urgency: [{ key: 'normal', label: 'Normal', pct: 0 }, { key: '48h', label: 'Urgente 48 h', pct: 25 }, { key: '24h', label: 'Urgente 24 h', pct: 50 }],
     volumeTiers: [{ minQty: 10, pct: -10 }, { minQty: 50, pct: -20 }], prepMinutes: 10,
   },
-  quoteValidDays: 15, reservationDays: 15, minDepositPct: 50,
+  quoteValidDays: 15, quoteFollowUpDays: [3, 7], reservationDays: 15, minDepositPct: 50,
   numbering: { quote: 'P-{YYYY}-{NNNN}', order: 'OT-{YYYY}-{NNNN}', sale: 'V-{YYYY}-{NNNN}', job: 'T-{YYYY}-{NNNN}', production: 'OP-{YYYY}-{NNNN}' },
   templates: {
     terms: 'Precios en pesos chilenos. Vigencia del presupuesto según fecha indicada. Plazo de entrega a contar de la confirmación del pedido y el abono. Los colores pueden variar levemente según el lote del material. Piezas funcionales: el taller no se responsabiliza por usos estructurales o de seguridad no informados.',

@@ -298,3 +298,15 @@ describe('recalcular con tarifas actuales (P2)', () => {
     await saveSettings({ rates: st.rates });
   });
 });
+
+describe('avisos de seguimiento de presupuestos (P3)', () => {
+  it('avisa una vez por plazo cuando un presupuesto enviado sigue sin respuesta', async () => {
+    const { followUpQuotes } = await import('@/lib/services/quotes');
+    const q = await saveQuote({ customerName: 'Cliente Seguimiento', items: [line()] }, admin); await sendQuote(q, admin.id);
+    expect(await followUpQuotes(new Date())).toBe(0);
+    const in4 = new Date(Date.now() + 4 * 86400_000);
+    expect(await followUpQuotes(in4)).toBeGreaterThanOrEqual(1);
+    expect(await followUpQuotes(in4)).toBe(0); // no repite el mismo plazo
+    const ns = await db.select().from(s.notifications).where(eq(s.notifications.kind, 'seguimiento')); expect(ns.some((n) => n.href === `/presupuestos/${q}`)).toBe(true);
+  });
+});
