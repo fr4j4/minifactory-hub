@@ -85,6 +85,33 @@ Plan: [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pend
 | P5 multicolor | ✅ | Un material por extrusor en proyectos 3MF multicolor; OrcaSlicer exige colores distintos por filamento (si no, error −100), por eso cada extrusor extra recibe uno; probado con Orca real (`samples/multicolor-2-extrusores.3mf`) |
 | P6 | ◐ | Pestañas de Configuración agrupadas, alertas de Inicio por urgencia (máx. 5 por grupo), colores de estado semánticos (`text-danger/warn/ok`, 54 usos). Sin regresión visual con capturas |
 
+
+## Fase de cierre (esquemas, cola y Estudio) · rama `feature/jobs-queue`
+Migraciones nuevas: `0013` jobs · `0014` quality_presets · `0015`/`0016` vínculo material→perfil (copiar y luego contraer) · `0017` filament_lines · `0018` carpetas y etiquetas. Todas expanden y copian antes de contraer; `0015` copia cada vínculo heredado a la tabla nueva y recién `0016` elimina la columna, así que ningún dato se pierde (conviene igualmente un respaldo previo desde Configuración → Respaldo).
+
+| Paquete | Estado | Notas |
+|---|---|---|
+| P4 cola `jobs` persistente | ✅ | Tabla `jobs`, worker con reintentos y espera creciente, recuperación de lo «en ejecución» tras un reinicio, panel en Configuración → Sistema con reintento manual. Hoy lo usa el análisis de archivos; los nuevos tipos se registran en `lib/jobs.ts` |
+| P2 `quality_presets` + `ProfileRef` | ✅ | Calidades editables (Configuración → Calidades), sembradas desde las de fábrica (backfill idempotente); sirven para cualquier boquilla; los chips del laminador salen de la tabla. `ProfileRef` = perfil concreto o intención de calidad resuelta contra una impresora |
+| P2 contraer `materials.filament_profile_id` | ✅ | Tabla `material_filament_links` (general o por impresora). Orden de resolución del filamento: explícito → perfil del material (el de esa impresora primero) → perfil de la línea → sugerido por marca/tipo |
+| P2 `filament_lines` | ✅ | Entidad con costo, stock mínimo y perfil de laminado por defecto; backfill desde marca + línea; edición masiva en Inventario |
+| P2 diff contra fábrica | ✅ | El editor de perfiles lista cada cambio con su valor de fábrica |
+| P4 carpetas y etiquetas | ✅ | Carpetas jerárquicas (`A/B`) que existen aunque estén vacías, renombrar/mover arrastra subcarpetas y archivos; colores de etiquetas |
+| P4 reparación de malla | ✅ | Soldar, quitar degenerados/repetidos, orientar, tapar huecos pequeños; se guarda como versión nueva. No reconstruye zonas grandes |
+| P4 STEP | ✅ | Estaba programado pero `occt-import-js` no era dependencia (fallaba al convertir); ahora se instala y está probado con un cubo STEP |
+| P4 miniatura giratoria | ✅ | WebP animado de 12 cuadros que gira al pasar el mouse sobre la tarjeta |
+| P4 3MF inteligente | ✅ | «Usar los ajustes de este proyecto»: impresora, calidad y filamentos del 3MF pasan a perfiles |
+| P4 etiquetado con imagen | ✅ | La miniatura viaja a la IA solo si el taller permitió enviar imágenes; si no, reintenta solo con texto |
+| P4 pintura por cara | ◐ | Decodifica `paint_color`; una cara subdividida en varios colores toma el de su primera hoja |
+| P5 visor | ✅ | Caudal, ventilador, temperatura, herramienta, viajes y retracciones (`MFG3`); los archivos analizados antes no traen los datos nuevos hasta volver a analizarlos |
+| P5 comparar A/B | ✅ | Estudio: base y ajustes lado a lado |
+| P5 SSE | ✅ | `/api/runs/stream` con respaldo de sondeo |
+| P5 asesor de IA en el Estudio | ✅ | Los candidatos se lamina con ajustes de sesión sobre el perfil real: ya no se crean perfiles ocultos |
+| P5 esquema ampliado | ✅ | `npm run orca:install` genera `data/orca-schema.json` (≈450 claves) desde el código fuente de OrcaSlicer; no se versiona (AGPL). Entran como página «Otros (OrcaSlicer)», nivel Experto, con el texto en inglés de Orca |
+| P5 worker aislado | ✅ | `MF_EXTERNAL_WORKER=1` + `npm run worker` (servicio `worker` en docker-compose); requiere Postgres |
+| P5 estimación rápida | ✅ | En el Estudio, mientras Orca calcula, se muestra una estimación aproximada desde la malla |
+| P6 | ◐ | Regresión visual con líneas base (`npm run test:visual`, opt-in), cajas de aviso semánticas (`box-warn`/`box-danger`), etiqueta de resina en la cola. Quedan colores literales de chips y el barrido de Reportes |
+
 ## Decisiones técnicas que conviene revisar
 1. **Compatibilidad hacia atrás por encima de la limpieza:** nada se eliminó (columnas heredadas, modelo de precios histórico, `taxMode`). Cada «contraer» necesita su propia migración con vista previa.
 2. **Migraciones nuevas** (`drizzle/0006`–`0010`): proveedores, IVA como casilla, plantilla/PDF, origen de modelos, `inputs` del laminado. Son aditivas.

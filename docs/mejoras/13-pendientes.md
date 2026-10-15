@@ -1,42 +1,27 @@
 # 13 · Pendientes del plan de mejoras
 
-Estado tras la fase de pendientes (P0–P5 parcial). Lo entregado está en [`12-estado-de-implementacion.md`](12-estado-de-implementacion.md); el plan original, en [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pendientes.md). Versión interactiva (desactualizada respecto de este archivo): <https://claude.ai/artifact/8TgLT4hyryz1CfgPtAEMVc>.
+Lo entregado está en [`12-estado-de-implementacion.md`](12-estado-de-implementacion.md); el plan, en [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pendientes.md). La versión interactiva (artefacto) quedó desactualizada: este archivo es la fuente vigente.
 
 Tamaño = estimación relativa: S menos de un día · M 1 a 3 días · L más de 3.
 
-## Verificación que depende de ti
+## Depende de ti o del entorno
 | Ítem | Detalle | Tamaño |
 |---|---|---|
-| S6 · MakerWorld | El sandbox bloquea el dominio; correr `scripts/spikes/s6-makerworld.sh` con acceso. De su resultado depende N3 ruta B | S |
-| Regresión visual con capturas | Las líneas base no son reproducibles entre máquinas; hay que fijarlas en el entorno de CI | M |
+| S6 · MakerWorld y N3 ruta B | El sandbox bloquea el dominio. Correr `scripts/spikes/s6-makerworld.sh` con acceso; de su resultado depende la descarga automática con cuenta Bambu | S + L |
+| Calculadora fases 2 a 5 y perfil «Heredado» como entidad | Bloqueadas por las 10 decisiones de `docs/spec-calculadora.md` §14 | L |
+| Verificar el directorio de proveedores | Lo hace el equipo; el flujo para marcar «verificado» (fecha y quién) ya existe | S |
+| Líneas base de regresión visual | Se generaron en este entorno; en CI hay que regenerarlas con `npm run test:visual:update` | S |
 
-## R2 · Perfiles, filamentos y calculadora
-- Contraer `materials.filament_profile_id` (71 referencias; necesita migración con vista previa y respaldo) (M) · tabla `quality_presets` y `ProfileRef` con backfill (L).
-- `filament_lines` como tabla propia (L; la edición masiva ya existe) · «Mis perfiles»: diff contra fábrica (S; «Usado en» ya enlaza).
-- Calculadora: perfil «Heredado» como entidad (S) · fases 2 a 5 de `docs/spec-calculadora.md` (L, bloqueadas por decisiones).
-- Verificar el contenido de los proveedores sembrados (lo hace el equipo; el flujo para marcarlos ya existe).
+## Opcionales que no se hicieron
+- **Edición de placa, nivel B** (L): `--rotate`/`--scale` fallan en Orca 2.4.2; habría que hornear las transformaciones en un 3MF propio con vértices soldados.
+- **N7b editor de bloques** del documento de presupuesto (L) y **tablero con arrastrar y soltar** (S; los estados siguen su flujo, por eso es solo lectura).
+- **«Ver detalles» como página propia** (S; hoy es un desplegable por línea).
 
-## R3 · Cotizaciones y documentos
-- N7b editor de bloques (opcional, L) · tablero con arrastrar y soltar (opcional, S) · «Ver detalles» como página propia (S).
-
-## R4 · Biblioteca e importación
-- N3 ruta B, descarga con cuenta Bambu (bloqueada por S6, L).
-- Cola de procesamiento persistente `jobs` (L) · tablas `tags`/`folders` y colecciones (M).
-- Miniatura giratoria, 3MF inteligente, STEP, reparación de malla (L) · pintura por cara en el visor (M) · etiquetado con imagen (S).
-
-## R5 · Estudio de laminado
-- SSE en lugar de sondeo (S).
-- Edición de placa, nivel B (opcional, L): `--rotate`/`--scale` fallan en Orca 2.4.2; hornear transformaciones en un 3MF propio con vértices soldados.
-- Esquema generado desde Orca al instalar (L; hoy 64 claves curadas; el texto de Orca es AGPL: no se commitea).
-- Visor: viajes/retracciones y comparar A/B (M; ventilador, temperatura y herramienta ya están, formato MFG3) · asesor de IA dentro del Estudio sin perfiles fantasma (M).
-- Worker aislado y vista rápida aproximada (L) · multicolor: asignación por pieza y pintura por cara (M).
-
-## R6 · Pulido
-- Barrido de pantallas restantes: Reportes, columna de resina en Cola (M).
-- Tokenizar colores sueltos (`emerald-`, `amber-`, `red-`, `slate`) (L).
-- Migrar el resto de los componentes al kit Radix, pantalla por pantalla (L).
+## Pulido que queda
+- Colores literales de chips e insignias (`emerald-`, `amber-`, `sky-` en fondos) hacia tokens (M); barrido de Reportes (M); migrar el resto de los componentes al kit Radix, pantalla por pantalla (L).
+- Pintura por cara: una cara subdividida en varios colores muestra uno solo (S).
+- Los archivos analizados antes de `MFG3` no muestran ventilador/temperatura/herramienta/viajes hasta volver a analizarlos (S: botón «Reprocesar» ya existe por archivo).
 
 ## Decisiones que dependen del equipo
 1. Las 10 decisiones de `docs/spec-calculadora.md` §14.
-2. Verificar el directorio de proveedores.
-3. Borrar o conservar las ramas `feature/r0-spikes` … `feature/r5-r6-estudio-paletas`.
+2. Borrar o conservar las ramas `feature/r0-spikes` … `feature/p4-biblioteca` (ya están en `development`).
