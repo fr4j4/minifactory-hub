@@ -21,14 +21,22 @@ export function useRunPolling(ids: string[], onDone?: () => void) {
   const [runs, setRuns] = useState<Record<string, RunInfo>>({});
   const idsKey = ids.join(',');
   useEffect(() => {
-    if (!ids.length) return; let stop = false;
-    const tick = async () => {
+    if (!ids.length) return; let stop = false; let es: EventSource | null = null; let timer: ReturnType<typeof setTimeout> | null = null;
+    const finished = (r: RunInfo | null | undefined) => !!r && (r.status === 'done' || r.status === 'error' || r.status === 'cancelado');
+    // respaldo: sondeo cada 700 ms (si el navegador no soporta SSE o la conexión se cae)
+    const poll = async () => {
       const res = await Promise.all(ids.map((id) => fetch(`/api/runs/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
       if (stop) return; const next: Record<string, RunInfo> = {}; res.forEach((r, i) => { if (r) next[ids[i]] = r; }); setRuns(next);
-      if (res.every((r) => r && (r.status === 'done' || r.status === 'error' || r.status === 'cancelado'))) { onDone?.(); return; }
-      setTimeout(tick, 700);
+      if (res.every(finished)) { onDone?.(); return; }
+      timer = setTimeout(poll, 700);
     };
-    tick(); return () => { stop = true; };
+    if (typeof EventSource === 'undefined') { poll(); return () => { stop = true; if (timer) clearTimeout(timer); }; }
+    const seen: Record<string, RunInfo> = {}; let ended = false;
+    es = new EventSource(`/api/runs/stream?ids=${ids.join(',')}`);
+    es.addEventListener('run', (e) => { const r = JSON.parse((e as MessageEvent).data) as RunInfo; seen[r.id] = r; if (!stop) setRuns({ ...seen }); });
+    es.addEventListener('end', () => { ended = true; es?.close(); if (!stop) onDone?.(); });
+    es.onerror = () => { es?.close(); if (!ended && !stop) poll(); };
+    return () => { stop = true; es?.close(); if (timer) clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
   return runs;
