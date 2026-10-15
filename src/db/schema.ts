@@ -844,3 +844,16 @@ export const filamentLines = pgTable('filament_lines', {
   stockMinG: integer('stock_min_g'),
   filamentProfileId: uuid('filament_profile_id'),
 }, (t) => [index('filament_lines_ix').on(t.workspaceId, t.manufacturer, t.name)]);
+
+/** Carpetas de la biblioteca de modelos (ruta con «/», p. ej. «Clientes/Ana»). Existen aunque estén vacías; los archivos guardan la ruta en `model_files.folder`. */
+export const folders = pgTable('folders', {
+  ...base(),
+  path: text('path').notNull(),
+}, (t) => [uniqueIndex('folders_path_uq').on(t.workspaceId, t.path)]);
+
+/** Etiquetas de la biblioteca con color; los archivos las guardan por nombre en `model_files.tags`. */
+export const tagDefs = pgTable('tag_defs', {
+  ...base(),
+  name: text('name').notNull(),
+  color: text('color'),
+}, (t) => [uniqueIndex('tag_defs_name_uq').on(t.workspaceId, t.name)]);

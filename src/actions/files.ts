@@ -11,6 +11,9 @@ export async function updateFileAction(id: string, i: { name?: string; folder?: 
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
     const patch: Record<string, any> = { updatedAt: new Date() };
     for (const k of ['name', 'folder', 'tags', 'license', 'origin', 'author', 'customerId', 'favorite'] as const) if (i[k] !== undefined) patch[k] = i[k];
+    const L = await import('@/lib/library/folders');
+    if (i.folder !== undefined) patch.folder = await L.ensureFolder(i.folder, db);
+    if (i.tags) await L.ensureTags(i.tags, db);
     await db.update(s.modelFiles).set(patch).where(eq(s.modelFiles.id, id));
     await audit('model_file', id, 'editar', Object.keys(patch), u.id);
   }, ['/archivos', `/archivos/${id}`]);
@@ -90,10 +93,10 @@ export async function bulkFilesAction(ids: string[], op: BulkOp) {
       if (op.kind === 'addTags') {
         const cur = new Set((f.tags ?? []).map(normalizeTag)); const next = [...(f.tags ?? [])]; const meta = { ...(f.tagMeta ?? {}) };
         for (const t of op.tags) { const n = normalizeTag(t); if (n && !cur.has(n)) { cur.add(n); next.push(n); meta[n] = { source: 'manual' }; } }
-        patch.tags = next; patch.tagMeta = meta;
+        patch.tags = next; patch.tagMeta = meta; await (await import('@/lib/library/folders')).ensureTags(next, db);
       } else if (op.kind === 'removeTag') {
         const n = normalizeTag(op.tag); patch.tags = (f.tags ?? []).filter((t) => normalizeTag(t) !== n); const meta = { ...(f.tagMeta ?? {}) }; delete meta[n]; patch.tagMeta = meta;
-      } else if (op.kind === 'folder') patch.folder = op.folder?.trim() || null;
+      } else if (op.kind === 'folder') patch.folder = await (await import('@/lib/library/folders')).ensureFolder(op.folder, db);
       else if (op.kind === 'favorite') patch.favorite = op.value;
       else if (op.kind === 'customer') patch.customerId = op.customerId;
       await db.update(s.modelFiles).set(patch).where(eq(s.modelFiles.id, f.id));
@@ -115,6 +118,7 @@ export async function renameTagAction(from: string, to: string) {
       const next = [...new Set((f.tags ?? []).map((t) => (normalizeTag(t) === a ? b : t)))]; const meta = { ...(f.tagMeta ?? {}) }; if (meta[a]) { meta[b] = meta[b] ?? meta[a]; delete meta[a]; }
       await db.update(s.modelFiles).set({ tags: next, tagMeta: meta, updatedAt: new Date() }).where(eq(s.modelFiles.id, f.id)); n++;
     }
+    { const F = await import('@/lib/library/folders'); await F.ensureTags([b], db); const [old] = await db.select().from(s.tagDefs).where(eq(s.tagDefs.name, a)); if (old?.color) await F.setTagColor(b, old.color, db); await db.delete(s.tagDefs).where(eq(s.tagDefs.name, a)); }
     await audit('model_file', 'tags', 'renombrar_etiqueta', { from: a, to: b, n }, u.id);
     return n;
   }, ['/archivos']);
@@ -123,4 +127,18 @@ export async function renameTagAction(from: string, to: string) {
 /** Recuerda si este modelo se lamina con orientación automática. */
 export async function setAutoOrientAction(modelFileId: string, on: boolean) {
   return safe(async () => { await requirePerm('laminador', 'V'); const db = await getDb(); await db.update(s.modelFiles).set({ autoOrient: on }).where(eq(s.modelFiles.id, modelFileId)); }, []);
+}
+
+/** Carpetas de la biblioteca: crear, renombrar/mover y eliminar (los archivos suben a la carpeta madre). */
+export async function createFolderAction(path: string) {
+  return safe(async () => { await requirePerm('archivos', 'E'); const p = await (await import('@/lib/library/folders')).ensureFolder(path); if (!p) throw new Error('folder'); return p; }, ['/archivos']);
+}
+export async function renameFolderAction(from: string, to: string) {
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).renameFolder(from, to); await audit('model_file', 'folders', 'renombrar_carpeta', { from, to, n }, u.id); return n; }, ['/archivos']);
+}
+export async function deleteFolderAction(path: string) {
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).deleteFolder(path); await audit('model_file', 'folders', 'eliminar_carpeta', { path, n }, u.id); return n; }, ['/archivos']);
+}
+export async function setTagColorAction(name: string, color: string | null) {
+  return safe(async () => { await requirePerm('archivos', 'E'); await (await import('@/lib/library/folders')).setTagColor(name, color); }, ['/archivos']);
 }

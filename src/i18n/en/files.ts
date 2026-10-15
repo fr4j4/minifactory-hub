@@ -2,6 +2,18 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const files: Shape<typeof es['files']> = {
+  manageFolders: 'Folders and tags',
+  folders: 'Folders',
+  noFolders: 'No folders yet. Create one or type a path like “Clients/Ana” when moving files.',
+  folderNewPlaceholder: 'New folder (e.g. Clients/Ana)',
+  folderCreate: 'Create',
+  folderCreated: 'Folder created',
+  folderRenamed: 'Folder updated',
+  folderNewName: 'New name or path',
+  folderDeleted: 'Folder deleted; its files moved up a level',
+  folderDeleteConfirm: 'Delete the folder “{name}”? Its files move to the parent folder.',
+  tagColors: 'Tag colors',
+  tagColorOf: 'Color of tag {tag}',
   duplicateTitle: 'This file is already in the library',
   duplicateBody: '“{f}” is identical to “{name}”, which already exists. What do you want to do?',
   duplicateOpen: 'View the existing one',

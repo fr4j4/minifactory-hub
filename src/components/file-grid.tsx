@@ -11,7 +11,7 @@ import { FavButton } from './file-bits';
 export interface FileCard { id: string; name: string; format: string; versionId: string | null; hasThumb: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean }
 
 /** Rejilla de la biblioteca con selección múltiple y acciones masivas (etiquetar, mover, favorito). */
-export function FileGrid({ cards, canEdit, vocabulary }: { cards: FileCard[]; canEdit: boolean; vocabulary: Array<{ tag: string; n: number }> }) {
+export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards: FileCard[]; canEdit: boolean; vocabulary: Array<{ tag: string; n: number }>; tagColors?: Record<string, string> }) {
   const t = useT(); const toast = useToast(); const router = useRouter();
   const [sel, setSel] = useState<Set<string>>(new Set()); const [tagText, setTagText] = useState(''); const [folder, setFolder] = useState(''); const [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
@@ -46,7 +46,7 @@ export function FileGrid({ cards, canEdit, vocabulary }: { cards: FileCard[]; ca
                 {c.closed === false && <Badge tone="amber">{t('files.openMesh')}</Badge>}{c.version > 1 && <Badge>v{c.version}</Badge>}{c.multicolor && <Badge tone="violet">{t('files.badgeMulticolor')}</Badge>}
                 {c.fits.length > 0 && <Badge tone="green" className="max-w-full truncate">{t('files.badgeFits', { names: c.fits.slice(0, 2).join(', ') + (c.fits.length > 2 ? '…' : '') })}</Badge>}
                 {c.slices > 0 && <Badge tone="blue">{t('files.badgeSlices', { n: c.slices })}</Badge>}{c.quotes > 0 && <Badge tone="blue">{t('files.badgeQuotes', { n: c.quotes })}</Badge>}
-                {c.tags.slice(0, 3).map((tt) => <Badge key={tt}>{tt}</Badge>)}
+                {c.tags.slice(0, 3).map((tt) => <span key={tt} className="badge" style={tagColors[tt] ? { borderColor: tagColors[tt], boxShadow: `inset 3px 0 0 ${tagColors[tt]}` } : undefined}>{tt}</span>)}
               </div>
             </div>
           </li>))}

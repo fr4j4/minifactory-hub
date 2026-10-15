@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { inFolder, listFolders, tagColors } from '@/lib/library/folders';
+import { FolderManager } from '@/components/folder-manager';
 import { and, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
@@ -18,11 +20,11 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
   const conds = [isNull(s.modelFiles.deletedAt)];
   if (sp.q) conds.push(or(ilike(s.modelFiles.name, `%${sp.q}%`), ilike(s.modelFiles.origin, `%${sp.q}%`), sql`${s.modelFiles.tags}::text ilike ${'%' + sp.q + '%'}`)!);
   if (sp.tag) conds.push(sql`${s.modelFiles.tags}::text ilike ${'%"' + sp.tag + '"%'}`);
-  if (sp.folder) conds.push(eq(s.modelFiles.folder, sp.folder));
+  if (sp.folder) conds.push(inFolder(sp.folder));
   if (sp.fav) conds.push(eq(s.modelFiles.favorite, true));
   const rows = await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).leftJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(and(...conds)).orderBy(desc(s.modelFiles.favorite), desc(s.modelFiles.updatedAt)).limit(200);
   const all = await db.select({ tags: s.modelFiles.tags, folder: s.modelFiles.folder }).from(s.modelFiles).where(isNull(s.modelFiles.deletedAt));
-  const tags = [...new Set(all.flatMap((a) => a.tags ?? []))].sort(); const folders = [...new Set(all.map((a) => a.folder).filter(Boolean) as string[])].sort();
+  const tags = [...new Set(all.flatMap((a) => a.tags ?? []))].sort(); const folderRows = await listFolders(db); const folders = folderRows.map((f) => f.path); const colors = await tagColors(db);
   // insignias de uso: cabe en máquinas, laminados y presupuestos (una consulta por tipo, no por modelo)
   const machines = await db.select({ name: s.machines.name, x: s.machines.volX, y: s.machines.volY, z: s.machines.volZ }).from(s.machines).where(isNull(s.machines.deletedAt));
   const vIds = rows.map((r) => r.v?.id).filter(Boolean) as string[]; const fIds = rows.map((r) => r.f.id);
@@ -43,8 +45,9 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
         <label className="flex items-center gap-1.5 text-sm px-1"><input type="checkbox" name="fav" value="1" defaultChecked={!!sp.fav} /> {t('files.favorites')}</label>
         <button className="btn-ghost">{t('common.filter')}</button>
       </form>
+      {can(user, 'archivos', 'E') && <FolderManager folders={folderRows} tags={vocabulary.map((v) => ({ ...v, color: colors.get(v.tag) ?? null }))} />}
       {rows.length === 0 ? <Card><Empty title={t('files.noFiles')} hint={t('files.uploadAnStlOr3mf')} /></Card> : (
-        <FileGrid canEdit={can(user, 'archivos', 'E')} vocabulary={vocabulary} cards={cards} />
+        <FileGrid canEdit={can(user, 'archivos', 'E')} vocabulary={vocabulary} cards={cards} tagColors={Object.fromEntries(colors)} />
       )}
     </>
   );

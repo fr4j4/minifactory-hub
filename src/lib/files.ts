@@ -38,7 +38,7 @@ export async function ingestModel(i: IngestInput) {
   if (!modelId) {
     const base = i.filename.replace(/\.[^.]+$/, '');
     const [m] = await db.insert(s.modelFiles).values({
-      workspaceId: WORKSPACE_ID, name: base, folder: i.folder ?? null, tags: i.tags ?? [], format: ext, hash: sha, customerId: i.customerId ?? null,
+      workspaceId: WORKSPACE_ID, name: base, folder: (await (await import('./library/folders')).ensureFolder(i.folder, db)), tags: i.tags ?? [], format: ext, hash: sha, customerId: i.customerId ?? null,
       origin: i.origin ?? null, license: i.license ?? 'propia', author: i.author ?? null, createdBy: i.userId ?? null,
     }).returning({ id: s.modelFiles.id });
     modelId = m.id;
