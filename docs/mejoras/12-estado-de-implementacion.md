@@ -81,7 +81,7 @@ Plan: [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pend
 | P4 etiquetado automático | ✅ | Opcional (Configuración → Sistema): solo reglas con confianza ≥ 0,8; la IA nunca se aplica sola |
 | P5 orientación por modelo | ✅ | `model_files.auto_orient` (migración `0012`); la casilla del laminador se recuerda |
 | P5 cola desde el laminado | ✅ | «Agregar a la cola» crea un trabajo de prueba con máquina, material, gramos y horas del laminado |
-| P5 visor | ◐ | Modo de color por caudal (mm³/s = ancho × altura × velocidad). Faltan temperatura, ventilador y herramienta (requieren ampliar el formato de vista previa) |
+| P5 visor | ◐ | Modos por caudal, ventilador, temperatura y herramienta (formato `MFG3`; los archivos analizados antes siguen en MFG2 y no muestran los tres últimos). Faltan viajes/retracciones y comparar A/B |
 | P5 multicolor | ✅ | Un material por extrusor en proyectos 3MF multicolor; OrcaSlicer exige colores distintos por filamento (si no, error −100), por eso cada extrusor extra recibe uno; probado con Orca real (`samples/multicolor-2-extrusores.3mf`) |
 | P6 | ◐ | Pestañas de Configuración agrupadas, alertas de Inicio por urgencia (máx. 5 por grupo), colores de estado semánticos (`text-danger/warn/ok`, 54 usos). Sin regresión visual con capturas |
 

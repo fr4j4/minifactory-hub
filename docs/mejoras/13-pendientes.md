@@ -12,7 +12,7 @@ Tamaño = estimación relativa: S menos de un día · M 1 a 3 días · L más de
 
 ## R2 · Perfiles, filamentos y calculadora
 - Contraer `materials.filament_profile_id` (71 referencias; necesita migración con vista previa y respaldo) (M) · tabla `quality_presets` y `ProfileRef` con backfill (L).
-- `filament_lines` como tabla propia (L; la edición masiva ya existe) · «Mis perfiles»: diff contra fábrica y «Usado en» accionable (M).
+- `filament_lines` como tabla propia (L; la edición masiva ya existe) · «Mis perfiles»: diff contra fábrica (S; «Usado en» ya enlaza).
 - Calculadora: perfil «Heredado» como entidad (S) · fases 2 a 5 de `docs/spec-calculadora.md` (L, bloqueadas por decisiones).
 - Verificar el contenido de los proveedores sembrados (lo hace el equipo; el flujo para marcarlos ya existe).
 
@@ -28,7 +28,7 @@ Tamaño = estimación relativa: S menos de un día · M 1 a 3 días · L más de
 - SSE en lugar de sondeo (S).
 - Edición de placa, nivel B (opcional, L): `--rotate`/`--scale` fallan en Orca 2.4.2; hornear transformaciones en un 3MF propio con vértices soldados.
 - Esquema generado desde Orca al instalar (L; hoy 64 claves curadas; el texto de Orca es AGPL: no se commitea).
-- Visor: temperatura, ventilador, herramienta, viajes/retracciones, comparar A/B (L) · asesor de IA dentro del Estudio sin perfiles fantasma (M).
+- Visor: viajes/retracciones y comparar A/B (M; ventilador, temperatura y herramienta ya están, formato MFG3) · asesor de IA dentro del Estudio sin perfiles fantasma (M).
 - Worker aislado y vista rápida aproximada (L) · multicolor: asignación por pieza y pintura por cara (M).
 
 ## R6 · Pulido
