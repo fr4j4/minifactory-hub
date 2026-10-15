@@ -259,4 +259,3 @@ describe('biblioteca: ZIP y acciones masivas (R4)', () => {
     expect(folders).toEqual(['Importados/pack', 'Importados/pack/llaveros']);
   });
 });
-});
