@@ -1,72 +1,5 @@
 [
  {
-  "name": "Armar y guardar un presupuesto con 2 líneas",
-  "seconds": 1.2,
-  "steps": 0,
-  "limitS": 120,
-  "ok": true,
-  "note": "objetivo de la spec: menos de 2 min"
- },
- {
-  "name": "Registrar un pedido manual (WhatsApp)",
-  "seconds": 0.5,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true,
-  "note": "objetivo de la spec: menos de 1 min"
- },
- {
-  "name": "Terminar un trabajo y descontar la bobina",
-  "seconds": 0.2,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true
- },
- {
-  "name": "Registrar una venta rápida de marketplace",
-  "seconds": 0.8,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true,
-  "note": "objetivo: menos de 30 s"
- },
- {
-  "name": "Detectar y conectar una impresora Bambu Lab",
-  "seconds": 8,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true,
-  "note": "búsqueda de 6 s + prueba de conexión"
- },
- {
-  "name": "Enviar un laminado a la impresora",
-  "seconds": 1.6,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true
- },
- {
-  "name": "Iniciar sesión en Bambu Cloud y agregar una impresora",
-  "seconds": 2.1,
-  "steps": 0,
-  "limitS": 90,
-  "ok": true
- },
- {
-  "name": "Configurar una impresora nueva para laminar",
-  "seconds": 0.3,
-  "steps": 0,
-  "limitS": 20,
-  "ok": true
- },
- {
-  "name": "Comparar 3 combinaciones de laminado",
-  "seconds": 2.6,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true
- },
- {
   "name": "Subir un STL y ver su análisis",
   "seconds": 2.1,
   "steps": 0,
@@ -75,11 +8,78 @@
   "note": "incluye subida por partes, análisis y miniatura"
  },
  {
+  "name": "Armar y guardar un presupuesto con 2 líneas",
+  "seconds": 1.5,
+  "steps": 0,
+  "limitS": 120,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 2 min"
+ },
+ {
+  "name": "Registrar un pedido manual (WhatsApp)",
+  "seconds": 0.4,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 1 min"
+ },
+ {
+  "name": "Terminar un trabajo y descontar la bobina",
+  "seconds": 0.3,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true
+ },
+ {
+  "name": "Registrar una venta rápida de marketplace",
+  "seconds": 1,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo: menos de 30 s"
+ },
+ {
+  "name": "Iniciar sesión en Bambu Cloud y agregar una impresora",
+  "seconds": 2.4,
+  "steps": 0,
+  "limitS": 90,
+  "ok": true
+ },
+ {
   "name": "Laminar una pieza y ver tiempo, gramos y precio",
-  "seconds": 3.2,
+  "seconds": 2.6,
   "steps": 0,
   "limitS": 30,
   "ok": true,
   "note": "objetivo de la spec: menos de 30 s"
+ },
+ {
+  "name": "Comparar 3 combinaciones de laminado",
+  "seconds": 2.2,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true
+ },
+ {
+  "name": "Detectar y conectar una impresora Bambu Lab",
+  "seconds": 8.2,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true,
+  "note": "búsqueda de 6 s + prueba de conexión"
+ },
+ {
+  "name": "Enviar un laminado a la impresora",
+  "seconds": 1,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true
+ },
+ {
+  "name": "Configurar una impresora nueva para laminar",
+  "seconds": 0.3,
+  "steps": 0,
+  "limitS": 20,
+  "ok": true
  }
 ]

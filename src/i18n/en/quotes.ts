@@ -2,6 +2,8 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const quotes: Shape<typeof es['quotes']> = {
+  viewKanban: 'Board',
+  kanbanEmpty: 'No quotes in this status.',
   followUpTitle: 'Follow up: {number}',
   followUpBody: 'Sent {days} days ago, no answer · {customer}',
   compareWith: 'compare',

@@ -2,8 +2,8 @@ import { expect, login, measure, shot, test } from './helpers';
 
 test.describe('Laminador en el servidor (OrcaSlicer)', () => {
   test('lamina una pieza, ve las capas y descarga el G-code', async ({ page, saveAs }) => {
-    await login(page); await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle');
-    await page.getByRole('link', { name: 'Laminar y cotizar' }).click(); await shot(page, '20-laminar-panel');
+    await login(page); await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle');
+    await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!); await shot(page, '20-laminar-panel');
     await measure('Laminar una pieza y ver tiempo, gramos y precio', { limitS: 30, note: 'objetivo de la spec: menos de 30 s' }, async () => {
       await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 60000 });
     });
@@ -16,7 +16,7 @@ test.describe('Laminador en el servidor (OrcaSlicer)', () => {
     await page.getByTestId('slice-copies').fill('4'); await page.getByTestId('slice-go').click(); await expect(page.getByTestId('res-time')).not.toHaveText(t1, { timeout: 60000 });
     const t4 = await page.getByTestId('res-time').innerText(); const [h, m] = t4.replace(' h', '').split(':').map(Number); expect(h * 60 + m).toBeLessThan(min1 * 4); await shot(page, '23-laminar-4-copias');
     // pieza que no cabe: mensaje claro
-    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Placa grande 300 mm' }).first().click(); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Placa grande 300 mm' }).first().click(); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
     await page.getByTestId('slice-machine').selectOption({ index: 1 }); await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-error')).toContainText('no cabe', { timeout: 60000 }); await shot(page, '24-laminar-no-cabe');
     saveAs('laminador-resultado-capas');
   });
@@ -29,7 +29,7 @@ test.describe('Laminador en el servidor (OrcaSlicer)', () => {
     await page.getByTestId('param-sparse_infill_density').fill('50%'); await page.getByTestId('param-sparse_infill_pattern').selectOption('gyroid'); await page.getByTestId('param-outer_wall_speed').fill('60'); await shot(page, '26-editor-perfil');
     await page.getByTestId('profile-save').click(); await expect(page.getByTestId('profile-versions')).toContainText('v2'); await expect(page.getByTestId('profile-versions')).toContainText('Actual');
     // el siguiente laminado usa la versión nueva: más gramos que con el 15% de fábrica
-    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
     await page.getByTestId('slice-process').selectOption({ label: 'A1 · 0,20 Standard (copia)' }); await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 60000 });
     const g = parseFloat((await page.getByTestId('res-grams').innerText()).replace(',', '.')); expect(g).toBeGreaterThan(8.5);
     // volver a la v1

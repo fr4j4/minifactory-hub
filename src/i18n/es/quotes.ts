@@ -1,4 +1,6 @@
 export const quotes = {
+  viewKanban: 'Tablero',
+  kanbanEmpty: 'No hay presupuestos en este estado.',
   followUpTitle: 'Seguimiento: {number}',
   followUpBody: 'Enviado hace {days} días sin respuesta · {customer}',
   compareWith: 'comparar',

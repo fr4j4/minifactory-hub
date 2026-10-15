@@ -49,6 +49,20 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         </li>);
     })}</ul>
   );
+  const kanban = (
+    <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5 items-start" data-testid="quotes-kanban">
+      {STATUSES.map((k) => { const col = rows.filter((q) => q.status === k); return (
+        <section key={k} aria-label={t(`status.${k}` as 'status.borrador')} className="card p-2.5 space-y-2 bg-[var(--bg)]">
+          <h3 className="flex items-center justify-between text-sm font-semibold px-1"><span>{t(`status.${k}` as 'status.borrador')}</span><span className="muted tabular font-normal">{col.length} · {money(col.reduce((a, q) => a + q.total, 0))}</span></h3>
+          {col.length === 0 ? <p className="text-xs muted px-1 py-3">{t('quotes.kanbanEmpty')}</p> : col.map((q) => { const v = validity(q); return (
+            <Link key={q.id} href={`/presupuestos/${q.id}`} className="card p-2.5 block hover:border-[var(--accent)] min-h-[44px]" data-testid="quote-card">
+              <div className="flex items-center justify-between gap-2 text-sm"><span className="font-medium truncate">{q.number}{q.version > 1 && <span className="muted"> v{q.version}</span>}</span><span className="tabular font-semibold">{money(q.total)}</span></div>
+              <div className="text-xs muted truncate">{q.customerName ?? t('common.noCustomer')}{q.title ? ` · ${q.title}` : ''}</div>
+              {v && <div className="mt-1"><Badge tone={v.tone}>{v.d < 0 ? t('quotes.expiredAgo', { n: -v.d }) : v.d === 0 ? t('quotes.expiresToday') : t('quotes.expiresIn', { n: v.d })}</Badge></div>}
+            </Link>); })}
+        </section>); })}
+    </div>
+  );
   const table = (
     <Card pad={false}><Table><thead><tr><th className="th">{t('common.noLabel')}</th><th className="th">{t('common.customer')}</th><th className="th">{t('quotes.title')}</th><th className="th text-right">{t('common.suggested')}</th><th className="th text-right">{t('common.total')}</th>{costs && <th className="th text-right">{t('common.margin')}</th>}<th className="th">{t('quotes.validUntil')}</th><th className="th">{t('common.status')}</th></tr></thead>
       <tbody>{rows.map((q) => { const m = (q.calc as any)?.totals?.marginPct; const diff = q.suggestedTotal ? ((q.total - q.suggestedTotal) / q.suggestedTotal) * 100 : 0; return (
@@ -66,7 +80,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       </div>
       <Tabs current={sp.st ?? ''} tabs={[{ key: '', href: qs(''), label: t('quotes.active'), count: active }, ...STATUSES.map((k) => ({ key: k, href: qs(k), label: t(`status.${k}` as 'status.borrador'), count: board.counts[k] ?? 0 }))]} />
       <form className="flex flex-wrap gap-2 mb-4" role="search"><input name="q" defaultValue={sp.q} className="input sm:max-w-xs" placeholder={t('quotes.searchByNumberCustomerOr')} aria-label={t('quotes.searchQuotes')} />{sp.st && <input type="hidden" name="st" value={sp.st} />}<button className="btn-ghost">{t('common.filter')}</button></form>
-      {rows.length === 0 ? <Card><Empty title={t('quotes.thereAreNoQuotes')} hint={t('quotes.createTheFirstOneUpload')} action={<Link className="btn-primary" href="/presupuestos/nuevo">{t('common.newQuote')}</Link>} /></Card> : <QuoteViews list={list} table={table} />}
+      {rows.length === 0 ? <Card><Empty title={t('quotes.thereAreNoQuotes')} hint={t('quotes.createTheFirstOneUpload')} action={<Link className="btn-primary" href="/presupuestos/nuevo">{t('common.newQuote')}</Link>} /></Card> : <QuoteViews list={list} table={table} kanban={kanban} />}
     </>
   );
 }

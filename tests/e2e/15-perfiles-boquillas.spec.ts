@@ -29,7 +29,7 @@ test.describe('Perfiles por boquilla', () => {
     await expect(page.getByText(/Boquilla 0,6 mm puesta/)).toBeVisible(); await expect(page.getByTestId('active-nozzle')).toContainText('0.30mm Standard'); await shot(page, 'P05-boquilla-puesta');
 
     // laminar: la lista de calidades pone primero las de la boquilla de la máquina y avisa si se elige otra
-    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
     await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1 · 0,6 mm' }); await expect(page.getByTestId('slice-nozzle')).toContainText('0.6');
     // con dos boquillas configuradas, cada una es una opción de máquina
     await expect(page.getByTestId('slice-machine').locator('option', { hasText: 'Bambu A1 #1 · 0,4 mm' })).toHaveCount(1);

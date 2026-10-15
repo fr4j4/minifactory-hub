@@ -18,7 +18,7 @@ test.describe('Uso en el celular (390×844)', () => {
 
   test('visor 3D: girar con un dedo y acercar con pellizco', async ({ page, saveAs }) => {
     await login(page);
-    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/); await page.waitForLoadState('networkidle');
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle');
     const host = page.getByTestId('viewer-host'); await expect(host).toBeVisible(); await page.waitForTimeout(1500);
     const b = (await host.boundingBox())!; const c: [number, number] = [b.x + b.width / 2, b.y + b.height / 2];
     await shot(page, '76-movil-visor-inicial');

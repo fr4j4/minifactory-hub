@@ -8,7 +8,7 @@ test.describe('Diseño «capa a capa»', () => {
     await page.getByRole('button', { name: 'Nuevo' }).click(); await page.waitForTimeout(500); await shot(page, '92-diseno-menu-nuevo'); await page.keyboard.press('Escape');
     await page.keyboard.press('Control+k'); await page.keyboard.type('barq'); await page.waitForTimeout(900); await shot(page, '93-diseno-busqueda'); await page.keyboard.press('Escape');
     await page.getByRole('link', { name: 'Cola' }).first().click(); await page.waitForURL('**/cola'); await page.waitForTimeout(700); await shot(page, '94-diseno-cola');
-    await page.getByRole('link', { name: 'Archivos 3D' }).first().click(); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForTimeout(2200); await shot(page, '95-diseno-visor');
+    await page.getByRole('link', { name: 'Archivos 3D' }).first().click(); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForTimeout(2200); await shot(page, '95-diseno-visor');
     await page.emulateMedia({ colorScheme: 'dark' }); await page.waitForTimeout(400); await page.reload(); await page.waitForTimeout(2200); await shot(page, '96-diseno-visor-oscuro');
     await page.goto('/'); await page.waitForTimeout(800); await shot(page, '97-diseno-inicio-oscuro');
     await page.goto('/pedidos'); await page.waitForTimeout(800); await shot(page, '98-diseno-pedidos-oscuro');
