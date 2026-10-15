@@ -16,7 +16,7 @@ test.describe('Laminador en el servidor (OrcaSlicer)', () => {
     await page.getByTestId('slice-copies').fill('4'); await page.getByTestId('slice-go').click(); await expect(page.getByTestId('res-time')).not.toHaveText(t1, { timeout: 60000 });
     const t4 = await page.getByTestId('res-time').innerText(); const [h, m] = t4.replace(' h', '').split(':').map(Number); expect(h * 60 + m).toBeLessThan(min1 * 4); await shot(page, '23-laminar-4-copias');
     // pieza que no cabe: mensaje claro
-    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Placa grande 300 mm' }).first().click(); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Placa grande 300 mm' }).first().getAttribute('href'))!); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
     await page.getByTestId('slice-machine').selectOption({ index: 1 }); await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-error')).toContainText('no cabe', { timeout: 60000 }); await shot(page, '24-laminar-no-cabe');
     saveAs('laminador-resultado-capas');
   });
