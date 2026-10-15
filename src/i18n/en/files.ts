@@ -203,6 +203,7 @@ export const files: Shape<typeof es['files']> = {
   suggestTags: 'Suggest tags',
   suggestTagsAi: 'Suggest with AI',
   tagsSuggested: 'Suggested tags',
+  addAllTags: 'Add all ({n})',
   tagsNone: 'No new suggestions.',
   addTag: 'Add',
   tagFromIa: 'AI',

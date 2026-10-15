@@ -200,6 +200,7 @@ export const files = {
   suggestTags: 'Sugerir etiquetas',
   suggestTagsAi: 'Sugerir con IA',
   tagsSuggested: 'Etiquetas sugeridas',
+  addAllTags: 'Agregar todas ({n})',
   tagsNone: 'Sin sugerencias nuevas.',
   addTag: 'Agregar',
   tagFromIa: 'IA',

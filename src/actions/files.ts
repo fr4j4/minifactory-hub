@@ -77,7 +77,7 @@ export async function addTagsAction(modelFileId: string, tags: Array<{ name: str
     const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new Error('not found');
     const { normalizeTag } = await import('@/lib/library/tags');
     const cur = new Set((f.tags ?? []).map(normalizeTag)); const next = [...(f.tags ?? [])]; const meta = { ...(f.tagMeta ?? {}) };
-    for (const t of tags.slice(0, 12)) { const n = normalizeTag(t.name); if (!n || cur.has(n)) continue; cur.add(n); next.push(n); meta[n] = { source: t.source, confidence: t.confidence }; }
+    for (const t of tags.slice(0, 40)) { const n = normalizeTag(t.name); if (!n || cur.has(n)) continue; cur.add(n); next.push(n); meta[n] = { source: t.source, confidence: t.confidence }; }
     await db.update(s.modelFiles).set({ tags: next, tagMeta: meta, updatedAt: new Date() }).where(eq(s.modelFiles.id, modelFileId));
     await audit('model_file', modelFileId, 'etiquetas', { added: tags.map((t) => t.name) }, u.id);
     return next;
