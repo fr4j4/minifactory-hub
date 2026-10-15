@@ -336,3 +336,15 @@ export async function saveOverridesAsProfileAction(i: { type: ProfileType; baseP
     return createProfileRow({ type: i.type, name, baseName: base.baseName, vendor: base.vendor ?? undefined, changes, userId: u.id, note: t('slicer.studioSavedNote'), nozzle: base.nozzle });
   }, ['/laminador']);
 }
+
+/** Explorar: lamina varias variantes de ajustes de sesión (hasta 12) sobre la misma base; devuelve los ids de corrida. */
+export async function exploreAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; materialId: string; copies?: number; variants: Array<{ label: string; overrides: Record<string, string> }> }) {
+  const t = await getT();
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'V');
+    if (i.variants.length < 2 || i.variants.length > 12) throw new Error(t('studio.exploreLimit'));
+    const groupId = crypto.randomUUID(); const ids: string[] = [];
+    for (const v of i.variants) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId, materialId: i.materialId, copies: i.copies ?? 1, label: v.label, groupId, userId: u.id, overrides: { process: cleanChanges('process', v.overrides) } }));
+    return { groupId, ids };
+  });
+}

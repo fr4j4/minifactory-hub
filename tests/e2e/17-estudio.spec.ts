@@ -37,3 +37,21 @@ test.describe('Estudio de laminado (R5)', () => {
     await expect(page.getByTestId('param-row-layer_height').getByRole('alert')).toContainText(/rango|range/);
   });
 });
+
+test.describe('Estudio · explorar', () => {
+  test('barrido del relleno: tabla, gráfico y «usar esta» carga el ajuste', async ({ page }) => {
+    await login(page, 'admin');
+    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
+    await page.waitForLoadState('networkidle'); await page.goto(page.url().replace(/\?.*$/, '') + '/estudio');
+    await expect(page.getByTestId('studio-status')).toContainText(/Laminado|Sliced/, { timeout: 90_000 });
+    await page.getByTestId('studio-explore').click();
+    await page.getByTestId('preset-material').click();
+    await page.getByTestId('explore-run').click();
+    await expect(page.getByTestId('explore-table').locator('tbody tr')).toHaveCount(4);
+    await expect(page.getByTestId('explore-use').first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId('explore-scatter')).toBeVisible();
+    await page.getByTestId('explore-use').first().click();
+    await page.getByTestId('param-search').fill('relleno');
+    await expect(page.getByTestId('param-row-sparse_infill_density')).toContainText(/Base|base/); // el ajuste quedó como modificado
+  });
+});
