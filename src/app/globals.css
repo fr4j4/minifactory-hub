@@ -10,13 +10,13 @@
 :root {
   color-scheme: light dark;
   --bg: #f3f1ec; --card: #fbfaf7; --line: #e0dcd2; --ink: #17161a; --muted: #5b564e;
-  --accent: #ff5b1f; --accent-ink: #c13d0b; --panel: #151514; --panel-ink: #e9e5dc;
+  --accent: #ff5b1f; --accent-ink: #c13d0b; --on-accent: #17161a; --accent-hover: #ff6f39; --accent-shadow: #b8410f; --panel: #151514; --panel-ink: #e9e5dc;
   --dot: rgba(23, 22, 26, .085); --glow: rgba(255, 91, 31, .16);
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #121211; --card: #1b1b19; --line: #2c2b28; --ink: #ece8df; --muted: #a29c90;
-    --accent: #ff6a2b; --accent-ink: #ff9e6c; --panel: #0c0c0b; --panel-ink: #e9e5dc;
+    --accent: #ff6a2b; --accent-ink: #ff9e6c; --on-accent: #17161a; --accent-hover: #ff6f39; --accent-shadow: #b8410f; --panel: #0c0c0b; --panel-ink: #e9e5dc;
     --dot: rgba(236, 232, 223, .06); --glow: rgba(255, 106, 43, .14);
   }
 }
@@ -29,7 +29,7 @@ body {
   background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
   background-size: 22px 22px; background-attachment: fixed;
 }
-::selection { background: var(--accent); color: #17161a; }
+::selection { background: var(--accent); color: var(--on-accent); }
 
 @layer components {
   .card { @apply rounded-2xl border bg-[var(--card)] border-[var(--line)]; box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 1px 2px rgba(23,22,26,.04); }
@@ -37,9 +37,9 @@ body {
     transition: transform .12s ease, box-shadow .12s ease, background-color .15s ease, border-color .15s ease; }
   .btn:not(:disabled):active { transform: translateY(1px); }
   /* primario: naranja con texto tinta y un «borde de capa» inferior que se hunde al presionar */
-  .btn-primary { @apply btn border-transparent font-semibold; background: var(--accent); color: #17161a; box-shadow: 0 2px 0 #b8410f, 0 6px 18px -8px var(--accent); }
-  .btn-primary:not(:disabled):hover { background: #ff6f39; }
-  .btn-primary:not(:disabled):active { box-shadow: 0 1px 0 #b8410f; }
+  .btn-primary { @apply btn border-transparent font-semibold; background: var(--accent); color: var(--on-accent); box-shadow: 0 2px 0 var(--accent-shadow), 0 6px 18px -8px var(--accent); }
+  .btn-primary:not(:disabled):hover { background: var(--accent-hover); }
+  .btn-primary:not(:disabled):active { box-shadow: 0 1px 0 var(--accent-shadow); }
   .btn-ghost { @apply btn bg-[var(--card)] border-[var(--line)] hover:border-slate-400 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/60; }
   .btn-danger { @apply btn bg-red-700 hover:bg-red-800 border-red-700 text-white; }
   .btn-sm { @apply min-h-[44px] md:min-h-[32px] px-2.5 py-1 text-xs rounded-lg; }

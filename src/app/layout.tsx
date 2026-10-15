@@ -8,6 +8,8 @@ import { I18nProvider } from '@/i18n/client';
 import { LOCALE_TAG } from '@/i18n/config';
 import { DICTIONARIES } from '@/i18n/translate';
 import { getLocale, getT } from '@/i18n/server';
+import { getSettings } from '@/lib/settings';
+import { brandCss } from '@/lib/brand';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
@@ -22,9 +24,11 @@ export const viewport: Viewport = { themeColor: [{ media: '(prefers-color-scheme
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  const css = brandCss((await getSettings().catch(() => null))?.shop.brandColor ?? '');
   return (
     <html lang={LOCALE_TAG[locale]} className={`${GeistSans.variable} ${GeistMono.variable}`}>
-      <body className="min-h-screen antialiased"><I18nProvider locale={locale} messages={DICTIONARIES[locale]}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
+      <body className="min-h-screen antialiased">
+        {css && <style dangerouslySetInnerHTML={{ __html: css }} />}<I18nProvider locale={locale} messages={DICTIONARIES[locale]}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
     </html>
   );
 }
