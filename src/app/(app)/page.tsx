@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Stat, Meter, Badge, Empty } from '@/components/ui';
@@ -6,7 +7,7 @@ import { Icon } from '@/components/shell';
 import { dashboardData } from '@/lib/stats';
 import { getSettings } from '@/lib/settings';
 import { quoteBoard } from '@/lib/services/quote-board';
-import { SETUP_LINKS } from '@/lib/setup';
+import { SETUP_LINKS, needsSetup } from '@/lib/setup';
 import { liveByMachine } from '@/lib/bambu/manager';
 import { PrinterPill } from '@/components/printer-live';
 import { dmy, dmyHm, dur, money, num, pct } from '@/lib/format';
@@ -19,6 +20,8 @@ export async function generateMetadata() { return { title: (await getT())('meta.
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ sin_permiso?: string }> }) {
   const t = await getT(); const locale = await getLocale();
   const user = await requireUser(); const sp = await searchParams;
+  // Solo Inicio redirige al asistente: las pantallas que enlaza la lista de puesta en marcha (Abrir) deben poder abrirse.
+  if (user.role === 'admin' && (await needsSetup())) redirect('/bienvenida');
   const d = await dashboardData(); const costs = canSeeCosts(user); const now = Date.now();
   const setupSkipped = user.role === 'admin' ? Object.entries((await getSettings()).setup.steps).filter(([, v]) => v === 'omitido').map(([k]) => k) : [];
   const qb = can(user, 'presupuestos', 'V') ? await quoteBoard() : null;
