@@ -108,6 +108,7 @@ export const materials = pgTable('materials', {
   tempNozzle: text('temp_nozzle'),
   tempBed: text('temp_bed'),
   supplierText: text('supplier_text'),
+  lineId: uuid('line_id'), // línea de filamento (marca + línea) a la que pertenece
   notes: text('notes'),
 });
 
@@ -832,3 +833,14 @@ export const materialFilamentLinks = pgTable('material_filament_links', {
   filamentProfileId: uuid('filament_profile_id').notNull(),
   machineProfileId: uuid('machine_profile_id'),
 }, (t) => [index('mfl_material_ix').on(t.materialId), index('mfl_profile_ix').on(t.filamentProfileId)]);
+
+/** Línea de filamento (marca + línea): lleva valores por defecto (costo, stock mínimo) y un perfil de laminado compartidos por sus colores. */
+export const filamentLines = pgTable('filament_lines', {
+  ...base(),
+  manufacturer: text('manufacturer'),
+  name: text('name').notNull(),
+  type: text('type'),
+  costPerKg: integer('cost_per_kg'),
+  stockMinG: integer('stock_min_g'),
+  filamentProfileId: uuid('filament_profile_id'),
+}, (t) => [index('filament_lines_ix').on(t.workspaceId, t.manufacturer, t.name)]);

@@ -155,7 +155,7 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
     let id = it.existingId;
     if (!id) {
       const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null }).returning({ id: s.materials.id });
-      id = m.id; created.push(id); await audit('material', id, 'crear', { bulk: true }, userId);
+      id = m.id; created.push(id); await (await import('./lines')).syncMaterialLine(id, db); await audit('material', id, 'crear', { bulk: true }, userId);
     }
     for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, supplierId: common.supplierId, userId }, db)).id);
   }
@@ -182,15 +182,11 @@ export async function listSuppliers(db?: Db, onlyActive = true) {
   return rows.filter((r) => !onlyActive || r.active).sort((a, b) => (a.country === 'CL' ? 0 : 1) - (b.country === 'CL' ? 0 : 1) || a.name.localeCompare(b.name));
 }
 
-/** Edición masiva por marca + línea («Bambu Lab PLA Basic»): costo por kg y/o stock mínimo para todos sus colores. */
+/** Edición masiva por marca + línea («Bambu Lab PLA Basic»): delega en la entidad `filament_lines`. */
 export async function bulkUpdateLine(line: { manufacturer: string | null; line: string | null }, patch: { costPerKg?: number; stockMinG?: number }, userId?: string | null) {
+  const { ensureLine, updateLine } = await import('./lines');
+  const id = await ensureLine({ manufacturer: line.manufacturer, line: line.line }); if (!id) return 0;
   const db = await getDb();
-  const set: Record<string, number | Date> = {};
-  if (patch.costPerKg != null && Number.isFinite(patch.costPerKg) && patch.costPerKg >= 0) set.costPerKg = Math.round(patch.costPerKg);
-  if (patch.stockMinG != null && Number.isFinite(patch.stockMinG) && patch.stockMinG >= 0) set.stockMinG = Math.round(patch.stockMinG);
-  if (!Object.keys(set).length) return 0;
-  const cond = and(isNull(s.materials.deletedAt), line.manufacturer ? eq(s.materials.manufacturer, line.manufacturer) : isNull(s.materials.manufacturer), line.line ? eq(s.materials.line, line.line) : isNull(s.materials.line));
-  const rows = await db.update(s.materials).set({ ...set, updatedAt: new Date() }).where(cond).returning({ id: s.materials.id });
-  await audit('material', null, 'editar_linea', { line, patch: set, count: rows.length }, userId);
-  return rows.length;
+  await db.update(s.materials).set({ lineId: id }).where(and(isNull(s.materials.deletedAt), line.manufacturer ? eq(s.materials.manufacturer, line.manufacturer) : isNull(s.materials.manufacturer), eq(s.materials.line, line.line!)));
+  return updateLine(id, patch, userId);
 }

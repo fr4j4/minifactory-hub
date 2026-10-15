@@ -1,6 +1,7 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { linkedProfileId } from './links';
+import { lineProfileOf } from '../services/lines';
 import { ensureProfile, suggestFilamentBase } from './setup';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -28,6 +29,8 @@ export async function resolveFilament(i: { materialId?: string | null; explicitP
     const p = await load(linked);
     if (p) return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'material' };
   }
+  const viaLine = await lineProfileOf(mat.id, db);
+  if (viaLine) { const p = await load(viaLine); if (p?.type === 'filament') return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'material' }; }
   const machine = i.machineProfileId ? await load(i.machineProfileId) : null;
   const base = suggestFilamentBase(mat, machine?.baseName ?? null);
   if (!base) throw new Error('filament: no hay perfil de filamento para este tipo');

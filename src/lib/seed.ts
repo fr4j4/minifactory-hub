@@ -119,6 +119,7 @@ export async function seedDemo(opts: { users?: boolean } = {}) {
     { workspaceId: WORKSPACE_ID, tech: 'resina', manufacturer: 'Elegoo', line: 'Standard', type: 'Resina estándar', colorName: 'Gris', hex: '#9aa0a6', density: 1.1, diameter: null, costPerKg: 28000, stockMinG: 500, supplierText: 'Elegoo' },
   ]).returning();
   const [plaNeg, plaBla, plaRoj, plaAzu, petgNeg, petgTra, tpu, resina] = M;
+  { const { syncMaterialLine } = await import('./services/lines'); for (const m of M) await syncMaterialLine(m.id, db); }
   { const { setMaterialProfile } = await import('./slicer/links'); for (const [m, k] of [[plaNeg, 'fPLA'], [plaBla, 'fPLA'], [plaRoj, 'fPLA'], [plaAzu, 'fPLA'], [petgNeg, 'fPETG'], [petgTra, 'fPETG'], [tpu, 'fTPU']] as const) if (prof[k]) await setMaterialProfile(m.id, prof[k], null, db); }
   const sp = async (m: typeof plaNeg, g: number, extra: Record<string, any> = {}) => { const x = await createSpool({ materialId: m.id, initialG: 1000, unitCost: m.costPerKg, userId: admin.id }); await db.update(s.spools).set({ remainingG: g, ...extra }).where(eq(s.spools.id, x.id)); return x; };
   const spA = await sp(plaNeg, 640, { status: 'en_uso', machineId: a1.id, slot: 'Carrete directo', location: 'Cargada en Bambu A1 #1' });

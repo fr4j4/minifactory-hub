@@ -2,6 +2,9 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const inventory: Shape<typeof es['inventory']> = {
+  lineProfile: 'Line slicing profile',
+  lineProfileAuto: 'Automatic (by brand and type)',
+  lineProfileHint: 'Used by every color in the line that has none of its own.',
   lineNone: 'No brand',
   lineColors_one: '{n} color',
   lineColors_other: '{n} colors',

@@ -15,8 +15,8 @@ export async function saveMaterialAction(i: MaterialInput) {
     if (!i.type.trim() || !i.colorName.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
     const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, updatedAt: new Date() };
     const link = async (id: string) => { const L = await import('@/lib/slicer/links'); if (i.filamentProfileId === undefined) return; if (i.filamentProfileId) await L.setMaterialProfile(id, i.filamentProfileId, null, db, u.id); else await L.clearMaterialProfile(id, db); };
-    if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await link(i.id); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
-    const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); await link(m.id); return m.id;
+    if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await link(i.id); await (await import('@/lib/services/lines')).syncMaterialLine(i.id, db); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
+    const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); await link(m.id); await (await import('@/lib/services/lines')).syncMaterialLine(m.id, db); return m.id;
   }, ['/inventario']);
 }
 export async function addSpoolAction(i: { materialId: string; initialG: number; tareG: number; unitCost: number; lot?: string; location?: string; supplierText?: string; supplierId?: string | null; count?: number }) {
@@ -73,4 +73,9 @@ export async function applyBulkAction(c: BulkCommon, rows: BulkRow[]) {
 /** Cambia costo por kg y/o stock mínimo de todos los colores de una marca + línea. */
 export async function bulkUpdateLineAction(line: { manufacturer: string | null; line: string | null }, patch: { costPerKg?: number; stockMinG?: number }) {
   return safe(async () => { const u = await requirePerm('inventario', 'E'); return bulkUpdateLine(line, patch, u.id); }, ['/inventario']);
+}
+
+/** Edita una línea de filamento: costo y stock mínimo para todos sus colores y el perfil de laminado por defecto de la línea. */
+export async function updateLineAction(id: string, patch: { costPerKg?: number | null; stockMinG?: number | null; filamentProfileId?: string | null }) {
+  return safe(async () => { const u = await requirePerm('inventario', 'E'); const { updateLine } = await import('@/lib/services/lines'); return updateLine(id, patch, u.id); }, ['/inventario']);
 }

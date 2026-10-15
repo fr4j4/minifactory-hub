@@ -1,4 +1,7 @@
 export const inventory = {
+  lineProfile: 'Perfil de laminado de la línea',
+  lineProfileAuto: 'Automático (según marca y tipo)',
+  lineProfileHint: 'Lo usan todos los colores de la línea que no tengan uno propio.',
   lineNone: 'Sin marca',
   lineColors_one: '{n} color',
   lineColors_other: '{n} colores',

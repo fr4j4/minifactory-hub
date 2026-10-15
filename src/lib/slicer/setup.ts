@@ -328,7 +328,7 @@ export async function createCustomFilament(i: CustomFilamentInput) {
     const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, tech: 'fdm', manufacturer: i.brand?.trim() || null, type: i.type.split(' ')[0], line: i.type.includes(' ') ? i.type.split(' ').slice(1).join(' ') : null,
       colorName: i.addToInventory.colorName || t('slicer.noColor'), hex: i.addToInventory.hex || '#888888', density, costPerKg: Math.round(i.addToInventory.costPerKg ?? Number(changes.filament_cost ?? 0)),
       tempNozzle: changes.nozzle_temperature ?? defaults.nozzle_temperature, tempBed: changes.textured_plate_temp ?? defaults.textured_plate_temp, createdBy: i.userId ?? null }).returning({ id: s.materials.id });
-    materialId = m.id; await (await import('./links')).setMaterialProfile(m.id, id, null, db, i.userId);
+    materialId = m.id; await (await import('./links')).setMaterialProfile(m.id, id, null, db, i.userId); await (await import('../services/lines')).syncMaterialLine(m.id, db);
   }
   return { profileId: id, materialId };
 }
