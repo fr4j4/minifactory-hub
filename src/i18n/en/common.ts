@@ -92,4 +92,6 @@ export const common: Shape<typeof es['common']> = {
   goHome: 'Go to Home',
   datePlaceholder: 'dd-mm-yyyy',
   pickDate: 'Pick a date',
+  active: 'Active',
+  inactive: 'Inactive',
 };

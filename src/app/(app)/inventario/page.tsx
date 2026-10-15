@@ -5,7 +5,7 @@ import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Table, Tabs, Badge, Meter, Swatch, StatusBadge, Empty } from '@/components/ui';
 import { AddSpoolButton, ItemDialog, ItemMove, MaterialForm } from '@/components/inventory-bits';
-import { materialStock, shoppingList, materialCostPerKg } from '@/lib/services/inventory';
+import { listSuppliers, materialStock, shoppingList, materialCostPerKg } from '@/lib/services/inventory';
 import { CopyButton } from '@/components/client';
 import { dmyHm, grams, money, num } from '@/lib/format';
 import { getT } from '@/i18n/server';
@@ -21,6 +21,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const stock = await materialStock(db); const spools = await db.select().from(s.spools).where(isNull(s.spools.deletedAt)).orderBy(asc(s.spools.code));
   const profs = (await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'filament'), isNull(s.slicerProfiles.deletedAt)))).map((p) => ({ id: p.id, name: p.name }));
   const machines = await db.select().from(s.machines);
+  const sup = await listSuppliers(db);
   const items = tab === 'otros' ? await db.select().from(s.inventoryItems).where(isNull(s.inventoryItems.deletedAt)).orderBy(asc(s.inventoryItems.category), asc(s.inventoryItems.name)) : [];
   const moves = tab === 'movimientos' ? await db.select({ m: s.inventoryMovements, code: s.spools.code, item: s.inventoryItems.name }).from(s.inventoryMovements).leftJoin(s.spools, eq(s.spools.id, s.inventoryMovements.spoolId)).leftJoin(s.inventoryItems, eq(s.inventoryItems.id, s.inventoryMovements.itemId)).orderBy(desc(s.inventoryMovements.createdAt)).limit(80) : [];
   const shop = tab === 'compras' ? await shoppingList() : [];
@@ -28,7 +29,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const low = stock.filter((x) => x.low).length;
   return (
     <>
-      <PageHeader title={t('inventory.inventory')} subtitle={t('inventory.perIndividualSpoolOrBottle')} actions={<>{can(user, 'inventario', 'V') && <Link className="btn-ghost" href="/inventario/escanear">{t('inventory.scanQr2')}</Link>}{can(user, 'inventario', 'C') && <><Link className="btn-ghost" href="/inventario/alta-rapida" data-testid="bulk-open">{t('inventory.bulkOpen')}</Link><MaterialForm profiles={profs} trigger={<button className="btn-ghost" data-testid="new-material">{t('inventory.material')}</button>} /><AddSpoolButton materials={mats.map((m) => ({ id: m.id, label: `${m.type} ${m.colorName}${m.manufacturer ? ' · ' + m.manufacturer : ''}`, costPerKg: m.costPerKg }))} /></>}</>} />
+      <PageHeader title={t('inventory.inventory')} subtitle={t('inventory.perIndividualSpoolOrBottle')} actions={<>{can(user, 'inventario', 'V') && <Link className="btn-ghost" href="/inventario/escanear">{t('inventory.scanQr2')}</Link>}{can(user, 'inventario', 'C') && <><Link className="btn-ghost" href="/inventario/alta-rapida" data-testid="bulk-open">{t('inventory.bulkOpen')}</Link><MaterialForm profiles={profs} trigger={<button className="btn-ghost" data-testid="new-material">{t('inventory.material')}</button>} /><AddSpoolButton suppliers={sup.map((x) => ({ id: x.id, name: x.name }))} materials={mats.map((m) => ({ id: m.id, label: `${m.type} ${m.colorName}${m.manufacturer ? ' · ' + m.manufacturer : ''}`, costPerKg: m.costPerKg }))} /></>}</>} />
       <Tabs current={tab} tabs={[{ key: 'materiales', label: t('inventory.tabMaterials'), href: '/inventario', count: low || undefined }, { key: 'bobinas', label: t('inventory.tabSpools'), href: '/inventario?tab=bobinas' }, { key: 'otros', label: t('inventory.tabOther'), href: '/inventario?tab=otros' }, { key: 'compras', label: t('inventory.tabShopping'), href: '/inventario?tab=compras' }, { key: 'movimientos', label: t('inventory.tabMovements'), href: '/inventario?tab=movimientos' }]} />
       {tab === 'materiales' && (mats.length === 0 ? <Card><Empty title={t('inventory.noMaterials')} hint={t('inventory.createTheMaterialCatalogType')} /></Card> : (
         <Card pad={false}><Table><thead><tr><th className="th">{t('common.material')}</th><th className="th">{t('inventory.physicalStock')}</th><th className="th text-right">{t('inventory.reserved')}</th><th className="th text-right">{t('inventory.available')}</th><th className="th text-right">{t('inventory.minimum')}</th><th className="th text-right">{t('inventory.spools')}</th>{costs && <th className="th text-right">{t('inventory.costKg')}</th>}<th className="th" /></tr></thead>

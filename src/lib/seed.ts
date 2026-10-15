@@ -5,7 +5,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { hashPassword } from './auth';
 import { getSettings, saveSettings } from './settings';
 import { ensureSetupToken } from './setup';
-import { createSpool } from './services/inventory';
+import { createSpool, seedSuppliers } from './services/inventory';
 import { ingestModel } from './files';
 import { orcaAvailable, findVendorOf, getIndex } from './slicer/catalog';
 import { calcLine } from './pricing';
@@ -42,6 +42,7 @@ export async function bootstrap(opts: { adminEmail?: string; adminPassword?: str
   if (!pl) await db.insert(s.priceLists).values([
     { workspaceId: WORKSPACE_ID, name: 'Público', adjustPct: 0 }, { workspaceId: WORKSPACE_ID, name: 'Revendedor', adjustPct: -15 }, { workspaceId: WORKSPACE_ID, name: 'Empresa', adjustPct: -8 },
   ]);
+  await seedSuppliers(db);
   const st = await getSettings();
   await saveSettings({ shop: { ...st.shop, name: opts.shopName ?? st.shop.name } });
 }

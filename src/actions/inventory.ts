@@ -18,8 +18,8 @@ export async function saveMaterialAction(i: MaterialInput) {
     const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); return m.id;
   }, ['/inventario']);
 }
-export async function addSpoolAction(i: { materialId: string; initialG: number; tareG: number; unitCost: number; lot?: string; location?: string; supplierText?: string; count?: number }) {
-  return safe(async () => { const u = await requirePerm('inventario', 'C'); const out: string[] = []; for (let k = 0; k < Math.max(1, Math.min(20, i.count ?? 1)); k++) { const sp = await createSpool({ materialId: i.materialId, initialG: i.initialG, tareG: i.tareG, unitCost: i.unitCost, lot: i.lot, location: i.location, supplierText: i.supplierText, userId: u.id }); out.push(sp.id); } return out; }, ['/inventario']);
+export async function addSpoolAction(i: { materialId: string; initialG: number; tareG: number; unitCost: number; lot?: string; location?: string; supplierText?: string; supplierId?: string | null; count?: number }) {
+  return safe(async () => { const u = await requirePerm('inventario', 'C'); const out: string[] = []; for (let k = 0; k < Math.max(1, Math.min(20, i.count ?? 1)); k++) { const sp = await createSpool({ materialId: i.materialId, initialG: i.initialG, tareG: i.tareG, unitCost: i.unitCost, lot: i.lot, location: i.location, supplierText: i.supplierText, supplierId: i.supplierId || null, userId: u.id }); out.push(sp.id); } return out; }, ['/inventario']);
 }
 export async function weighSpoolAction(id: string, grossG: number) {
   const t = await getT(); return safe(async () => { const u = await requirePerm('inventario', 'E'); if (!(grossG >= 0)) throw new Error(t('inventory.invalidWeight')); return weighSpool(id, grossG, u.id); }, ['/inventario', `/inventario/bobinas/${id}`]); }

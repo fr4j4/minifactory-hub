@@ -46,3 +46,16 @@ export async function savePriceListAction(i: { id?: string; name: string; adjust
 export async function markNotificationsReadAction(ids?: string[]) {
   return safe(async () => { await requireUser(); const db = await getDb(); const { inArray } = await import('drizzle-orm'); if (ids?.length) await db.update(s.notifications).set({ read: true }).where(inArray(s.notifications.id, ids)); else await db.update(s.notifications).set({ read: true }).where(eq(s.notifications.read, false)); }, ['/notificaciones', '/']);
 }
+
+export async function saveSupplierAction(i: { id?: string; name: string; kind: string; country: string; city?: string; url?: string; notes?: string; verified?: boolean; active: boolean }) {
+  const t = await getT();
+  return safe(async () => {
+    const u = await requirePerm('config', 'E'); const db = await getDb();
+    if (!i.name.trim()) throw new Error(t('settings.supplierNeedsName'));
+    const url = i.url?.trim() ? (/^https?:\/\//i.test(i.url.trim()) ? i.url.trim() : `https://${i.url.trim()}`) : null;
+    const v = { name: i.name.trim(), kind: i.kind, country: i.country.trim().toUpperCase().slice(0, 6) || 'CL', city: i.city?.trim() || null, url, notes: i.notes?.trim() || null, verified: !!i.verified, active: i.active, updatedAt: new Date() };
+    if (i.id) { await db.update(s.suppliers).set(v).where(eq(s.suppliers.id, i.id)); await audit('supplier', i.id, 'editar', { name: v.name }, u.id); return i.id; }
+    const [r] = await db.insert(s.suppliers).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.suppliers.id });
+    await audit('supplier', r.id, 'crear', { name: v.name }, u.id); return r.id;
+  }, ['/configuracion', '/inventario']);
+}

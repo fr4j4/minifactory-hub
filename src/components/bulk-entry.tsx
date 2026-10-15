@@ -11,7 +11,7 @@ interface Row { colorName: string; hex: string; spools: number; lot: string }
 const mkRow = (colorName = ''): Row => ({ colorName, hex: suggestHex(colorName) ?? '#888888', spools: 1, lot: '' });
 
 /** Alta rápida de filamentos (N4): datos comunes una vez, tabla de colores, vista previa con duplicados y confirmación. */
-export function BulkEntry() {
+export function BulkEntry({ suppliers = [] }: { suppliers?: Array<{ id: string; name: string }> }) {
   const t = useT(); const toast = useToast(); const [pending, start] = useTransition();
   const [c, setC] = useState({ manufacturer: '', line: '', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 15000, netG: 1000, tareG: 200, supplierText: '' });
   const [rows, setRows] = useState<Row[]>([mkRow('Negro'), mkRow('Blanco')]); const [paste, setPaste] = useState('');
@@ -22,9 +22,9 @@ export function BulkEntry() {
   const pickLine = (line: string) => { const l = brand?.lines.find((x) => x.line === line); setCommon(l ? { line, type: l.type, density: l.density ?? densityOf(l.type) } : { line }); };
   const addNames = (names: string[]) => { setRows((r) => [...r, ...names.filter((n) => !r.some((x) => x.colorName.toLowerCase() === n.toLowerCase())).map(mkRow)]); setPlan(null); };
   const upd = (i: number, p: Partial<Row>) => { setRows((r) => r.map((x, k) => (k === i ? { ...x, ...p } : x))); setPlan(null); };
-  const payload = () => ({ ...c, rows: rows.filter((r) => r.colorName.trim()).map((r) => ({ colorName: r.colorName, hex: r.hex, spools: r.spools, lot: r.lot || undefined })) });
-  const preview = () => start(async () => { const p = payload(); const r = await previewBulkAction(c, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setPlan(r.data as any); });
-  const apply = () => start(async () => { const p = payload(); const r = await applyBulkAction(c, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setDone(r.data); });
+  const payload = () => ({ ...c, supplierId: suppliers.find((x) => x.name.toLowerCase() === c.supplierText.trim().toLowerCase())?.id ?? null, rows: rows.filter((r) => r.colorName.trim()).map((r) => ({ colorName: r.colorName, hex: r.hex, spools: r.spools, lot: r.lot || undefined })) });
+  const preview = () => start(async () => { const p = payload(); const r = await previewBulkAction({ ...c, supplierId: p.supplierId }, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setPlan(r.data as any); });
+  const apply = () => start(async () => { const p = payload(); const r = await applyBulkAction({ ...c, supplierId: p.supplierId }, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setDone(r.data); });
   const num = (k: keyof typeof c) => (e: React.ChangeEvent<HTMLInputElement>) => setCommon({ [k]: e.target.value === '' ? 0 : Number(e.target.value) } as any);
   if (done) return <div className="card p-5" role="status" data-testid="bulk-done"><p className="mb-3">{t('inventory.bulkDone', { created: done.created, spools: done.spools })}</p><Link className="btn-primary" href="/inventario">{t('inventory.bulkGoInventory')}</Link></div>;
   return (
@@ -40,7 +40,7 @@ export function BulkEntry() {
           <label className="block"><span className="label">{t('inventory.bulkTare')}</span><input type="number" min={0} className="input" value={c.tareG} onChange={num('tareG')} /></label>
           <label className="block"><span className="label">{t('inventory.bulkDiameter')}</span><input type="number" step="0.01" className="input" value={c.diameter} onChange={num('diameter')} /></label>
           <label className="block"><span className="label">{t('inventory.bulkDensity')}</span><input type="number" step="0.01" className="input" value={c.density} onChange={num('density')} /></label>
-          <label className="block"><span className="label">{t('inventory.bulkSupplier')}</span><input className="input" value={c.supplierText} onChange={(e) => setCommon({ supplierText: e.target.value })} /></label>
+          <label className="block"><span className="label">{t('inventory.bulkSupplier')}</span><input className="input" list="bulk-suppliers" value={c.supplierText} onChange={(e) => setCommon({ supplierText: e.target.value })} data-testid="bulk-supplier" /><datalist id="bulk-suppliers">{suppliers.map((x) => <option key={x.id} value={x.name} />)}</datalist></label>
         </div>
         <p className="muted text-xs mt-2">{t('inventory.bulkCatalogHint')}</p>
       </section>

@@ -129,7 +129,23 @@ export const spools = pgTable('spools', {
   machineId: uuid('machine_id'),
   slot: text('slot'),
   lastDriedAt: date('last_dried_at'),
+  supplierId: uuid('supplier_id'), // «dónde compré» (directorio liviano, N4b)
 }, (t) => [uniqueIndex('spools_code_uq').on(t.workspaceId, t.code)]);
+
+/** Directorio liviano de proveedores y tiendas (N4b): solo para elegir «dónde compré». */
+export const suppliers = pgTable('suppliers', {
+  ...base(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull().default('tienda'), // tienda_especializada | marketplace | fabricante | importacion | minorista
+  country: text('country').notNull().default('CL'),
+  city: text('city'),
+  url: text('url'),
+  channels: jsonb('channels').$type<string[]>().default([]),
+  brands: jsonb('brands').$type<string[]>().default([]),
+  notes: text('notes'),
+  verified: boolean('verified').notNull().default(false),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('suppliers_name_uq').on(t.workspaceId, t.name)]);
 
 export const inventoryItems = pgTable('inventory_items', {
   ...base(),

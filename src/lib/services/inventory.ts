@@ -34,16 +34,17 @@ export async function materialStock(db?: Db): Promise<MaterialStock[]> {
   });
 }
 
-export async function createSpool(o: { materialId: string; initialG?: number; tareG?: number; lot?: string; unitCost?: number; location?: string; boughtAt?: string; supplierText?: string; userId?: string | null }, db?: Db) {
+export async function createSpool(o: { materialId: string; initialG?: number; tareG?: number; lot?: string; unitCost?: number; location?: string; boughtAt?: string; supplierText?: string; supplierId?: string | null; userId?: string | null }, db?: Db) {
   const t = await getT();
   db = db ?? (await getDb());
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, o.materialId));
   if (!m) throw new Error(t('inventory.materialNotFound'));
   const code = await nextSpoolCode(db);
+  if (o.supplierId && !o.supplierText) { const [sup] = await db.select({ n: s.suppliers.name }).from(s.suppliers).where(eq(s.suppliers.id, o.supplierId)); o.supplierText = sup?.n; }
   const initial = o.initialG ?? 1000;
   const [sp] = await db.insert(s.spools).values({
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,
-    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? new Date().toISOString().slice(0, 10), status: 'nueva', createdBy: o.userId ?? null,
+    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? new Date().toISOString().slice(0, 10), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
   }).returning();
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
   await audit('spool', sp.id, 'entrada', { initialG: initial, unitCost: o.unitCost ?? m.costPerKg }, o.userId);
@@ -127,7 +128,7 @@ export async function moveItem(o: { itemId: string; qty: number; kind: 'entrada'
 }
 
 /* ── Alta masiva de filamentos (N4) ─────────────────────────────────────── */
-export interface BulkCommon { manufacturer: string; line: string; type: string; diameter: number; density: number; costPerKg: number; netG: number; tareG: number; stockMinG?: number; supplierText?: string }
+export interface BulkCommon { supplierId?: string | null; manufacturer: string; line: string; type: string; diameter: number; density: number; costPerKg: number; netG: number; tareG: number; stockMinG?: number; supplierText?: string }
 export interface BulkRow { colorName: string; hex: string; spools: number; lot?: string; location?: string }
 const key = (m: string | null | undefined, l: string | null | undefined, ty: string, c: string) => [m, l, ty, c].map((x) => String(x ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()).join('|');
 
@@ -156,7 +157,27 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
       const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null }).returning({ id: s.materials.id });
       id = m.id; created.push(id); await audit('material', id, 'crear', { bulk: true }, userId);
     }
-    for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, userId }, db)).id);
+    for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, supplierId: common.supplierId, userId }, db)).id);
   }
   return { created: created.length, existing: plan.items.filter((i) => i.status === 'exists').length, spools: spoolIds.length, spoolIds };
+}
+
+/* ── Directorio de proveedores (N4b) ────────────────────────────────────── */
+import SUPPLIER_SEED from '../catalog/suppliers.json';
+/** Siembra el directorio inicial (marcado «sin verificar») si la tabla está vacía. Idempotente. */
+export async function seedSuppliers(db?: Db) {
+  db ??= await getDb();
+  const [any] = await db.select({ id: s.suppliers.id }).from(s.suppliers).limit(1);
+  if (any) return 0;
+  const rows = (SUPPLIER_SEED as { suppliers: Array<Record<string, any>> }).suppliers.map((x) => ({
+    workspaceId: WORKSPACE_ID, name: String(x.name), kind: String(x.kind ?? 'tienda'), country: String(x.country ?? 'CL'), city: x.city ?? null, url: x.url ?? null,
+    channels: x.channels ?? [], brands: x.brands ?? [], notes: [x.notes, x.evidence].filter(Boolean).join(' · ') || null, verified: false, active: true,
+  }));
+  await db.insert(s.suppliers).values(rows).onConflictDoNothing();
+  return rows.length;
+}
+export async function listSuppliers(db?: Db, onlyActive = true) {
+  db ??= await getDb();
+  const rows = await db.select().from(s.suppliers).where(isNull(s.suppliers.deletedAt));
+  return rows.filter((r) => !onlyActive || r.active).sort((a, b) => (a.country === 'CL' ? 0 : 1) - (b.country === 'CL' ? 0 : 1) || a.name.localeCompare(b.name));
 }

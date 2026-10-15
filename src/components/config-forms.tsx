@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { savePriceListAction, saveProfileAction, saveSettingsAction, saveUserAction } from '@/actions/settings';
+import { savePriceListAction, saveProfileAction, saveSettingsAction, saveSupplierAction, saveUserAction } from '@/actions/settings';
 import { saleToggleChannelAction } from '@/actions/catalog';
 import { Modal, useAction } from './client';
 import type { AppSettings } from '@/lib/settings';
@@ -111,4 +111,26 @@ export function ProfileForm({ prefs }: { prefs: Record<string, boolean> }) {
       <button className="btn-primary" disabled={pending}>{t('common.save')}</button>
     </form>
   );
+}
+
+export interface SupplierRow { id: string; name: string; kind: string; country: string; city: string | null; url: string | null; notes: string | null; verified: boolean; active: boolean }
+export const SUPPLIER_KINDS = ['tienda_especializada', 'marketplace', 'marketplace_vendedor', 'fabricante', 'importador', 'distribuidor_marca', 'tienda_marca', 'tienda_internacional', 'servicio_casillero', 'retail', 'otro'] as const;
+export function SupplierDialog({ sp, trigger }: { sp?: SupplierRow; trigger: React.ReactNode }) {
+  const t = useT();
+  const [open, setOpen] = useState(false); const { run, pending } = useAction();
+  const [v, setV] = useState({ name: sp?.name ?? '', kind: sp?.kind ?? 'tienda_especializada', country: sp?.country ?? 'CL', city: sp?.city ?? '', url: sp?.url ?? '', notes: sp?.notes ?? '', verified: sp?.verified ?? false, active: sp?.active ?? true });
+  return (<><span onClick={() => setOpen(true)} className="inline-block">{trigger}</span>
+    <Modal open={open} onClose={() => setOpen(false)} title={sp ? t('settings.editSupplier') : t('settings.newSupplier')}>
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block col-span-2"><span className="label">{t('common.name')}</span><input className="input" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} data-testid="supplier-name" /></label>
+        <label className="block"><span className="label">{t('settings.supplierKind')}</span><select className="input" value={v.kind} onChange={(e) => setV({ ...v, kind: e.target.value })}>{SUPPLIER_KINDS.map((k) => <option key={k} value={k}>{t(`settings.supplierKind_${k}` as 'settings.supplierKind_otro')}</option>)}</select></label>
+        <label className="block"><span className="label">{t('settings.supplierCountry')}</span><input className="input" value={v.country} onChange={(e) => setV({ ...v, country: e.target.value })} maxLength={6} /></label>
+        <label className="block"><span className="label">{t('settings.supplierCity')}</span><input className="input" value={v.city} onChange={(e) => setV({ ...v, city: e.target.value })} /></label>
+        <label className="block"><span className="label">URL</span><input className="input" value={v.url} onChange={(e) => setV({ ...v, url: e.target.value })} /></label>
+        <label className="block col-span-2"><span className="label">{t('common.notes')}</span><textarea className="input" rows={2} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} /></label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.verified} onChange={(e) => setV({ ...v, verified: e.target.checked })} />{t('settings.supplierVerified')}</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.active} onChange={(e) => setV({ ...v, active: e.target.checked })} />{t('common.active')}</label>
+        <div className="col-span-2 flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button><button className="btn-primary" disabled={pending || !v.name.trim()} data-testid="supplier-save" onClick={() => run(() => saveSupplierAction({ id: sp?.id, ...v }), { ok: t('settings.supplierSaved'), onOk: () => setOpen(false) })}>{t('common.save')}</button></div>
+      </div>
+    </Modal></>);
 }

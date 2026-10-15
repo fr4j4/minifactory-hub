@@ -197,3 +197,19 @@ describe('alta masiva de filamentos (N4)', async () => {
     expect(r2).toMatchObject({ created: 0, existing: 1, spools: 1 });
   });
 });
+
+describe('directorio de proveedores (N4b)', () => {
+  it('se siembra una vez, con el origen sin verificar, y la bobina recuerda dónde se compró', async () => {
+    const { seedSuppliers, listSuppliers, createSpool } = await import('@/lib/services/inventory');
+    const list = await listSuppliers();
+    expect(list.length).toBeGreaterThan(20); expect(list.every((x) => !x.verified)).toBe(true);
+    expect(await seedSuppliers()).toBe(0); // idempotente
+    expect(list[0].country).toBe('CL'); // primero los de Chile
+    const todo = list.find((x) => x.name === 'TodoToner')!;
+    const dbx = await getDb(); const [mat] = await dbx.select().from(s.materials).limit(1);
+    const sp = await createSpool({ materialId: mat.id, supplierId: todo.id });
+    expect(sp.supplierId).toBe(todo.id);
+    const [mv] = await dbx.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.spoolId, sp.id));
+    expect(String(mv.note)).toContain('TodoToner');
+  });
+});

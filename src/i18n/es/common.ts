@@ -89,4 +89,6 @@ export const common = {
   goHome: 'Ir a Inicio',
   datePlaceholder: 'dd-mm-aaaa',
   pickDate: 'Elegir fecha',
+  active: 'Activo',
+  inactive: 'Inactivo',
 };

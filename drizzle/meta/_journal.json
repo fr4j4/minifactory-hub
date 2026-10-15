@@ -43,6 +43,13 @@
       "when": 1791935490844,
       "tag": "0005_nozzle_setups",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792027993386,
+      "tag": "0006_suppliers",
+      "breakpoints": true
     }
   ]
 }
