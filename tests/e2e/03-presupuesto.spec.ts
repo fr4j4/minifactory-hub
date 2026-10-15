@@ -71,8 +71,9 @@ test.describe('Gestor de presupuestos (R3)', () => {
     const first = page.getByTestId('quote-rows').locator('li a').first();
     if (await first.count()) {
       await first.click();
-      await page.getByTestId('line-detail-toggle').first().click();
+      await page.goto((await page.getByTestId('line-detail-toggle').first().getAttribute('href'))!);
       await expect(page.getByTestId('line-detail').first()).toBeVisible();
+      await page.goBack();
       await page.getByTestId('client-view').locator('summary').click();
       await expect(page.getByTestId('client-view')).toContainText(/Presupuesto|Quote/);
     }

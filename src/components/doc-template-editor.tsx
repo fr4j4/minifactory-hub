@@ -3,11 +3,12 @@ import { useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { saveDocTemplateAction } from '@/actions/settings';
 import { useT } from '@/i18n/client';
-import { DEFAULT_QUOTE_TEMPLATE, normalizeTemplate, type DocFont, type DocTemplate, type SectionId } from '@/lib/documents';
+import { DEFAULT_QUOTE_TEMPLATE, MAX_CUSTOM_BLOCKS, isCustomId, normalizeTemplate, type DocFont, type DocTemplate, type SectionId } from '@/lib/documents';
 import { QuoteDocument, type QuoteDocData } from './quote-document';
 import { useAction } from './client';
 import type { MessageKey } from '@/i18n/translate';
 
+const custom = (id: string) => isCustomId(id);
 const FONTS: DocFont[] = ['sans', 'serif', 'mono'];
 const SECTION_LABEL: Record<SectionId, MessageKey> = { customer: 'documents.sec_customer', items: 'documents.sec_items', optionals: 'documents.sec_optionals', totals: 'documents.sec_totals', references: 'documents.sec_references', notes: 'documents.sec_notes', terms: 'documents.sec_terms' };
 
@@ -48,13 +49,15 @@ export function DocTemplateEditor({ initial, sample, hasLogo }: { initial: Parti
           {tpl.sections.map((s, i) => (
             <div key={s.id} className="rounded-xl border border-[var(--line)] p-2.5 space-y-2" data-testid={`doc-sec-${s.id}`}>
               <div className="flex items-center gap-2">
-                <label className="flex items-center gap-2 font-medium text-sm flex-1"><input type="checkbox" checked={s.visible} onChange={(e) => setSec(i, { visible: e.target.checked })} aria-label={t(SECTION_LABEL[s.id])} />{t(SECTION_LABEL[s.id])}</label>
+                <label className="flex items-center gap-2 font-medium text-sm flex-1"><input type="checkbox" checked={s.visible} onChange={(e) => setSec(i, { visible: e.target.checked })} aria-label={custom(s.id) ? t('documents.customBlock') : t(SECTION_LABEL[s.id as SectionId])} />{custom(s.id) ? t('documents.customBlock') : t(SECTION_LABEL[s.id as SectionId])}</label>
                 <button type="button" className="btn-ghost btn-sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t('documents.moveUp')}><ArrowUp className="h-4 w-4" aria-hidden /></button>
                 <button type="button" className="btn-ghost btn-sm" disabled={i === tpl.sections.length - 1} onClick={() => move(i, 1)} aria-label={t('documents.moveDown')}><ArrowDown className="h-4 w-4" aria-hidden /></button>
+                {custom(s.id) && <button type="button" className="btn-ghost btn-sm" onClick={() => setTpl((o) => ({ ...o, sections: o.sections.filter((_, k) => k !== i) }))} data-testid={`doc-remove-${s.id}`}>{t('documents.removeBlock')}</button>}
               </div>
               {s.visible && <><input className="input" placeholder={t('documents.sectionTitle')} value={s.title} onChange={(e) => setSec(i, { title: e.target.value })} />
-                {['customer', 'items', 'notes', 'terms'].includes(s.id) && <textarea className="input" rows={s.id === 'terms' ? 4 : 2} placeholder={s.id === 'terms' ? t('documents.termsPlaceholder') : t('documents.sectionText')} value={s.text} onChange={(e) => setSec(i, { text: e.target.value })} />}</>}
+                {(custom(s.id) || ['customer', 'items', 'notes', 'terms'].includes(s.id)) && <textarea className="input" rows={s.id === 'terms' ? 4 : 2} placeholder={s.id === 'terms' ? t('documents.termsPlaceholder') : t('documents.sectionText')} value={s.text} onChange={(e) => setSec(i, { text: e.target.value })} />}</>}
             </div>))}
+          {tpl.sections.filter((s) => custom(s.id)).length < MAX_CUSTOM_BLOCKS && <button type="button" className="btn-ghost btn-sm" data-testid="doc-add-block" onClick={() => setTpl((o) => ({ ...o, sections: [...o.sections, { id: `custom:${Math.random().toString(36).slice(2, 8)}`, visible: true, title: '', text: '' }] }))}>{t('documents.addBlock')}</button>}
         </fieldset>
         <label className="block"><span className="label">{t('documents.footer')}</span><textarea className="input" rows={2} value={tpl.footer} onChange={(e) => setTpl({ ...tpl, footer: e.target.value })} /></label>
         <div className="flex gap-2"><button className="btn-primary" disabled={pending} data-testid="doc-save">{t('common.save')}</button><button type="button" className="btn-ghost" onClick={() => setTpl(DEFAULT_QUOTE_TEMPLATE)}>{t('documents.reset')}</button></div>

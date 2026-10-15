@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { cn } from '@/lib/format';
+import { TONES } from '@/components/badge';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
@@ -17,7 +19,7 @@ import { dmy, dmyHm, dur, grams, money, num, pct, sources } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
 import { RemoveButton } from '@/components/remove-button';
-import { LineDetail } from '@/components/line-detail';
+import { LineDetailLink } from '@/components/line-detail';
 import { QuoteDocument } from '@/components/quote-document';
 import { buildQuoteDoc } from '@/lib/services/quote-doc';
 import { diffQuotes } from '@/lib/quote-diff';
@@ -78,9 +80,9 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
               <tbody>{items.map((it) => { const l = lt.find((x) => x.id === it.id); const ms = models.filter((m) => m.qm.quoteItemId === it.id); const ls = links.filter((x) => x.ownerType === 'quote_item' && x.ownerId === it.id);
                 return (<tr key={it.id} className={it.optional ? 'opacity-60' : ''}><td className="td"><div className="font-medium">{it.description || t('quotes.part')} {it.optional && <Badge>{t('quotes.optional')}</Badge>} {it.groupName && <Badge tone="blue">{it.groupName}</Badge>}</div>
                   <div className="text-xs muted">{it.variantId ? t('quotes.catalogProduct') : `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)} · ${tOr(t, `calculator.origin.${(it.origin as any)?.grams ?? 'manual'}`, 'manual')}`}</div>
-                  {ms.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1">{ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className="badge bg-slate-100 dark:bg-slate-800 border-transparent hover:underline">{m.name} ×{m.qm.qty}</Link>)}</div>}
+                  {ms.length > 0 && <div className="flex flex-wrap gap-1.5 mt-1">{ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className={cn('badge hover:underline', TONES.gray)}>{m.name} ×{m.qm.qty}</Link>)}</div>}
                   {ls.length > 0 && <div className="mt-1 text-xs">{ls.map((x) => <a key={x.id} href={x.url} target="_blank" rel="noopener noreferrer" className="underline mr-2">🔗 {x.title ?? x.url}</a>)}</div>}
-                  <LineDetail item={{ mode: it.mode, gramsTotal: it.gramsTotal, hoursTotal: it.hoursTotal, qty: it.qty, prepMinutes: it.prepMinutes, postMinutes: it.postMinutes, postSupplies: it.postSupplies, shipping: it.shipping, color: it.color, material: it.materialId ? mats.get(it.materialId) ?? null : null, machine: it.machineId ? machs.get(it.machineId) ?? null : null, quality: it.processProfileId ? procs.get(it.processProfileId) ?? null : null, origin: (it.origin ?? {}) as any, breakdown: costs ? ((it.costBreakdown ?? null) as any) : null, marginPct: costs ? l?.marginPct ?? null : null }} /></td>
+                  <LineDetailLink href={`/presupuestos/${q.id}/linea/${it.id}`} /></td>
                   <td className="td text-right tabular">{it.qty}</td><td className="td text-right tabular">{money(it.finalUnit ?? it.suggestedUnit)}{costs && it.finalUnit != null && it.finalUnit !== it.suggestedUnit && <div className="text-xs muted line-through">{money(it.suggestedUnit)}</div>}</td>
                   <td className="td text-right tabular font-medium">{money((it.finalUnit ?? it.suggestedUnit) * it.qty)}</td>{costs && <td className="td text-right tabular">{l?.marginPct != null ? pct(l.marginPct, 0) : '—'}</td>}</tr>); })}</tbody></Table>
           </Card>

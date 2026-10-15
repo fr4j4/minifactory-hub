@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { cn } from '@/lib/format';
+import { TONES } from '@/components/badge';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
@@ -60,7 +62,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             <Table><thead><tr><th className="th">{t('common.description')}</th><th className="th text-right">{t('common.qty')}</th><th className="th text-right">{t('common.unitPrice')}</th><th className="th text-right">{t('common.total')}</th><th className="th">{t('common.status')}</th></tr></thead>
               <tbody>{items.map((it) => { const ms = models.filter((m) => m.qm.orderItemId === it.id); const ls = links.filter((l) => l.ownerType === 'order_item' && l.ownerId === it.id);
                 return (<tr key={it.id}><td className="td"><div className="font-medium">{it.description}</div><div className="text-xs muted">{it.variantId ? `${t('orders.catalogProductStock', { n: it.fromStock })}${it.qty - it.fromStock > 0 ? ` + ${t('orders.toProduce', { n: it.qty - it.fromStock })}` : ''}` : it.gramsTotal > 0 ? `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)}` : t('orders.noPrintData')}</div>
-                  {ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className="badge bg-slate-100 dark:bg-slate-800 border-transparent hover:underline mr-1 mt-1">{m.name}</Link>)}{ls.map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline mr-2">🔗 {l.title ?? l.url}</a>)}</td>
+                  {ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className={cn('badge hover:underline mr-1 mt-1', TONES.gray)}>{m.name}</Link>)}{ls.map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline mr-2">🔗 {l.title ?? l.url}</a>)}</td>
                   <td className="td text-right tabular">{it.qty}</td><td className="td text-right tabular">{money(it.finalUnit)}{costs && it.finalUnit !== it.suggestedUnit && it.suggestedUnit > 0 && <div className="text-xs muted line-through">{money(it.suggestedUnit)}</div>}</td><td className="td text-right tabular font-medium">{money(it.finalUnit * it.qty)}</td><td className="td"><StatusBadge status={it.status === 'pendiente' ? 'pendiente' : it.status === 'en_cola' ? 'en_cola' : it.status === 'imprimiendo' ? 'imprimiendo' : it.status === 'listo' ? 'listo' : it.status === 'entregado' ? 'entregado' : 'post_proceso'} /></td></tr>); })}</tbody></Table>
           </Card>
           <Card title={t('orders.printJobs')} pad={false} actions={<Link href="/cola" className="btn-ghost btn-sm">{t('orders.viewQueue')}</Link>}>

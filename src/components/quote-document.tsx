@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { TFn } from '@/i18n/translate';
 import { dmy, money } from '@/lib/format';
-import { DOC_FONTS, fillVars, normalizeTemplate, type DocTemplate } from '@/lib/documents';
+import { DOC_FONTS, fillVars, isCustomId, normalizeTemplate, type DocTemplate } from '@/lib/documents';
 
 export interface QuoteDocItem { id: string; description: string; groupName?: string | null; qty: number; unitPrice: number; total: number; optional: boolean; leadTime?: string | null; models: Array<{ name: string; thumbUrl?: string | null }> }
 export interface QuoteDocData {
@@ -19,6 +19,7 @@ export function QuoteDocument({ data, template, t }: { data: QuoteDocData; templ
   const brand = tpl.theme.brandColor || shop.brandColor || '#c13d0b';
   const vars = { cliente: q.customerName ?? '', numero: q.number, total: money(q.total), vigencia: q.validUntil ? dmy(q.validUntil) : '', taller: shop.name };
   const sec = (id: string) => tpl.sections.find((s) => s.id === id)!;
+  const customBlock = (s: DocTemplate['sections'][number]) => (s.title || s.text ? <div key={s.id} data-section={s.id} style={{ marginTop: 10 }}>{s.title && <b>{fillVars(s.title, vars)}</b>}<div style={{ ...muted, whiteSpace: 'pre-wrap' }}>{fillVars(s.text, vars)}</div></div> : null);
   const title = (id: string, fallback: string) => fillVars(sec(id).title || fallback, vars);
   const items = data.items.filter((i) => !i.optional); const optionals = data.items.filter((i) => i.optional);
   const th: CSSProperties = { textAlign: 'left', fontSize: 10, textTransform: 'uppercase', color: '#64748b', borderBottom: `2px solid ${brand}`, padding: 6 };
@@ -53,7 +54,7 @@ export function QuoteDocument({ data, template, t }: { data: QuoteDocData; templ
         </div>
         <div style={r}><div style={{ fontSize: 16, fontWeight: 700 }}>{t('common.quote')} {q.number}{q.version > 1 ? ` (v${q.version})` : ''}</div><div style={muted}>{t('quotes.dateLabel', { date: dmy(q.createdAt) })} · {t('quotes.validUntilLabel', { date: dmy(q.validUntil) })}</div>{tpl.header.subtitle && <div style={muted}>{fillVars(tpl.header.subtitle, vars)}</div>}</div>
       </div>
-      {tpl.sections.filter((s) => s.visible).map((s) => blocks[s.id] ?? null)}
+      {tpl.sections.filter((s) => s.visible).map((s) => (isCustomId(s.id) ? customBlock(s) : blocks[s.id] ?? null))}
       {tpl.footer && <div style={{ ...muted, marginTop: 18, fontSize: 10, textAlign: 'center', borderTop: '1px solid #e2e8f0', paddingTop: 8, whiteSpace: 'pre-wrap' }}>{fillVars(tpl.footer, vars)}</div>}
     </div>
   );

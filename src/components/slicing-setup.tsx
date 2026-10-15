@@ -1,4 +1,5 @@
 'use client';
+import { TONES } from '@/components/badge';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -42,7 +43,7 @@ function MachineRow({ m, options }: { m: SetupData['machines'][number]; options:
     <li className="rounded-2xl border border-[var(--line)] p-3.5 space-y-3" data-testid="setup-machine">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0"><div className="font-medium">{m.name}</div><div className="text-xs muted">{[m.brand, m.model].filter(Boolean).join(' ') || t('slicer.noBrandModelOnThe')} · {t('slicer.nozzleMm', { mm: m.nozzle })}{m.simulated ? ` · ${t('slicer.simulatedLower')}` : ''}</div></div>
-        {ready ? <span className="badge badge-led text-emerald-800 bg-emerald-50 border-emerald-200 dark:text-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-900">{t('slicer.readyLabel')} {pretty(m.machineProfile!.baseName, t)} · {m.defaultProcess!.name}</span> : <span className="badge badge-led text-amber-900 bg-amber-50 border-amber-200 dark:text-amber-200 dark:bg-amber-950/50 dark:border-amber-900">{t('slicer.needsSetup')}</span>}
+        {ready ? <span className={cn('badge badge-led', TONES.green)}>{t('slicer.readyLabel')} {pretty(m.machineProfile!.baseName, t)} · {m.defaultProcess!.name}</span> : <span className={cn('badge badge-led', TONES.amber)}>{t('slicer.needsSetup')}</span>}
       </div>
       <div className="grid gap-3 md:grid-cols-[1.3fr_1fr_auto] items-end">
         <div>
@@ -153,7 +154,7 @@ export function ImportPresetsButton({ dark }: { dark?: boolean }) {
             <table className="w-full text-sm" data-testid="import-preview"><thead><tr><th className="th w-8" /><th className="th">{t('slicer.profile2')}</th><th className="th">{t('slicer.basedOnFactory')}</th><th className="th text-right">{t('slicer.changes')}</th></tr></thead>
               <tbody>{prev.map((p) => <tr key={p.key}>
                 <td className="td"><input type="checkbox" aria-label={t('slicer.importLabel', { name: p.name })} disabled={!p.ok} checked={sel.has(p.key)} onChange={(e) => { const n = new Set(sel); if (e.target.checked) n.add(p.key); else n.delete(p.key); setSel(n); }} /></td>
-                <td className="td"><span className="eyebrow !text-[10px] mr-2">{t(TYPE_ES[p.type])}</span><b>{p.name}</b>{p.exists && <span className="badge ml-2 text-sky-800 bg-sky-50 border-sky-200 dark:text-sky-200 dark:bg-sky-950/50 dark:border-sky-900">{t('slicer.alreadyExistsNewVersion')}</span>}<div className="text-xs muted">{p.source}{p.note ? ` · ${p.note}` : ''}</div></td>
+                <td className="td"><span className="eyebrow !text-[10px] mr-2">{t(TYPE_ES[p.type])}</span><b>{p.name}</b>{p.exists && <span className={cn('badge ml-2', TONES.blue)}>{t('slicer.alreadyExistsNewVersion')}</span>}<div className="text-xs muted">{p.source}{p.note ? ` · ${p.note}` : ''}</div></td>
                 <td className="td text-xs">{p.baseName ? pretty(p.baseName, t) : '—'}</td><td className="td text-right num">{p.keys === 0 ? <span className="muted">{t('slicer.sameAsFactory')}</span> : p.keys}</td></tr>)}</tbody></table>
           </div>)}
           <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button><button className="btn-primary" disabled={busy || !prev || sel.size === 0} onClick={save} data-testid="import-confirm">{t('slicer.importProfiles', { count: sel.size })}</button></div>

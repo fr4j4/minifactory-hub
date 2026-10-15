@@ -1,4 +1,5 @@
 'use client';
+import { TONES } from '@/components/badge';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createFromTemplatesAction, createProfileAction, deleteProfileAction, duplicateProfileAction, factoryListAction, factoryVendorsAction, profileBaseValuesAction, profileKeysAction, revertProfileAction, updateProfileAction } from '@/actions/slicer';
@@ -250,7 +251,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
         <h2 className="font-semibold text-sm mb-2">{t('files.versions2')}</h2>
         <ul className="space-y-2 text-sm" data-testid="profile-versions">
           {versions.map((v) => (
-            <li key={v.version} className="flex items-start justify-between gap-2"><div><b>v{v.version}</b> {v.version === p.version && <span className="badge bg-emerald-50 text-emerald-800 border-emerald-200">{t('files.current')}</span>}<div className="text-xs muted">{v.createdAt} · {t('nozzle.nChanges', { count: v.keys })}{v.note ? ` · ${v.note}` : ''}</div></div>
+            <li key={v.version} className="flex items-start justify-between gap-2"><div><b>v{v.version}</b> {v.version === p.version && <span className={cn('badge', TONES.green)}>{t('files.current')}</span>}<div className="text-xs muted">{v.createdAt} · {t('nozzle.nChanges', { count: v.keys })}{v.note ? ` · ${v.note}` : ''}</div></div>
               {canEdit && v.version !== p.version && <button className="btn-ghost btn-sm shrink-0" onClick={() => run(() => revertProfileAction(p.id, v.version), { ok: t('files.restoredV2', { version: v.version }) })}>{t('common.back')}</button>}</li>
           ))}
         </ul>

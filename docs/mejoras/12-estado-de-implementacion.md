@@ -117,3 +117,10 @@ Migraciones nuevas: `0013` jobs · `0014` quality_presets · `0015`/`0016` vínc
 2. **Migraciones nuevas** (`drizzle/0006`–`0010`): proveedores, IVA como casilla, plantilla/PDF, origen de modelos, `inputs` del laminado. Son aditivas.
 3. **Flakiness de e2e:** las pruebas que suben archivos o navegan justo tras un clic dependían de la hidratación; se corrigieron las del Estudio y la subida (`waitForURL`/`networkidle`). Quedan 1–2 pruebas antiguas que fallan de forma intermitente bajo carga (02 y 15), también al repetirlas sin cambios.
 4. **Seguridad:** el asistente inicial no deja cuentas sin credencial; el importador por URL bloquea IP privadas incluso tras redirecciones; la plantilla de documentos es JSON (sin HTML); el logo se re-codifica (sin SVG).
+
+## Cambios por decisiones del equipo (fase final)
+- Modelo de precios: se eliminó el «heredado»; `Rates` ya no tiene `pricingModel` y `taxMode` solo toma `sumado`/`exento` según la casilla del presupuesto. Margen por defecto 40 % sobre la venta neta.
+- Calculadora rápida con varias piezas y nivel Básico/Avanzado recordado por usuario (migración `0019`).
+- IVA de compras por proveedor (`suppliers.recovers_vat`, migración `0020`).
+- Bloques de texto libre en el documento del presupuesto; «Ver detalles» como página propia.
+- Se retiraron las pruebas de regresión visual.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_QUOTE_TEMPLATE, fillVars, normalizeTemplate, SECTION_IDS } from '@/lib/documents';
+import { DEFAULT_QUOTE_TEMPLATE, fillVars, MAX_CUSTOM_BLOCKS, normalizeTemplate, SECTION_IDS } from '@/lib/documents';
 
 describe('plantilla de documentos (N7a)', () => {
   it('vacío o basura → plantilla por defecto completa', () => {
@@ -18,5 +18,14 @@ describe('plantilla de documentos (N7a)', () => {
   it('variables {cliente}… y lo desconocido queda tal cual', () => {
     expect(fillVars('Hola {cliente}, {numero} {nada}', { cliente: 'Ana', numero: 'P-1' })).toBe('Hola Ana, P-1 {nada}');
     expect(DEFAULT_QUOTE_TEMPLATE.sections.every((s) => s.visible)).toBe(true);
+  });
+});
+
+describe('bloques de texto libre', () => {
+  it('conserva los bloques propios, en su orden, y descarta ids inválidos o de más', () => {
+    const t = normalizeTemplate({ sections: [{ id: 'custom:abc123', title: 'Garantía', text: 'Un año' }, { id: 'terms' }, { id: 'custom:<x>' }, ...Array.from({ length: 9 }, (_, i) => ({ id: `custom:z${i}` }))] });
+    expect(t.sections[0]).toMatchObject({ id: 'custom:abc123', title: 'Garantía' });
+    expect(t.sections.filter((s) => s.id.startsWith('custom:')).length).toBe(MAX_CUSTOM_BLOCKS);
+    expect(SECTION_IDS.every((id) => t.sections.some((s) => s.id === id))).toBe(true);
   });
 });

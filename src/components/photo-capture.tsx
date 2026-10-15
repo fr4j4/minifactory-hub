@@ -1,4 +1,6 @@
 'use client';
+import { cn } from '@/lib/format';
+import { TONES } from '@/components/badge';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from './client';
@@ -38,7 +40,7 @@ export function PhotoCapture({ intent, label: labelProp, stages }: { intent: Rec
       <select className="input !w-auto" aria-label={t('gallery.photoStage')} value={stage} onChange={(e) => setStage(e.target.value)}>{Object.entries(stages ?? Object.fromEntries(STAGE_KEYS.map((k) => [k, t(`gallery.stage.${k}`)]))).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       <button type="button" className="btn-primary" onClick={() => input.current?.click()}>📷 {label}</button>
       <input ref={input} type="file" accept="image/*,video/*" capture="environment" multiple className="sr-only" aria-label={label} data-testid="photo-input" onChange={(e) => { onFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
-      {pending > 0 && <span className="badge bg-amber-50 text-amber-900 border-amber-200" data-testid="offline-pending">{pending} {t('gallery.queuedOffline')}</span>}
+      {pending > 0 && <span className={cn('badge', TONES.amber)} data-testid="offline-pending">{pending} {t('gallery.queuedOffline')}</span>}
     </div>
   );
 }

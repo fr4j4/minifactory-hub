@@ -3,11 +3,14 @@
  * El mismo componente `QuoteDocument` lo renderiza en la vista cliente, en el PDF y en la vista previa de Configuración.
  */
 export type SectionId = 'customer' | 'items' | 'optionals' | 'totals' | 'references' | 'notes' | 'terms';
+/** Bloque de texto libre añadido por el taller: su id es `custom:<clave>` (hasta MAX_CUSTOM_BLOCKS). */
+export const MAX_CUSTOM_BLOCKS = 6;
+export const isCustomId = (id: string): id is `custom:${string}` => /^custom:[a-z0-9]{1,12}$/.test(id);
 export const SECTION_IDS: SectionId[] = ['customer', 'items', 'optionals', 'totals', 'references', 'notes', 'terms'];
 export type DocFont = 'sans' | 'serif' | 'mono';
 export const DOC_FONTS: Record<DocFont, string> = { sans: 'Inter, Arial, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: '"Courier New", monospace' };
 
-export interface DocSection { id: SectionId; visible: boolean; /** título propio (vacío = el de fábrica traducido) */ title: string; /** texto propio; en «condiciones» reemplaza el de Configuración */ text: string }
+export interface DocSection { id: SectionId | `custom:${string}`; visible: boolean; /** título propio (vacío = el de fábrica traducido) */ title: string; /** texto propio; en «condiciones» reemplaza el de Configuración */ text: string }
 export interface DocTemplate {
   version: 1;
   theme: { brandColor: string; font: DocFont; showLogo: boolean; showThumbs: boolean };
@@ -34,7 +37,9 @@ export function normalizeTemplate(raw: unknown): DocTemplate {
   const D = DEFAULT_QUOTE_TEMPLATE;
   const seen = new Set<SectionId>(); const sections: DocSection[] = [];
   for (const x of Array.isArray(r.sections) ? r.sections : []) {
-    const id = x?.id as SectionId; if (!SECTION_IDS.includes(id) || seen.has(id)) continue; seen.add(id);
+    const id = x?.id as SectionId; const custom = typeof x?.id === 'string' && isCustomId(x.id);
+    if ((!SECTION_IDS.includes(id) && !custom) || seen.has(id)) continue;
+    if (custom && sections.filter((s) => isCustomId(s.id)).length >= MAX_CUSTOM_BLOCKS) continue; seen.add(id);
     sections.push({ id, visible: bool(x.visible, true), title: str(x.title, 80), text: str(x.text, 2000) });
   }
   for (const id of SECTION_IDS) if (!seen.has(id)) sections.push({ id, visible: true, title: '', text: '' }); // las secciones nuevas aparecen al final
