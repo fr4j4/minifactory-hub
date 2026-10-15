@@ -57,7 +57,13 @@ export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
       const { aiAvailableFor } = await import('@/lib/ai'); const { getLocale } = await import('@/i18n/server');
       if (await aiAvailableFor(u, 'files.tag')) {
         const { suggestTagsAi } = await import('@/lib/ai/features/file-tags');
-        cands = [...cands, ...(await suggestTagsAi({ ...input, vocabulary: vocab, locale: await getLocale() }, { user: u }))];
+        const ai = { ...input, vocabulary: vocab, locale: await getLocale() };
+        // con la miniatura, la IA reconoce mejor qué es la pieza; si el taller no permite imágenes o el modelo no ve, se reintenta solo con texto
+        let image: { data: Buffer; mime: string } | undefined;
+        const [fv] = f.currentVersionId ? await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, f.currentVersionId)) : [];
+        if (fv?.thumbKey && (await (await import('@/lib/ai/config')).getAiConfig()).privacy.sendImages) { try { image = { data: await (await import('@/lib/storage')).getBuffer(fv.thumbKey), mime: 'image/webp' }; } catch { /* sin miniatura */ } }
+        try { cands = [...cands, ...(await suggestTagsAi({ ...ai, image }, { user: u }))]; }
+        catch (e) { if (!image) throw e; cands = [...cands, ...(await suggestTagsAi(ai, { user: u }))]; }
       }
     }
     return mergeSuggestions(cands, { vocabulary: vocab, existing: f.tags ?? [] });
