@@ -4,6 +4,8 @@ export const remove = {
   deleting: 'Eliminando…',
   title: 'Eliminar «{name}»',
   done: 'Eliminado',
+  replaceWith: 'Reemplazar por',
+  replaceAndDelete: 'Reemplazar y eliminar',
   notFound: 'El registro ya no existe',
   confirm: {
     material: 'Se quita el material de las listas junto con sus bobinas vacías. El historial de consumo y los reportes se conservan.',
@@ -26,6 +28,9 @@ export const remove = {
   block: {
     materialSpools_one: 'Este material tiene {count} bobina con material disponible. Descártala o termínala antes de eliminarlo.',
     materialSpools_other: 'Este material tiene {count} bobinas con material disponible. Descártalas o termínalas antes de eliminarlo.',
+    materialUsed_one: 'El material está en {count} documento abierto (presupuesto, pedido o variante). Reemplázalo por otro o ciérralo primero.',
+    materialUsed_other: 'El material está en {count} documentos abiertos (presupuestos, pedidos o variantes). Reemplázalo por otro o ciérralos primero.',
+    replaceSame: 'Elige un material distinto.',
     activeJobs_one: 'Hay {count} trabajo activo en la cola que lo usa. Termínalo o cancélalo primero.',
     activeJobs_other: 'Hay {count} trabajos activos en la cola que lo usan. Termínalos o cancélalos primero.',
     spoolLoaded: 'La bobina está cargada en una máquina. Descárgala o márcala como descartada antes de eliminarla.',

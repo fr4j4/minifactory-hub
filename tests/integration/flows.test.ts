@@ -270,3 +270,19 @@ describe('recuperación de análisis interrumpidos (P0)', () => {
     expect((after.meta as any).status).toBe('ready');
   });
 });
+
+describe('eliminar un material en uso (F0.2)', () => {
+  it('se bloquea mientras un presupuesto abierto lo usa y se puede reemplazar por otro', async () => {
+    const { removalInfo, replaceAndRemoveMaterial } = await import('@/lib/services/removal');
+    const [cand] = await db.select().from(s.materials).where(and(eq(s.materials.type, 'PETG'), isNull(s.materials.deletedAt))).limit(1);
+    const spare = (await db.select().from(s.materials).where(isNull(s.materials.deletedAt))).find((m) => m.id !== cand.id && m.id !== pla.id)!;
+    // sin bobinas con material: la única razón para bloquear es el presupuesto
+    await db.update(s.spools).set({ remainingG: 0 }).where(eq(s.spools.materialId, cand.id));
+    const q = await saveQuote({ customerName: 'Cliente Y', items: [line({ materialId: cand.id })] }, admin);
+    const info = await removalInfo('material', cand.id);
+    expect(info.canDelete).toBe(false); expect(info.block?.key).toBe('remove.block.materialUsed');
+    await replaceAndRemoveMaterial(cand.id, spare.id, admin.id);
+    const d = (await loadQuote(q))!; expect(d.items[0].materialId).toBe(spare.id);
+    const [gone] = await db.select().from(s.materials).where(eq(s.materials.id, cand.id)); expect(gone.deletedAt).not.toBeNull();
+  });
+});

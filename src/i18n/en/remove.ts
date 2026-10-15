@@ -7,6 +7,8 @@ export const remove: Shape<typeof es['remove']> = {
   deleting: 'Deleting…',
   title: 'Delete “{name}”',
   done: 'Deleted',
+  replaceWith: 'Replace with',
+  replaceAndDelete: 'Replace and delete',
   notFound: 'The record no longer exists',
   confirm: {
     material: 'The material is removed from the lists together with its empty spools. Consumption history and reports are kept.',
@@ -29,6 +31,9 @@ export const remove: Shape<typeof es['remove']> = {
   block: {
     materialSpools_one: 'This material has {count} spool with material left. Discard or use it up before deleting it.',
     materialSpools_other: 'This material has {count} spools with material left. Discard or use them up before deleting it.',
+    materialUsed_one: 'The material is in {count} open document (quote, order or variant). Replace it with another one or close it first.',
+    materialUsed_other: 'The material is in {count} open documents (quotes, orders or variants). Replace it with another one or close them first.',
+    replaceSame: 'Pick a different material.',
     activeJobs_one: 'There is {count} active job in the queue using it. Finish or cancel it first.',
     activeJobs_other: 'There are {count} active jobs in the queue using it. Finish or cancel them first.',
     spoolLoaded: 'The spool is loaded in a machine. Unload it or mark it as discarded before deleting it.',

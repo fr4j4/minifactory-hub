@@ -31,6 +31,30 @@ const stamp = () => Date.now().toString(36);
 
 async function n(q: Promise<Array<{ n: number }>>): Promise<number> { return Number((await q)[0]?.n ?? 0); }
 
+/** Presupuestos abiertos, pedidos abiertos y variantes activas que todavía usan un material (se reemplaza o se cierra antes de eliminarlo). */
+export async function materialUsage(materialId: string): Promise<number> {
+  const db = await getDb();
+  const q = await n(db.select({ n: sql<number>`count(distinct ${s.quoteItems.quoteId})::int` }).from(s.quoteItems).innerJoin(s.quotes, eq(s.quotes.id, s.quoteItems.quoteId)).where(and(eq(s.quoteItems.materialId, materialId), isNull(s.quoteItems.deletedAt), isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['borrador', 'enviado']))));
+  const o = await n(db.select({ n: sql<number>`count(distinct ${s.orderItems.orderId})::int` }).from(s.orderItems).innerJoin(s.orders, eq(s.orders.id, s.orderItems.orderId)).where(and(eq(s.orderItems.materialId, materialId), isNull(s.orders.deletedAt), inArray(s.orders.status, OPEN_ORDER))));
+  const v = await n(db.select({ n: count() }).from(s.productVariants).where(and(eq(s.productVariants.materialId, materialId), isNull(s.productVariants.deletedAt), eq(s.productVariants.active, true))));
+  return q + o + v;
+}
+
+/** Cambia el material en presupuestos abiertos, pedidos abiertos y variantes activas, y después elimina el original. */
+export async function replaceAndRemoveMaterial(fromId: string, toId: string, userId?: string | null) {
+  if (fromId === toId) throw new LocalizedError('remove.block.replaceSame');
+  const db = await getDb();
+  const [to] = await db.select({ id: s.materials.id }).from(s.materials).where(and(eq(s.materials.id, toId), isNull(s.materials.deletedAt)));
+  if (!to) throw new LocalizedError('remove.notFound');
+  const openQuotes = db.select({ id: s.quotes.id }).from(s.quotes).where(and(isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['borrador', 'enviado'])));
+  await db.update(s.quoteItems).set({ materialId: toId }).where(and(eq(s.quoteItems.materialId, fromId), inArray(s.quoteItems.quoteId, openQuotes)));
+  const openOrders = db.select({ id: s.orders.id }).from(s.orders).where(and(isNull(s.orders.deletedAt), inArray(s.orders.status, OPEN_ORDER)));
+  await db.update(s.orderItems).set({ materialId: toId }).where(and(eq(s.orderItems.materialId, fromId), inArray(s.orderItems.orderId, openOrders)));
+  await db.update(s.productVariants).set({ materialId: toId }).where(and(eq(s.productVariants.materialId, fromId), isNull(s.productVariants.deletedAt)));
+  await audit('material', fromId, 'reemplazar', { por: toId }, userId);
+  await removeRecord('material', fromId, userId);
+}
+
 /** Dice si un registro se puede eliminar y, si no, por qué (clave de mensaje + parámetros). */
 export async function removalInfo(kind: RemovableKind, id: string, actorId?: string | null): Promise<RemovalInfo> {
   const db = await getDb();
@@ -39,7 +63,9 @@ export async function removalInfo(kind: RemovableKind, id: string, actorId?: str
       const c = await n(db.select({ n: count() }).from(s.spools).where(and(eq(s.spools.materialId, id), isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso']), gt(s.spools.remainingG, 0))));
       if (c) return blocked('remove.block.materialSpools', { count: c });
       const jobs = await n(db.select({ n: count() }).from(s.printJobs).where(and(eq(s.printJobs.materialId, id), inArray(s.printJobs.status, ACTIVE_JOB), isNull(s.printJobs.deletedAt))));
-      return jobs ? blocked('remove.block.activeJobs', { count: jobs }) : ok;
+      if (jobs) return blocked('remove.block.activeJobs', { count: jobs });
+      const used = await materialUsage(id);
+      return used ? blocked('remove.block.materialUsed', { count: used }) : ok;
     }
     case 'spool': {
       const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, id));
