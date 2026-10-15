@@ -5,27 +5,28 @@ import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { getT } from '@/i18n/server';
-import { chromiumPath } from '@/lib/health';
+import { renderPdf } from '@/lib/pdf';
+import { exists, getBuffer, newKey, putBuffer } from '@/lib/storage';
 
 export const maxDuration = 60;
 
-/** PDF del presupuesto: la plantilla HTML se imprime con Chromium (Playwright). Sin Chromium disponible, entrega la versión imprimible. */
+/**
+ * PDF del presupuesto. Si ya se envió, se entrega la copia guardada (lo que recibió el cliente); si no existe aún, se genera con la plantilla
+ * congelada y se guarda. En borrador siempre se genera de nuevo. Sin Chromium, avisa y entrega la versión imprimible.
+ */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const t = await getT();
   const user = await getSession();
   if (!user || !can(user, 'presupuestos', 'V')) return NextResponse.json({ error: t('common.unauthorized') }, { status: 401 });
   const { id } = await params; const db = await getDb();
   const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id)); if (!q) return NextResponse.json({ error: t('common.doesNotExist') }, { status: 404 });
-  const origin = new URL(req.url).origin; const sess = (await cookies()).get('mf_session')?.value;
+  const headers = { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${q.number}-v${q.version}.pdf"` };
+  if (q.status !== 'borrador' && q.pdfKey && (await exists(q.pdfKey))) return new Response(new Uint8Array(await getBuffer(q.pdfKey)), { headers });
+  const origin = new URL(req.url).origin; const sess = (await cookies()).get('mf_session')?.value ?? '';
   try {
-    const { chromium } = await import('playwright');
-    const browser = await chromium.launch({ executablePath: chromiumPath(), args: ['--no-sandbox'] });
-    try {
-      const ctx = await browser.newContext(); await ctx.addCookies([{ name: 'mf_session', value: sess ?? '', url: origin }]);
-      const page = await ctx.newPage(); await page.goto(`${origin}/imprimir/presupuesto/${id}`, { waitUntil: 'networkidle' });
-      const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '12mm', bottom: '12mm', left: '8mm', right: '8mm' } });
-      return new Response(new Uint8Array(pdf), { headers: { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${q.number}-v${q.version}.pdf"` } });
-    } finally { await browser.close(); }
+    const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, { name: 'mf_session', value: sess });
+    if (q.status !== 'borrador') { const key = newKey('pdf', 'pdf'); await putBuffer(key, pdf); await db.update(s.quotes).set({ pdfKey: key }).where(eq(s.quotes.id, id)); }
+    return new Response(new Uint8Array(pdf), { headers });
   } catch (e) {
     console.error('PDF: no se pudo generar con Chromium', e);
     // Fallo explícito: se entrega la versión imprimible, pero avisando que el PDF no se pudo generar

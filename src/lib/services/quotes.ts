@@ -7,6 +7,7 @@ import { materialCostPerKg } from './inventory';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { getT } from '@/i18n/server';
+import { normalizeTemplate } from '../documents';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -176,7 +177,9 @@ export async function loadQuote(id: string) {
 /** Marca el presupuesto como enviado: congela precios y costos (cambiar tarifas ya no lo altera). */
 export async function sendQuote(id: string, userId: string) {
   const db = await getDb();
-  await db.update(s.quotes).set({ status: 'enviado', frozen: true, updatedAt: new Date() }).where(and(eq(s.quotes.id, id), eq(s.quotes.status, 'borrador')));
+  // al enviar se congela la plantilla del documento (lo que ve el cliente no cambia aunque el taller edite su plantilla después)
+  const docTemplate = normalizeTemplate((await getSettings()).documents.quote) as unknown as Record<string, unknown>;
+  await db.update(s.quotes).set({ status: 'enviado', frozen: true, docTemplate, updatedAt: new Date() }).where(and(eq(s.quotes.id, id), eq(s.quotes.status, 'borrador')));
   await audit('quote', id, 'estado', { to: 'enviado' }, userId);
 }
 

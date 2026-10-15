@@ -342,6 +342,8 @@ export const quotes = pgTable('quotes', {
   discount: integer('discount').notNull().default(0),
   taxAmount: integer('tax_amount').notNull().default(0),
   applyTax: boolean('apply_tax').notNull().default(false), // casilla «+ IVA» (modelo de precios 'neto')
+  docTemplate: jsonb('doc_template').$type<Record<string, unknown> | null>(), // plantilla de documento congelada al enviar (N7)
+  pdfKey: text('pdf_key'), // copia del PDF entregada al cliente
   total: integer('total').notNull().default(0),
   costTotal: integer('cost_total').notNull().default(0),
   priceReason: text('price_reason'),

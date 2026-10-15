@@ -59,3 +59,15 @@ export async function saveSupplierAction(i: { id?: string; name: string; kind: s
     await audit('supplier', r.id, 'crear', { name: v.name }, u.id); return r.id;
   }, ['/configuracion', '/inventario']);
 }
+
+/** Guarda la plantilla del documento de presupuesto (modelo JSON tipado, normalizado en el servidor). */
+export async function saveDocTemplateAction(raw: unknown) {
+  return safe(async () => {
+    const u = await requirePerm('config', 'E');
+    const { normalizeTemplate } = await import('@/lib/documents');
+    const tpl = normalizeTemplate(raw);
+    await saveSettings({ documents: { quote: tpl } });
+    await audit('settings', 'documents', 'editar', { sections: tpl.sections.filter((x) => x.visible).map((x) => x.id) }, u.id);
+    return tpl;
+  }, ['/configuracion']);
+}

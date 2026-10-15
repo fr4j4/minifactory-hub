@@ -213,3 +213,18 @@ describe('directorio de proveedores (N4b)', () => {
     expect(String(mv.note)).toContain('TodoToner');
   });
 });
+
+describe('documento de cliente congelado al enviar (N7)', () => {
+  it('al enviar un presupuesto se guarda la plantilla vigente y no cambia si el taller la edita después', async () => {
+    const { saveSettings } = await import('@/lib/settings');
+    const { sendQuote } = await import('@/lib/services/quotes');
+    const dbx = await getDb(); const [qq] = await dbx.select().from(s.quotes).where(eq(s.quotes.status, 'borrador')).limit(1);
+    if (!qq) return; // la semilla trae al menos uno; si no, no hay nada que probar
+    await saveSettings({ documents: { quote: { footer: 'Gracias por confiar en nosotros' } } });
+    const [u] = await dbx.select().from(s.users).limit(1);
+    await sendQuote(qq.id, u.id);
+    await saveSettings({ documents: { quote: { footer: 'OTRO PIE' } } });
+    const [after] = await dbx.select().from(s.quotes).where(eq(s.quotes.id, qq.id));
+    expect((after.docTemplate as any).footer).toBe('Gracias por confiar en nosotros');
+  });
+});

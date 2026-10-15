@@ -2,6 +2,7 @@ import { eq, and, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import type { Rates } from './pricing';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
+import type { DocTemplate } from './documents';
 
 export interface AppSettings {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string };
@@ -16,6 +17,7 @@ export interface AppSettings {
   watermark: { enabled: boolean; opacity: number; position: string };
   ai: AiSettings;
   /** Asistente de configuración inicial (N10). `pending` = cuenta creada pero asistente sin terminar. */
+  documents: { quote: Partial<DocTemplate> };
   setup: { pending: boolean; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
 }
 
@@ -39,6 +41,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaults: { infillPct: 15, failRatePct: 5 },
   watermark: { enabled: false, opacity: 0.4, position: 'abajo-derecha' },
   ai: DEFAULT_AI,
+  documents: { quote: {} },
   setup: { pending: false, completedAt: null, steps: {}, tokenHash: '' },
 };
 
