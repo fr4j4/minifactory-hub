@@ -53,7 +53,9 @@ Si no lo tienes: en la página del proyecto en GitHub pulsa **Code → Download 
 cd $HOME\Downloads\minifactory-hub
 ```
 
-### A3. Crear tu configuración (contraseña de administrador)
+### A3. Crear tu configuración
+
+> **Novedad:** `ADMIN_PASSWORD` ya es opcional. Si no la defines, al abrir la aplicación por primera vez un asistente (**/bienvenida**) te pide un código de un solo uso que aparece en el registro del servidor (`docker compose logs app`) y crea tu cuenta de administrador. Ya no existe la contraseña por defecto `admin1234`.
 
 Pega esto **tal cual** (genera una llave secreta aleatoria y crea el archivo `.env`). Cambia `MiClaveSegura123` por la contraseña que quieras usar para entrar:
 

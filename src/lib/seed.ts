@@ -4,6 +4,7 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { hashPassword } from './auth';
 import { getSettings, saveSettings } from './settings';
+import { ensureSetupToken } from './setup';
 import { createSpool } from './services/inventory';
 import { ingestModel } from './files';
 import { orcaAvailable, findVendorOf, getIndex } from './slicer/catalog';
@@ -16,13 +17,16 @@ import { machineCostOf } from './services/quotes';
 type Db = Awaited<ReturnType<typeof getDb>>;
 
 /** Primer arranque: taller, administrador, canales de venta y listas de precios. Idempotente. */
-export async function bootstrap(opts: { adminEmail?: string; adminPassword?: string; shopName?: string } = {}) {
+export async function bootstrap(opts: { adminEmail?: string; adminPassword?: string; shopName?: string; quietToken?: boolean } = {}) {
   const db = await getDb();
   const [ws] = await db.select().from(s.workspaces).where(eq(s.workspaces.id, WORKSPACE_ID));
   if (!ws) await db.insert(s.workspaces).values({ id: WORKSPACE_ID, name: opts.shopName ?? 'MiniFactory' });
   const [u] = await db.select({ id: s.users.id }).from(s.users).limit(1);
   if (!u) {
-    await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? 'admin@minifactory.cl').toLowerCase(), name: 'Administrador', role: 'admin', passwordHash: await hashPassword(opts.adminPassword ?? process.env.ADMIN_PASSWORD ?? 'admin1234') });
+    // Sin contraseña definida no se crea ninguna cuenta: el asistente inicial (/bienvenida) la pide con un token de un solo uso.
+    const pw = opts.adminPassword ?? process.env.ADMIN_PASSWORD;
+    if (pw) await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? 'admin@minifactory.cl').toLowerCase(), name: 'Administrador', role: 'admin', passwordHash: await hashPassword(pw) });
+    else await ensureSetupToken(!opts.quietToken);
   }
   const [ch] = await db.select({ id: s.salesChannels.id }).from(s.salesChannels).limit(1);
   if (!ch) {
@@ -48,7 +52,7 @@ const daysAgo = (n: number, h = 12) => { const d = new Date(); d.setDate(d.getDa
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function seedDemo() {
-  await bootstrap();
+  await bootstrap({ adminPassword: process.env.ADMIN_PASSWORD ?? 'admin1234' });
   const db = await getDb();
   const [existing] = await db.select({ id: s.machines.id }).from(s.machines).limit(1);
   if (existing) return { skipped: true };

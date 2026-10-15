@@ -15,6 +15,8 @@ export interface AppSettings {
   defaults: { processProfileId?: string; infillPct: number; failRatePct: number };
   watermark: { enabled: boolean; opacity: number; position: string };
   ai: AiSettings;
+  /** Asistente de configuración inicial (N10). `pending` = cuenta creada pero asistente sin terminar. */
+  setup: { pending: boolean; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaults: { infillPct: 15, failRatePct: 5 },
   watermark: { enabled: false, opacity: 0.4, position: 'abajo-derecha' },
   ai: DEFAULT_AI,
+  setup: { pending: false, completedAt: null, steps: {}, tokenHash: '' },
 };
 
 function merge<T>(base: T, over: any): T {
@@ -58,7 +61,7 @@ export async function getSettingsRaw(): Promise<AppSettings> {
 /** Ajustes seguros para páginas y componentes: sin la clave de IA. */
 export async function getSettings(): Promise<AppSettings> {
   const st = await getSettingsRaw();
-  return { ...st, ai: { ...st.ai, apiKeySealed: '' } };
+  return { ...st, ai: { ...st.ai, apiKeySealed: '' }, setup: { ...st.setup, tokenHash: '' } };
 }
 export async function saveSettings(patch: Partial<AppSettings>) {
   const db = await getDb();

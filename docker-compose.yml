@@ -13,7 +13,7 @@ services:
       DATABASE_URL: postgres://minifactory:minifactory@127.0.0.1:5432/minifactory
       SESSION_SECRET: ${SESSION_SECRET:?defina SESSION_SECRET}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@minifactory.cl}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       STORAGE_DIR: /data/storage
       DATA_DIR: /data
       ORCA_CONCURRENCY: 2

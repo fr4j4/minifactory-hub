@@ -4,6 +4,8 @@ import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Stat, Meter, Badge, Empty } from '@/components/ui';
 import { Icon } from '@/components/shell';
 import { dashboardData } from '@/lib/stats';
+import { getSettings } from '@/lib/settings';
+import { SETUP_LINKS } from '@/lib/setup';
 import { liveByMachine } from '@/lib/bambu/manager';
 import { PrinterPill } from '@/components/printer-live';
 import { dmy, dmyHm, dur, money, num, pct } from '@/lib/format';
@@ -17,7 +19,9 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const t = await getT(); const locale = await getLocale();
   const user = await requireUser(); const sp = await searchParams;
   const d = await dashboardData(); const costs = canSeeCosts(user); const now = Date.now();
+  const setupSkipped = user.role === 'admin' ? Object.entries((await getSettings()).setup.steps).filter(([, v]) => v === 'omitido').map(([k]) => k) : [];
   const alerts: Array<{ tone: 'red' | 'amber' | 'blue'; text: string; href: string }> = [
+    ...setupSkipped.map((k) => ({ tone: 'blue' as const, text: `${t('setup.checklistTitle')}: ${t(`setup.${k}` as 'setup.fiscal')}`, href: (SETUP_LINKS as Record<string, string>)[k] ?? '/configuracion' })),
     ...d.lowMaterials.map((x) => ({ tone: 'amber' as const, text: t('home.lowStockGAvailableMinimum', { type: x.m.type, color: x.m.colorName, grams: Math.round(x.availableG), min: x.minG }), href: '/inventario' })),
     ...d.lowItems.map((x) => ({ tone: 'amber' as const, text: t('home.lowStock', { name: x.name, stock: x.stock, unit: x.unit }), href: '/inventario?tab=otros' })),
     ...d.lowProducts.map((x) => ({ tone: 'amber' as const, text: t('home.productToRestockUnits', { name: x.p, variant: Object.values(x.v.attrs ?? {}).join(' '), units: x.v.stock }), href: '/catalogo' })),

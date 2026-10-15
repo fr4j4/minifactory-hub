@@ -1,5 +1,7 @@
 import { and, eq, isNull, or, sql } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
+import { needsSetup } from '@/lib/setup';
 import { getDb, s } from '@/db';
 import { can, type Module } from '@/lib/perm';
 import { getT } from '@/i18n/server';
@@ -31,6 +33,7 @@ const NAV = [
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+  if (user.role === 'admin' && (await needsSetup())) redirect('/bienvenida');
   const t = await getT();
   const db = await getDb();
   ensureWorker(); ensureBambu();

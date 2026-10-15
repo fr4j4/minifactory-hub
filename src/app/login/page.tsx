@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth';
+import { hasUsers } from '@/lib/setup';
 import { Mark } from '@/components/shell';
 import { LoginForm } from './form';
 import { getT } from '@/i18n/server';
@@ -12,6 +13,7 @@ export async function generateMetadata() { return { title: (await getT())('auth.
 const LAYERS = Array.from({ length: 30 }, (_, i) => { const t = i / 29; return 52 + 30 * Math.sin(t * Math.PI * 1.15 + 0.35) - 14 * t; });
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  if (!(await hasUsers())) redirect('/bienvenida');
   if (await getSession()) redirect('/');
   const t = await getT();
   const { next } = await searchParams;
