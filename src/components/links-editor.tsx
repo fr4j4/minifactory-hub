@@ -26,8 +26,8 @@ export function LinksEditor({ value, onChange, persist, readOnly, compact }: { v
   return (
     <div data-testid="links-editor">
       {!readOnly && (
-        <div className={cn('flex flex-col sm:flex-row gap-2', compact && 'text-sm')}>
-          <input className="input" placeholder={t('links.pasteALinkPrintablesThingiverse')} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} aria-label={t('links.referenceLink')} data-testid="link-url" />
+        <div className={cn('flex flex-col sm:flex-row sm:flex-wrap gap-2', compact && 'text-sm')}>
+          <input className="input sm:flex-1 sm:min-w-[12rem]" placeholder={t('links.pasteALinkPrintablesThingiverse')} value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} aria-label={t('links.referenceLink')} data-testid="link-url" />
           <select className="input sm:!w-52" value={kind} onChange={(e) => setKind(e.target.value)} aria-label={t('links.linkType')}>{LINK_KINDS.map((k) => <option key={k} value={k}>{t(`links.kind.${k}`)}</option>)}</select>
           <button type="button" className="btn-ghost shrink-0" onClick={add} disabled={busy || !url.trim()} data-testid="link-add">{busy ? t('links.reading') : t('links.add')}</button>
         </div>

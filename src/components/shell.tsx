@@ -70,7 +70,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
     <div className="min-h-screen md:flex">
       {/* panel de control: riel con íconos en tablet, completo en escritorio */}
       <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 transition-[width] duration-300 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
-        <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0">
+        <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0" aria-label="MiniFactory">
           <Mark className="h-9 w-9 shrink-0" />
           <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">{t('nav.tagline')}</span></span>
         </Link>

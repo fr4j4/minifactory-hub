@@ -9,7 +9,7 @@ import { ActiveNozzle, IncidentForm, MachineForm, PlanTools, StatusSelect, Delet
 import { rowNozzle } from '@/lib/slicer/catalog';
 import { getSettings } from '@/lib/settings';
 import { machineHourly } from '@/lib/pricing';
-import { dmy, dmyHm, money, num, pct } from '@/lib/format';
+import { dmy, dmyHm, dur, grams, money, num, pct } from '@/lib/format';
 import { PrinterPanel } from '@/components/printer-live';
 import { liveRows, storedStatus } from '@/lib/bambu/manager';
 import { modelFromCode } from '@/lib/bambu/models';
@@ -43,6 +43,8 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
       runs={runs} jobs={queued.map((j) => ({ id: j.id, label: `${j.number} · ${j.title ?? ''}` }))} />;
   }
   const P = (id: string | null | undefined) => (id ? profs.find((p) => p.id === id) ?? null : null);
+  const mp = P(m.machineProfileId); const dp = P(m.defaultProcessProfileId);
+  const recentRuns = m.machineProfileId ? await db.select().from(s.sliceRuns).where(and(eq(s.sliceRuns.machineProfileId, m.machineProfileId), eq(s.sliceRuns.status, 'done'))).orderBy(desc(s.sliceRuns.createdAt)).limit(3) : [];
   const activeNozzle = P(m.machineProfileId) ? rowNozzle(P(m.machineProfileId)!) : null;
   const setups: Record<string, { machine: string; process: string | null }> = {};
   for (const [n, v] of Object.entries(m.nozzleSetups ?? {})) if (P(v.machineProfileId)) setups[n] = { machine: P(v.machineProfileId)!.name, process: P(v.processProfileId)?.name ?? null };
@@ -53,6 +55,18 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
       <PageHeader back={{ href: '/maquinas', label: t('nav.machines') }} title={<span>{m.name} <StatusBadge status={m.status} /></span>} subtitle={`${m.brand ?? ''} ${m.model ?? ''} · ${m.tech} · ${m.volX}×${m.volY}×${m.volZ} mm`} actions={<div className="flex items-center gap-2">{can(user, 'maquinas', 'E') && <StatusSelect id={m.id} status={m.status} />}{can(user, 'maquinas', 'X') && <DeleteMachineButton machineId={m.id} machineName={m.name} redirectTo="/maquinas" />}</div>} />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4"><Stat label={t('machines.totalHours')} value={`${num(m.hoursTotal, 0)} h`} /><Stat label={t('machines.successfulFailedJobs')} value={`${m.jobsOk} / ${m.jobsFailed}`} /><Stat label={t('machines.successRate')} value={done ? pct((m.jobsOk / done) * 100, 0) : '—'} />{canSeeCosts(user) && <Stat label={t('machines.costPerHour')} value={money(Math.round(hr.dep + hr.maint + hr.energy))} />}<Stat label={t('machines.actualEstimatedFactor')} value={`${num(m.timeFactor, 2)}×`} sub={t('machines.medianOfTheLast20')} /></div>
       {m.tech === 'FDM' && can(user, 'maquinas', 'E') && <div className="mb-4"><ActiveNozzle machineId={m.id} nozzles={m.nozzles ?? []} active={activeNozzle} setups={setups} /></div>}
+      {m.tech === 'FDM' && (
+        <Card title={t('machines.slicingTitle')} className="mb-4" actions={<Link href="/laminador/configurar" className="btn-ghost btn-sm">{t('machines.slicingConfigure')}</Link>}>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm" data-testid="slicing-card">
+            {mp && dp ? <Badge tone="green">{t('machines.slicingReady')}</Badge> : <Badge tone="amber">{t('machines.slicingMissing')}</Badge>}
+            <span><span className="muted">{t('machines.slicingPrinter')}:</span> {mp?.name ?? '—'}</span>
+            <span><span className="muted">{t('machines.slicingQuality')}:</span> {dp?.name ?? '—'}</span>
+            <span><span className="muted">{t('machines.slicingNozzle')}:</span> {activeNozzle ? `${activeNozzle} mm` : '—'}</span>
+            <span className="muted">{t('machines.slicingRecent', { n: recentRuns.length })}</span>
+          </div>
+          {recentRuns.length > 0 && <ul className="mt-2 text-xs space-y-1">{recentRuns.map((r) => <li key={r.id} className="flex justify-between gap-3"><span className="truncate">{r.label ?? '—'}</span><span className="tabular muted shrink-0">{dur(r.timeS)} · {grams((r.filament ?? []).reduce((a, f) => a + f.g, 0))}</span></li>)}</ul>}
+        </Card>
+      )}
       {printer && <div className="mb-4">{printer}</div>}
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">

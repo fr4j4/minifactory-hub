@@ -412,4 +412,12 @@ export const machines = {
   deleteMachine: 'Eliminar máquina',
   deleteHasJobs_one: 'Esta máquina tiene {count} trabajo activo en la cola. Termina, cancela o reasigna ese trabajo antes de eliminarla.',
   deleteHasJobs_other: 'Esta máquina tiene {count} trabajos activos en la cola. Termina, cancela o reasigna esos trabajos antes de eliminarla.',
+  slicingTitle: 'Laminado',
+  slicingConfigure: 'Configurar laminado',
+  slicingReady: 'Lista para laminar',
+  slicingMissing: 'Falta configurar',
+  slicingPrinter: 'Impresora',
+  slicingQuality: 'Calidad por defecto',
+  slicingNozzle: 'Boquilla',
+  slicingRecent: '{n} laminado(s) recientes',
 };

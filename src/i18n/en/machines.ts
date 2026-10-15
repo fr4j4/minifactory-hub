@@ -415,4 +415,12 @@ export const machines: Shape<typeof es['machines']> = {
   deleteMachine: 'Delete machine',
   deleteHasJobs_one: 'This machine has {count} active job in the queue. Finish, cancel or reassign that job before deleting it.',
   deleteHasJobs_other: 'This machine has {count} active jobs in the queue. Finish, cancel or reassign those jobs before deleting it.',
+  slicingTitle: 'Slicing',
+  slicingConfigure: 'Set up slicing',
+  slicingReady: 'Ready to slice',
+  slicingMissing: 'Needs setup',
+  slicingPrinter: 'Printer',
+  slicingQuality: 'Default quality',
+  slicingNozzle: 'Nozzle',
+  slicingRecent: '{n} recent slice(s)',
 };
