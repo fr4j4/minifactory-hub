@@ -43,4 +43,6 @@ export const home = {
   noMachines: 'Aún no hay máquinas.',
   printsNow: 'imprime',
   free: 'libre',
+  quotesToFollowUp: '{n} presupuesto(s) enviados sin respuesta hace más de 7 días',
+  quotesExpiringSoon: '{n} presupuesto(s) vencen en los próximos 3 días',
 };

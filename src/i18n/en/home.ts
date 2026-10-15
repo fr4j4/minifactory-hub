@@ -46,4 +46,6 @@ export const home: Shape<typeof es['home']> = {
   noMachines: 'There are no machines yet.',
   printsNow: 'printing',
   free: 'free',
+  quotesToFollowUp: '{n} sent quote(s) with no reply for over 7 days',
+  quotesExpiringSoon: '{n} quote(s) expire within 3 days',
 };

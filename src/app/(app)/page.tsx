@@ -5,6 +5,7 @@ import { PageHeader, Card, Stat, Meter, Badge, Empty } from '@/components/ui';
 import { Icon } from '@/components/shell';
 import { dashboardData } from '@/lib/stats';
 import { getSettings } from '@/lib/settings';
+import { quoteBoard } from '@/lib/services/quote-board';
 import { SETUP_LINKS } from '@/lib/setup';
 import { liveByMachine } from '@/lib/bambu/manager';
 import { PrinterPill } from '@/components/printer-live';
@@ -20,7 +21,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const user = await requireUser(); const sp = await searchParams;
   const d = await dashboardData(); const costs = canSeeCosts(user); const now = Date.now();
   const setupSkipped = user.role === 'admin' ? Object.entries((await getSettings()).setup.steps).filter(([, v]) => v === 'omitido').map(([k]) => k) : [];
+  const qb = can(user, 'presupuestos', 'V') ? await quoteBoard() : null;
   const alerts: Array<{ tone: 'red' | 'amber' | 'blue'; text: string; href: string }> = [
+    ...(qb && qb.noReply > 0 ? [{ tone: 'blue' as const, text: t('home.quotesToFollowUp', { n: qb.noReply }), href: '/presupuestos?st=enviado' }] : []),
+    ...(qb && qb.dueSoon > 0 ? [{ tone: 'amber' as const, text: t('home.quotesExpiringSoon', { n: qb.dueSoon }), href: '/presupuestos?st=enviado' }] : []),
     ...setupSkipped.map((k) => ({ tone: 'blue' as const, text: `${t('setup.checklistTitle')}: ${t(`setup.${k}` as 'setup.fiscal')}`, href: (SETUP_LINKS as Record<string, string>)[k] ?? '/configuracion' })),
     ...d.lowMaterials.map((x) => ({ tone: 'amber' as const, text: t('home.lowStockGAvailableMinimum', { type: x.m.type, color: x.m.colorName, grams: Math.round(x.availableG), min: x.minG }), href: '/inventario' })),
     ...d.lowItems.map((x) => ({ tone: 'amber' as const, text: t('home.lowStock', { name: x.name, stock: x.stock, unit: x.unit }), href: '/inventario?tab=otros' })),

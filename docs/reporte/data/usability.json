@@ -1,55 +1,11 @@
 [
  {
-  "name": "Detectar y conectar una impresora Bambu Lab",
-  "seconds": 8.4,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true,
-  "note": "búsqueda de 6 s + prueba de conexión"
- },
- {
-  "name": "Enviar un laminado a la impresora",
-  "seconds": 1,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true
- },
- {
-  "name": "Iniciar sesión en Bambu Cloud y agregar una impresora",
-  "seconds": 2.2,
-  "steps": 0,
-  "limitS": 90,
-  "ok": true
- },
- {
-  "name": "Configurar una impresora nueva para laminar",
-  "seconds": 0.3,
-  "steps": 0,
-  "limitS": 20,
-  "ok": true
- },
- {
   "name": "Subir un STL y ver su análisis",
   "seconds": 2.1,
   "steps": 0,
   "limitS": 30,
   "ok": true,
   "note": "incluye subida por partes, análisis y miniatura"
- },
- {
-  "name": "Laminar una pieza y ver tiempo, gramos y precio",
-  "seconds": 2.1,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true,
-  "note": "objetivo de la spec: menos de 30 s"
- },
- {
-  "name": "Comparar 3 combinaciones de laminado",
-  "seconds": 4.6,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true
  },
  {
   "name": "Armar y guardar un presupuesto con 2 líneas",
@@ -81,5 +37,49 @@
   "limitS": 30,
   "ok": true,
   "note": "objetivo: menos de 30 s"
+ },
+ {
+  "name": "Detectar y conectar una impresora Bambu Lab",
+  "seconds": 8.2,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true,
+  "note": "búsqueda de 6 s + prueba de conexión"
+ },
+ {
+  "name": "Enviar un laminado a la impresora",
+  "seconds": 1.5,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true
+ },
+ {
+  "name": "Iniciar sesión en Bambu Cloud y agregar una impresora",
+  "seconds": 2.4,
+  "steps": 0,
+  "limitS": 90,
+  "ok": true
+ },
+ {
+  "name": "Configurar una impresora nueva para laminar",
+  "seconds": 0.6,
+  "steps": 0,
+  "limitS": 20,
+  "ok": true
+ },
+ {
+  "name": "Laminar una pieza y ver tiempo, gramos y precio",
+  "seconds": 2.7,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 30 s"
+ },
+ {
+  "name": "Comparar 3 combinaciones de laminado",
+  "seconds": 3.1,
+  "steps": 0,
+  "limitS": 60,
+  "ok": true
  }
 ]
