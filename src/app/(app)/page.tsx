@@ -46,7 +46,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   return (
     <>
       <PageHeader eyebrow={new Intl.DateTimeFormat(LOCALE_TAG[locale], { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date()).replace(/^./, (c) => c.toUpperCase())} title={<>{hello}, <span className="text-[var(--accent-ink)]">{user.name.split(' ')[0]}</span></>} subtitle={t('home.ofMachinesPrintingOrdersDue', { busy, machines: d.machines.length, due: d.due.length, alerts: alerts.length })} />
-      {sp.sin_permiso && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm mb-4">{t('home.noAccess', { module: sp.sin_permiso })}</div>}
+      {sp.sin_permiso && <div role="alert" className="rounded-xl box-warn p-3 text-sm mb-4">{t('home.noAccess', { module: sp.sin_permiso })}</div>}
 
       {/* taller en vivo: cada máquina como una placa con su pieza creciendo capa a capa */}
       <section aria-label={t('home.liveWorkshop')} className="relative overflow-hidden rounded-3xl bg-[var(--panel)] text-[var(--panel-ink)] p-4 md:p-5 mb-5 ring-1 ring-black/5 dark:ring-white/[.07]">

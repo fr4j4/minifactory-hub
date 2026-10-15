@@ -2,6 +2,10 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const files: Shape<typeof es['files']> = {
+  diffFromFactory_one: '{n} change from factory',
+  diffFromFactory_other: '{n} changes from factory',
+  diffParam: 'Parameter',
+  diffYours: 'Yours',
   importProjectSettings: 'Use this project’s settings',
   importProjectHint: 'Saves as profiles the printer, quality and filaments the 3MF project already carries.',
   repairMesh: 'Repair mesh',

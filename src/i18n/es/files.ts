@@ -1,4 +1,8 @@
 export const files = {
+  diffFromFactory_one: '{n} cambio respecto de la fábrica',
+  diffFromFactory_other: '{n} cambios respecto de la fábrica',
+  diffParam: 'Parámetro',
+  diffYours: 'Tuyo',
   importProjectSettings: 'Usar los ajustes de este proyecto',
   importProjectHint: 'Guarda como perfiles la impresora, la calidad y los filamentos que el proyecto 3MF ya trae.',
   repairMesh: 'Reparar malla',

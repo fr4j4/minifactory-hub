@@ -181,7 +181,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
         </div>
       </header>
       {cloud && <p className="mx-4 mt-3 text-xs muted" data-testid="cloud-readonly">{t('machines.connectedThroughBambuCloudYou')}</p>}
-      {!r.online && r.error && <div role="alert" className="mx-4 mt-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="printer-error">{r.error}</div>}
+      {!r.online && r.error && <div role="alert" className="mx-4 mt-3 rounded-xl box-warn p-3 text-sm" data-testid="printer-error">{r.error}</div>}
       <div className="grid gap-4 p-4 lg:grid-cols-[1.15fr_1fr]">
         <CameraView id={r.id} kind={cameraKind} offline={!r.online} />
         <div className="space-y-3 min-w-0">

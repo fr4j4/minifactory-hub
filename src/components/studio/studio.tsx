@@ -97,7 +97,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
   return (
     <div className="grid xl:grid-cols-[minmax(0,1fr)_420px] gap-4" data-testid="studio">
       <div className="space-y-3 min-w-0">
-        {noSetup && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm">{t('slicer.noMachineHasItsPrinter')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
+        {noSetup && <div className="rounded-xl box-warn p-3 text-sm">{t('slicer.noMachineHasItsPrinter')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
         <div className="card p-3 grid sm:grid-cols-4 gap-3">
           <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => { setSetupKey(e.target.value); const s2 = setups.find((x) => x.key === e.target.value); if (s2?.processProfileId) setProcessId(s2.processProfileId); }} data-testid="studio-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
           <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="studio-process"><ProcessOptions profiles={procs} machineNozzle={setup?.nozzle ?? null} compatibleIds={setup?.compatibleProcessIds} /></select></label>
@@ -118,7 +118,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
                 : shown ? <span className="badge border-emerald-400 text-ok">{t('studio.sliced')}</span> : null}
             </div>
           </div>
-          {run?.status === 'error' && <div role="alert" className="mt-2 rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 p-2.5 text-sm text-red-800 dark:text-red-200" data-testid="studio-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
+          {run?.status === 'error' && <div role="alert" className="mt-2 rounded-lg box-danger p-2.5 text-sm text-red-800 dark:text-red-200" data-testid="studio-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
           <label className="flex items-center gap-2 text-xs mt-2"><input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} data-testid="studio-auto" />{t('studio.autoSlice')}</label>
         </div>
         {shown?.status === 'done' && baseRun?.status === 'done' && baseRun.id !== shown.id && <label className="flex items-center gap-2 text-xs mb-2"><input type="checkbox" checked={ab} onChange={(e) => setAb(e.target.checked)} data-testid="studio-ab" />{t('studio.compareBase')}</label>}

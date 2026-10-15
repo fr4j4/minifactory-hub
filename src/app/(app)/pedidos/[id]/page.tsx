@@ -53,7 +53,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           msgReady={fillTemplate(st.templates.whatsappReady, vars)} msgShipped={fillTemplate(st.templates.whatsappShipped, vars)} wa={waLink(phone, fillTemplate(st.templates.whatsappReady, vars))} waShipped={waLink(phone, fillTemplate(st.templates.whatsappShipped, vars))} /></>} />
       {o.status !== 'cancelado' ? (
         <ol className="flex mb-5 overflow-x-auto" aria-label={t('orders.orderProgress')}>{STEPS.map((k, i) => <li key={k} className="flex-1 min-w-[84px] text-center text-xs"><div className={`mx-auto h-2 rounded-full ${i <= stepIdx ? 'bg-brand-600' : 'bg-slate-200 dark:bg-slate-700'} ${i === 0 ? 'rounded-l-full' : ''}`} /><div className={`mt-1.5 ${i === stepIdx ? 'font-semibold' : 'muted'}`}>{t(`status.${k}`)}</div></li>)}</ol>
-      ) : <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/30 p-3 text-sm mb-4"><div className="flex flex-wrap items-center justify-between gap-2"><span>{t('orders.orderCancelled')} {o.canceledReason}</span>{can(user, 'pedidos', 'X') && <RemoveButton kind="order" id={o.id} name={o.number} redirectTo="/pedidos" />}</div></div>}
+      ) : <div className="rounded-lg box-danger p-3 text-sm mb-4"><div className="flex flex-wrap items-center justify-between gap-2"><span>{t('orders.orderCancelled')} {o.canceledReason}</span>{can(user, 'pedidos', 'X') && <RemoveButton kind="order" id={o.id} name={o.number} redirectTo="/pedidos" />}</div></div>}
       <div className="grid gap-4 xl:grid-cols-3">
         <div className="xl:col-span-2 space-y-4">
           <Card title={`${t('orders.orderItems')}${quote ? ` · ${t('orders.fromQuote', { number: quote.number, version: quote.version })}` : ''}`} pad={false}>

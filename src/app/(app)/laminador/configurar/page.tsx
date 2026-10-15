@@ -16,7 +16,7 @@ export default async function SetupPage() {
   return (
     <>
       <PageHeader back={{ href: '/laminador', label: t('nav.slicer') }} title={t('slicer.setUpSlicing')} subtitle={t('slicer.threeStepsSoTheApp')} />
-      {!orcaAvailable() && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm mb-4">{t('slicer.orcaMissingConfig', { cmd: 'npm run orca:install' })}</div>}
+      {!orcaAvailable() && <div className="rounded-xl box-warn p-3 text-sm mb-4">{t('slicer.orcaMissingConfig', { cmd: 'npm run orca:install' })}</div>}
       <SlicingSetup data={data} canEdit={can(user, 'laminador', 'C')} />
     </>
   );

@@ -13,6 +13,8 @@
     "orca:install": "bash scripts/install-orca.sh",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:visual": "playwright test -c playwright.visual.config.ts",
+    "test:visual:update": "playwright test -c playwright.visual.config.ts --update-snapshots",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

@@ -96,7 +96,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId, materialId, qty: copies }) : null;
   return (
     <div className="space-y-4" data-testid="slice-panel">
-      {setups.length === 0 && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
+      {setups.length === 0 && <div className="rounded-xl box-warn p-3 text-sm" data-testid="slice-needs-setup">
         {setups.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => setSetupKey(e.target.value)} data-testid="slice-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}{ctx.machines.find((m) => m.id === x.machineId)?.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
@@ -119,7 +119,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         <span className="text-xs muted">{t('slicer.engineOrcaslicerTheSameFile')}</span>
       </div>
       {busy && <div className="flex items-center gap-2 text-sm muted" role="status"><span className="inline-block h-3 w-3 rounded-full bg-brand-600 animate-pulse" /> {run?.status === 'running' ? t('slicer.slicingWithOrcaslicer') : t('slicer.inTheSlicingQueue')}{run?.status === 'running' && run.progress && <><span className="tabular" data-testid="slice-progress-pct">{run.progress.pct}%</span><progress className="h-1.5 w-32" max={100} value={run.progress.pct} aria-label={t('slicer.progress')} /><span className="text-xs truncate">{run.progress.message}</span></>}</div>}
-      {run?.status === 'error' && <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-200" role="alert" data-testid="slice-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
+      {run?.status === 'error' && <div className="rounded-lg box-danger dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-200" role="alert" data-testid="slice-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
       {run?.status === 'done' && bd && (
         <div className="rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 p-4 space-y-3" data-testid="slice-result">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

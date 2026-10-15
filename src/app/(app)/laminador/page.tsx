@@ -35,11 +35,11 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader title={t('slicer.slicer')} subtitle={<>{t('slicer.engineLabel')} <b>{orcaAvailable() ? t('slicer.orcaslicer', { engine }) : t('slicer.notInstalled')}</b>. {t('slicer.engineNote')}</>}
         actions={<><Link href="/laminador/configurar" className="btn-primary" data-testid="setup-open">{t('slicer.setUpSlicing')}</Link>{can(user, 'laminador', 'C') && tab === 'perfiles' && <ImportPresetsButton />}</>} />
-      {!orcaAvailable() && <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 text-sm mb-4">{t('slicer.orcaMissing', { cmd: 'npm run orca:install' })}</div>}
+      {!orcaAvailable() && <div className="rounded-lg box-warn p-3 text-sm mb-4">{t('slicer.orcaMissing', { cmd: 'npm run orca:install' })}</div>}
       <Tabs current={tab} tabs={[{ key: 'perfiles', label: t('slicer.tabProfiles'), href: '/laminador' }, { key: 'comparar', label: t('slicer.tabComparator'), href: '/laminador?tab=comparar' }, { key: 'laminados', label: t('slicer.tabSlices'), href: '/laminador?tab=laminados' }]} />
       {tab === 'perfiles' && (
         <div className="space-y-5">
-          {ready && (ready.done.machines < ready.machines.length || ready.done.materials < ready.materials.length) && <Link href="/laminador/configurar" className="block rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-4 hover:border-amber-500" data-testid="setup-banner">
+          {ready && (ready.done.machines < ready.machines.length || ready.done.materials < ready.materials.length) && <Link href="/laminador/configurar" className="block rounded-2xl box-warn p-4 hover:border-amber-500" data-testid="setup-banner">
             <div className="font-medium">{t('slicer.missingSetup', { machines: ready.machines.length - ready.done.machines, materials: ready.materials.length - ready.done.materials })}</div>
             <div className="text-sm muted mt-0.5">{t('slicer.opensTheGuidedSetupPick')}</div></Link>}
           <ProfilesGuide open={profs.length === 0} />
