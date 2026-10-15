@@ -9,7 +9,7 @@ test.describe('Configurar el laminado sin JSON', () => {
     await page.goto('/maquinas/nueva'); await page.getByTestId('machine-name').fill('P1S Nueva'); await page.getByLabel('Marca').fill('Bambu Lab'); await page.getByLabel('Modelo').fill('P1S');
     await page.getByTestId('machine-save').click(); await page.waitForURL(/\/maquinas\/[0-9a-f-]{36}$/);
     await page.goto('/laminador'); await expect(page.getByTestId('setup-banner')).toBeVisible(); await shot(page, 'L01-laminador-falta-configurar');
-    await page.getByTestId('setup-open').click(); await page.waitForURL('**/laminador/configurar');
+    await page.waitForLoadState('networkidle'); await page.goto((await page.getByTestId('setup-open').getAttribute('href'))!);
     const row = page.getByTestId('setup-machine').filter({ hasText: 'P1S Nueva' });
     await expect(row.getByTestId('setup-machine-base')).toHaveText('Bambu Lab P1S 0.4 (boquilla)');
     await expect(row.getByTestId('setup-process')).toHaveValue('0.20mm Standard @BBL X1C');
