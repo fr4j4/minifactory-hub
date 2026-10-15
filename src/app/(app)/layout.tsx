@@ -2,6 +2,7 @@ import { and, eq, isNull, or, sql } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { needsSetup } from '@/lib/setup';
+import { getSettings } from '@/lib/settings';
 import { getDb, s } from '@/db';
 import { can, type Module } from '@/lib/perm';
 import { getT } from '@/i18n/server';
@@ -40,5 +41,5 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await expireQuotes().catch(() => {});
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.read, false), or(isNull(s.notifications.userId), eq(s.notifications.userId, user.id))));
   const nav: NavItem[] = NAV.filter((n) => can(user, n.mod, 'V')).map((n) => ({ href: n.href, label: t(n.label), icon: n.icon, group: n.group }));
-  return <AppShell nav={nav} user={{ name: user.name, role: t(`roles.${user.role}`) }} unread={Number(n)}>{children}</AppShell>;
+  return <AppShell nav={nav} user={{ name: user.name, role: t(`roles.${user.role}`) }} unread={Number(n)} shopPalette={(await getSettings()).shop.palette}>{children}</AppShell>;
 }

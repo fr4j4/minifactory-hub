@@ -6,6 +6,7 @@ import { cn } from '@/lib/format';
 import { logoutAction } from '@/actions/auth';
 import { useT } from '@/i18n/client';
 import { LocaleSwitcher } from './locale-switcher';
+import { ThemePicker } from './theme-picker';
 
 export interface NavItem { href: string; label: string; icon: string; group: 'main' | 'more' }
 const ICONS: Record<string, string> = {
@@ -37,7 +38,7 @@ export function Mark({ className = 'h-8 w-8' }: { className?: string }) {
   );
 }
 
-export function AppShell({ nav, user, unread, children }: { nav: NavItem[]; user: { name: string; role: string }; unread: number; children: React.ReactNode }) {
+export function AppShell({ nav, user, unread, shopPalette, children }: { nav: NavItem[]; user: { name: string; role: string }; unread: number; shopPalette?: string; children: React.ReactNode }) {
   const path = usePathname(); const router = useRouter(); const t = useT();
   const [more, setMore] = useState(false); const [plus, setPlus] = useState(false); const [search, setSearch] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -120,6 +121,7 @@ export function AppShell({ nav, user, unread, children }: { nav: NavItem[]; user
                 <div className="px-2 py-2"><div className="text-sm font-medium">{user.name}</div><div className="eyebrow !text-[10px] mt-0.5">{user.role}</div></div>
                 <Link href="/configuracion/perfil" className="block rounded-lg px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">{t('shell.profileLink')}</Link>
                 <div className="px-2 py-1.5"><LocaleSwitcher /></div>
+                <div className="px-2 py-1.5 border-t border-[var(--line)] mt-1 pt-2"><div className="eyebrow !text-[10px] mb-1.5">{t('theme.appearance')}</div><ThemePicker compact shopPalette={shopPalette} /></div>
                 <form action={logoutAction}><button className="w-full text-left rounded-lg px-2 py-3 min-h-[44px] text-sm hover:bg-slate-100 dark:hover:bg-slate-800">{t('shell.logout')}</button></form>
               </div>
             </details>

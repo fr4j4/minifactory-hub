@@ -5,13 +5,14 @@ import { saleToggleChannelAction } from '@/actions/catalog';
 import { Modal, useAction } from './client';
 import type { AppSettings } from '@/lib/settings';
 import { DEFAULT_MATRIX, type Module } from '@/lib/perm';
-import { useT } from '@/i18n/client';
+import { useLocale, useT } from '@/i18n/client';
+import { PALETTE_IDS, PALETTE_NAMES } from '@/lib/palettes';
 import type { MessageKey } from '@/i18n/translate';
 
 const num = (e: React.ChangeEvent<HTMLInputElement>) => (e.target.value === '' ? 0 : +e.target.value);
 
 export function ShopForm({ st }: { st: AppSettings }) {
-  const t = useT();
+  const t = useT(); const lang = useLocale() === 'en' ? 'en' : 'es';
   const { run, pending } = useAction(); const [v, setV] = useState(st.shop); const [h, setH] = useState(st.workHours); const [hol, setHol] = useState(st.workHours.holidays.join(', '));
   const f = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement>) => setV({ ...v, [k]: e.target.value });
   return (
@@ -20,6 +21,7 @@ export function ShopForm({ st }: { st: AppSettings }) {
       <label className="block"><span className="label">{t('settings.taxId')}</span><input className="input" value={v.taxId} onChange={f('taxId')} /></label><label className="block"><span className="label">{t('settings.phone')}</span><input className="input" value={v.phone} onChange={f('phone')} /></label>
       <label className="block"><span className="label">{t('settings.email2')}</span><input className="input" value={v.email} onChange={f('email')} /></label><label className="block"><span className="label">{t('settings.address')}</span><input className="input" value={v.address} onChange={f('address')} /></label>
       <label className="block"><span className="label">{t('settings.brandColor')}</span><input type="color" className="input !p-1" value={v.brandColor} onChange={f('brandColor')} /></label><label className="block"><span className="label">{t('settings.timeZone')}</span><input className="input" value={v.timezone} onChange={f('timezone')} /></label>
+      <label className="block"><span className="label">{t('theme.shopPalette')}</span><select className="input" value={v.palette ?? 'capa'} onChange={(e) => setV({ ...v, palette: e.target.value })} data-testid="shop-palette">{PALETTE_IDS.map((id) => <option key={id} value={id}>{PALETTE_NAMES[id][lang]}</option>)}</select><span className="muted text-xs">{t('theme.shopPaletteHint')}</span></label>
       <div className="sm:col-span-2 border-t border-slate-200 dark:border-slate-700 pt-3"><h3 className="font-medium text-sm mb-2">{t('settings.workshopCalendarForTheGantt')}</h3>
         <div className="grid sm:grid-cols-4 gap-3"><label className="block"><span className="label">{t('settings.opens')}</span><input type="time" className="input" value={h.start} onChange={(e) => setH({ ...h, start: e.target.value })} /></label><label className="block"><span className="label">{t('settings.closes')}</span><input type="time" className="input" value={h.end} onChange={(e) => setH({ ...h, end: e.target.value })} /></label>
           <div className="sm:col-span-2"><span className="label">{t('settings.workingDays')}</span><div className="flex flex-wrap gap-1">{['D', 'L', 'M', 'X', 'J', 'V', 'S'].map((d, i) => <button type="button" key={i} aria-pressed={h.days.includes(i)} onClick={() => setH({ ...h, days: h.days.includes(i) ? h.days.filter((x) => x !== i) : [...h.days, i] })} className={`btn-ghost btn-sm !px-3 ${h.days.includes(i) ? '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700' : ''}`}>{d}</button>)}</div></div></div>
