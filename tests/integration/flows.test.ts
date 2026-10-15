@@ -181,3 +181,19 @@ describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
     expect(big1.status).toBe('error'); expect(big1.error).toMatch(/no cabe/);
   });
 });
+
+describe('alta masiva de filamentos (N4)', async () => {
+  const { planBulkMaterials, applyBulkMaterials } = await import('@/lib/services/inventory');
+  const common = { manufacturer: 'Cicla 3D', line: 'PLA reciclado', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 14000, netG: 1000, tareG: 200 };
+  it('vista previa detecta repetidos y existentes; aplicar crea materiales y bobinas', async () => {
+    const rows = [{ colorName: 'Verde', hex: '#2f9d4b', spools: 2 }, { colorName: 'verde ', hex: '#2f9d4b', spools: 1 }, { colorName: 'Beige', hex: '#e3d3b0', spools: 0 }];
+    const p = await planBulkMaterials(common, rows);
+    expect(p.items.map((i) => i.status)).toEqual(['new', 'repeat', 'new']); expect(p.newMaterials).toBe(2); expect(p.spools).toBe(2);
+    const r = await applyBulkMaterials(common, rows);
+    expect(r).toMatchObject({ created: 2, spools: 2 });
+    const again = await planBulkMaterials(common, rows);
+    expect(again.items.map((i) => i.status)).toEqual(['exists', 'repeat', 'exists']);
+    const r2 = await applyBulkMaterials(common, [{ colorName: 'Verde', hex: '#000', spools: 1 }]); // ya existe: solo ingresa bobina
+    expect(r2).toMatchObject({ created: 0, existing: 1, spools: 1 });
+  });
+});

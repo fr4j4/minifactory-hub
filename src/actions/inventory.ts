@@ -51,3 +51,20 @@ export async function findSpoolByCodeAction(code: string) {
   const t = await getT();
   return safe(async () => { await requirePerm('inventario', 'V'); const db = await getDb(); const c = code.trim().replace(/^MF:/i, '').toUpperCase(); const [sp] = await db.select().from(s.spools).where(eq(s.spools.code, c)); if (!sp) throw new Error(t('inventory.spoolDoesNotExist', { code: c})); return sp.id; });
 }
+
+import { applyBulkMaterials, planBulkMaterials, type BulkCommon, type BulkRow } from '@/lib/services/inventory';
+const bulkCheck = (c: BulkCommon, rows: BulkRow[], t: Awaited<ReturnType<typeof getT>>) => {
+  if (!c.type?.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
+  if (!(c.costPerKg >= 0) || !(c.netG > 0) || !(c.tareG >= 0) || !(c.density > 0)) throw new Error(t('inventory.bulkBadNumbers'));
+  if (!rows.some((r) => r.colorName.trim())) throw new Error(t('inventory.bulkNoColors'));
+  if (rows.length > 100) throw new Error(t('inventory.bulkTooMany'));
+};
+/** Vista previa del alta masiva: no escribe. */
+export async function previewBulkAction(c: BulkCommon, rows: BulkRow[]) {
+  const t = await getT();
+  return safe(async () => { await requirePerm('inventario', 'C'); bulkCheck(c, rows, t); return planBulkMaterials(c, rows); });
+}
+export async function applyBulkAction(c: BulkCommon, rows: BulkRow[]) {
+  const t = await getT();
+  return safe(async () => { const u = await requirePerm('inventario', 'C'); bulkCheck(c, rows, t); return applyBulkMaterials(c, rows, u.id); }, ['/inventario']);
+}

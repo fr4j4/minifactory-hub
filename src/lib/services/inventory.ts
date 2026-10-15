@@ -125,3 +125,38 @@ export async function moveItem(o: { itemId: string; qty: number; kind: 'entrada'
   if (stock <= it.minStock) await notify('stock_bajo', t('inventory.lowStock2', { name: it.name }), t('inventory.leftMinimum', { stock, unit: it.unit, min: it.minStock }), '/inventario?tab=otros');
   return stock;
 }
+
+/* ── Alta masiva de filamentos (N4) ─────────────────────────────────────── */
+export interface BulkCommon { manufacturer: string; line: string; type: string; diameter: number; density: number; costPerKg: number; netG: number; tareG: number; stockMinG?: number; supplierText?: string }
+export interface BulkRow { colorName: string; hex: string; spools: number; lot?: string; location?: string }
+const key = (m: string | null | undefined, l: string | null | undefined, ty: string, c: string) => [m, l, ty, c].map((x) => String(x ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()).join('|');
+
+/** Vista previa: qué se crearía, qué ya existe (duplicado por marca + línea + tipo + color) y cuántas bobinas se ingresarían. No escribe nada. */
+export async function planBulkMaterials(common: BulkCommon, rows: BulkRow[], db?: Db) {
+  db ??= await getDb();
+  const existing = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
+  const have = new Map(existing.map((m) => [key(m.manufacturer, m.line, m.type, m.colorName), m]));
+  const seen = new Set<string>(); const items = rows.filter((r) => r.colorName.trim()).map((r) => {
+    const k = key(common.manufacturer, common.line, common.type, r.colorName); const dupInBatch = seen.has(k); seen.add(k);
+    const ex = have.get(k);
+    return { ...r, status: dupInBatch ? ('repeat' as const) : ex ? ('exists' as const) : ('new' as const), existingId: ex?.id ?? null };
+  });
+  return { items, newMaterials: items.filter((i) => i.status === 'new').length, spools: items.filter((i) => i.status !== 'repeat').reduce((a, i) => a + Math.max(0, Math.min(50, i.spools)), 0) };
+}
+
+/** Crea los materiales nuevos y registra la entrada de compra (bobinas con código) también para los que ya existían. */
+export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], userId?: string | null) {
+  const t = await getT(); const db = await getDb();
+  if (!common.type.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
+  const plan = await planBulkMaterials(common, rows, db); const created: string[] = []; const spoolIds: string[] = [];
+  for (const it of plan.items) {
+    if (it.status === 'repeat') continue;
+    let id = it.existingId;
+    if (!id) {
+      const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null }).returning({ id: s.materials.id });
+      id = m.id; created.push(id); await audit('material', id, 'crear', { bulk: true }, userId);
+    }
+    for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, userId }, db)).id);
+  }
+  return { created: created.length, existing: plan.items.filter((i) => i.status === 'exists').length, spools: spoolIds.length, spoolIds };
+}
