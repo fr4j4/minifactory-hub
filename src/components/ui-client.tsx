@@ -15,7 +15,7 @@ export function StatusBadge({ status }: { status: string }) {
 export function Tabs({ tabs, current }: { tabs: Array<{ href: string; label: string; key: string; count?: number }>; current: string }) {
   const t = useT();
   return (
-    <nav className="flex gap-1 overflow-x-auto mb-5 p-1 rounded-2xl border border-[var(--line)] bg-[var(--card)] w-fit max-w-full" aria-label={t('common.sections')}>
+    <nav className="flex flex-wrap gap-1 mb-5 p-1 rounded-2xl border border-[var(--line)] bg-[var(--card)] w-fit max-w-full" aria-label={t('common.sections')}>
       {tabs.map((tab) => (
         <Link key={tab.key} href={tab.href} aria-current={tab.key === current ? 'page' : undefined}
           className={cn('px-3.5 py-2 text-sm whitespace-nowrap rounded-xl min-h-[44px] md:min-h-[36px] flex items-center gap-1.5 transition-colors', tab.key === current ? 'bg-[var(--panel)] text-[var(--panel-ink)] font-medium dark:bg-slate-700' : 'muted hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800')}>

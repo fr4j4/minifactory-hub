@@ -4,13 +4,13 @@ import AxeBuilder from '@axe-core/playwright';
 test.describe('IA opcional (Fase 0)', () => {
   test('apagada por defecto: sin controles de IA; el operador no ve la configuración', async ({ page }) => {
     await login(page, 'operador');
-    await page.goto('/configuracion'); await expect(page).not.toHaveURL(/\/configuracion$/); // sin permiso de config
-    await page.goto('/laminador'); await expect(page.getByRole('button', { name: /IA/ })).toHaveCount(0);
+    await page.goto('/configuracion'); await page.waitForLoadState('networkidle'); await expect(page).not.toHaveURL(/\/configuracion$/); // sin permiso de config
+    await page.goto('/laminador'); await page.waitForLoadState('networkidle'); await expect(page.getByRole('button', { name: /IA/ })).toHaveCount(0);
   });
 
   test('el administrador configura el proveedor, prueba la conexión y la clave nunca vuelve al navegador', async ({ page }) => {
     await login(page);
-    await page.goto('/configuracion?tab=ia');
+    await page.goto('/configuracion?tab=ia'); await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('ai-enabled')).not.toBeChecked();
     await shot(page, 'IA01-apagada', { full: true });
 
@@ -39,7 +39,7 @@ test.describe('IA opcional (Fase 0)', () => {
   });
 
   test('«solo local» rechaza un proveedor de internet al guardar', async ({ page }) => {
-    await login(page); await page.goto('/configuracion?tab=ia');
+    await login(page); await page.goto('/configuracion?tab=ia'); await page.waitForLoadState('networkidle');
     await page.getByTestId('ai-provider').selectOption('genericOpenai');
     await page.getByTestId('ai-base-url').fill('https://api.openai.com/v1');
     await page.getByTestId('ai-local-only').check(); await page.getByTestId('ai-save').click();
@@ -47,7 +47,7 @@ test.describe('IA opcional (Fase 0)', () => {
   });
 
   test('proveedores preconfigurados, descubridor de IA local y opción genérica', async ({ page }) => {
-    await login(page); await page.goto('/configuracion?tab=ia');
+    await login(page); await page.goto('/configuracion?tab=ia'); await page.waitForLoadState('networkidle');
     // preajuste local: trae su dirección y no pide clave
     await page.getByTestId('ai-provider').selectOption('ollama');
     await expect(page.getByTestId('ai-base-url')).toHaveValue('http://localhost:11434/v1'); await expect(page.getByTestId('ai-preset-note')).toContainText('11434');
@@ -78,7 +78,7 @@ test.describe('IA opcional (Fase 0)', () => {
   });
 
   test('accesibilidad de la pantalla', async ({ page }) => {
-    await login(page); await page.goto('/configuracion?tab=ia');
+    await login(page); await page.goto('/configuracion?tab=ia'); await page.waitForLoadState('networkidle');
     const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(r.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual([]);
   });

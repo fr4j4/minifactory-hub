@@ -183,3 +183,18 @@ export async function ingestZip(i: { tmpPath: string; filename: string; userId?:
   await fsp.rm(i.tmpPath, { force: true });
   return { zip: true as const, created: created.length, failed, modelFileId: created[0]?.modelFileId ?? null, models: created };
 }
+
+
+/**
+ * Vuelve a analizar las versiones que quedaron en «processing» (el servidor se reinició a mitad del análisis).
+ * Se llama una vez al arrancar el proceso; las que fallan quedan marcadas con su error en vez de «procesando» para siempre.
+ */
+export async function recoverPendingVersions(): Promise<number> {
+  const db = await getDb();
+  const rows = await db.select({ id: s.fileVersions.id }).from(s.fileVersions).where(and(isNull(s.fileVersions.deletedAt), sql`${s.fileVersions.meta}->>'status' = 'processing'`));
+  for (const r of rows) {
+    try { await processVersion(r.id); }
+    catch (e) { await db.update(s.fileVersions).set({ meta: { status: 'error', error: (e as Error).message } }).where(eq(s.fileVersions.id, r.id)); }
+  }
+  return rows.length;
+}

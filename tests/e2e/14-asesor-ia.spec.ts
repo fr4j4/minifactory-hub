@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { test, expect, login, shot } from './helpers';
 
 async function openSlicePanel(page: import('@playwright/test').Page) {
-  await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
+  await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
   await page.getByRole('link', { name: 'Laminar y cotizar' }).click(); await expect(page.getByTestId('slice-panel')).toBeVisible();
 }
 
@@ -14,7 +14,7 @@ test.describe('Asesor de perfiles con IA (Fase 1)', () => {
 
   test('configurar IA → proponer → laminar de verdad → comparar → guardar como nueva versión', async ({ page, saveAs }) => {
     await login(page);
-    await page.goto('/configuracion?tab=ia');
+    await page.goto('/configuracion?tab=ia'); await page.waitForLoadState('networkidle');
     await page.getByTestId('ai-provider').selectOption('genericOpenai'); await page.getByTestId('ai-base-url').fill('http://127.0.0.1:18090/v1');
     await page.getByTestId('ai-enabled').check(); await page.getByTestId('ai-feat-profile.advisor').check(); await page.getByTestId('ai-feat-slicer.explain').check();
     await page.getByTestId('ai-save').click(); await expect(page.getByText('Configuración de IA guardada')).toBeVisible();
@@ -38,7 +38,7 @@ test.describe('Asesor de perfiles con IA (Fase 1)', () => {
     await shot(page, 'IA12-asesor-comparacion', { full: true });
 
     await page.getByTestId('advisor-apply-equilibrado').click(); await expect(page.getByText(/se guardó 1 perfil/)).toBeVisible();
-    await page.goto('/laminador'); await page.getByRole('link', { name: 'A1 · 0,20 Standard', exact: true }).first().click();
+    await page.goto('/laminador'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'A1 · 0,20 Standard', exact: true }).first().click();
     await expect(page.getByTestId('profile-versions')).toContainText('Sugerido por IA'); await expect(page.getByTestId('perf-empty')).toBeVisible();
     await shot(page, 'IA13-perfil-con-version-ia', { full: true });
     saveAs('asesor-perfiles-ia');

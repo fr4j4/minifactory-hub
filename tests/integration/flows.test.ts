@@ -259,3 +259,14 @@ describe('biblioteca: ZIP y acciones masivas (R4)', () => {
     expect(folders).toEqual(['Importados/pack', 'Importados/pack/llaveros']);
   });
 });
+
+describe('recuperación de análisis interrumpidos (P0)', () => {
+  it('una versión que quedó en «processing» se vuelve a analizar al arrancar', async () => {
+    const { recoverPendingVersions } = await import('@/lib/files');
+    const dbx = await getDb(); const [v] = await dbx.select().from(s.fileVersions).where(eq(s.fileVersions.format, 'stl')).limit(1);
+    await dbx.update(s.fileVersions).set({ meta: { status: 'processing' } }).where(eq(s.fileVersions.id, v.id));
+    expect(await recoverPendingVersions()).toBeGreaterThanOrEqual(1);
+    const [after] = await dbx.select().from(s.fileVersions).where(eq(s.fileVersions.id, v.id));
+    expect((after.meta as any).status).toBe('ready');
+  });
+});

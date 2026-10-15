@@ -143,6 +143,8 @@ export function ensureWorker() {
   getDb().then(async (db) => {
     // trabajos que quedaron "running" por un reinicio vuelven a la cola
     await db.update(s.sliceRuns).set({ status: 'queued' }).where(eq(s.sliceRuns.status, 'running'));
+    // análisis de archivos interrumpidos por el reinicio
+    const { recoverPendingVersions } = await import('../files'); await recoverPendingVersions().catch(() => {});
   }).catch(() => {});
   const tt = setInterval(() => { tick().catch(() => {}); }, 800);
   tt.unref?.();
