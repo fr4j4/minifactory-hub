@@ -23,3 +23,5 @@ if command -v dpkg >/dev/null; then
   [ -n "$missing" ] && echo "Faltan paquetes del sistema:$missing  →  apt-get install -y$missing"
 fi
 "$DEST/squashfs-root/AppRun" --help 2>&1 | head -1
+# Esquema ampliado de parámetros del Estudio (texto de OrcaSlicer, AGPL: se genera aquí y no se versiona). Sin red, se usa el curado.
+(cd "$(dirname "$0")/.." && npx --no-install tsx scripts/gen-orca-schema.ts) || true

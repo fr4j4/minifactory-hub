@@ -49,3 +49,19 @@ export function normalizeValue(type: ParamType, key: string, value: string): str
   return v;
 }
 export { PAGES as PARAM_PAGES };
+
+/** Versión del esquema: sube cada vez que se amplía (para que los paneles recalculen su lista). */
+export let schemaVersion = 0;
+/** Suma al esquema curado las claves generadas desde OrcaSlicer (página «Otros»). Es idempotente. */
+export function extendSchema(extra: readonly ParamDef[]): number {
+  let added = 0;
+  for (const d of extra) {
+    const id = `${d.type}:${d.key}`; if (PARAM_BY_KEY.has(id)) continue;
+    (PARAMS as ParamDef[]).push(d); (PARAM_BY_KEY as Map<string, ParamDef>).set(id, d); added++;
+  }
+  if (added) {
+    for (const ty of ['process', 'filament', 'machine'] as const) if (!PAGES[ty].some((p) => p.id === 'extra') && PARAMS.some((p) => p.type === ty && p.page === 'extra')) PAGES[ty].push({ id: 'extra', es: 'Otros (OrcaSlicer)', en: 'Other (OrcaSlicer)' });
+    schemaVersion++;
+  }
+  return added;
+}

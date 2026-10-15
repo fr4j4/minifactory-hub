@@ -8,11 +8,11 @@ export type Ov = { machine: Record<string, string>; process: Record<string, stri
 const MODES: ParamMode[] = ['simple', 'advanced', 'expert'];
 
 /** Panel de ajustes del Estudio: páginas como en Orca, buscador en es/en, valor modificado resaltado con «restablecer», niveles Simple/Avanzado/Experto y validación en línea. */
-export function ParamPanel({ base, overrides, onChange, disabled }: { base: Ov; overrides: Ov; onChange: (type: ParamType, key: string, value: string | null) => void; disabled?: boolean }) {
+export function ParamPanel({ base, overrides, onChange, disabled, schemaKey }: { schemaKey?: number; base: Ov; overrides: Ov; onChange: (type: ParamType, key: string, value: string | null) => void; disabled?: boolean }) {
   const t = useT(); const lang = useLocale() === 'en' ? 'en' : 'es';
   const [type, setType] = useState<ParamType>('process'); const [mode, setMode] = useState<ParamMode>('simple'); const [q, setQ] = useState(''); const [onlyMod, setOnlyMod] = useState(false);
   const mods = useMemo(() => ({ process: modifiedKeys(base.process, overrides.process), filament: modifiedKeys(base.filament, overrides.filament), machine: modifiedKeys(base.machine, overrides.machine) }), [base, overrides]);
-  const list = useMemo(() => searchParams(q, type, mode).filter((p) => !onlyMod || mods[type].includes(p.key)), [q, type, mode, onlyMod, mods]);
+  const list = useMemo(() => searchParams(q, type, mode).filter((p) => !onlyMod || mods[type].includes(p.key)), [q, type, mode, onlyMod, mods, schemaKey]);
   const pages = PARAM_PAGES[type];
   const row = (p: ParamDef) => {
     const ov = overrides[type][p.key]; const baseV = base[type][p.key] ?? ''; const val = ov ?? baseV; const modified = mods[type].includes(p.key); const issue = ov != null ? validateValue(type, p.key, ov) : null;

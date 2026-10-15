@@ -1,3 +1,4 @@
+import { loadGeneratedParams } from '@/lib/slicer/schema/generated';
 import { aiAvailableFor } from '@/lib/ai';
 import { notFound } from 'next/navigation';
 import { eq } from 'drizzle-orm';
@@ -20,7 +21,7 @@ export default async function StudioPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <PageHeader back={{ href: `/archivos/${f.id}`, label: f.name }} title={t('studio.title')} subtitle={t('studio.subtitle')} />
-      <Studio mesh={{ volumeCm3: f.volumeCm3, areaCm2: f.areaCm2 }} fileVersionId={f.currentVersionId} fileId={f.id} fileName={f.name} ctx={ctx} canSlice={can(user, 'laminador', 'V')} canSaveProfile={can(user, 'laminador', 'C')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
+      <Studio extraParams={loadGeneratedParams()} mesh={{ volumeCm3: f.volumeCm3, areaCm2: f.areaCm2 }} fileVersionId={f.currentVersionId} fileId={f.id} fileName={f.name} ctx={ctx} canSlice={can(user, 'laminador', 'V')} canSaveProfile={can(user, 'laminador', 'C')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
     </>
   );
 }

@@ -15,14 +15,14 @@ import { ProcessOptions } from '../process-options';
 import { ParamPanel, type Ov } from './param-panel';
 import { Explore } from './explore';
 import { AdvisorPanel } from '../advisor-panel';
-import type { ParamType } from '@/lib/slicer/schema';
+import { extendSchema, type ParamDef, type ParamType } from '@/lib/slicer/schema';
 
 const EMPTY: Ov = { machine: {}, process: {}, filament: {} };
 const DEBOUNCE_MS = 700;
 const Delta = ({ v, unit, inv = true }: { v: number | null; unit: string; inv?: boolean }) => v == null || Math.abs(v) < 1e-9 ? null : <span className={`text-xs ml-1.5 ${(v < 0) === inv ? 'text-ok' : 'text-amber-600 dark:text-amber-400'}`}>{v > 0 ? '+' : '−'}{unit.replace('#', String(Math.abs(Math.round(v * 10) / 10)))}</span>;
 
 /** Estudio de laminado: elige máquina, calidad y material, ajusta parámetros de sesión y re-lamina casi en vivo (con cancelación) comparando contra la base. */
-export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId, canSlice, canSaveProfile, ai, mesh }: { mesh?: { volumeCm3: number | null; areaCm2: number | null } | null; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean }; fileVersionId: string; fileId: string; fileName: string; ctx: CalcContext; defaultMachineId?: string | null; canSlice: boolean; canSaveProfile: boolean }) {
+export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId, canSlice, canSaveProfile, ai, mesh, extraParams }: { extraParams?: ParamDef[]; mesh?: { volumeCm3: number | null; areaCm2: number | null } | null; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean }; fileVersionId: string; fileId: string; fileName: string; ctx: CalcContext; defaultMachineId?: string | null; canSlice: boolean; canSaveProfile: boolean }) {
   const t = useT(); const toast = useToast(); const router = useRouter();
   const setups = ctx.setups; const first = setups.find((x) => x.machineId === defaultMachineId && x.active) ?? setups.find((x) => x.machineId === defaultMachineId) ?? setups[0];
   const [setupKey, setSetupKey] = useState(first?.key ?? ''); const setup = setups.find((x) => x.key === setupKey);
@@ -31,6 +31,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
   const [ov, setOv] = useState<Ov>(EMPTY); const [base, setBase] = useState<Ov>(EMPTY); const [baseRunId, setBaseRunId] = useState<string | null>(null);
   const [filId, setFilId] = useState<string | null>(null); const [runId, setRunId] = useState<string | null>(null); const [lastGood, setLastGood] = useState<string | null>(null); const [stale, setStale] = useState(false); const [auto, setAuto] = useState(true); const [exploring, setExploring] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false);
+  const schemaV = useMemo(() => { extendSchema(extraParams ?? []); return extraParams?.length ?? 0; }, [extraParams]);
   const inflight = useRef<string | null>(null); const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const machine = setup ? ctx.machines.find((m) => m.id === setup.machineId) : undefined; const material = ctx.materials.find((m) => m.id === materialId);
   const runs = useRunPolling([runId, baseRunId].filter(Boolean) as string[]);
@@ -130,7 +131,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
       </div>
       <aside className="card p-3 self-start xl:sticky xl:top-3 max-h-[calc(100vh-24px)] overflow-y-auto" aria-label={t('studio.settings')}>
         <div className="flex items-center justify-between gap-2 mb-2"><h2 className="text-sm font-semibold">{t('studio.settings')}</h2>{nOv > 0 && <button className="btn-ghost btn-sm" onClick={() => { setOv(EMPTY); if (canSlice) void launch(EMPTY); }} data-testid="studio-discard">{t('studio.discard')}</button>}</div>
-        <ParamPanel base={base} overrides={ov} onChange={change} disabled={noSetup} />
+        <ParamPanel schemaKey={schemaV} base={base} overrides={ov} onChange={change} disabled={noSetup} />
         {nOv > 0 && canSaveProfile && <div className="border-t border-[var(--line)] mt-3 pt-3 flex flex-wrap gap-2" data-testid="studio-save"><button className="btn-ghost btn-sm" onClick={() => save(true)} data-testid="studio-save-new">{t('studio.saveAsProfile')}</button><button className="btn-ghost btn-sm" onClick={() => save(false)}>{t('studio.updateBase')}</button></div>}
       </aside>
       {advisorOpen && ai && setup?.machineProfileId && filId && <AdvisorPanel target={{ fileVersionId, machineProfileId: setup.machineProfileId, processProfileId: processId, filamentProfileId: filId, copies }} features={{ advisor: ai.advisor, diagnose: ai.diagnose }} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
