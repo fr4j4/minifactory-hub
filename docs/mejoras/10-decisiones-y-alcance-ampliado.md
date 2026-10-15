@@ -305,13 +305,9 @@ Tiendas observadas (para validar precios y marcas): TodoToner, eVStore, Tugadget
 
 **Estimación (R1):** marco, detección, token y guardas **3 / 4 / 5** · pasos obligatorios **2 / 2,5 / 3** · pasos opcionales (reutilizando formularios) **4 / 5,5 / 7,5** · lista de puesta en marcha en Inicio y re-ejecución **1 / 1,5 / 2** → **N10 = 10 / 13,5 / 17,5**. Fuera: el asistente de tarifas (spec calculadora, Fase 3) y las plantillas L2.
 
-## 4. Segunda ronda respondida y una confirmación pendiente
+## 4. Segunda ronda respondida y confirmaciones
 
-La segunda ronda (F1–F10) está respondida y se resume en §1.0. **G1 quedó confirmada:** «Sí: plantilla en Configuración aplicada a todos los documentos nuevos» (sin edición por cotización). Queda **una confirmación**, derivada del directorio de proveedores:
-
-| # | Pregunta | Recomendación |
-|---|---|---|
-| **H1** | ¿Se acepta un **directorio liviano de proveedores** (nombre, tipo, sitio, marcas, notas; sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance»? | Sí |
+La segunda ronda (F1–F10) está respondida y se resume en §1.0. **G1 quedó confirmada:** «Sí: plantilla en Configuración aplicada a todos los documentos nuevos» (sin edición por cotización). **H1 también quedó respondida:** se acepta el **directorio liviano de proveedores** (nombre, tipo, sitio, marcas, notas; sin pedidos ni contactos) como excepción acotada. **No quedan preguntas abiertas de esta propuesta.**
 
 Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 

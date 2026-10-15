@@ -91,18 +91,14 @@ Respondidas en el artefacto; detalle y matices en `10` §1.0.
 
 ## Decisiones abiertas
 
-**G1 quedó confirmada:** «Sí: plantilla en Configuración aplicada a todos los documentos nuevos» (sin edición por cotización).
-
-| # | Pregunta | Recomendación |
-|---|---|---|
-| H1 | ¿Se acepta un **directorio liviano de proveedores** (nombre, tipo, sitio, marcas, notas; sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance»? | Sí |
+**No quedan preguntas abiertas de esta propuesta.** G1 (editor de plantillas en Configuración, sin edición por cotización) y H1 (directorio liviano de proveedores, sin pedidos ni contactos) fueron confirmadas.
 
 Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
 ## Próximos pasos sugeridos
 
-1. Responder **H1** (directorio de proveedores) y las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**; revisar con cada proveedor la lista de `11`.
-2. Ejecutar **R0 · Spikes S1–S8** (≈ 9,5 jornadas probables): alcance del Estudio, MakerWorld con token real, 3MF multicolor y piloto comparativo de librería visual.
+1. Responder las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** y revisar con cada proveedor la lista de `11` antes de cargar la data inicial.
+2. Ejecutar **R0 · Spikes S1–S8** (decidido en E3) (≈ 9,5 jornadas probables): alcance del Estudio, MakerWorld con token real, 3MF multicolor y piloto comparativo de librería visual.
 3. Empezar por **R1 · Cimientos, PDF y arranque** (asistente inicial, PDF v2, librería y temas).
 4. Mantener este directorio como fuente de verdad: al implementar, marcar cada ID como resuelto y actualizar el README principal.
 

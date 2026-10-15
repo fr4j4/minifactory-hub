@@ -4,7 +4,7 @@ Responde al pedido de investigar proveedores chilenos y extranjeros (Mercado Lib
 
 ## 1. Alcance y una salvedad
 
-Hoy el proveedor es **texto libre** (`supplier_text` en materiales, bobinas e ítems). El README declara **fuera de alcance** la «relación con proveedores». Este directorio no la reabre: es una **lista de referencia** (nombre, tipo, sitio, marcas, notas) para **autocompletar «dónde compré»** y para sembrar el catálogo; **no** incluye pedidos, contactos, cotizaciones ni cuentas por pagar. Confirmación pendiente en la pregunta **H1** (README).
+Hoy el proveedor es **texto libre** (`supplier_text` en materiales, bobinas e ítems). El README declara **fuera de alcance** la «relación con proveedores». Este directorio no la reabre: es una **lista de referencia** (nombre, tipo, sitio, marcas, notas) para **autocompletar «dónde compré»** y para sembrar el catálogo; **no** incluye pedidos, contactos, cotizaciones ni cuentas por pagar. **Aceptado en H1:** «Sí: directorio liviano para elegir «dónde compré»».
 
 ## 2. Cómo se reunió y qué tan confiable es
 
@@ -99,7 +99,7 @@ filament_lines.supplier_id                              → proveedor habitual d
 
 Incluye curar y revisar el JSON, pero **no** la verificación con cada proveedor (tarea del taller, ≈ 1 jornada de llamadas o mensajes).
 
-**Pregunta H1:** ¿Se acepta un **directorio liviano** (sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance»? Recomendación: sí.
+**H1 (respondida):** se acepta el **directorio liviano** (sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance». Al implementarlo, actualizar la línea de alcance del README.
 
 ## 9. Lista de verificación antes de publicar la data inicial
 
