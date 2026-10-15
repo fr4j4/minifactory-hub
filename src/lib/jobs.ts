@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { runsQueues } from './worker-mode';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 
 /**
@@ -72,7 +73,7 @@ async function tick() {
 }
 
 export function ensureJobWorker() {
-  if (g.__jobWorker?.timer) return;
+  if (!runsQueues() || g.__jobWorker?.timer) return;
   g.__jobWorker = { running: 0 };
   // lo que estaba en ejecución cuando se reinició el servidor vuelve a la cola
   getDb().then((db) => db.update(s.jobs).set({ status: 'queued', runAfter: new Date() }).where(eq(s.jobs.status, 'running'))).catch(() => {});

@@ -9,6 +9,7 @@
     "start": "next start -p 3000",
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx scripts/seed.ts",
+    "worker": "tsx scripts/worker.ts",
     "orca:install": "bash scripts/install-orca.sh",
     "test": "vitest run",
     "test:e2e": "playwright test",

@@ -1,3 +1,4 @@
+import { runsQueues } from '../worker-mode';
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
 import { and, eq, inArray, asc, desc, sql } from 'drizzle-orm';
@@ -152,7 +153,7 @@ async function tick() {
 }
 
 export function ensureWorker() {
-  if (g.__sliceWorker?.timer) return;
+  if (!runsQueues() || g.__sliceWorker?.timer) return;
   g.__sliceWorker = { running: 0 };
   getDb().then(async (db) => {
     // trabajos que quedaron "running" por un reinicio vuelven a la cola

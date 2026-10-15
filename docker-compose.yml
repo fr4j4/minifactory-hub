@@ -17,8 +17,23 @@ services:
       STORAGE_DIR: /data/storage
       DATA_DIR: /data
       ORCA_CONCURRENCY: 2
+      MF_EXTERNAL_WORKER: "1" # la web solo encola; el servicio `worker` ejecuta los laminados
     volumes: [files:/data]
     # Modo host: el contenedor ve la red local para detectar impresoras Bambu Lab por SSDP.
+    network_mode: host
+    restart: unless-stopped
+  worker:
+    build: .
+    depends_on: [db]
+    command: ["npx", "tsx", "scripts/worker.ts"]
+    environment:
+      DATABASE_URL: postgres://minifactory:minifactory@127.0.0.1:5432/minifactory
+      SESSION_SECRET: ${SESSION_SECRET:?defina SESSION_SECRET}
+      STORAGE_DIR: /data/storage
+      DATA_DIR: /data
+      ORCA_CONCURRENCY: 2
+      MF_EXTERNAL_WORKER: "1"
+    volumes: [files:/data]
     network_mode: host
     restart: unless-stopped
 volumes: { pgdata: {}, files: {} }
