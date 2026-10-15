@@ -74,3 +74,28 @@ export async function finishSetupAction() {
   await completeSetup();
   redirect('/');
 }
+
+/** Elige el modo del asistente: «rápido» termina ya (lo opcional queda en la lista de Inicio); «completo» muestra todos los pasos. */
+export async function chooseSetupModeAction(mode: 'rapido' | 'completo') {
+  const u = await requireUser(); if (u.role !== 'admin') redirect('/');
+  const st = await getSettingsRaw();
+  if (mode === 'rapido') { await saveSettings({ setup: { ...st.setup, mode } }); await completeSetup(); redirect('/'); }
+  await saveSettings({ setup: { ...st.setup, mode: 'completo' } });
+  return { ok: true };
+}
+/** Carga datos de demostración (solo si el taller aún no tiene máquinas) y sin crear cuentas adicionales. */
+export async function loadDemoDataAction(): Promise<R> {
+  const t = await getT(); const u = await requireUser(); if (u.role !== 'admin') return { error: t('auth.noPermission', { mod: 'config', action: 'E' }) };
+  const db = await getDb(); const [m] = await db.select({ id: s.machines.id }).from(s.machines).limit(1);
+  if (m) return { error: t('setup.demoNotEmpty') };
+  const { seedDemo } = await import('@/lib/seed'); await seedDemo({ users: false });
+  await markStep('demo', 'hecho');
+  return { ok: true };
+}
+/** Vuelve a abrir el asistente desde Configuración (conserva lo ya hecho). */
+export async function reopenSetupAction() {
+  const u = await requireUser(); if (u.role !== 'admin') redirect('/');
+  const st = await getSettingsRaw();
+  await saveSettings({ setup: { ...st.setup, pending: true, mode: 'completo', completedAt: null } });
+  redirect('/bienvenida');
+}

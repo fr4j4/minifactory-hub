@@ -8,21 +8,6 @@
   "note": "incluye subida por partes, análisis y miniatura"
  },
  {
-  "name": "Laminar una pieza y ver tiempo, gramos y precio",
-  "seconds": 2.7,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true,
-  "note": "objetivo de la spec: menos de 30 s"
- },
- {
-  "name": "Comparar 3 combinaciones de laminado",
-  "seconds": 3.2,
-  "steps": 0,
-  "limitS": 60,
-  "ok": true
- },
- {
   "name": "Armar y guardar un presupuesto con 2 líneas",
   "seconds": 1.2,
   "steps": 0,
@@ -80,6 +65,21 @@
   "seconds": 0.3,
   "steps": 0,
   "limitS": 20,
+  "ok": true
+ },
+ {
+  "name": "Laminar una pieza y ver tiempo, gramos y precio",
+  "seconds": 2.7,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo de la spec: menos de 30 s"
+ },
+ {
+  "name": "Comparar 3 combinaciones de laminado",
+  "seconds": 3,
+  "steps": 0,
+  "limitS": 60,
   "ok": true
  }
 ]

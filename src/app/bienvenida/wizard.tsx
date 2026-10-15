@@ -2,7 +2,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { checkTokenAction, createAccountAction, finishSetupAction, saveSetupStepAction, skipSetupStepAction } from '@/actions/setup';
+import { checkTokenAction, chooseSetupModeAction, createAccountAction, finishSetupAction, loadDemoDataAction, saveSetupStepAction, skipSetupStepAction } from '@/actions/setup';
 import { useT } from '@/i18n/client';
 import type { SetupStep } from '@/lib/setup';
 
@@ -47,11 +47,19 @@ export function CreateAccountWizard() {
 }
 
 interface StepRow { id: SetupStep; state: string; href: string | null }
-export function StepsPanel({ steps, shop }: { steps: StepRow[]; shop: { legalName: string; taxId: string; address: string; phone: string; email: string; brandColor: string } }) {
+export function StepsPanel({ mode, steps, shop }: { mode: 'rapido' | 'completo' | null; steps: StepRow[]; shop: { legalName: string; taxId: string; address: string; phone: string; email: string; brandColor: string } }) {
   const t = useT(); const router = useRouter(); const [pending, start] = useTransition();
   const [open, setOpen] = useState<SetupStep | null>(null); const [err, setErr] = useState('');
   const [f, setF] = useState({ ...shop });
   const run = (fn: () => Promise<{ error?: string }>) => start(async () => { const r = await fn(); if (r.error) setErr(r.error); else { setErr(''); setOpen(null); router.refresh(); } });
+  if (!mode) return (
+    <div className="space-y-4" data-testid="setup-mode">
+      <div><h2 className="text-lg font-semibold">{t('setup.modeTitle')}</h2><p className="muted text-sm">{t('setup.modeHint')}</p></div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <form action={async () => { await chooseSetupModeAction('rapido'); }}><button className="card p-4 text-left w-full h-full hover:border-[var(--accent)]" data-testid="mode-quick"><div className="font-semibold">{t('setup.modeQuick')}</div><p className="muted text-sm mt-1">{t('setup.modeQuickHint')}</p></button></form>
+        <button className="card p-4 text-left hover:border-[var(--accent)]" disabled={pending} onClick={() => run(() => chooseSetupModeAction('completo') as Promise<{ error?: string }>)} data-testid="mode-full"><div className="font-semibold">{t('setup.modeFull')}</div><p className="muted text-sm mt-1">{t('setup.modeFullHint')}</p></button>
+      </div>
+    </div>);
   const badge = (s: string) => s === 'hecho' ? t('setup.done') : s === 'omitido' ? t('setup.skipped') : t('setup.pending');
   return (
     <div className="space-y-4">
@@ -62,8 +70,8 @@ export function StepsPanel({ steps, shop }: { steps: StepRow[]; shop: { legalNam
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0"><div className="font-medium">{t(`setup.${s.id}` as 'setup.fiscal')}</div><div className="muted text-xs">{badge(s.state)}</div></div>
               <div className="flex gap-2 shrink-0">
-                {s.href ? <Link href={s.href} className="btn" target="_blank">{t('setup.open')}</Link> : <button className="btn" onClick={() => setOpen(open === s.id ? null : s.id)}>{t('setup.save')}…</button>}
-                {s.href && s.state !== 'hecho' && <button className="btn" disabled={pending} onClick={() => run(() => saveSetupStepAction(s.id, {}))}>{t('setup.markDone')}</button>}
+                {s.id === 'demo' ? <button className="btn" disabled={pending || s.state === 'hecho'} onClick={() => run(() => loadDemoDataAction())} data-testid="load-demo">{t('setup.loadDemo')}</button> : s.href ? <Link href={s.href} className="btn" target="_blank">{t('setup.open')}</Link> : <button className="btn" onClick={() => setOpen(open === s.id ? null : s.id)}>{t('setup.save')}…</button>}
+                {s.href && s.id !== 'demo' && s.state !== 'hecho' && <button className="btn" disabled={pending} onClick={() => run(() => saveSetupStepAction(s.id, {}))}>{t('setup.markDone')}</button>}
                 {s.state === 'pendiente' && <button className="btn" disabled={pending} onClick={() => run(() => skipSetupStepAction(s.id))}>{t('setup.skip')}</button>}
               </div>
             </div>

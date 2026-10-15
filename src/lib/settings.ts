@@ -18,7 +18,7 @@ export interface AppSettings {
   ai: AiSettings;
   /** Asistente de configuración inicial (N10). `pending` = cuenta creada pero asistente sin terminar. */
   documents: { quote: Partial<DocTemplate> };
-  setup: { pending: boolean; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
+  setup: { pending: boolean; mode?: 'rapido' | 'completo'; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {

@@ -26,7 +26,7 @@ export default async function Welcome() {
         <p className="muted text-sm mb-7">{t('setup.intro')}</p>
         {phaseA
           ? <CreateAccountWizard />
-          : <StepsPanel steps={SETUP_STEPS.map((id) => ({ id, state: st.setup.steps[id] ?? 'pendiente', href: (SETUP_LINKS as Record<string, string>)[id] ?? null }))} shop={{ legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor }} />}
+          : <StepsPanel mode={st.setup.mode ?? null} steps={SETUP_STEPS.map((id) => ({ id, state: st.setup.steps[id] ?? 'pendiente', href: (SETUP_LINKS as Record<string, string>)[id] ?? null }))} shop={{ legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor }} />}
       </div>
     </main>
   );

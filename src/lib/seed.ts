@@ -52,16 +52,17 @@ function rng(seed: number) { let x = seed >>> 0; return () => { x = (Math.imul(x
 const daysAgo = (n: number, h = 12) => { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(h, 0, 0, 0); return d; };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function seedDemo() {
+export async function seedDemo(opts: { users?: boolean } = {}) {
+  const withUsers = opts.users !== false;
   await bootstrap({ adminPassword: process.env.ADMIN_PASSWORD ?? 'admin1234' });
   const db = await getDb();
   const [existing] = await db.select({ id: s.machines.id }).from(s.machines).limit(1);
   if (existing) return { skipped: true };
   const pw = await hashPassword('taller1234');
   const [admin] = await db.select().from(s.users).limit(1);
-  await db.update(s.users).set({ name: 'Francisco (Admin)' }).where(eq(s.users.id, admin.id));
-  const [op] = await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'operador@minifactory.cl', name: 'Camila (Operadora)', role: 'operador', passwordHash: pw }).returning();
-  const [ve] = await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'ventas@minifactory.cl', name: 'Diego (Ventas)', role: 'ventas', passwordHash: pw }).returning();
+  if (withUsers) await db.update(s.users).set({ name: 'Francisco (Admin)' }).where(eq(s.users.id, admin.id));
+  const [op] = withUsers ? await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'operador@minifactory.cl', name: 'Camila (Operadora)', role: 'operador', passwordHash: pw }).returning() : [];
+  const [ve] = withUsers ? await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'ventas@minifactory.cl', name: 'Diego (Ventas)', role: 'ventas', passwordHash: pw }).returning() : [];
   const adminUser = { id: admin.id, role: 'admin' as const };
 
   /* ── perfiles del laminador (base = perfiles de fábrica de OrcaSlicer) ── */
@@ -232,6 +233,6 @@ export async function seedDemo() {
   };
   await mkQ('Carcasas para sensor', cAro, 'enviado', 5, 180, 7, petgNeg); await mkQ('Piezas FabLab', cFab, 'enviado', 3, 240, 9, plaBla); await mkQ('Figuras para vitrina', cGeek, 'rechazado', 22, 300, 12, plaRoj);
   await mkQ('Soporte monitor', cAnd, 'vencido', 40, 150, 6, plaNeg); await mkQ('Prototipo carcasa', cAro, 'aprobado', 30, 200, 8, petgNeg); await mkQ('Llaveros evento', cCon, 'borrador', 1, 50, 2, plaAzu);
-  return { skipped: false, users: [admin.email, op.email, ve.email] };
+  return { skipped: false, users: [admin.email, op?.email, ve?.email].filter(Boolean) as string[] };
 }
 
