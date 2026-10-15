@@ -41,6 +41,9 @@ test.describe('Asesor de perfiles con IA (Fase 1)', () => {
     await page.goto('/laminador'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'A1 · 0,20 Standard', exact: true }).first().click(); await page.waitForURL(/\/laminador\/perfiles\//); await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('profile-versions')).toContainText('Sugerido por IA');
     await shot(page, 'IA13-perfil-con-version-ia', { full: true });
+    // el asesor también está dentro del Estudio
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); const href = (await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!;
+    await page.goto(href + '/estudio'); await page.waitForLoadState('networkidle'); await expect(page.getByTestId('advisor-open')).toBeVisible({ timeout: 40_000 });
     saveAs('asesor-perfiles-ia');
   });
 

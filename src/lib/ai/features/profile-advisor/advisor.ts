@@ -22,7 +22,7 @@ const CANDIDATE_NOTE = 'ai-candidate:';
 export interface ProposalCandidate {
   name: 'conservador' | 'equilibrado' | 'agresivo'; summary: string; expected: AdvisorOutput['candidates'][number]['expected']; risks: string[];
   changes: Accepted[]; rejected: Rejected[]; scores: Scores;
-  runId?: string; processCandidateId?: string; filamentCandidateId?: string;
+  runId?: string;
 }
 export interface Proposal {
   mode: 'goal' | 'symptom'; goal?: Goal; symptom?: string; confidence: 'baja' | 'media' | 'alta'; testPlan: string; needsMoreInfo?: string[];
@@ -124,14 +124,11 @@ async function loadSuggestion(id: string) {
 }
 export async function getSuggestion(id: string) { const { row, proposal } = await loadSuggestion(id); return { id: row.id, status: row.status, proposal, feature: row.feature }; }
 
-/** Perfil «fantasma» (borrado lógico, invisible) con los cambios del candidato: permite laminarlo con la cola normal sin tocar el perfil real. */
-async function hiddenCandidate(db: Awaited<ReturnType<typeof getDb>>, base: typeof s.slicerProfiles.$inferSelect, label: string, accepted: Accepted[], scope: 'process' | 'filament', suggestionId: string) {
-  const mine = accepted.filter((a) => a.scope === scope);
-  if (!mine.length) return base.id;
-  const changes = { ...(base.changes ?? {}), ...Object.fromEntries(mine.map((a) => [a.key, a.to])) };
-  const [r] = await db.insert(s.slicerProfiles).values({ workspaceId: WORKSPACE_ID, type: scope, name: `IA · ${label} · ${base.name}`, vendor: base.vendor, baseName: base.baseName, changes, notes: CANDIDATE_NOTE + suggestionId, deletedAt: new Date(), simulated: base.simulated }).returning({ id: s.slicerProfiles.id });
-  await db.insert(s.slicerProfileVersions).values({ profileId: r.id, version: 1, baseName: base.baseName, changes, note: 'ia-candidate' });
-  return r.id;
+/** Ajustes de sesión de un candidato (`overrides` del laminado): se laminan sobre el perfil real, sin crear perfiles ocultos. */
+function candidateOverrides(accepted: Accepted[]) {
+  const pick = (scope: 'process' | 'filament') => Object.fromEntries(accepted.filter((a) => a.scope === scope).map((a) => [a.key, a.to]));
+  const process = pick('process'), filament = pick('filament');
+  return { ...(Object.keys(process).length ? { process } : {}), ...(Object.keys(filament).length ? { filament } : {}) };
 }
 
 /** Lamina el perfil actual (base) y cada candidato en la cola normal; devuelve los ids de laminado. Máximo 1 + 3 laminados. */
@@ -144,9 +141,7 @@ export async function evaluateSuggestion(id: string, o: { userId?: string | null
   const base = { fileVersionId: inp.fileVersionId, machineProfileId: inp.machineProfileId, copies: inp.copies, groupId: id, userId: o.userId ?? undefined };
   proposal.baselineRunId = await enqueue({ ...base, processProfileId: inp.processProfileId, filamentProfileId: inp.filamentProfileId, label: 'IA · base' });
   for (const c of proposal.candidates) {
-    c.processCandidateId = await hiddenCandidate(db, sub.process, c.name, c.changes, 'process', id);
-    c.filamentCandidateId = await hiddenCandidate(db, sub.filament, c.name, c.changes, 'filament', id);
-    c.runId = await enqueue({ ...base, processProfileId: c.processCandidateId, filamentProfileId: c.filamentCandidateId, label: `IA · ${c.name}` });
+    c.runId = await enqueue({ ...base, processProfileId: inp.processProfileId, filamentProfileId: inp.filamentProfileId, overrides: candidateOverrides(c.changes), label: `IA · ${c.name}` });
   }
   await db.update(s.aiSuggestions).set({ proposal: proposal as any, updatedAt: new Date() }).where(eq(s.aiSuggestions.id, id));
   return { baselineRunId: proposal.baselineRunId, runIds: proposal.candidates.map((c) => c.runId!) };
