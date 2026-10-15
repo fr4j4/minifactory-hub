@@ -174,7 +174,7 @@ export const files: Shape<typeof es['files']> = {
   uploadCompleteFailed: 'Could not complete the upload',
   amsTitle: 'Multicolor: uses {n} filaments',
   amsSlot: 'Slot {n}',
-  amsPainted: 'It also has per-face painting: the viewer only shows per-object color.',
+  amsPainted: 'It also has per-face painting: the viewer shows it approximately (a face split into several colors shows just one) and slicing uses whatever OrcaSlicer decides.',
   amsHint: 'When slicing on the server, one material per slot will be assigned (needs a printer with AMS or manual swaps).',
   sourceBadUrl: 'The address is not valid: use a full http(s) link.',
   fileNotFound: 'File not found',

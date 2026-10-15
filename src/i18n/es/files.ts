@@ -171,7 +171,7 @@ export const files = {
   uploadCompleteFailed: 'No se pudo completar la subida',
   amsTitle: 'Multicolor: usa {n} filamentos',
   amsSlot: 'Ranura {n}',
-  amsPainted: 'Además tiene pintura por cara: el visor muestra solo el color por objeto.',
+  amsPainted: 'Además tiene pintura por cara: el visor la muestra de forma aproximada (una cara dividida en varios colores toma uno solo) y el laminado usa lo que decida OrcaSlicer.',
   amsHint: 'Al laminar en el servidor se asignará un material por ranura (se necesita una impresora con AMS o cambio manual).',
   sourceBadUrl: 'La dirección no es válida: usa un enlace http(s) completo.',
   fileNotFound: 'Archivo no encontrado',
