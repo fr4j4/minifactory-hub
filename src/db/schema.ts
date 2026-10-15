@@ -108,7 +108,6 @@ export const materials = pgTable('materials', {
   tempNozzle: text('temp_nozzle'),
   tempBed: text('temp_bed'),
   supplierText: text('supplier_text'),
-  filamentProfileId: uuid('filament_profile_id'),
   notes: text('notes'),
 });
 
@@ -825,3 +824,11 @@ export const qualityPresets = pgTable('quality_presets', {
   sortOrder: integer('sort_order').notNull().default(0),
   active: boolean('active').notNull().default(true),
 }, (t) => [uniqueIndex('quality_presets_key_uq').on(t.workspaceId, t.key)]);
+
+/** Perfil de filamento por defecto de un material (machine_profile_id nulo = para cualquier impresora; con valor = solo para esa). Reemplaza la columna heredada `materials.filament_profile_id`. */
+export const materialFilamentLinks = pgTable('material_filament_links', {
+  ...base(),
+  materialId: uuid('material_id').notNull(),
+  filamentProfileId: uuid('filament_profile_id').notNull(),
+  machineProfileId: uuid('machine_profile_id'),
+}, (t) => [index('mfl_material_ix').on(t.materialId), index('mfl_profile_ix').on(t.filamentProfileId)]);

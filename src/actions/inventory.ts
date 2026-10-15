@@ -13,9 +13,10 @@ export async function saveMaterialAction(i: MaterialInput) {
   return safe(async () => {
     const u = await requirePerm('inventario', i.id ? 'E' : 'C'); const db = await getDb();
     if (!i.type.trim() || !i.colorName.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
-    const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, ...(i.filamentProfileId !== undefined ? { filamentProfileId: i.filamentProfileId || null } : {}), updatedAt: new Date() };
-    if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
-    const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); return m.id;
+    const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, updatedAt: new Date() };
+    const link = async (id: string) => { const L = await import('@/lib/slicer/links'); if (i.filamentProfileId === undefined) return; if (i.filamentProfileId) await L.setMaterialProfile(id, i.filamentProfileId, null, db, u.id); else await L.clearMaterialProfile(id, db); };
+    if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await link(i.id); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
+    const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.materials.id }); await link(m.id); return m.id;
   }, ['/inventario']);
 }
 export async function addSpoolAction(i: { materialId: string; initialG: number; tareG: number; unitCost: number; lot?: string; location?: string; supplierText?: string; supplierId?: string | null; count?: number }) {

@@ -109,16 +109,17 @@ export async function seedDemo(opts: { users?: boolean } = {}) {
 
   /* ── materiales y bobinas ── */
   const M = await db.insert(s.materials).values([
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Negro', hex: '#1c1c1c', density: 1.24, costPerKg: 17000, stockMinG: 1500, tempNozzle: '190–230', tempBed: '35–45', supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Blanco', hex: '#f1f1ee', density: 1.24, costPerKg: 17000, stockMinG: 1000, supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Rojo', hex: '#d62f2f', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Azul', hex: '#2d6cdf', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PETG Basic', type: 'PETG', colorName: 'Negro', hex: '#222222', density: 1.27, costPerKg: 19000, stockMinG: 1000, tempNozzle: '230–260', tempBed: '70–80', supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPETG ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'eSun', line: 'PETG', type: 'PETG', colorName: 'Transparente', hex: '#cfe6ee', density: 1.27, costPerKg: 19000, stockMinG: 1000, supplierText: 'eSun', filamentProfileId: prof.fPETG ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu', filamentProfileId: prof.fTPU ?? null },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Negro', hex: '#1c1c1c', density: 1.24, costPerKg: 17000, stockMinG: 1500, tempNozzle: '190–230', tempBed: '35–45', supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Blanco', hex: '#f1f1ee', density: 1.24, costPerKg: 17000, stockMinG: 1000, supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Rojo', hex: '#d62f2f', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Azul', hex: '#2d6cdf', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PETG Basic', type: 'PETG', colorName: 'Negro', hex: '#222222', density: 1.27, costPerKg: 19000, stockMinG: 1000, tempNozzle: '230–260', tempBed: '70–80', supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'eSun', line: 'PETG', type: 'PETG', colorName: 'Transparente', hex: '#cfe6ee', density: 1.27, costPerKg: 19000, stockMinG: 1000, supplierText: 'eSun' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu' },
     { workspaceId: WORKSPACE_ID, tech: 'resina', manufacturer: 'Elegoo', line: 'Standard', type: 'Resina estándar', colorName: 'Gris', hex: '#9aa0a6', density: 1.1, diameter: null, costPerKg: 28000, stockMinG: 500, supplierText: 'Elegoo' },
   ]).returning();
   const [plaNeg, plaBla, plaRoj, plaAzu, petgNeg, petgTra, tpu, resina] = M;
+  { const { setMaterialProfile } = await import('./slicer/links'); for (const [m, k] of [[plaNeg, 'fPLA'], [plaBla, 'fPLA'], [plaRoj, 'fPLA'], [plaAzu, 'fPLA'], [petgNeg, 'fPETG'], [petgTra, 'fPETG'], [tpu, 'fTPU']] as const) if (prof[k]) await setMaterialProfile(m.id, prof[k], null, db); }
   const sp = async (m: typeof plaNeg, g: number, extra: Record<string, any> = {}) => { const x = await createSpool({ materialId: m.id, initialG: 1000, unitCost: m.costPerKg, userId: admin.id }); await db.update(s.spools).set({ remainingG: g, ...extra }).where(eq(s.spools.id, x.id)); return x; };
   const spA = await sp(plaNeg, 640, { status: 'en_uso', machineId: a1.id, slot: 'Carrete directo', location: 'Cargada en Bambu A1 #1' });
   await sp(plaNeg, 1000, { location: 'Estante A1' }); await sp(plaNeg, 880, { status: 'abierta', location: 'Caja seca', lastDriedAt: ymd(daysAgo(10)) });

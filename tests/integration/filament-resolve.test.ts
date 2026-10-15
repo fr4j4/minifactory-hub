@@ -1,3 +1,4 @@
+import { clearMaterialProfile } from '@/lib/slicer/links';
 import fs from 'node:fs';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
@@ -14,7 +15,7 @@ const P = async (name: string) => (await db.select().from(s.slicerProfiles)).fin
 describe.skipIf(!orcaAvailable())('el material no depende de un perfil de filamento (D1)', () => {
   it('sin vínculo en el material se sugiere el perfil de la marca y se marca como automático', async () => {
     const [mat] = await db.select().from(s.materials).where(eq(s.materials.manufacturer, 'Bambu Lab'));
-    await db.update(s.materials).set({ filamentProfileId: null }).where(eq(s.materials.id, mat.id));
+    await clearMaterialProfile(mat.id, db);
     const r = await resolveFilament({ materialId: mat.id, machineProfileId: await P('Bambu Lab A1 0.4') });
     expect(r.source).toBe('auto'); expect(r.baseName).toMatch(/^Bambu (PLA|PETG)/);
     const again = await resolveFilament({ materialId: mat.id, machineProfileId: await P('Bambu Lab A1 0.4') });
@@ -28,7 +29,7 @@ describe.skipIf(!orcaAvailable())('el material no depende de un perfil de filame
   });
   it('se puede laminar con solo el material (sin perfil de filamento en la ficha)', async () => {
     const [mat] = await db.select().from(s.materials).where(eq(s.materials.manufacturer, 'Grilon3'));
-    await db.update(s.materials).set({ filamentProfileId: null }).where(eq(s.materials.id, mat.id));
+    await clearMaterialProfile(mat.id, db);
     const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo'));
     const id = await enqueueSlice({ fileVersionId: bar.currentVersionId!, machineProfileId: await P('Bambu Lab A1 0.4'), processProfileId: await P('A1 · 0,20 Standard'), materialId: mat.id, label: 'auto' });
     const [run] = await waitForRuns([id], 180_000);

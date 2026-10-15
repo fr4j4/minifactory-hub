@@ -21,8 +21,9 @@ export async function getCalcContext(): Promise<CalcContext> {
   const machines = await db.select().from(s.machines).where(isNull(s.machines.deletedAt)).orderBy(asc(s.machines.name));
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)).orderBy(asc(s.materials.type), asc(s.materials.colorName));
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)).orderBy(asc(s.slicerProfiles.name));
+  const linkMap = await (await import('./slicer/links')).defaultLinkMap(db);
   const materials: CalcMaterial[] = [];
-  for (const m of mats) materials.push({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: m.filamentProfileId, tech: m.tech });
+  for (const m of mats) materials.push({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: linkMap.get(m.id) ?? null, tech: m.tech });
   const nozzleOf = (id: string | null) => { const p = id ? profs.find((x) => x.id === id) : null; return p ? rowNozzle(p) : null; };
   const alive = new Set(profs.map((p) => p.id)); const setups: CalcSetup[] = [];
   const procProfs = profs.filter((p) => p.type === 'process');

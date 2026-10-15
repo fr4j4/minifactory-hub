@@ -1,5 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
+import { linkedProfileId } from './links';
 import { ensureProfile, suggestFilamentBase } from './setup';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
@@ -9,7 +10,7 @@ export interface ResolvedFilament { profileId: string; name: string; baseName: s
 
 /**
  * Resolvedor de filamento (D1): el material del inventario ya no obliga a tener un perfil técnico.
- * 1) elección explícita · 2) vínculo heredado `materials.filament_profile_id` (solo lectura, se retira en la fase «contraer») ·
+ * 1) elección explícita · 2) perfil por defecto del material (`material_filament_links`; el de esa impresora si existe) ·
  * 3) sugerido por marca + tipo + línea (perfil de fábrica de la marca o genérico del tipo).
  */
 export async function resolveFilament(i: { materialId?: string | null; explicitProfileId?: string | null; machineProfileId?: string | null; userId?: string | null }, db?: Db): Promise<ResolvedFilament> {
@@ -22,8 +23,9 @@ export async function resolveFilament(i: { materialId?: string | null; explicitP
   if (!i.materialId) throw new Error('filament: falta material o perfil');
   const [mat] = await db.select().from(s.materials).where(eq(s.materials.id, i.materialId));
   if (!mat) throw new Error('filament: material no encontrado');
-  if (mat.filamentProfileId) {
-    const p = await load(mat.filamentProfileId);
+  const linked = await linkedProfileId(mat.id, i.machineProfileId, db);
+  if (linked) {
+    const p = await load(linked);
     if (p) return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'material' };
   }
   const machine = i.machineProfileId ? await load(i.machineProfileId) : null;

@@ -134,7 +134,7 @@ describe.skipIf(!orcaAvailable())('asesor de perfiles: laminado real, comparaci�
     const r = await proposeProfiles(input() as any, { user: admin, locale: 'es' });
     const ev = await evaluateSuggestion(r.id, { userId: admin.id }); await waitForRuns([ev.baselineRunId], 180_000);
     const [proc] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, ids.process));
-    const mat = (await db.select().from(s.materials).where(eq(s.materials.filamentProfileId, ids.filament)))[0];
+    const { materialsLinkedTo } = await import('@/lib/slicer/links'); const mat = (await materialsLinkedTo(ids.filament, db))[0];
     await db.update(s.sliceRuns).set({ profileVersions: { process: [proc.name, proc.version], filament: ['PLA Basic', 1], machine: ['m', 1] } }).where(eq(s.sliceRuns.id, ev.baselineRunId));
     const machine = (await db.select().from(s.machines).where(eq(s.machines.machineProfileId, ids.machine)))[0];
     const outcomes: Array<['exito' | 'falla_total', string?]> = [['exito'], ['exito'], ['exito'], ['exito'], ['exito'], ['exito'], ['falla_total', 'se despegó de la cama'], ['falla_total', 'se despegó de la cama']];

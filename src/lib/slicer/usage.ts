@@ -27,7 +27,7 @@ export async function profileUsage(db: Db, id: string) {
   const [p] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); if (!p) throw new Error(tDefault('slicer.profileNotFound'));
   const blocking: UsageItem[] = []; let historic = 0;
   if (p.type === 'filament') {
-    const mats = await db.select({ t: s.materials.type, c: s.materials.colorName, m: s.materials.manufacturer }).from(s.materials).where(and(eq(s.materials.filamentProfileId, id), isNull(s.materials.deletedAt)));
+    const mats = (await (await import('./links')).materialsLinkedTo(id, db)).map((x) => ({ t: x.type, c: x.colorName, m: x.manufacturer }));
     for (const m of mats) blocking.push({ kind: 'material', name: [m.m, m.t, m.c].filter(Boolean).join(' ') });
   } else {
     const ms = await db.select().from(s.machines).where(isNull(s.machines.deletedAt));

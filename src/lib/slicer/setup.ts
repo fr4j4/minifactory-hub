@@ -126,6 +126,7 @@ export async function slicingReadiness() {
   const machines = await db.select().from(s.machines).where(and(isNull(s.machines.deletedAt), eq(s.machines.tech, 'FDM')));
   const materials = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.tech, 'fdm')));
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt));
+  const linkMap = await (await import('./links')).defaultLinkMap(db);
   const P = (id: string | null) => (id ? profs.find((p) => p.id === id) ?? null : null);
   const ms = machines.map((m) => {
     const mp = P(m.machineProfileId); const base = mp?.baseName ?? suggestMachineBase(m);
@@ -138,7 +139,7 @@ export async function slicingReadiness() {
   });
   const ref = ms.find((m) => m.machineProfile)?.machineProfile?.baseName ?? ms.find((m) => m.suggestedMachine)?.suggestedMachine ?? null;
   const mats = materials.map((m) => {
-    const fp = P(m.filamentProfileId);
+    const fp = P(linkMap.get(m.id) ?? null);
     // advertencia si el perfil es de otro tipo (p. ej. un TPU con perfil de PLA: temperaturas y caudal equivocados)
     let ptype: string | null = null;
     if (fp) { try { const b = resolveFactory('filament', fp.baseName, fp.vendor ?? undefined); const v = (fp.changes as any)?.filament_type ?? b.filament_type; ptype = String(Array.isArray(v) ? v[0] : v ?? '') || null; } catch { /* base ausente */ } }
@@ -270,7 +271,7 @@ export async function setupFilament(materialId: string, o: { base?: string; prof
   const db = await getDb(); const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId)); if (!m) throw new Error(t('slicer.materialNotFound'));
   const id = o.profileId ?? (o.base ? await ensureProfile('filament', o.base, short(o.base), userId, db) : null);
   if (!id) throw new Error(t('slicer.chooseAFilamentProfile'));
-  await db.update(s.materials).set({ filamentProfileId: id, updatedAt: new Date() }).where(eq(s.materials.id, materialId));
+  await (await import('./links')).setMaterialProfile(materialId, id, null, db, userId);
   return id;
 }
 
@@ -321,13 +322,13 @@ export async function createCustomFilament(i: CustomFilamentInput) {
   const db = await getDb();
   const id = await createProfileRow({ type: 'filament', name: i.name, baseName, changes, userId: i.userId, note: t('slicer.customFilament2'), notes: `${t('slicer.customNote')} · ${i.type}${i.brand ? ' · ' + i.brand : ''}` }, db);
   let materialId = i.materialId ?? null;
-  if (materialId) await db.update(s.materials).set({ filamentProfileId: id, updatedAt: new Date() }).where(eq(s.materials.id, materialId));
+  if (materialId) await (await import('./links')).setMaterialProfile(materialId, id, null, db, i.userId);
   else if (i.addToInventory) {
     const density = Number(changes.filament_density ?? defaults.filament_density) || 1.24;
     const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, tech: 'fdm', manufacturer: i.brand?.trim() || null, type: i.type.split(' ')[0], line: i.type.includes(' ') ? i.type.split(' ').slice(1).join(' ') : null,
-      colorName: i.addToInventory.colorName || t('slicer.noColor'), hex: i.addToInventory.hex || '#888888', density, costPerKg: Math.round(i.addToInventory.costPerKg ?? Number(changes.filament_cost ?? 0)), filamentProfileId: id,
+      colorName: i.addToInventory.colorName || t('slicer.noColor'), hex: i.addToInventory.hex || '#888888', density, costPerKg: Math.round(i.addToInventory.costPerKg ?? Number(changes.filament_cost ?? 0)),
       tempNozzle: changes.nozzle_temperature ?? defaults.nozzle_temperature, tempBed: changes.textured_plate_temp ?? defaults.textured_plate_temp, createdBy: i.userId ?? null }).returning({ id: s.materials.id });
-    materialId = m.id;
+    materialId = m.id; await (await import('./links')).setMaterialProfile(m.id, id, null, db, i.userId);
   }
   return { profileId: id, materialId };
 }

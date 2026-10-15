@@ -32,7 +32,7 @@ export async function loadSubject(i: { fileVersionId: string; machineProfileId: 
   if (!fv) throw new LocalizedError('slicer.fileNotFound');
   const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, fv.modelFileId));
   const [machineRow] = await db.select().from(s.machines).where(and(eq(s.machines.machineProfileId, machine.id), isNull(s.machines.deletedAt)));
-  const [material] = await db.select().from(s.materials).where(and(eq(s.materials.filamentProfileId, filament.id), isNull(s.materials.deletedAt)));
+  const [material] = await (await import('@/lib/slicer/links')).materialsLinkedTo(filament.id, db);
   const pe = effectiveOf('process', process), fe = effectiveOf('filament', filament), me = effectiveOf('machine', machine);
   const nozzle = numOf(me.eff.nozzle_diameter) ?? numOf(machineRow?.nozzles?.[0]) ?? 0.4;
   const known = pe.ok && fe.ok && orcaAvailable() ? { process: new Set(Object.keys(pe.eff)), filament: new Set(Object.keys(fe.eff)) } : null;
