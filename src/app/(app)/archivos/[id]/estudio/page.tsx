@@ -20,7 +20,7 @@ export default async function StudioPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <PageHeader back={{ href: `/archivos/${f.id}`, label: f.name }} title={t('studio.title')} subtitle={t('studio.subtitle')} />
-      <Studio fileVersionId={f.currentVersionId} fileId={f.id} fileName={f.name} ctx={ctx} canSlice={can(user, 'laminador', 'V')} canSaveProfile={can(user, 'laminador', 'C')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
+      <Studio mesh={{ volumeCm3: f.volumeCm3, areaCm2: f.areaCm2 }} fileVersionId={f.currentVersionId} fileId={f.id} fileName={f.name} ctx={ctx} canSlice={can(user, 'laminador', 'V')} canSaveProfile={can(user, 'laminador', 'C')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
     </>
   );
 }

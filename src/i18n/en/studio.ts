@@ -2,6 +2,7 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const studio: Shape<typeof es['studio']> = {
+  quickEstimate: 'Quick estimate while OrcaSlicer calculates: ≈ {grams} g · {time} (approximate, from the mesh only)',
   title: 'Slicing Studio',
   subtitle: 'Try settings and instantly see how time, material and price change. Changes are per session until you save them.',
   settings: 'Settings',

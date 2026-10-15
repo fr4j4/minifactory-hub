@@ -6,6 +6,7 @@ import type { CalcContext } from '@/lib/context';
 import { cancelRunAction, ensureQualityAction, saveOverridesAsProfileAction, sliceAction, studioBaseAction } from '@/actions/slicer';
 import { useT } from '@/i18n/client';
 import { dur, grams, money } from '@/lib/format';
+import { estimateFromMesh } from '@/lib/pricing';
 import { GcodeViewer } from '../gcode-viewer';
 import { useToast } from '../client';
 import { priceFromRun, useRunPolling } from '../slice-panel';
@@ -21,7 +22,7 @@ const DEBOUNCE_MS = 700;
 const Delta = ({ v, unit, inv = true }: { v: number | null; unit: string; inv?: boolean }) => v == null || Math.abs(v) < 1e-9 ? null : <span className={`text-xs ml-1.5 ${(v < 0) === inv ? 'text-ok' : 'text-amber-600 dark:text-amber-400'}`}>{v > 0 ? '+' : '−'}{unit.replace('#', String(Math.abs(Math.round(v * 10) / 10)))}</span>;
 
 /** Estudio de laminado: elige máquina, calidad y material, ajusta parámetros de sesión y re-lamina casi en vivo (con cancelación) comparando contra la base. */
-export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId, canSlice, canSaveProfile, ai }: { ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean }; fileVersionId: string; fileId: string; fileName: string; ctx: CalcContext; defaultMachineId?: string | null; canSlice: boolean; canSaveProfile: boolean }) {
+export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId, canSlice, canSaveProfile, ai, mesh }: { mesh?: { volumeCm3: number | null; areaCm2: number | null } | null; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean }; fileVersionId: string; fileId: string; fileName: string; ctx: CalcContext; defaultMachineId?: string | null; canSlice: boolean; canSaveProfile: boolean }) {
   const t = useT(); const toast = useToast(); const router = useRouter();
   const setups = ctx.setups; const first = setups.find((x) => x.machineId === defaultMachineId && x.active) ?? setups.find((x) => x.machineId === defaultMachineId) ?? setups[0];
   const [setupKey, setSetupKey] = useState(first?.key ?? ''); const setup = setups.find((x) => x.key === setupKey);
@@ -109,6 +110,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
             <div><div className="label">{t('common.material')}</div><div className={`text-xl font-semibold tabular ${stale || busy ? 'opacity-50' : ''}`} data-testid="res-grams">{shown ? grams(totalG(shown)) : '—'}<Delta v={dG} unit="# g" /></div></div>
             <div><div className="label">{t('common.layers')}</div><div className={`text-xl font-semibold tabular ${stale || busy ? 'opacity-50' : ''}`}>{shown?.layers ?? '—'}</div></div>
             <div><div className="label">{t('common.suggestedPrice')}</div><div className={`text-xl font-semibold tabular ${stale || busy ? 'opacity-50' : ''}`} data-testid="res-price">{bd ? money(bd.suggestedTotal) : '—'}<Delta v={dP} unit="$#" /></div></div>
+            {busy && !shown && mesh?.volumeCm3 && mesh.areaCm2 && material && (() => { const infill = Number(String(ov.process.sparse_infill_density ?? ctx.defaults.infillPct).replace('%', '')) || ctx.defaults.infillPct; const e = estimateFromMesh({ volumeCm3: mesh.volumeCm3!, areaCm2: mesh.areaCm2!, infillPct: infill, density: material.density, feedGph: machine?.feedGph ?? 25 }); return <div className="basis-full text-xs muted" data-testid="res-approx">{t('studio.quickEstimate', { grams: Math.round(e.grams), time: dur(e.hours * 3600) })}</div>; })()}
             <div className="ml-auto text-sm flex items-center gap-2" data-testid="studio-status">
               {busy ? <><span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--accent)] animate-pulse" aria-hidden />{t('studio.slicing')}<button className="btn-ghost btn-sm" onClick={() => runId && cancelRunAction(runId)} data-testid="studio-cancel">{t('common.cancel')}</button></>
                 : run?.status === 'error' ? <span className="text-red-600">{t('studio.error')}</span> : stale ? <><span className="badge border-amber-400 text-warn">{t('studio.outdated')}</span><button className="btn-primary btn-sm" disabled={!canSlice} onClick={() => launch(ov)} data-testid="studio-reslice">{t('studio.reslice')}</button></>

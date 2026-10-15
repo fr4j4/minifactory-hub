@@ -1,4 +1,5 @@
 export const studio = {
+  quickEstimate: 'Estimación rápida mientras OrcaSlicer calcula: ≈ {grams} g · {time} (aproximada, solo desde la malla)',
   title: 'Estudio de laminado',
   subtitle: 'Prueba ajustes y mira al instante cómo cambian el tiempo, el material y el precio. Los cambios son de esta sesión hasta que los guardes.',
   settings: 'Ajustes',
