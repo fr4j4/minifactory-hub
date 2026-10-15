@@ -80,4 +80,13 @@ export const common = {
   method: 'Método',
   print: '🖨 Imprimir',
   bambuLab: 'Bambu Lab',
+  loading: 'Cargando…',
+  errorTitle: 'Algo salió mal',
+  errorBody: 'No pudimos mostrar esta pantalla. Puedes reintentar; si persiste, avisa al administrador.',
+  retry: 'Reintentar',
+  notFoundTitle: 'No encontramos esta página',
+  notFoundBody: 'El enlace puede estar desactualizado o el registro fue eliminado.',
+  goHome: 'Ir a Inicio',
+  datePlaceholder: 'dd-mm-aaaa',
+  pickDate: 'Elegir fecha',
 };

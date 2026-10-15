@@ -11,7 +11,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && npx playwright install chromium --with-deps || true
+RUN npm run build
+# Chromium genera los PDF; si no se instala el contenedor no arranca sin avisar: la salud del sistema (Configuración) lo informa.
+RUN npx playwright install chromium --with-deps
 # OrcaSlicer (laminador del servidor). Se extrae el AppImage; no necesita FUSE ni pantalla.
 RUN bash scripts/install-orca.sh || echo "OrcaSlicer no se pudo instalar: el laminador del servidor quedará deshabilitado"
 ENV NODE_ENV=production STORAGE_DIR=/data/storage DATA_DIR=/data PGLITE_DIR=/data/pgdata

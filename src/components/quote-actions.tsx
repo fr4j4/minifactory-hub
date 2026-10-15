@@ -6,6 +6,7 @@ import { CopyButton, Modal, useAction } from './client';
 import { sources } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
+import { DateInput } from '@/components/date-input';
 
 export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy, depositPct, total }: { id: string; status: string; canEdit: boolean; canOrder: boolean; msg: string; wa: string; defaultBy: string; depositPct: number; total: number }) {
   const t = useT();
@@ -29,7 +30,7 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
             <label className="block"><span className="label">{t('quotes.approvalChannel')}</span><select className="input" value={channel} onChange={(e) => setChannel(e.target.value)}>{Object.entries(sources(t)).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
             <label className="block"><span className="label">{t('quotes.depositReceived')}</span><input type="number" min={0} className="input" value={dep || ''} onChange={(e) => setDep(+e.target.value || 0)} data-testid="approve-deposit" /></label>
             <label className="block"><span className="label">{t('common.method')}</span><select className="input" value={method} onChange={(e) => setMethod(e.target.value)}>{['transferencia', 'efectivo', 'tarjeta', 'otro'].map((m) => <option key={m} value={m}>{tOr(t, `payMethod.${m}`, m)}</option>)}</select></label>
-            <label className="block col-span-2"><span className="label">{t('quotes.committedDate')}</span><input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} /></label></div>
+            <label className="block col-span-2"><span className="label">{t('quotes.committedDate')}</span><DateInput value={due} onChange={setDue} /></label></div>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={plan} onChange={(e) => setPlan(e.target.checked)} /> {t('quotes.sendToProductionNowCreate')}</label>
           <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setAp(false)}>{t('common.cancel')}</button><button className="btn-primary" disabled={pending} data-testid="approve-confirm" onClick={() => run(() => approveQuoteAction(id, { by, channel, depositAmount: dep, depositMethod: method, dueDate: due || null, plan }), { ok: t('quotes.orderCreated2'), onOk: (oid) => router.push(`/pedidos/${oid}`) })}>{t('quotes.createOrder')}</button></div>
         </div>

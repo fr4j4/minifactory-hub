@@ -15,6 +15,7 @@ import type { VariantOpt } from './quote-editor';
 import { sources, cn, money, num, pct } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
+import { DateInput } from '@/components/date-input';
 
 /** Registro manual de un pedido: rápido desde el celular; puede mezclar piezas a medida y productos del catálogo. */
 export function OrderForm({ ctx, customers, models, variants, showCosts, canPrice, initialCustomer }: { ctx: CalcContext; customers: CustomerOpt[]; models: ModelBrief[]; variants: VariantOpt[]; showCosts: boolean; canPrice: boolean; initialCustomer?: string }) {
@@ -47,7 +48,7 @@ export function OrderForm({ ctx, customers, models, variants, showCosts, canPric
         <div className="grid sm:grid-cols-4 gap-3">
           <SourceSelect value={source} onChange={setSource} />
           <label className="block sm:col-span-2"><span className="label">{t('orders.whatTheyOrderedTitle')}</span><input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t('orders.eG20KeychainsWith')} data-testid="order-title" /></label>
-          <label className="block"><span className="label">{t('orders.requestedDate')}</span><input type="date" className="input" value={due} onChange={(e) => setDue(e.target.value)} data-testid="order-due" /></label>
+          <label className="block"><span className="label">{t('orders.requestedDate')}</span><DateInput value={due} onChange={setDue} data-testid="order-due" /></label>
         </div>
       </div></Card>
       <div className="space-y-3">

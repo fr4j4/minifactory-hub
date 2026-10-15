@@ -131,4 +131,13 @@ export const settings = {
     redes: 'Redes sociales',
   },
   tabArchived: 'Archivados',
+  tabSystem: 'Sistema',
+  systemTitle: 'Salud del sistema',
+  systemHint: 'Dependencias del servidor de las que dependen funciones concretas.',
+  healthOk: 'Disponible',
+  healthMissing: 'No disponible',
+  health_orca: 'OrcaSlicer (laminador)',
+  health_chromium: 'Chromium (PDF de presupuestos)',
+  health_ffmpeg: 'ffmpeg (cámaras Bambu X1/H2)',
+  health_storage: 'Almacenamiento de archivos (escritura)',
 };

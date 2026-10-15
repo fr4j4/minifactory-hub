@@ -14,6 +14,7 @@ import { Modal, useToast } from './client';
 import { cn, money, num, pct } from '@/lib/format';
 import { useLocale, useT } from '@/i18n/client';
 import { LOCALE_TAG } from '@/i18n/config';
+import { DateInput } from '@/components/date-input';
 
 export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
 export type VariantOpt = { id: string; label: string; price: number; avgCost: number; stock: number };
@@ -78,7 +79,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
           <div className="grid sm:grid-cols-4 gap-3">
             <label className="block sm:col-span-2"><span className="label">{t('quotes.quoteTitle')}</span><input className="input" value={q.title} onChange={(e) => set({ title: e.target.value })} placeholder={t('quotes.eGSensorHousings')} data-testid="quote-title" /></label>
             <SourceSelect value={q.source} onChange={(v) => set({ source: v })} />
-            <label className="block"><span className="label">{t('quotes.validUntil2')}</span><input type="date" className="input" value={q.validUntil} onChange={(e) => set({ validUntil: e.target.value })} /></label>
+            <label className="block"><span className="label">{t('quotes.validUntil2')}</span><DateInput value={q.validUntil} onChange={(v) => set({ validUntil: v })} /></label>
           </div>
           <div className="grid sm:grid-cols-4 gap-3">
             <label className="block"><span className="label">{t('quotes.urgency')}</span><select className="input" value={q.urgency} onChange={(e) => set({ urgency: e.target.value })}>{ctx.urgency.map((u) => <option key={u.key} value={u.key}>{u.label}{u.pct ? ` (+${u.pct}%)` : ''}</option>)}</select></label>

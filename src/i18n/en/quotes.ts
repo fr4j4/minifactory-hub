@@ -99,4 +99,5 @@ export const quotes: Shape<typeof es['quotes']> = {
   customerPriceList: 'Customer price list:',
   plusVat: '+ VAT {pct}%',
   rejectedPrefix: 'Rejected:',
+  pdfUnavailable: 'The PDF could not be generated on the server (Chromium unavailable). Use the browser\'s “Print → Save as PDF”. Check Settings → System.',
 };

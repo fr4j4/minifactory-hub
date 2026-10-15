@@ -134,4 +134,13 @@ export const settings: Shape<typeof es['settings']> = {
     redes: 'Social media',
   },
   tabArchived: 'Archived',
+  tabSystem: 'System',
+  systemTitle: 'System health',
+  systemHint: 'Server dependencies that specific features rely on.',
+  healthOk: 'Available',
+  healthMissing: 'Not available',
+  health_orca: 'OrcaSlicer (slicer)',
+  health_chromium: 'Chromium (quote PDFs)',
+  health_ffmpeg: 'ffmpeg (Bambu X1/H2 cameras)',
+  health_storage: 'File storage (writable)',
 };

@@ -5,6 +5,7 @@ import { PageHeader, Card, Table, Tabs, Empty } from '@/components/ui';
 import { reportData, REPORTS, type Col } from '@/lib/reports';
 import { dmy, dur, money, num, pct } from '@/lib/format';
 import { getT } from '@/i18n/server';
+import { DateInput } from '@/components/date-input';
 
 export async function generateMetadata() { return { title: (await getT())('meta.reports') }; }
 const cell = (v: any, c: Col) => v == null || v === '' ? '—' : c.fmt === 'money' ? money(Math.round(v)) : c.fmt === 'pct' ? pct(v, 0) : c.fmt === 'num' ? num(v, 1) : c.fmt === 'h' ? `${num(v, 1)} h` : c.fmt === 'kg' ? `${num(v, 2)} kg` : c.fmt === 'date' ? dmy(v) : String(v);
@@ -21,7 +22,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader title={t('reports.reports')} subtitle={user.role === 'ventas' ? t('reports.onlyYourSales') : t('reports.filterByDateAndExport')} />
       <Tabs current={kind} tabs={list.map(([k, v]) => ({ key: k, label: t(v.title), href: `/reportes?r=${k}&${q}` }))} />
-      <form className="flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><input type="date" name="from" defaultValue={from.toISOString().slice(0, 10)} className="input" /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><input type="date" name="to" defaultValue={to.toISOString().slice(0, 10)} className="input" /></label><button className="btn-ghost">{t('reports.apply')}</button>
+      <form className="flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><DateInput name="from" defaultValue={from.toISOString().slice(0, 10)} /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><DateInput name="to" defaultValue={to.toISOString().slice(0, 10)} /></label><button className="btn-ghost">{t('reports.apply')}</button>
         <div className="ml-auto flex gap-2 no-print"><a className="btn-ghost" href={`/api/export/${kind}?fmt=csv&${q}`} data-testid="export-csv">{t('reports.csv')}</a><a className="btn-ghost" href={`/api/export/${kind}?fmt=xlsx&${q}`} data-testid="export-xlsx">{t('reports.excel')}</a><a className="btn-ghost" href="#" data-print="1">{t('reports.pdfPrint')}</a></div></form>
       <Card title={d.title} actions={<span className="text-xs muted">{d.question}</span>} pad={false}>
         {d.rows.length === 0 ? <Empty title={t('reports.noDataInThisPeriod')} hint={t('reports.widenTheDateRange')} /> : (

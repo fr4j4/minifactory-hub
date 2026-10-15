@@ -9,15 +9,16 @@ import { getT } from '@/i18n/server';
 export const dynamic = 'force-dynamic';
 
 /** Versión imprimible del presupuesto (la usa el generador de PDF): sin costos internos ni precio sugerido. */
-export default async function PrintQuote({ params }: { params: Promise<{ id: string }> }) {
+export default async function PrintQuote({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ sinpdf?: string }> }) {
   const t = await getT();
   const user = await getSession(); if (!user) redirect('/login'); if (!can(user, 'presupuestos', 'V')) notFound();
-  const { id } = await params; const d = await loadQuote(id); if (!d) notFound();
+  const { id } = await params; const sp = await searchParams; const d = await loadQuote(id); if (!d) notFound();
   const { quote: q, items, models, links } = d; const st = await getSettings();
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; finalTotal: number }>;
   const pdfLinks = links.filter((l) => l.showInPdf);
   return (
     <div className="print-doc">
+      {sp.sinpdf && <div role="alert" className="no-print" style={{ background: '#fef3c7', border: '1px solid #f59e0b', padding: '8px 12px', marginBottom: 12, borderRadius: 6 }}>{t('quotes.pdfUnavailable')}</div>}
       <style>{`*{box-sizing:border-box}body{background:#fff!important}.print-doc{font-family:Inter,Arial,sans-serif;color:#0f172a;margin:0;padding:28px 34px;font-size:12px;background:#fff}h1{font-size:22px;margin:0}table{width:100%;border-collapse:collapse}th{text-align:left;font-size:10px;text-transform:uppercase;color:#64748b;border-bottom:2px solid #e2e8f0;padding:6px}td{padding:8px 6px;border-bottom:1px solid #eef2f7;vertical-align:top}.r{text-align:right}.muted{color:#64748b}.box{border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px}.tot td{border:0;padding:3px 6px}.big{font-size:16px;font-weight:700}img.t{width:54px;height:40px;object-fit:cover;border-radius:4px;margin-right:6px;vertical-align:middle}`}</style>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
           <div><h1 style={{ color: st.shop.brandColor }}>{st.shop.name}</h1><div className="muted">{st.shop.legalName} {st.shop.taxId && `· ${st.shop.taxId}`}<br />{st.shop.address} {st.shop.phone} {st.shop.email}</div></div>

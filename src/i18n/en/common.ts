@@ -83,4 +83,13 @@ export const common: Shape<typeof es['common']> = {
   method: 'Method',
   print: '🖨 Print',
   bambuLab: 'Bambu Lab',
+  loading: 'Loading…',
+  errorTitle: 'Something went wrong',
+  errorBody: "We couldn't show this screen. You can retry; if it persists, tell the administrator.",
+  retry: 'Retry',
+  notFoundTitle: "We couldn't find this page",
+  notFoundBody: 'The link may be outdated or the record was deleted.',
+  goHome: 'Go to Home',
+  datePlaceholder: 'dd-mm-yyyy',
+  pickDate: 'Pick a date',
 };

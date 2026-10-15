@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { addSpoolAction, findSpoolByCodeAction, moveItemAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
+import { DateInput } from '@/components/date-input';
 
 export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Array<{ id: string; name: string }>; trigger: React.ReactNode }) {
   const t = useT();
@@ -62,7 +63,7 @@ export function SpoolEditor({ s: sp, machines }: { s: { id: string; location: st
     <div className="space-y-3">
       <label className="block"><span className="label">{t('common.location')}</span><input className="input" value={loc} onChange={(e) => setLoc(e.target.value)} placeholder={t('inventory.shelfDryBox')} /></label>
       <div className="grid grid-cols-2 gap-3"><label className="block"><span className="label">{t('inventory.loadedInMachine')}</span><select className="input" value={mid} onChange={(e) => setMid(e.target.value)}><option value="">{t('inventory.none')}</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label><label className="block"><span className="label">{t('inventory.slotAms')}</span><input className="input" value={slot} onChange={(e) => setSlot(e.target.value)} placeholder={t('inventory.slot2')} /></label></div>
-      <label className="block"><span className="label">{t('inventory.lastDried')}</span><input type="date" className="input" value={dried} onChange={(e) => setDried(e.target.value)} /></label>
+      <label className="block"><span className="label">{t('inventory.lastDried')}</span><DateInput value={dried} onChange={setDried} /></label>
       <div className="flex flex-wrap gap-2"><button className="btn-primary" disabled={pending} onClick={() => run(() => updateSpoolAction(sp.id, mid ? { machineId: mid, slot, lastDriedAt: dried || null } : { location: loc, machineId: null, slot: slot || null, lastDriedAt: dried || null }), { ok: t('inventory.spoolUpdated2') })}>{t('common.save')}</button><button className="btn-ghost text-red-600 dark:text-red-400" disabled={pending} onClick={() => run(() => updateSpoolAction(sp.id, { status: 'descartada' }), { ok: t('inventory.spoolDiscarded2') })}>{t('inventory.discard')}</button></div>
     </div>
   );

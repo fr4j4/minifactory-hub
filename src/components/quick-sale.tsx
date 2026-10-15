@@ -7,6 +7,7 @@ import { Badge } from './ui';
 import { cn, money, pct } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
+import { DateInput } from '@/components/date-input';
 
 export interface SaleVariant { id: string; label: string; sku: string; stock: number; price: number; cost: number; priceByChannel: Record<string, number> }
 export interface SaleChannel { id: string; name: string; kind: string; commissionPct: number; commissionFixed: number; avgShipping: number }
@@ -46,7 +47,7 @@ export function QuickSale({ variants, channels, showCosts }: { variants: SaleVar
               <input type="number" min={1} className="input !w-16 !min-h-[40px] text-center" value={l.qty} aria-label={t('sales.quantityOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, qty: Math.max(1, +e.target.value || 1) } : x)))} />
               <input type="number" min={0} className="input !w-24 !min-h-[40px] tabular" value={l.price ?? ''} placeholder={String(listOf(l.v))} aria-label={t('sales.priceOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, price: e.target.value === '' ? null : +e.target.value } : x)))} data-testid="sale-price" />
               <button className="btn-ghost btn-sm" onClick={() => setCart(cart.filter((x) => x.id !== l.id))} aria-label={t('sales.remove')}>✕</button></li>)}</ul>)}
-          {channel?.kind === 'marketplace' && <div className="grid grid-cols-2 gap-2"><input className="input" placeholder={t('sales.externalOrderNo')} value={ext} onChange={(e) => setExt(e.target.value)} aria-label={t('sales.externalOrder')} /><input type="date" className="input" value={by} onChange={(e) => setBy(e.target.value)} aria-label={t('sales.shipBefore')} /></div>}
+          {channel?.kind === 'marketplace' && <div className="grid grid-cols-2 gap-2"><input className="input" placeholder={t('sales.externalOrderNo')} value={ext} onChange={(e) => setExt(e.target.value)} aria-label={t('sales.externalOrder')} /><DateInput value={by} onChange={setBy} aria-label={t('sales.shipBefore')} /></div>}
           <input className="input" placeholder={t('sales.customerOptional')} value={cust} onChange={(e) => setCust(e.target.value)} aria-label={t('common.customer')} />
           <div className="grid grid-cols-2 gap-2"><label className="text-xs">{t('sales.shippingPaidByTheWorkshop')}<input type="number" min={0} className="input" value={ship ?? ''} placeholder={String(channel?.avgShipping ?? 0)} onChange={(e) => setShip(e.target.value === '' ? null : +e.target.value)} /></label>
             <label className="text-xs">{t('sales.charge')}<select className="input" value={paid ? method : 'pendiente'} onChange={(e) => { if (e.target.value === 'pendiente') setPaid(false); else { setPaid(true); setMethod(e.target.value); } }}>{['efectivo', 'transferencia', 'tarjeta', 'marketplace', 'pendiente'].map((m) => <option key={m} value={m}>{tOr(t, `payMethod.${m}`, m)}</option>)}</select></label></div>
