@@ -5,7 +5,7 @@ import { materialCostPerKg } from './services/inventory';
 import { machineCostOf } from './services/quotes';
 import type { MachineCost, Rates } from './pricing';
 import { rowNozzle } from './slicer/catalog';
-import { processFitsMachineBase } from './slicer/setup';
+import { nozzleVariants, processFitsMachineBase } from './slicer/setup';
 
 export interface CalcMachine { id: string; name: string; tech: string; nozzle: string | null; volX: number; volY: number; volZ: number; simulated: boolean; machineProfileId: string | null; defaultProcessProfileId: string | null; feedGph: number; cost: MachineCost; status: string }
 export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; density: number; filamentProfileId: string | null; tech: string }
@@ -25,9 +25,11 @@ export async function getCalcContext(): Promise<CalcContext> {
   const nozzleOf = (id: string | null) => { const p = id ? profs.find((x) => x.id === id) : null; return p ? rowNozzle(p) : null; };
   const alive = new Set(profs.map((p) => p.id)); const setups: CalcSetup[] = [];
   const procProfs = profs.filter((p) => p.type === 'process');
+  // la misma impresora con otra boquilla sigue siendo la misma impresora
   const compatFor = (mpId: string) => {
     const mp = profs.find((x) => x.id === mpId); if (!mp) return procProfs.map((p) => p.id);
-    return procProfs.filter((p) => { try { return processFitsMachineBase({ baseName: p.baseName, vendor: p.vendor }, mp.baseName); } catch { return true; } }).map((p) => p.id);
+    let bases = [mp.baseName]; try { bases = [mp.baseName, ...nozzleVariants(mp.baseName).map((v) => v.base)]; } catch { /* sin datos de fábrica */ }
+    return procProfs.filter((p) => { try { return bases.some((b) => processFitsMachineBase({ baseName: p.baseName, vendor: p.vendor }, b)); } catch { return true; } }).map((p) => p.id);
   };
   for (const m of machines) {
     const list: Array<{ nozzle: string | null; mp: string; pp: string | null }> = [];

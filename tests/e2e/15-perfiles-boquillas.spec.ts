@@ -24,7 +24,7 @@ test.describe('Perfiles por boquilla', () => {
     await page.getByTestId('dup-name').fill('A1 · piezas con rosca'); await page.getByTestId('dup-edit').click(); await page.waitForURL(/\/laminador\/perfiles\//); await expect(page.getByTestId('profile-title')).toHaveValue('A1 · piezas con rosca');
 
     // el cambio de boquilla de la máquina cambia la impresora y la calidad
-    await page.goto('/maquinas'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: /Bambu A1 #1/ }).click();
+    await page.goto('/maquinas'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: /Bambu A1 #1/ }).getAttribute('href'))!); await page.waitForLoadState('networkidle');
     await expect(page.getByTestId('active-nozzle')).toContainText('0,4 mm'); await page.getByTestId('set-nozzle-0.6').click();
     await expect(page.getByText(/Boquilla 0,6 mm puesta/)).toBeVisible(); await expect(page.getByTestId('active-nozzle')).toContainText('0.30mm Standard'); await shot(page, 'P05-boquilla-puesta');
 
@@ -35,7 +35,7 @@ test.describe('Perfiles por boquilla', () => {
     await expect(page.getByTestId('slice-machine').locator('option', { hasText: 'Bambu A1 #1 · 0,4 mm' })).toHaveCount(1);
     await page.getByTestId('slice-process').selectOption({ label: 'A1 · 0,20 Standard · Boquilla 0.4 mm' }); await expect(page.getByTestId('nozzle-mismatch')).toContainText('boquilla 0.4 mm'); await shot(page, 'P06-aviso-boquilla');
     // deja la máquina de demostración como estaba (las demás pruebas esperan la boquilla 0,4)
-    await page.goto('/maquinas'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: /Bambu A1 #1/ }).click(); await page.getByTestId('set-nozzle-0.4').click(); await expect(page.getByText(/Boquilla 0,4 mm puesta/)).toBeVisible();
+    await page.goto('/maquinas'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: /Bambu A1 #1/ }).getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.getByTestId('set-nozzle-0.4').click(); await expect(page.getByText(/Boquilla 0,4 mm puesta/)).toBeVisible();
     // comparador: la misma máquina con sus dos boquillas lado a lado
     await page.goto('/laminador?tab=comparar'); await page.waitForLoadState('networkidle'); await expect(page.getByTestId('cmp-machine-0').locator('option', { hasText: 'Bambu A1 #1 · 0,6 mm' })).toHaveCount(1); await expect(page.getByTestId('cmp-machine-0').locator('option', { hasText: 'Bambu A1 #1 · 0,4 mm' })).toHaveCount(1);
     saveAs('perfiles-boquillas');

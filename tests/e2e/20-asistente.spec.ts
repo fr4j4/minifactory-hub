@@ -13,18 +13,18 @@ test.beforeAll(async () => {
   fs.rmSync(DIR, { recursive: true, force: true }); fs.mkdirSync(DIR, { recursive: true });
   const out = execSync('npx tsx scripts/seed.ts --bootstrap-only', { env, encoding: 'utf8' });
   token = out.match(/código: ([A-Z0-9]{12})/)?.[1] ?? ''; expect(token).toHaveLength(12);
-  srv = spawn('npx', ['next', 'start', '-p', String(PORT)], { env: { ...env, NODE_ENV: 'production' }, stdio: 'ignore' });
+  srv = spawn('npx', ['next', 'start', '-p', String(PORT)], { env: { ...env, NODE_ENV: 'production' }, stdio: 'ignore', detached: true });
   for (let i = 0; i < 60; i++) { try { const r = await fetch(`http://localhost:${PORT}/login`, { redirect: 'manual' }); if (r.status) break; } catch { /* aún no */ } await new Promise((r) => setTimeout(r, 1000)); }
 });
-test.afterAll(() => { srv?.kill('SIGKILL'); });
+test.afterAll(() => { try { if (srv?.pid) process.kill(-srv.pid, 'SIGKILL'); } catch { /* ya terminó */ } });
 
 test.describe('Asistente inicial (N10)', () => {
   test('código de un solo uso → cuenta → modo completo → cargar ejemplos → terminar → reabrir', async ({ page }) => {
     const U = `http://localhost:${PORT}`;
     await page.goto(U + '/login'); await expect(page).toHaveURL(/bienvenida/); await page.waitForLoadState('networkidle');
     await page.locator('input.input').fill('CODIGOERRONEO'); await page.getByRole('button', { name: /Verificar/ }).click();
-    await expect(page.getByRole('paragraph').filter({ hasText: /incorrecto/ })).toBeVisible();
-    await page.locator('input.input').fill(token); await page.getByRole('button', { name: /Verificar/ }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /incorrecto/ })).toBeVisible();
+    await page.locator('input.input').fill(''); await page.locator('input.input').fill(token); await expect(page.locator('input.input')).toHaveValue(token); await page.getByRole('button', { name: /Verificar/ }).click(); await expect(page.getByRole('heading', { name: 'Idioma y región' })).toBeVisible();
     await page.getByRole('button', { name: /Continuar/ }).click();
     await page.getByRole('textbox').first().fill('Ana Taller'); await page.locator('input[type=email]').fill('ana@taller.cl'); await page.locator('input[type=password]').fill('una-clave-muy-larga-1');
     await page.getByRole('button', { name: /Continuar/ }).click();
@@ -41,11 +41,12 @@ test.describe('Asistente inicial (N10)', () => {
     await page.goto(U + '/configuracion?tab=sistema'); await page.waitForLoadState('networkidle');
     await page.getByTestId('reopen-setup').click(); await expect(page).toHaveURL(/bienvenida/);
   });
-  test('el modo rápido termina de inmediato', async ({ page }) => {
+  test('reabierto: entra con su cuenta y termina de nuevo', async ({ page }) => {
     const U = `http://localhost:${PORT}`;
     await page.goto(U + '/login'); await page.waitForLoadState('networkidle');
     await page.getByLabel(/Correo/).fill('ana@taller.cl'); await page.getByLabel(/Contraseña/).fill('una-clave-muy-larga-1'); await page.getByRole('button', { name: 'Ingresar' }).click();
     await expect(page).toHaveURL(/bienvenida/); // quedó reabierto
-    await page.getByTestId('mode-quick').click(); await expect(page).toHaveURL(U + '/');
+    await expect(page.getByRole('heading', { name: 'Puesta en marcha' })).toBeVisible(); // reabrir conserva el modo completo
+    await page.getByRole('button', { name: /Terminar/ }).click(); await expect(page).toHaveURL(U + '/');
   });
 });
