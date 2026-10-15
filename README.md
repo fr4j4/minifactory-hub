@@ -4,32 +4,250 @@ Herramienta interna para gestionar un taller de impresión 3D: pedidos registrad
 
 Fuera de alcance por decisión: relación con proveedores e interacción directa con clientes (no hay portal de clientes).
 
-## Puesta en marcha (sin Docker)
+---
+
+## Instalación con Docker (recomendado)
+
+Esta guía es para personas sin experiencia técnica: copia y pega los comandos tal como aparecen. Tiempo estimado: **20–40 minutos**, casi todo esperando descargas.
+
+**¿Qué es Docker?** Un programa que ejecuta MiniFactory Hub dentro de una «caja» ya preparada. Así no tienes que instalar nada más (ni la base de datos ni el laminador OrcaSlicer): todo viene incluido.
+
+### Antes de empezar
+
+| Necesitas | Detalle |
+|---|---|
+| Un computador | Windows 10/11 (64 bits) o Linux (Ubuntu, Debian, Fedora…) |
+| Memoria y disco | 8 GB de RAM (mínimo 4 GB) y unos **10 GB libres** |
+| Internet | Para descargar Docker y la aplicación (la primera vez son ~2 GB) |
+| Permisos | Poder instalar programas (cuenta de administrador) |
+
+> **Dónde se escriben los comandos:** en Windows, abre **PowerShell** (botón Inicio → escribe «PowerShell» → Enter). En Linux, abre la aplicación **Terminal**. Para pegar en PowerShell basta con clic derecho; en Terminal usa `Ctrl+Shift+V`.
+
+### Parte A — Windows
+
+**A1. Instalar Docker Desktop**
+
+1. Entra a <https://www.docker.com/products/docker-desktop/> y pulsa **Download for Windows** (elige «AMD64» para la mayoría de equipos).
+2. Abre el instalador descargado. Deja marcada la opción **«Use WSL 2 instead of Hyper-V»** y pulsa **OK**.
+3. Al terminar, pulsa **Close and restart** (el equipo se reinicia).
+4. Al volver, abre **Docker Desktop** desde el menú Inicio. Acepta los términos de uso. Puedes **omitir** la creación de cuenta («Skip»).
+5. Espera hasta que, abajo a la izquierda, aparezca **«Engine running»** en verde.
+
+Comprueba que funciona en PowerShell:
+
+```powershell
+docker --version
+```
+
+Debe responder algo como `Docker version 27...`. Si dice que no reconoce el comando, cierra y vuelve a abrir PowerShell.
+
+> **Si Docker Desktop muestra un error de «virtualización» o «WSL»:** entra a la BIOS del equipo y activa «Virtualization» (Intel VT-x / AMD-V); luego, en PowerShell como administrador, ejecuta `wsl --install` y reinicia.
+
+**A2. Descargar MiniFactory Hub**
+
+Si tienes Git instalado:
+
+```powershell
+cd $HOME
+git clone https://github.com/fr4j4/minifactory-hub.git
+cd minifactory-hub
+```
+
+Si no lo tienes: en la página del proyecto en GitHub pulsa **Code → Download ZIP**, descomprime la carpeta (clic derecho → *Extraer todo*) y en PowerShell entra a ella, por ejemplo:
+
+```powershell
+cd $HOME\Downloads\minifactory-hub
+```
+
+**A3. Crear tu configuración**
+
+Solo hace falta una llave secreta; no necesitas definir una contraseña de administrador todavía (el siguiente paso explica por qué):
+
+```powershell
+$clave = -join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+Set-Content -Path .env -Value "SESSION_SECRET=$clave"
+```
+
+**A4. Iniciar la aplicación**
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.windows.yml up -d --build
+```
+
+La **primera vez tarda 10–20 minutos** (descarga y prepara todo, incluido el laminador OrcaSlicer). Es normal ver mucho texto; espera hasta que vuelva a aparecer el cursor.
+
+**A5. Completar la configuración inicial**
+
+Abre tu navegador en **<http://localhost:3000>**. Como todavía no hay ninguna cuenta, te lleva automáticamente a un **asistente de bienvenida** (`/bienvenida`) que pide un **código de un solo uso**. Ese código aparece en el registro del servidor:
+
+```powershell
+docker compose logs app
+```
+
+Busca un bloque como:
+
+```
+┌─ MiniFactory · configuración inicial ─────────────────
+│ Abre /bienvenida e ingresa este código: XY4SKDUOXP2K
+└───────────────────────────────────────────────────────
+```
+
+Copia el código en el asistente, crea tu cuenta de administrador con tu propio correo y contraseña, y sigue los pasos opcionales (datos del taller, impuestos, máquinas…). Puedes omitir los pasos opcionales y completarlos después desde Configuración.
+
+✅ Listo. Salta a [Uso diario](#uso-diario).
+
+### Parte B — Linux
+
+Los pasos están escritos para **Ubuntu/Debian**. En Fedora y otras distribuciones, usa la guía oficial: <https://docs.docker.com/engine/install/>.
+
+**B1. Instalar Docker**
+
+La forma más simple es el script oficial. Pega estas dos líneas (te pedirá tu contraseña de usuario):
+
+```bash
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+```
+
+Después, permite usar Docker sin escribir `sudo` cada vez:
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+**Cierra la sesión y vuelve a entrar** (o reinicia) para que el cambio tenga efecto.
+
+Comprueba que funciona:
+
+```bash
+docker --version
+docker compose version
+docker run --rm hello-world
+```
+
+El último comando debe mostrar el mensaje «Hello from Docker!».
+
+**B2. Descargar MiniFactory Hub**
+
+```bash
+sudo apt install -y git      # solo si no tienes git (Ubuntu/Debian)
+cd ~
+git clone https://github.com/fr4j4/minifactory-hub.git
+cd minifactory-hub
+```
+
+**B3. Crear tu configuración**
+
+Solo hace falta una llave secreta; no necesitas definir una contraseña de administrador todavía (el siguiente paso explica por qué):
+
+```bash
+echo "SESSION_SECRET=$(openssl rand -hex 32)" > .env
+```
+
+**B4. Iniciar la aplicación**
+
+```bash
+docker compose up -d --build
+```
+
+La **primera vez tarda 10–20 minutos** (descarga y prepara todo, incluido el laminador OrcaSlicer). Espera hasta que vuelva el cursor.
+
+**B5. Completar la configuración inicial**
+
+Abre el navegador en **<http://localhost:3000>**. Como todavía no hay ninguna cuenta, te lleva automáticamente a un **asistente de bienvenida** (`/bienvenida`) que pide un **código de un solo uso**. Ese código aparece en el registro del servidor:
+
+```bash
+docker compose logs app
+```
+
+Busca un bloque como:
+
+```
+┌─ MiniFactory · configuración inicial ─────────────────
+│ Abre /bienvenida e ingresa este código: XY4SKDUOXP2K
+└───────────────────────────────────────────────────────
+```
+
+Copia el código en el asistente, crea tu cuenta de administrador con tu propio correo y contraseña, y sigue los pasos opcionales (datos del taller, impuestos, máquinas…). Puedes omitir los pasos opcionales y completarlos después desde Configuración.
+
+Para entrar desde **otro equipo de la red** (por ejemplo, un celular), usa la IP del computador: `http://192.168.x.x:3000` (averíguala con `hostname -I`).
+
+### Uso diario
+
+Ejecuta estos comandos dentro de la carpeta `minifactory-hub`. **En Windows agrega** `-f docker-compose.yml -f docker-compose.windows.yml` después de `docker compose` (ejemplo: `docker compose -f docker-compose.yml -f docker-compose.windows.yml stop`).
+
+| Quiero… | Comando |
+|---|---|
+| Apagar la aplicación (sin perder datos) | `docker compose stop` |
+| Encenderla otra vez | `docker compose start` |
+| Ver si está funcionando | `docker compose ps` |
+| Ver mensajes (si algo falla) | `docker compose logs --tail 100 app` |
+
+La aplicación **se inicia sola** cuando enciendes el computador, siempre que Docker esté abierto (en Windows, Docker Desktop → ⚙ Settings → *General* → «Start Docker Desktop when you sign in»).
+
+**Actualizar a una versión nueva:**
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+(En Windows, con los dos `-f` ya indicados.) Tus datos se conservan.
+
+**Respaldar tus datos:** tus pedidos, modelos y fotos viven en volúmenes de Docker, **no** en la carpeta del proyecto. Respalda con regularidad desde la propia aplicación: **Configuración → Respaldo** descarga un archivo ZIP. Guárdalo en un disco externo o en la nube.
+
+> ⚠️ **No uses** `docker compose down -v`: la opción `-v` **borra todos tus datos** (base de datos y archivos). Para apagar usa siempre `stop`.
+
+### Dos procesos: `app` y `worker`
+
+`docker-compose.yml` levanta dos contenedores con la misma imagen: **`app`** (páginas web; solo encola los laminados, `MF_EXTERNAL_WORKER=1`) y **`worker`** (ejecuta en segundo plano los laminados de OrcaSlicer y otros trabajos pesados). Así un laminado largo no compite con la navegación. Si necesitas ver qué hace cada uno: `docker compose logs app` / `docker compose logs worker`.
+
+### Impresoras Bambu Lab
+
+- **Linux:** la app detecta las impresoras de tu red automáticamente (usa `network_mode: host`).
+- **Windows:** Docker Desktop no permite esa detección automática. En *Máquinas → Conectar impresoras* escribe la **IP de la impresora** (la ves en la pantalla de la impresora: Configuración → Red) y su código de acceso de 8 caracteres. También puedes usar el modo nube con tu cuenta de Bambu Lab. Ver detalles técnicos del conector más abajo.
+
+### IA opcional
+
+Está apagada por defecto. Si quieres usarla, se activa dentro de la aplicación en *Configuración → Inteligencia artificial*. Si usas un programa de IA local (por ejemplo Ollama) instalado en Windows, la dirección que debes escribir desde Docker es `http://host.docker.internal:11434/v1`. Ver detalles más abajo.
+
+### Problemas frecuentes
+
+| Síntoma | Solución |
+|---|---|
+| `docker: command not found` / «no se reconoce» | Cierra y abre de nuevo la terminal; en Windows reinicia el equipo. |
+| «Cannot connect to the Docker daemon» | Docker no está encendido: abre Docker Desktop (Windows) o ejecuta `sudo systemctl start docker` (Linux). |
+| `permission denied` al usar docker en Linux | Falta el paso `usermod` o cerrar sesión; como alternativa temporal, antepón `sudo`. |
+| Error «defina SESSION_SECRET» | No existe el archivo `.env` o estás en otra carpeta. Repite el paso A3/B3 dentro de `minifactory-hub`. |
+| `http://localhost:3000` no carga | Espera 1–2 minutos tras iniciar y revisa `docker compose ps`; si dice «Exited», mira `docker compose logs --tail 100 app`. |
+| No aparece el asistente `/bienvenida`, va directo a `/login` | Ya existe una cuenta de administrador (de una instalación anterior). Entra con esas credenciales, o si es un reinicio limpio revisa que no hayas definido `ADMIN_PASSWORD` en `.env`. |
+| El puerto 3000 ya está en uso (Windows) | Cierra el programa que lo usa, o cambia `"3000:3000"` por `"3001:3000"` en `docker-compose.windows.yml` y abre `localhost:3001`. |
+| Se acabó el espacio en disco | `docker system prune` elimina restos de descargas antiguas (no borra tus datos). |
+| Olvidé la contraseña | Entra con otro administrador y restablécela en *Configuración → Usuarios*. Sin otro administrador, hay que restablecerla directo en la base de datos. |
+
+> **Nota técnica (Linux):** `docker-compose.yml` usa `network_mode: host` para detectar impresoras, por lo que la app escucha directamente en el puerto 3000 del equipo; ahí el puerto no se cambia con `ports`.
+
+¿Sigues con problemas? Copia el resultado de `docker compose logs --tail 100 app` y compártelo con quien administra el proyecto.
+
+---
+
+## Puesta en marcha sin Docker (desarrollo)
+
+Para desarrollar o para instalar directo en el sistema (sin contenedores):
 
 ```bash
 npm install
-cp .env.example .env            # cambie SESSION_SECRET
+cp .env.example .env            # cambia SESSION_SECRET
 npm run orca:install            # descarga OrcaSlicer 2.4.2 en .orca/ (laminador; ~200 MB) y genera el esquema ampliado de parámetros en data/
 npm run db:seed -- --reset      # base de datos con datos de demostración
 npm run build && npm start      # http://localhost:3000
 ```
 
-Usuarios de demostración: `admin@minifactory.cl / admin1234`, `operador@minifactory.cl` y `ventas@minifactory.cl` / `taller1234`.
-Para una instalación real use `npm run db:seed -- --bootstrap-only` (solo crea el administrador y la configuración base) y cambie las contraseñas.
+Usuarios de demostración (solo con `db:seed` sin `--bootstrap-only`): `admin@minifactory.cl / admin1234`, `operador@minifactory.cl` y `ventas@minifactory.cl` / `taller1234`.
+
+Para una instalación real, **no definas `ADMIN_PASSWORD`**: usa `npm run db:seed -- --bootstrap-only` y completa la cuenta de administrador desde el asistente `/bienvenida` con el código de un solo uso que se imprime en la consola (igual que en la instalación con Docker).
 
 Sin `DATABASE_URL` se usa PGlite (Postgres embebido en `./data/pgdata`): no hay nada que instalar. Con `DATABASE_URL=postgres://…` usa un Postgres normal. Las migraciones se aplican solas al iniciar.
-
-## Docker
-
-> Guía paso a paso para Windows y Linux (incluye instalar Docker): [INSTALL.md](docs/INSTALACION.md).
-
-```bash
-SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
-```
-
-Volúmenes: `pgdata` (base) y `files` (modelos, G-code, fotos). **Respalde ambos**; además, Configuración → Respaldo descarga un ZIP.
-
-**Worker aparte.** `docker-compose.yml` levanta dos procesos con la misma imagen: `app` (páginas; solo encola, `MF_EXTERNAL_WORKER=1`) y `worker` (`npm run worker`: laminados de OrcaSlicer y trabajos en segundo plano). Así un laminado largo no compite con las páginas. Requiere Postgres; con la base embebida (PGlite) todo corre en un solo proceso, que es el comportamiento por defecto.
 
 ## Pruebas
 
