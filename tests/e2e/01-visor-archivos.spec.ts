@@ -6,7 +6,7 @@ test.describe('Archivos 3D: subida, análisis y visor', () => {
     await login(page); await page.goto('/archivos'); await shot(page, '01-biblioteca');
     // subida por la interfaz (por partes) y análisis automático en segundo plano
     await measure('Subir un STL y ver su análisis', { limitS: 30, note: 'incluye subida por partes, análisis y miniatura' }, async () => {
-      await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles(path.join(SAMPLES, 'engranaje.stl'));
+      await page.waitForLoadState('networkidle'); await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles(path.join(SAMPLES, 'engranaje.stl'));
       await expect(page.getByText('Listo ✓')).toBeVisible();
       await page.reload(); await page.getByRole('link', { name: 'engranaje', exact: false }).first().click();
       await expect(page.getByTestId('analysis')).toContainText('54 × 54 × 8 mm', { timeout: 30000 });
@@ -42,7 +42,7 @@ test.describe('Archivos 3D: subida, análisis y visor', () => {
 
   test('G-code y 3MF laminados: metadatos y vista previa por capas', async ({ page, saveAs }) => {
     await login(page); await page.goto('/archivos');
-    await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles([path.join(SAMPLES, 'barquito-a1.gcode'), path.join(SAMPLES, 'llavero-a1.3mf')]);
+    await page.waitForLoadState('networkidle'); await page.getByTestId('model-uploader').locator('input[type=file]').setInputFiles([path.join(SAMPLES, 'barquito-a1.gcode'), path.join(SAMPLES, 'llavero-a1.3mf')]);
     await expect(page.getByText('Listo ✓').first()).toBeVisible({ timeout: 60000 }); await page.waitForTimeout(3000); await page.reload();
     await page.getByRole('link', { name: 'barquito-a1' }).first().click();
     await expect(page.getByTestId('sliced-meta')).toContainText('OrcaSlicer 2.4.2', { timeout: 40000 }); await expect(page.getByTestId('sliced-meta')).toContainText('0:32 h'); await expect(page.getByTestId('sliced-meta')).toContainText('7,4');

@@ -336,7 +336,9 @@ export const sliceRuns = pgTable('slice_runs', {
   cacheKey: text('cache_key'),
   copies: integer('copies').notNull().default(1),
   engineVersion: text('engine_version'),
-  status: text('status').notNull().default('queued'), // queued | running | done | error
+  status: text('status').notNull().default('queued'), // queued | running | done | error | cancelado
+  /** Ajustes de sesión del Estudio: se aplican sobre los perfiles sin crear perfiles nuevos. */
+  inputs: jsonb('inputs').$type<{ overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }>().default({}),
   error: text('error'),
   timeS: integer('time_s'),
   filament: jsonb('filament').$type<Array<{ g: number; mm: number; cm3: number }>>().default([]),

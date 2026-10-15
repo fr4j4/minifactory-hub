@@ -15,12 +15,18 @@ import { getT } from '@/i18n/server';
  * Límite de concurrencia (ORCA_CONCURRENCY) y de tiempo por trabajo (ORCA_TIMEOUT_S).
  * Para escalar, el mismo código puede correr en varios procesos: cada uno toma trabajos con `FOR UPDATE SKIP LOCKED` en Postgres.
  */
-const g = globalThis as unknown as { __sliceWorker?: { running: number; timer?: NodeJS.Timeout } };
+const g = globalThis as unknown as { __sliceWorker?: { running: number; timer?: NodeJS.Timeout }; __sliceAbort?: Map<string, AbortController> };
+const aborts = () => (g.__sliceAbort ??= new Map());
+
+export type Overrides = { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> };
+const cleanOverrides = (o?: Overrides): Overrides => { const out: Overrides = {}; for (const k of ['machine', 'process', 'filament'] as const) if (o?.[k] && Object.keys(o[k]!).length) out[k] = o[k]; return out; };
 
 export interface EnqueueInput {
   fileVersionId: string; machineProfileId: string; processProfileId: string;
   /** Perfil de filamento explícito; si falta se resuelve desde `materialId` (ver resolveFilament). */
   filamentProfileId?: string | null; materialId?: string | null;
+  /** Ajustes de sesión sobre los perfiles (no crean perfiles; forman parte de la clave de caché). */
+  overrides?: Overrides;
   copies?: number; label?: string; groupId?: string; userId?: string; force?: boolean;
 }
 
@@ -40,15 +46,16 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   const m = P[i.machineProfileId], p = P[i.processProfileId], f = P[i.filamentProfileId];
   if (!m || !p || !f) throw new Error(t('slicer.machineProcessOrFilamentProfiles'));
   const engine = await engineVersion();
+  const overrides = cleanOverrides(i.overrides);
   const cacheKey = crypto.createHash('sha256').update(JSON.stringify([fv.sha256 ?? fv.id, engine, copies,
-    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes])])).digest('hex');
+    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes]), sortKeys(overrides)])).digest('hex');
   const profileVersions = { machine: [m.name, m.version], process: [p.name, p.version], filament: [f.name, f.version] };
   if (!i.force) {
     const [hit] = await db.select().from(s.sliceRuns).where(and(eq(s.sliceRuns.cacheKey, cacheKey), eq(s.sliceRuns.status, 'done'))).limit(1);
     if (hit) {
       const [row] = await db.insert(s.sliceRuns).values({
         workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
+        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides }, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
         filament: hit.filament, layers: hit.layers, plates: hit.plates, durationMs: 0, gcodeKey: hit.gcodeKey, threemfKey: hit.threemfKey,
         label: i.label, groupId: i.groupId, createdBy: i.userId ?? null, result: { ...(hit.result ?? {}), cached: true },
       }).returning({ id: s.sliceRuns.id });
@@ -57,7 +64,7 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   }
   const [row] = await db.insert(s.sliceRuns).values({
     workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
+    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides }, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
     createdBy: i.userId ?? null,
   }).returning({ id: s.sliceRuns.id });
   ensureWorker();
@@ -75,17 +82,21 @@ async function execute(runId: string) {
     const P = await loadProfiles(db, [run.machineProfileId!, run.processProfileId!, run.filamentProfileId!]);
     const m = P[run.machineProfileId!], p = P[run.processProfileId!], f = P[run.filamentProfileId!];
     if (!fv || !m || !p || !f) throw new Error(t('slicer.incompleteDataForSlicing'));
-    const machine = buildCliProfile('machine', { name: m.name, vendor: m.vendor ?? undefined, baseName: m.baseName, changes: m.changes });
-    const proc = buildCliProfile('process', { name: p.name, vendor: p.vendor ?? undefined, baseName: p.baseName, changes: p.changes, machineName: m.name });
-    const fil = buildCliProfile('filament', { name: f.name, vendor: f.vendor ?? undefined, baseName: f.baseName, changes: f.changes, machineName: m.name });
+    const ov = cleanOverrides(run.inputs?.overrides);
+    const machine = buildCliProfile('machine', { name: m.name, vendor: m.vendor ?? undefined, baseName: m.baseName, changes: { ...m.changes, ...ov.machine } });
+    const proc = buildCliProfile('process', { name: p.name, vendor: p.vendor ?? undefined, baseName: p.baseName, changes: { ...p.changes, ...ov.process }, machineName: m.name });
+    const fil = buildCliProfile('filament', { name: f.name, vendor: f.vendor ?? undefined, baseName: f.baseName, changes: { ...f.changes, ...ov.filament }, machineName: m.name });
     // el filamento debe ser compatible con el tipo de placa: se elige una placa en la que el filamento tenga temperatura de cama
-    if (!p.changes?.curr_bed_type && !m.changes?.curr_bed_type) {
+    if (!proc.curr_bed_type && !p.changes?.curr_bed_type && !m.changes?.curr_bed_type) {
       const temp = (k: string) => Number(Array.isArray(fil[k]) ? fil[k][0] : fil[k] ?? 0);
       const bed = temp('textured_plate_temp') > 0 ? 'Textured PEI Plate' : temp('hot_plate_temp') > 0 ? 'Smooth PEI Plate / High Temp Plate' : temp('cool_plate_temp') > 0 ? 'Cool Plate' : temp('eng_plate_temp') > 0 ? 'Engineering Plate' : null;
       if (bed) proc.curr_bed_type = bed;
     }
-    const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies });
+    const ctl = new AbortController(); aborts().set(runId, ctl);
+    const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, signal: ctl.signal });
+    aborts().delete(runId);
     tmpDir = r.tmpDir;
+    if (r.errorCode === 'cancelled') { await db.update(s.sliceRuns).set({ status: 'cancelado', error: null, result: { errorCode: 'cancelled' }, durationMs: r.durationMs, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId)); return; }
     if (!r.ok) {
       await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
       return;
@@ -142,8 +153,19 @@ export async function waitForRuns(ids: string[], timeoutMs = 120_000) {
   const db = await getDb(); const t0 = Date.now();
   for (;;) {
     const rows = await db.select().from(s.sliceRuns).where(inArray(s.sliceRuns.id, ids));
-    if (rows.every((r) => r.status === 'done' || r.status === 'error')) return rows;
+    if (rows.every((r) => ['done', 'error', 'cancelado'].includes(r.status))) return rows;
     if (Date.now() - t0 > timeoutMs) return rows;
     await new Promise((r) => setTimeout(r, 400));
   }
+}
+
+const sortKeys = (v: any): any => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+
+/** Cancela un laminado: si espera en la cola lo marca; si corre, mata el proceso de OrcaSlicer. */
+export async function cancelRun(runId: string): Promise<'cancelado' | 'noop'> {
+  const db = await getDb();
+  const done = await db.update(s.sliceRuns).set({ status: 'cancelado', updatedAt: new Date() }).where(and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'queued'))).returning({ id: s.sliceRuns.id });
+  if (done.length) return 'cancelado';
+  const ctl = aborts().get(runId); if (ctl) { ctl.abort(); return 'cancelado'; }
+  return 'noop';
 }

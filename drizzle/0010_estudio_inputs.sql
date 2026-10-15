@@ -1,0 +1,1 @@
+ALTER TABLE "slice_runs" ADD COLUMN "inputs" jsonb DEFAULT '{}'::jsonb;

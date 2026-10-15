@@ -1,13 +1,5 @@
 [
  {
-  "name": "Subir un STL y ver su análisis",
-  "seconds": 2.1,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true,
-  "note": "incluye subida por partes, análisis y miniatura"
- },
- {
   "name": "Registrar un pedido manual (WhatsApp)",
   "seconds": 0.5,
   "steps": 0,
@@ -21,14 +13,6 @@
   "steps": 0,
   "limitS": 30,
   "ok": true
- },
- {
-  "name": "Registrar una venta rápida de marketplace",
-  "seconds": 0.7,
-  "steps": 0,
-  "limitS": 30,
-  "ok": true,
-  "note": "objetivo: menos de 30 s"
  },
  {
   "name": "Detectar y conectar una impresora Bambu Lab",
@@ -81,5 +65,21 @@
   "limitS": 120,
   "ok": true,
   "note": "objetivo de la spec: menos de 2 min"
+ },
+ {
+  "name": "Registrar una venta rápida de marketplace",
+  "seconds": 0.8,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "objetivo: menos de 30 s"
+ },
+ {
+  "name": "Subir un STL y ver su análisis",
+  "seconds": 1.9,
+  "steps": 0,
+  "limitS": 30,
+  "ok": true,
+  "note": "incluye subida por partes, análisis y miniatura"
  }
 ]

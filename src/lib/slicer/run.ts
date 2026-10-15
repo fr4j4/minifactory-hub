@@ -30,7 +30,7 @@ export async function engineVersion(): Promise<string> {
 }
 
 /** Código estable del error (no depende del idioma) para poder explicarlo y sugerir acciones. */
-export type SliceErrorCode = 'not_installed' | 'timeout' | 'no_fit' | 'incompatible' | 'other';
+export type SliceErrorCode = 'not_installed' | 'timeout' | 'no_fit' | 'incompatible' | 'cancelled' | 'other';
 
 const ERR_MAP: Record<number, MessageKey> = {
   [-50]: 'slicer.errPartDoesNotFit',
@@ -67,7 +67,7 @@ async function threemfToStl(file: string, dest: string) {
 
 export async function runOrca(o: {
   inputPath: string; ext: string; machine: Record<string, any>; process: Record<string, any>; filament: Record<string, any>;
-  copies: number; timeoutS?: number;
+  copies: number; timeoutS?: number; signal?: AbortSignal;
 }): Promise<CliResult> {
   const t = await getT();
   const t0 = Date.now();
@@ -93,11 +93,14 @@ export async function runOrca(o: {
     const p = spawn(config.orcaBin, args, { cwd: tmpDir, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, HOME: tmpDir } });
     p.stdout.on('data', (d) => log.push(String(d))); p.stderr.on('data', (d) => log.push(String(d)));
     const timer = setTimeout(() => { log.push('timeout'); p.kill('SIGKILL'); }, (o.timeoutS ?? config.orcaTimeoutS) * 1000);
+    // cancelación (el Estudio descarta un laminado cuando llega un cambio nuevo)
+    if (o.signal?.aborted) p.kill('SIGKILL'); else o.signal?.addEventListener('abort', () => p.kill('SIGKILL'), { once: true });
     p.on('close', (c) => { clearTimeout(timer); res(c ?? -1); }); p.on('error', () => { clearTimeout(timer); res(-1); });
   });
   const durationMs = Date.now() - t0;
   let rc = code, errStr = '';
   try { const r = JSON.parse(await fsp.readFile(path.join(outDir, 'result.json'), 'utf8')); rc = r.return_code ?? rc; errStr = r.error_string ?? ''; } catch { /* sin result.json */ }
+  if (o.signal?.aborted) return { ok: false, errorCode: 'cancelled', error: 'cancelado', engine, durationMs, plates: [], tmpDir };
   if (log.join('').includes('timeout')) return { ok: false, errorCode: 'timeout', error: t('slicer.slicingExceededTheLimitOf', { timeoutS: o.timeoutS ?? config.orcaTimeoutS }), engine, durationMs, plates: [], tmpDir };
   const files = (await fsp.readdir(outDir)).filter((f) => /^plate_\d+\.gcode$/.test(f)).sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)));
   if (rc !== 0 || !files.length) {

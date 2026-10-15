@@ -51,3 +51,28 @@ describe.skipIf(!orcaAvailable())('calidad por intención', () => {
     expect(String((r2.changes as any).layer_height ?? '0.2')).toBe('0.2');
   });
 });
+
+describe.skipIf(!orcaAvailable())('ajustes de sesión (Estudio): overrides sin perfiles nuevos', () => {
+  it('los overrides cambian el resultado, forman parte de la caché y no crean perfiles', async () => {
+    const { cancelRun } = await import('@/lib/slicer/queue');
+    const [mat] = await db.select().from(s.materials).where(eq(s.materials.manufacturer, 'Grilon3'));
+    const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo'));
+    const before = (await db.select().from(s.slicerProfiles)).length;
+    const base = { fileVersionId: bar.currentVersionId!, machineProfileId: await P('Bambu Lab A1 0.4'), processProfileId: await P('A1 · 0,20 Standard'), materialId: mat.id };
+    const [low, high, low2] = await waitForRuns([
+      await enqueueSlice({ ...base, label: 'low', overrides: { process: { sparse_infill_density: '5%' } } }),
+      await enqueueSlice({ ...base, label: 'high', overrides: { process: { sparse_infill_density: '60%' } } }),
+      await enqueueSlice({ ...base, label: 'low-again', overrides: { process: { sparse_infill_density: '5%' } } }),
+    ], 240_000);
+    expect([low.status, high.status, low2.status]).toEqual(['done', 'done', 'done']);
+    const g = (r: typeof low) => (r.filament ?? []).reduce((a, f) => a + f.g, 0);
+    expect(g(high)).toBeGreaterThan(g(low) + 0.3);
+    expect(low.cacheKey).not.toBe(high.cacheKey); expect(low2.cacheKey).toBe(low.cacheKey);
+    expect((high.inputs as any).overrides.process.sparse_infill_density).toBe('60%');
+    expect((await db.select().from(s.slicerProfiles)).length).toBe(before); // sin perfiles fantasma
+    // cancelar una corrida en cola
+    const id = await enqueueSlice({ ...base, label: 'cancel', force: true, overrides: { process: { sparse_infill_density: '33%' } } });
+    expect(await cancelRun(id)).toBe('cancelado');
+    const [c] = await waitForRuns([id], 60_000); expect(c.status).toBe('cancelado');
+  }, 300_000);
+});
