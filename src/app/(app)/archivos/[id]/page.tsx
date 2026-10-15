@@ -7,6 +7,7 @@ import { can } from '@/lib/perm';
 import { PageHeader, Card, Badge, StatusBadge, Table, Empty } from '@/components/ui';
 import { ModelViewer } from '@/components/model-viewer';
 import { GcodeViewer } from '@/components/gcode-viewer';
+import { ImportProjectButton } from '@/components/import-project-button';
 import { RepairButton } from '@/components/repair-button';
 import { SlicePanel } from '@/components/slice-panel';
 import { aiAvailableFor } from '@/lib/ai';
@@ -59,6 +60,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2 space-y-4">
             {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} materials={viewerMats} analysis={a} />}
+            {!processing && f.format === '3mf' && can(user, 'laminador', 'C') && cur && <div className="mt-3"><ImportProjectButton versionId={cur.id} /><p className="text-xs muted mt-1">{t('files.importProjectHint')}</p></div>}
             {!processing && (meta as any).ams?.multicolor && <div className="card p-3 mt-3 text-sm" data-testid="ams-card"><div className="font-medium mb-1.5">{t('files.amsTitle', { n: (meta as any).ams.filaments.filter((x: any) => x.used).length })}</div><ul className="flex flex-wrap gap-2">{(meta as any).ams.filaments.filter((x: any) => x.used).map((x: any) => <li key={x.index} className="badge border-[var(--line)]"><span className="inline-block h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: x.color }} aria-hidden />{t('files.amsSlot', { n: x.index })}{x.type ? ` · ${x.type}` : ''}</li>)}</ul>{(meta as any).ams.painted && <p className="muted text-xs mt-1.5">{t('files.amsPainted')}</p>}<p className="muted text-xs mt-1.5">{t('files.amsHint')}</p></div>}
             {!processing && cur && kind === 'malla' && meta.gcodePreviewKey && <Card title={t('files.toolpathsFromTheGCode')}><GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /></Card>}
             {!processing && cur && kind === 'gcode' && (meta.gcodePreviewKey ? <GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /> : <Card><Empty title={t('files.noLayerPreview')} hint={sm?.notes?.[0] ?? t('files.thisGCodeCannotBe')} /></Card>)}

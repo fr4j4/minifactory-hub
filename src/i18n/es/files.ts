@@ -1,4 +1,6 @@
 export const files = {
+  importProjectSettings: 'Usar los ajustes de este proyecto',
+  importProjectHint: 'Guarda como perfiles la impresora, la calidad y los filamentos que el proyecto 3MF ya trae.',
   repairMesh: 'Reparar malla',
   repairing: 'Reparando…',
   repairDone: 'Malla reparada',

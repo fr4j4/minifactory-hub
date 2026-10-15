@@ -205,6 +205,21 @@ export async function previewImportAction(fd: FormData) {
     return cands.map((c) => ({ key: c.key, type: c.type, name: c.name, baseName: c.baseName, keys: Object.keys(c.changes).length, source: c.source, note: c.note, ok: c.ok, exists: existing.some((e) => e.type === c.type && e.name === c.name) }));
   });
 }
+async function saveCandidates(cands: Array<import('@/lib/slicer/import').Candidate>, userId: string) {
+  const t = await getT(); const { createProfileRow } = await import('@/lib/slicer/setup');
+    const db = await getDb(); let created = 0, updated = 0;
+    for (const c of cands) {
+      const [prev] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, c.type), eq(s.slicerProfiles.name, c.name), isNull(s.slicerProfiles.deletedAt)));
+      if (prev) {
+        const version = prev.version + 1;
+        await db.insert(s.slicerProfileVersions).values({ profileId: prev.id, version, baseName: c.baseName!, changes: c.changes, createdBy: userId, note: t('slicer.importedFrom', { source: c.source }) });
+        await db.update(s.slicerProfiles).set({ baseName: c.baseName!, vendor: findVendorOf(c.type, c.baseName!) ?? prev.vendor, changes: c.changes, nozzle: c.type === 'filament' ? null : rowNozzle({ type: c.type, baseName: c.baseName!, changes: c.changes }) ?? prev.nozzle, version, imported: true, updatedAt: new Date() }).where(eq(s.slicerProfiles.id, prev.id));
+        updated++;
+      } else { await createProfileRow({ type: c.type, name: c.name, baseName: c.baseName!, changes: c.changes, userId, imported: true, note: t('slicer.importedFrom', { source: c.source }) }, db); created++; }
+    }
+  return { created, updated };
+}
+
 /** Guarda los perfiles elegidos. Si ya existe uno con el mismo nombre, se agrega como versión nueva (se puede volver atrás). */
 export async function importSelectedAction(fd: FormData) {
   const t = await getT();
@@ -213,17 +228,7 @@ export async function importSelectedAction(fd: FormData) {
     const { parsePresetFiles } = await import('@/lib/slicer/import'); const { createProfileRow } = await import('@/lib/slicer/setup'); const t = await getT();
     const keys = new Set(String(fd.get('keys') ?? '').split('\n').filter(Boolean));
     const cands = parsePresetFiles(await readFiles(fd), t).filter((c) => keys.has(c.key) && c.ok && c.baseName);
-    const db = await getDb(); let created = 0, updated = 0;
-    for (const c of cands) {
-      const [prev] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, c.type), eq(s.slicerProfiles.name, c.name), isNull(s.slicerProfiles.deletedAt)));
-      if (prev) {
-        const version = prev.version + 1;
-        await db.insert(s.slicerProfileVersions).values({ profileId: prev.id, version, baseName: c.baseName!, changes: c.changes, createdBy: u.id, note: t('slicer.importedFrom', { source: c.source }) });
-        await db.update(s.slicerProfiles).set({ baseName: c.baseName!, vendor: findVendorOf(c.type, c.baseName!) ?? prev.vendor, changes: c.changes, nozzle: c.type === 'filament' ? null : rowNozzle({ type: c.type, baseName: c.baseName!, changes: c.changes }) ?? prev.nozzle, version, imported: true, updatedAt: new Date() }).where(eq(s.slicerProfiles.id, prev.id));
-        updated++;
-      } else { await createProfileRow({ type: c.type, name: c.name, baseName: c.baseName!, changes: c.changes, userId: u.id, imported: true, note: t('slicer.importedFrom', { source: c.source }) }, db); created++; }
-    }
-    return { created, updated };
+    return saveCandidates(cands, u.id);
   }, ['/laminador', '/laminador/configurar']);
 }
 
@@ -347,4 +352,16 @@ export async function exploreAction(i: { fileVersionId: string; machineProfileId
     for (const v of i.variants) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId, materialId: i.materialId, copies: i.copies ?? 1, label: v.label, groupId, userId: u.id, overrides: { process: cleanChanges('process', v.overrides) } }));
     return { groupId, ids };
   });
+}
+
+/** «3MF inteligente»: trae a la biblioteca de perfiles los ajustes (impresora, calidad, filamentos) que el proyecto 3MF ya lleva dentro. */
+export async function importFromVersionAction(versionId: string) {
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'C');
+    const db = await getDb(); const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId)); if (!v || v.format !== '3mf') throw new Error('3mf');
+    const { getBuffer } = await import('@/lib/storage'); const { parsePresetFiles } = await import('@/lib/slicer/import'); const t = await getT();
+    const cands = parsePresetFiles([{ name: 'proyecto.3mf', data: new Uint8Array(await getBuffer(v.storageKey)) }], t).filter((c) => c.ok && c.baseName);
+    if (!cands.length) throw new Error(t('slicer.import3mfNoConfig', { source: 'proyecto.3mf' }));
+    return saveCandidates(cands, u.id);
+  }, ['/laminador', '/laminador/configurar']);
 }
