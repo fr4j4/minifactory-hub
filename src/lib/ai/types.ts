@@ -9,7 +9,7 @@ export const FEATURES = {
   'slicer.explain': { tier: 'fast', vision: false, available: true },
   'intake.parse': { tier: 'smart', vision: true, available: false },
   'messages.draft': { tier: 'fast', vision: false, available: false },
-  'files.tag': { tier: 'fast', vision: true, available: false },
+  'files.tag': { tier: 'fast', vision: true, available: true },
   'production.classify': { tier: 'fast', vision: true, available: false },
   'reports.ask': { tier: 'smart', vision: false, available: false },
 } as const satisfies Record<string, { tier: Tier; vision: boolean; available: boolean }>;

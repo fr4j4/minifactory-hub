@@ -17,6 +17,8 @@ import { formatLabel, kindOfExt } from '@/lib/files';
 import { dmy, dur, grams, num } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
+import { SourcePanel } from '@/components/source-panel';
+import { LICENSE_LABEL } from '@/lib/library/source';
 
 export async function generateMetadata() { return { title: (await getT())('meta.file') }; }
 
@@ -39,6 +41,8 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const processing = meta.status === 'processing';
   const tabs = [['visor', t('files.n3dViewer')], ['laminar', t('files.sliceQuote')], ['versiones', t('files.versions', { versions: versions.length })], ['vinculos', t('files.linksReferences')]];
   const color = '#ff6a2b';
+  const [srcRow] = f.sourceId ? await db.select().from(s.modelSources).where(eq(s.modelSources.id, f.sourceId)) : [];
+  const aiTagsOk = await (await import('@/lib/ai')).aiAvailableFor(user, 'files.tag');
   const viewerMats = (await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.tech, 'fdm')))).map((m) => ({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, hex: m.hex }));
   return (
     <>
@@ -90,6 +94,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
                 {(sm.notes ?? []).map((n: string) => <p key={n} className="text-xs text-amber-700 dark:text-amber-300 mt-2">{tOr(t, n, n)}</p>)}
               </Card>
             )}
+            <Card title={t('files.sourceTitle')}><SourcePanel modelFileId={f.id} canEdit={can(user, 'archivos', 'E')} aiTags={aiTagsOk} source={srcRow ? { url: srcRow.url, provider: srcRow.provider, title: srcRow.title, authorName: srcRow.authorName, licenseCode: srcRow.licenseCode, licenseLabel: LICENSE_LABEL[srcRow.licenseCode as keyof typeof LICENSE_LABEL] ?? srcRow.licenseCode, commercialUse: srcRow.commercialUse, status: srcRow.fetchStatus, downloads: (srcRow.stats as any)?.downloads, likes: (srcRow.stats as any)?.likes, tags: srcRow.tags ?? [], images: (srcRow.images ?? []).map((x) => x.url) } : null} /></Card>
             {can(user, 'archivos', 'E') && <Card title={t('files.fileData')}><FileMetaForm f={{ id: f.id, name: f.name, folder: f.folder, tags: f.tags ?? [], license: f.license, origin: f.origin, author: f.author, customerId: f.customerId }} customers={customers} /></Card>}
           </div>
         </div>

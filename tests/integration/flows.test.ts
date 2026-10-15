@@ -228,3 +228,20 @@ describe('documento de cliente congelado al enviar (N7)', () => {
     expect((after.docTemplate as any).footer).toBe('Gracias por confiar en nosotros');
   });
 });
+
+describe('origen y etiquetas del modelo (N2/N3)', () => {
+  it('registrar el origen guarda metadatos, licencia normalizada y etiquetas del sitio con procedencia', async () => {
+    const { attachSource } = await import('@/lib/library/import');
+    const dbx = await getDb(); const [mf] = await dbx.select().from(s.modelFiles).limit(1);
+    const html = '<meta property="og:title" content="Soporte de celular"><meta property="og:description" content="Un soporte"><meta property="og:image" content="https://cdn.ejemplo/x.jpg"><meta name="keywords" content="soporte, celular"><script type="application/ld+json">{"license":"CC BY-NC 4.0","author":{"name":"Ana"}}</script>';
+    const getter = (async (u: string) => ({ status: 200, body: html, finalUrl: u, contentType: 'text/html' })) as any;
+    const r = await attachSource(mf.id, 'https://ejemplo.cl/pieza/1', null, getter);
+    expect(r).toMatchObject({ status: 'parcial', license: 'cc-by-nc', commercial: 'no', title: 'Soporte de celular' });
+    const [after] = await dbx.select().from(s.modelFiles).where(eq(s.modelFiles.id, mf.id));
+    expect(after.license).toBe('cc-by-nc'); expect(after.author).toBeTruthy(); expect(after.sourceId).toBe(r.sourceId);
+    expect(after.tags).toEqual(expect.arrayContaining(['soporte', 'celular'])); expect(after.tagMeta!['soporte']).toMatchObject({ source: 'import' });
+    const again = await attachSource(mf.id, 'https://ejemplo.cl/pieza/1', null, getter); // actualizar no duplica
+    expect(again.sourceId).toBe(r.sourceId);
+    await expect(attachSource(mf.id, 'javascript:alert(1)', null, getter)).rejects.toThrow();
+  });
+});

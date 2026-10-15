@@ -245,6 +245,8 @@ export const modelFiles = pgTable('model_files', {
   name: text('name').notNull(),
   folder: text('folder'),
   tags: jsonb('tags').$type<string[]>().default([]),
+  tagMeta: jsonb('tag_meta').$type<Record<string, { source: string; confidence?: number }>>().default({}), // procedencia de cada etiqueta (manual | ia | import | regla)
+  sourceId: uuid('source_id'),
   favorite: boolean('favorite').notNull().default(false),
   license: text('license').default('propia'),
   origin: text('origin'),
@@ -259,6 +261,31 @@ export const modelFiles = pgTable('model_files', {
   closed: boolean('closed'),
   currentVersionId: uuid('current_version_id'),
 }, (t) => [index('model_files_hash_ix').on(t.hash)]);
+
+/** De dónde salió un modelo (MakerWorld, Printables…): metadatos públicos, licencia y uso comercial (N3). */
+export const modelSources = pgTable('model_sources', {
+  ...base(),
+  provider: text('provider').notNull().default('otro'), // makerworld | printables | thingiverse | otro
+  url: text('url').notNull(),
+  externalId: text('external_id'),
+  title: text('title'),
+  description: text('description'),
+  authorName: text('author_name'),
+  authorUid: text('author_uid'),
+  authorUrl: text('author_url'),
+  licenseCode: text('license_code').notNull().default('desconocida'),
+  licenseText: text('license_text'),
+  commercialUse: text('commercial_use').notNull().default('desconocido'), // si | no | requiere_membresia | desconocido
+  tags: jsonb('tags').$type<string[]>().default([]),
+  images: jsonb('images').$type<Array<{ url: string }>>().default([]),
+  plates: jsonb('plates').$type<Array<Record<string, unknown>>>().default([]),
+  stats: jsonb('stats').$type<Record<string, number>>().default({}),
+  remoteCreatedAt: text('remote_created_at'),
+  remoteUpdatedAt: text('remote_updated_at'),
+  raw: jsonb('raw').$type<unknown>(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }),
+  fetchStatus: text('fetch_status').notNull().default('error'), // ok | parcial | error
+}, (t) => [index('model_sources_url_ix').on(t.url)]);
 
 export const fileVersions = pgTable('file_versions', {
   ...base(),

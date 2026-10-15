@@ -121,6 +121,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
               <>
                 <div>
                   <div className="label">{t('calculator.n3dModelsInThisItem')} {it.models.length > 1 && <span className="muted">{t('calculator.printedTogetherAndQuotedPer')}</span>}</div>
+                  {it.models.map((m) => { const b = library.find((x) => x.id === m.modelFileId); return b && (b.commercial === 'no' || b.commercial === 'requiere_membresia') ? <p key={m.modelFileId} role="alert" className="text-xs rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 px-2.5 py-1.5 mb-1.5" data-testid="license-warning">{t('files.sourceWarnQuote', { license: b.licenseCode ?? '—', use: t(`files.commercial_${b.commercial}` as 'files.commercial_no').toLowerCase() })} — {m.name}</p> : null; })}
                   <ul className="space-y-1.5">{it.models.map((m, i) => (
                     <li key={m.modelFileId} className="flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 p-1.5 pr-2">
                       {library.find((x) => x.id === m.modelFileId)?.thumb ? <img src={`/api/files/v/${m.fileVersionId ?? library.find((x) => x.id === m.modelFileId)?.versionId}/thumb`} alt="" className="h-10 w-12 rounded object-cover" /> : <div className="h-10 w-12 rounded bg-slate-100 dark:bg-slate-800" />}
