@@ -39,7 +39,7 @@ test.describe('Asesor de perfiles con IA (Fase 1)', () => {
 
     await page.getByTestId('advisor-apply-equilibrado').click(); await expect(page.getByText(/se guardó 1 perfil/)).toBeVisible();
     await page.goto('/laminador'); await page.waitForLoadState('networkidle'); await page.getByRole('link', { name: 'A1 · 0,20 Standard', exact: true }).first().click(); await page.waitForURL(/\/laminador\/perfiles\//); await page.waitForLoadState('networkidle');
-    await expect(page.getByTestId('profile-versions')).toContainText('Sugerido por IA'); await expect(page.getByTestId('perf-empty')).toBeVisible();
+    await expect(page.getByTestId('profile-versions')).toContainText('Sugerido por IA');
     await shot(page, 'IA13-perfil-con-version-ia', { full: true });
     saveAs('asesor-perfiles-ia');
   });

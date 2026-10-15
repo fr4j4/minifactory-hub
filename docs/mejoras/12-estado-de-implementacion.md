@@ -77,6 +77,13 @@ Plan: [`14-plan-de-implementacion-pendientes.md`](14-plan-de-implementacion-pend
 | P4 papelera | ✅ | Los archivos 3D eliminados van a «Archivados» y se restauran |
 | P5 `--orient` | ✅ | Casilla «Orientar automáticamente» en el laminador; entra en la clave de caché; probado con Orca real |
 | P5 `--pipe` | ✅ | Progreso real (porcentaje y etapa) con tubería con nombre; la barra aparece en el panel de laminado |
+| P2 «Mis perfiles» y líneas | ✅ | Filtro «Mis perfiles» (personalizados e importados) y edición masiva de costo/stock mínimo por marca + línea (sin tabla `filament_lines`) |
+| P4 etiquetado automático | ✅ | Opcional (Configuración → Sistema): solo reglas con confianza ≥ 0,8; la IA nunca se aplica sola |
+| P5 orientación por modelo | ✅ | `model_files.auto_orient` (migración `0012`); la casilla del laminador se recuerda |
+| P5 cola desde el laminado | ✅ | «Agregar a la cola» crea un trabajo de prueba con máquina, material, gramos y horas del laminado |
+| P5 visor | ◐ | Modo de color por caudal (mm³/s = ancho × altura × velocidad). Faltan temperatura, ventilador y herramienta (requieren ampliar el formato de vista previa) |
+| P5 multicolor | ✅ | Un material por extrusor en proyectos 3MF multicolor; OrcaSlicer exige colores distintos por filamento (si no, error −100), por eso cada extrusor extra recibe uno; probado con Orca real (`samples/multicolor-2-extrusores.3mf`) |
+| P6 | ◐ | Pestañas de Configuración agrupadas, alertas de Inicio por urgencia (máx. 5 por grupo), colores de estado semánticos (`text-danger/warn/ok`, 54 usos). Sin regresión visual con capturas |
 
 ## Decisiones técnicas que conviene revisar
 1. **Compatibilidad hacia atrás por encima de la limpieza:** nada se eliminó (columnas heredadas, modelo de precios histórico, `taxMode`). Cada «contraer» necesita su propia migración con vista previa.
