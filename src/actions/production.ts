@@ -81,3 +81,14 @@ export async function addIncidentAction(i: { machineId: string; kind: string; de
   const t = await getT(); return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.description.trim()) throw new Error(t('machines.describeTheIncident')); await db.insert(s.incidents).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, kind: i.kind, description: i.description, createdBy: u.id }); }, [`/maquinas/${i.machineId}`]); }
 export async function machineDeleteInfoAction(id: string) { return safe(async () => { await requirePerm('maquinas', 'V'); return machineDeleteInfo(id); }); }
 export async function removeMachineAction(id: string) { return safe(async () => { const u = await requirePerm('maquinas', 'X'); await removeMachine(id, u.id); }, ['/maquinas', '/maquinas/conectores', '/cola']); }
+
+/** Crea un trabajo de prueba en la cola a partir de un laminado terminado (máquina y material del laminado). */
+export async function enqueueFromRunAction(runId: string, machineId: string | null, materialId: string | null) {
+  return safe(async () => {
+    const u = await requirePerm('cola', 'C'); const db = await getDb();
+    const [r] = await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, runId));
+    if (!r || r.status !== 'done') throw new Error((await getT())('slicer.incompleteDataForSlicing'));
+    const grams = (r.filament ?? []).reduce((a, f) => a + (f.g ?? 0), 0);
+    return createJob({ kind: 'prueba', title: r.label ?? 'Laminado', materialId, machineId, estG: grams, estH: (r.timeS ?? 0) / 3600, qty: r.copies, sliceRunId: r.id, fileVersionId: r.fileVersionId, userId: u.id });
+  }, ['/cola']);
+}

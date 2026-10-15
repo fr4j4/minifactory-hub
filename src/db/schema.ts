@@ -245,6 +245,8 @@ export const incidents = pgTable('incidents', {
 export const modelFiles = pgTable('model_files', {
   ...base(),
   name: text('name').notNull(),
+  /** Orientación automática al laminar (--orient): se recuerda por modelo. */
+  autoOrient: boolean('auto_orient').notNull().default(false),
   folder: text('folder'),
   tags: jsonb('tags').$type<string[]>().default([]),
   tagMeta: jsonb('tag_meta').$type<Record<string, { source: string; confidence?: number }>>().default({}), // procedencia de cada etiqueta (manual | ia | import | regla)

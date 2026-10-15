@@ -10,6 +10,7 @@ test.describe('Laminador en el servidor (OrcaSlicer)', () => {
     await expect(page.getByTestId('res-time')).toContainText(/\d+:\d\d h/); expect(parseFloat((await page.getByTestId('res-grams').innerText()).replace(',', '.'))).toBeGreaterThan(1); await expect(page.getByTestId('res-price')).toContainText('$');
     const t1 = await page.getByTestId('res-time').innerText(); const [h1, m1] = t1.replace(' h', '').split(':').map(Number); const min1 = h1 * 60 + m1;
     await shot(page, '21-laminar-resultado');
+    await page.getByTestId('enqueue-run').click(); await expect(page.getByText('Agregado a la cola de impresión')).toBeVisible();
     await page.getByTestId('show-layers').click(); await expect(page.getByTestId('gcode-layer-readout')).toContainText('/ 164', { timeout: 30000 }); await page.getByTestId('gcode-layer-slider').fill('90'); await page.waitForTimeout(500); await shot(page, '22-laminar-capas', { full: true });
     const dl = page.waitForEvent('download'); await page.getByTestId('dl-gcode').click(); expect((await dl).suggestedFilename()).toMatch(/\.gcode$/);
     // 4 copias en una placa: no cuesta 4 veces el tiempo (calentamiento y purga compartidos)

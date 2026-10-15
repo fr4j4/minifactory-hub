@@ -2,6 +2,8 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const slicer: Shape<typeof es['slicer']> = {
+  addToQueue: 'Add to print queue',
+  queued: 'Added to the print queue',
   ownFilter: 'Filter profiles',
   ownFilterLabel: 'Show:',
   ownAll: 'All',

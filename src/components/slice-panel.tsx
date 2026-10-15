@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calcLine } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import { dur, grams, money, num, cn } from '@/lib/format';
+import { enqueueFromRunAction } from '@/actions/production';
+import { setAutoOrientAction } from '@/actions/files';
 import { ensureQualityAction, resolveFilamentAction, sliceAction } from '@/actions/slicer';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
@@ -41,7 +43,7 @@ export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'fil
 }
 
 /** Panel de laminado en el servidor (OrcaSlicer): elige máquina, proceso y material; entrega tiempo, gramos y precio. */
-export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName, ai }: { fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean } }) {
+export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName, ai, defaultOrient }: { defaultOrient?: boolean; fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean } }) {
   const t = useT();
   const toast = useToast();
   const router = useRouter();
@@ -56,7 +58,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const filProfiles = ctx.profiles.filter((p) => p.type === 'filament');
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
-  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(false); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(!!defaultOrient); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
   useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [setupKey]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
@@ -99,7 +101,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         <label className="block"><span className="label">{t('slicer.filamentLabel')}</span><select className="input" value={filamentId} onChange={(e) => setFilamentId(e.target.value)} data-testid="slice-filament"><option value="">{t('slicer.filamentAuto')}</option>{filProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{fil && <span className="muted text-xs" data-testid="slice-filament-hint">{fil.name} · {t(`slicer.filamentSource_${fil.source}` as 'slicer.filamentSource_auto')}</span>}</label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>
       </div>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={orient} onChange={(e) => setOrient(e.target.checked)} data-testid="slice-orient" />{t('slicer.autoOrient')}<span className="muted text-xs">{t('slicer.autoOrientHint')}</span></label>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={orient} onChange={(e) => { setOrient(e.target.checked); void setAutoOrientAction(fileId, e.target.checked); }} data-testid="slice-orient" />{t('slicer.autoOrient')}<span className="muted text-xs">{t('slicer.autoOrientHint')}</span></label>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>
         {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && fil && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
@@ -121,6 +123,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           <p className="text-xs muted">{t('slicer.profiles2')} {Object.values(run.profileVersions ?? {}).map(([n, v]) => `${n} v${v}`).join(' · ')}</p>
           <div className="flex flex-wrap gap-2">
             {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode`} data-testid="dl-gcode">{t('slicer.gCode')}</a>}
+            {run.status === 'done' && <button className="btn-ghost btn-sm" onClick={async () => { const r = await enqueueFromRunAction(run.id, machine?.id ?? null, materialId || null); if (r.ok) toast.push(t('slicer.queued'), 'ok'); else toast.push(r.error, 'err'); }} data-testid="enqueue-run">{t('slicer.addToQueue')}</button>}
             {run.has3mf && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/threemf`}>{t('slicer.sliced3mf')}</a>}
             {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => setShowLayers((v) => !v)} data-testid="show-layers">{showLayers ? t('slicer.hideLayers') : t('slicer.viewGCodeLayers')}</button>}
             <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${run.id}&machine=${machineId}&material=${materialId}&copies=${copies}`} data-testid="use-in-quote">{t('slicer.useInAQuote')}</Link>

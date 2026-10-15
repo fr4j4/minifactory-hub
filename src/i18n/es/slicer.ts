@@ -1,4 +1,6 @@
 export const slicer = {
+  addToQueue: 'Agregar a la cola',
+  queued: 'Agregado a la cola de impresión',
   ownFilter: 'Filtrar perfiles',
   ownFilterLabel: 'Mostrar:',
   ownAll: 'Todos',

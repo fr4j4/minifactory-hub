@@ -119,3 +119,8 @@ export async function renameTagAction(from: string, to: string) {
     return n;
   }, ['/archivos']);
 }
+
+/** Recuerda si este modelo se lamina con orientación automática. */
+export async function setAutoOrientAction(modelFileId: string, on: boolean) {
+  return safe(async () => { await requirePerm('laminador', 'V'); const db = await getDb(); await db.update(s.modelFiles).set({ autoOrient: on }).where(eq(s.modelFiles.id, modelFileId)); }, []);
+}
