@@ -25,5 +25,6 @@ export const archive: Shape<typeof es['archive']> = {
     incident: 'Incident',
     contact: 'Contact',
     payment: 'Payment',
+    file: '3D file',
   },
 };

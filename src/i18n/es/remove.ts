@@ -24,6 +24,7 @@ export const remove = {
     incident: 'Se elimina la incidencia de la bitácora.',
     contact: 'Se elimina esta nota de contacto.',
     payment: 'Se elimina el pago y se recalcula el saldo.',
+    file: 'Se envía el archivo a la papelera. Sus versiones, laminados y presupuestos se conservan y puedes restaurarlo desde Configuración → Archivados.',
   },
   block: {
     materialSpools_one: 'Este material tiene {count} bobina con material disponible. Descártala o termínala antes de eliminarlo.',

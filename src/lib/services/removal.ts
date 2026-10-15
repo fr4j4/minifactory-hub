@@ -11,14 +11,14 @@ import { recomputePaid } from './orders';
  * movimientos) se conserva y solo desaparece de las listas. Cada tipo define cuándo se bloquea para no dejar datos
  * a medias (stock disponible, pedidos abiertos, la última cuenta de administrador…).
  */
-export const REMOVABLE = ['material', 'spool', 'item', 'product', 'variant', 'customer', 'quote', 'order', 'priceList', 'channel', 'user', 'collection', 'plan', 'incident', 'contact', 'payment'] as const;
+export const REMOVABLE = ['material', 'spool', 'item', 'product', 'variant', 'customer', 'quote', 'order', 'priceList', 'channel', 'user', 'collection', 'plan', 'incident', 'contact', 'payment', 'file'] as const;
 export type RemovableKind = (typeof REMOVABLE)[number];
 export const isRemovable = (k: string): k is RemovableKind => (REMOVABLE as readonly string[]).includes(k);
 
 /** Módulo de permisos que se exige (acción «X» = eliminar). */
 export const REMOVAL_MODULE: Record<RemovableKind, Module> = {
   material: 'inventario', spool: 'inventario', item: 'inventario', product: 'catalogo', variant: 'catalogo', customer: 'clientes', quote: 'presupuestos', order: 'pedidos',
-  priceList: 'config', channel: 'config', user: 'config', collection: 'galeria', plan: 'maquinas', incident: 'maquinas', contact: 'pedidos', payment: 'pagos',
+  priceList: 'config', channel: 'config', user: 'config', collection: 'galeria', plan: 'maquinas', incident: 'maquinas', contact: 'pedidos', payment: 'pagos', file: 'archivos',
 };
 
 export interface RemovalInfo { canDelete: boolean; block?: { key: MessageKey; params?: Params } }
@@ -140,6 +140,7 @@ export async function nameOf(kind: RemovableKind, id: string): Promise<string | 
     case 'incident': return pick(db.select({ v: s.incidents.description }).from(s.incidents).where(eq(s.incidents.id, id)));
     case 'contact': return pick(db.select({ v: s.contactLog.summary }).from(s.contactLog).where(eq(s.contactLog.id, id)));
     case 'payment': return pick(db.select({ v: sql<string>`${s.payments.amount}::text` }).from(s.payments).where(eq(s.payments.id, id)));
+    case 'file': return pick(db.select({ v: s.modelFiles.name }).from(s.modelFiles).where(eq(s.modelFiles.id, id)));
   }
 }
 
@@ -176,6 +177,7 @@ export async function removeRecord(kind: RemovableKind, id: string, userId?: str
     case 'plan': await db.update(s.maintenancePlans).set({ deletedAt: now }).where(eq(s.maintenancePlans.id, id)); break;
     case 'incident': await db.update(s.incidents).set({ deletedAt: now }).where(eq(s.incidents.id, id)); break;
     case 'contact': await db.update(s.contactLog).set({ deletedAt: now }).where(eq(s.contactLog.id, id)); break;
+    case 'file': await db.update(s.modelFiles).set({ deletedAt: now }).where(eq(s.modelFiles.id, id)); break;
     case 'payment': {
       const [p] = await db.select().from(s.payments).where(eq(s.payments.id, id));
       await db.update(s.payments).set({ deletedAt: now }).where(eq(s.payments.id, id));

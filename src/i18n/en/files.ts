@@ -85,7 +85,7 @@ export const files: Shape<typeof es['files']> = {
   printablesThingiverseCustomer: 'Printables, Thingiverse, customer…',
   author: 'Author',
   saveDetails: 'Save details',
-  deleteThisFileFromThe: 'Delete this file from the library? It stays in the logical trash and can be recovered from the database.',
+  deleteThisFileFromThe: 'Delete this file from the library? It goes to the trash and can be restored from Settings → Archived.',
   useThisVersion: 'Use this version',
   analyzingTheFileInThe: '⏳ Analyzing the file in the background…',
   newProfileFor: '+ New profile for',

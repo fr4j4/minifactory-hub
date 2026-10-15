@@ -82,7 +82,7 @@ export const files = {
   printablesThingiverseCustomer: 'Printables, Thingiverse, cliente…',
   author: 'Autor',
   saveDetails: 'Guardar datos',
-  deleteThisFileFromThe: '¿Eliminar este archivo de la biblioteca? Queda en la papelera lógica y se puede recuperar desde la base de datos.',
+  deleteThisFileFromThe: '¿Eliminar este archivo de la biblioteca? Va a la papelera y se puede restaurar desde Configuración → Archivados.',
   useThisVersion: 'Usar esta versión',
   analyzingTheFileInThe: '⏳ Analizando el archivo en segundo plano…',
   newProfileFor: '+ Nuevo perfil de',

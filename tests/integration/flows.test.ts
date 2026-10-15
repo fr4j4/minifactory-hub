@@ -310,3 +310,14 @@ describe('avisos de seguimiento de presupuestos (P3)', () => {
     const ns = await db.select().from(s.notifications).where(eq(s.notifications.kind, 'seguimiento')); expect(ns.some((n) => n.href === `/presupuestos/${q}`)).toBe(true);
   });
 });
+
+describe('papelera de archivos 3D (P4)', () => {
+  it('un archivo eliminado aparece en archivados y se restaura', async () => {
+    const { removeRecord } = await import('@/lib/services/removal'); const { listArchived, restoreRecord } = await import('@/lib/services/archive');
+    const [f] = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)).limit(1);
+    await removeRecord('file', f.id, admin.id);
+    expect((await listArchived('file')).some((r) => r.id === f.id)).toBe(true);
+    await restoreRecord('file', f.id, admin.id);
+    const [back] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id)); expect(back.deletedAt).toBeNull();
+  });
+});

@@ -27,6 +27,7 @@ export const remove: Shape<typeof es['remove']> = {
     incident: 'The incident is removed from the log.',
     contact: 'This contact note is deleted.',
     payment: 'The payment is deleted and the balance is recalculated.',
+    file: 'The file goes to the trash. Its versions, slices and quotes are kept and you can restore it from Settings → Archived.',
   },
   block: {
     materialSpools_one: 'This material has {count} spool with material left. Discard or use it up before deleting it.',

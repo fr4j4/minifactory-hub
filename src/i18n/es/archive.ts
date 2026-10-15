@@ -22,5 +22,6 @@ export const archive = {
     incident: 'Incidencia',
     contact: 'Contacto',
     payment: 'Pago',
+    file: 'Archivo 3D',
   },
 };
