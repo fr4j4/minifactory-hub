@@ -30,7 +30,7 @@
 - **Calculadoras y mantenedores:** la calculadora **ya está especificada** (`docs/spec-calculadora.md`); aquí se agregan complementos (barra de costos «en capas», selectores ricos, enlace al Estudio, chips «¿y si…?») y se coordinan totales/IVA con presupuestos y PDF; materiales agrupados por línea con carretes visuales; «Mis perfiles» con diff → `06`.
 - **Visual y usabilidad:** kit de componentes (Select rico, Tabs sin recarga, Drawer, DataTable…), esqueletos de carga, íconos unificados, fechas es-CL, regresión visual → `07`.
 
-**Esfuerzo (orden de magnitud), tras la segunda ronda:** ≈ **163–268 jornadas**, probable **≈ 210** (≈ 241 con 15 % de contingencia), sin opcionales (editor de bloques, widgets de Inicio y edición de placa suman ≈ 41 más). Antes de la segunda ronda eran ≈ 118: la ampliación (+91,5) viene de las decisiones D14/E2/E3 y de diez requisitos nuevos (asistente inicial, importador MakerWorld, editor de documentos, librería visual con temas, alta masiva de filamentos, multicolor/AMS, etiquetas por IA, detalle y vista tabla de cotizaciones). Entregable en **R0 + 6 releases** y con «recortes posibles» si hay que acotar → `09`, `10`.
+**Esfuerzo (orden de magnitud), tras la segunda ronda:** ≈ **162–266 jornadas**, probable **≈ 208** (≈ 240 con 15 % de contingencia), sin opcionales (editor de plantillas con bloques, widgets de Inicio y edición de placa suman ≈ 41 más). Antes de la segunda ronda eran ≈ 118: la ampliación (+90) viene de las decisiones D14/E2/E3 y de diez requisitos nuevos (asistente inicial, importador MakerWorld, editor de plantillas de documentos en Configuración, librería visual con temas, alta masiva de filamentos con marcas de Chile, multicolor/AMS, etiquetas por IA, detalle y vista tabla de cotizaciones). Entregable en **R0 + 6 releases** y con «recortes posibles» si hay que acotar → `09`, `10`.
 
 ## Índice
 
@@ -71,28 +71,34 @@ Respondidas por el equipo; el detalle y su impacto están en [`10-decisiones-y-a
 | E2 | Fase 1 de la spec de calculadora **antes** de R3 |
 | E3 | Spikes **ahora**, antes de comprometer fechas |
 
-## Decisiones abiertas (segunda ronda)
+## Decisiones tomadas (segunda ronda)
 
-Se responden en el artefacto de la propuesta (ver `10 §4`). Resumen:
+Respondidas en el artefacto; detalle y matices en `10` §1.0.
+
+| # | Decisión | Matiz |
+|---|---|---|
+| F1 | «Ver detalles»: en el sitio (modal y página) y anexo opcional en el PDF | — |
+| F2 | Vista tabla en listado y en líneas de la cotización | — |
+| F3 | «Sin editor por ahora» | **Aclaración:** el editor es de **plantillas, en Configuración** (se usa al generar documentos); no edita documentos ya generados. Se planifica como L1 sin edición por cotización |
+| F4 | Librería visual: decidir tras el piloto comparativo (2,5 jornadas) | — |
+| F5 | Paleta del taller por defecto y preferencia por usuario | La preferencia va en `localStorage` |
+| F6 | Token de un solo uso en los logs; `ADMIN_*` para desatendido; sin contraseña por defecto | — |
+| F7 | Licencias de modelos importados: advertir en la línea, sin bloquear | — |
+| F8 | Etiquetas por IA: sugerir y confirmar; miniatura solo a IA local salvo autorización | — |
+| F9 | Catálogo inicial: Bambu Lab, Sunlu, eSun, Polymaker, Creality, Elegoo, Grilon3 y genéricos | Sumar marcas de la región (Cicla 3D, GST3D, etc.): ver `10` §N4 |
+| F10 | Recordar la última elección de filamento como preferencia de usuario | Se guarda en la base de datos |
+
+## Decisiones abiertas
 
 | # | Pregunta | Recomendación |
 |---|---|---|
-| Q-F1 | «Ver detalles» de la cotización: ¿sitio, anexo PDF o ambos? | Ambos |
-| Q-F2 | Vista tabla: ¿listado, líneas o ambos? | Ambos |
-| Q-F3 | Editor de documentos: ¿L1, L1→L2 o L2 directo? | L1 primero |
-| Q-F4 | Librería visual: shadcn/ui, Mantine o decidir tras el spike S8 | Decidir tras S8 (shadcn/ui favorita) |
-| Q-F5 | Paletas: ¿solo del taller o también por usuario? | Ambas |
-| Q-F6 | Seguridad del primer arranque | Token en logs; `ADMIN_*` para desatendido; sin contraseña por defecto |
-| Q-F7 | Licencias de modelos importados al cotizar | Advertir en la línea |
-| Q-F8 | Etiquetas por IA: ¿sugerir o aplicar? ¿miniatura a la nube? | Sugerir; miniatura solo a IA local salvo autorización |
-| Q-F9 | Catálogo inicial de marcas/colores | Bambu Lab, Sunlu, eSun, Polymaker, Creality, Elegoo, Grilon3, genéricos |
-| Q-F10 | ¿Recordar la última elección de filamento por (usuario, material, máquina)? | Sí, como preferencia de usuario |
+| G1 | Confirmar que el editor de F3 es un editor de **plantillas en Configuración**, sin edición por cotización | Sí (solo ajustar textos de una cotización concreta si hace falta: +2 jornadas) |
 
 Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
 ## Próximos pasos sugeridos
 
-1. Responder las preguntas de la segunda ronda (sobre todo **Q-F4 librería visual** y **Q-F6 seguridad del primer arranque**) y las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**.
+1. Confirmar **G1** (alcance del editor de plantillas) y responder las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**.
 2. Ejecutar **R0 · Spikes S1–S8** (≈ 9,5 jornadas probables): alcance del Estudio, MakerWorld con token real, 3MF multicolor y piloto comparativo de librería visual.
 3. Empezar por **R1 · Cimientos, PDF y arranque** (asistente inicial, PDF v2, librería y temas).
 4. Mantener este directorio como fuente de verdad: al implementar, marcar cada ID como resuelto y actualizar el README principal.

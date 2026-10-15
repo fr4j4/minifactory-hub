@@ -1,6 +1,6 @@
 # 02 · Propuesta: simplificar Calidad y Filamento, y desacoplar el material del perfil
 
-> **Actualización (segunda ronda):** la decisión D1 **elimina por completo** el vínculo material → perfil de filamento: se descarta la tabla `material_profile_prefs` y el resolvedor queda en (1) elección explícita, (2) sugerido automático, (3) genérico por tipo; ver `10-decisiones-y-alcance-ampliado.md` §1.1. Donde este documento menciona «preferencias» de filamento, léase «última elección recordada» (Q-F10) o nada.
+> **Actualización (segunda ronda):** la decisión D1 **elimina por completo** el vínculo material → perfil de filamento: se descarta la tabla `material_profile_prefs` y el resolvedor queda en (1) elección explícita, (2) sugerido automático, (3) genérico por tipo; ver `10-decisiones-y-alcance-ampliado.md` §1.1. Donde este documento menciona «preferencias» de filamento, léase «última elección recordada»  o nada.
 
 Resuelve: **PFC-01, 02, 04, 06, 08, 10, 11** (y completa 03, 05, 07, 09, ya parcialmente corregidos), **BIB-08** (parcialmente), base de **VIS-01** (ajustes de sesión).
 

@@ -26,6 +26,21 @@ Segunda ronda. Recoge (1) las respuestas a las decisiones D1–E3 de la primera 
 | E2 | Ejecutar la Fase 1 de la spec de calculadora **antes** de R3 | Entra al plan como «R2b» (≈ 5 jornadas) |
 | E3 | Ejecutar los spikes **ahora** | Nuevo «R0 · Spikes» al inicio del plan |
 
+### 1.0 Respuestas de la segunda ronda (F1–F10)
+
+| # | Respuesta | Matiz del equipo | Impacto |
+|---|---|---|---|
+| F1 | Ambos: en el sitio (modal y página) y anexo opcional en el PDF | — | N5a y N5b tal como se diseñaron |
+| F2 | Ambos: listado y líneas de la cotización | — | N6 tal como se diseñó |
+| F3 | «Sin editor por ahora» | **Aclaración:** el editor no es para editar documentos ya generados ni «en sitio»; es para **modificar la plantilla en una sección de Configuración** y que se use al generar documentos | Se reinterpreta como **editor de plantillas en Configuración** (N7, nivel 1 sin edición por cotización). Ver §3 N7 y pregunta G1 para confirmarlo |
+| F4 | Decidir tras el piloto comparativo (2,5 jornadas) | — | S8 sigue en R0; la librería se fija al terminar el piloto |
+| F5 | Paleta del taller por defecto y preferencia por usuario | La preferencia de usuario **se guarda en `localStorage`** | N9b usa `localStorage` + script en línea anti-parpadeo; la paleta del taller va en la base de datos |
+| F6 | Token de un solo uso en los logs; `ADMIN_*` para desatendido; sin contraseña por defecto | — | N10 tal como se diseñó |
+| F7 | Advertir en la línea de la cotización, sin bloquear | — | N3: advertencia, no bloqueo |
+| F8 | Sugerir y confirmar; miniatura solo a IA local salvo autorización | — | N2 tal como se diseñó |
+| F9 | Bambu Lab, Sunlu, eSun, Polymaker, Creality, Elegoo, Grilon3 y genéricos | **Buscar más marcas que se vendan en la región** (p. ej. Cicla 3D, GST3D) | Catálogo ampliado con marcas de Chile (N4, abajo) |
+| F10 | Sí, como preferencia de usuario | **Se guarda en la base de datos** | Tabla `user_prefs` (clave `filament_choice:{material}:{máquina}`), no `localStorage` |
+
 ### 1.1 Consecuencias de D1 en el modelo de perfiles (reemplaza doc 02 §2.3)
 
 Sin vínculo material → perfil de filamento, el **resolvedor de filamento** queda así:
@@ -38,7 +53,7 @@ Se eliminan: `materials.filament_profile_id` y la tabla `material_profile_prefs`
 
 Inyección de datos comerciales (sin cambio): `filament_density`, `filament_cost`, `filament_diameter` del material pasan como sobrescrituras al perfil efectivo.
 
-**Migración:** al contraer, los vínculos actuales (`materials.filament_profile_id`) se vuelcan a un **informe** (material → perfil) y, según la pregunta Q-F1 (§4), se descartan o se convierten en la «última elección recordada». Los perfiles de filamento personalizados **no se pierden**: solo dejan de estar atados.
+**Migración:** al contraer, los vínculos actuales (`materials.filament_profile_id`) se vuelcan a un **informe** (material → perfil) y, se convierten en la «última elección recordada» de cada usuario (F10: preferencia **guardada en la base de datos**, tabla `user_prefs`) o se descartan. Los perfiles de filamento personalizados **no se pierden**: solo dejan de estar atados.
 
 **Efecto en pantallas:** desaparece el paso 2 de «Configurar laminado»; el selector de material del laminador muestra **todos** los materiales FDM (hoy oculta los sin perfil); el selector de filamento (perfil técnico) es independiente y opcional con valor automático.
 
@@ -50,7 +65,7 @@ Inyección de datos comerciales (sin cambio): `filament_density`, `filament_cost
 | Kit visual | WP-6.1 «kit propio» | WP-6.1' **adopción de una librería de componentes** + arquitectura de temas (N8, N9) |
 | Materiales | agrupación «opcional» | WP-4.2' **agrupación desde el inicio** + alta masiva (N4) |
 | Calculadora | Fase 1 de la spec fuera de totales | **R2b** incluida en el plan |
-| Totales | ≈ 118 jornadas probables | **≈ 210** (ver §5): +91,5 por las decisiones y los requisitos N1–N10 |
+| Totales | ≈ 118 jornadas probables | **≈ 208** (ver §5): +90 por las decisiones y los requisitos N1–N10 |
 
 ## 3. Requisitos nuevos
 
@@ -131,7 +146,7 @@ model_sources (nueva)
 model_files.license  → pasa a valor normalizado (enum de arriba) + model_files.source_id → model_sources.id
 ```
 
-**Licencias en el flujo comercial (propuesta):** al **cotizar** un modelo con `commercial_use` ≠ `si` se muestra una advertencia en la línea («Licencia CC-BY-NC: uso comercial no permitido»); la política (solo avisar / bloquear / pedir confirmación) es una decisión (Q-F7). El PDF **no** muestra la licencia por defecto.
+**Licencias en el flujo comercial (propuesta):** al **cotizar** un modelo con `commercial_use` ≠ `si` se muestra una advertencia en la línea («Licencia CC-BY-NC: uso comercial no permitido»); la política acordada (F7) es **advertir sin bloquear**. El PDF **no** muestra la licencia por defecto.
 
 **Riesgos:** cambios de la API o Cloudflare (mantenimiento continuo), términos de uso, expiración del token, modelos protegidos o de pago. Mitigación: ruta A como base, caché de metadatos, pruebas de contrato con respuestas guardadas, indicador de «mejor esfuerzo» en la UI.
 
@@ -145,18 +160,35 @@ model_files.license  → pasa a valor normalizado (enum de arriba) + model_files
 
 1. **Datos comunes** (una vez): marca (autocompletar + catálogo), línea/tipo (PLA, PLA Matte, PETG HF…), diámetro, densidad (sugerida por tipo), costo por kg, peso neto y tara por bobina.
 2. **Tabla de colores** estilo planilla: una fila por color con nombre, tono (selector + **hex sugerido por nombre** en es/en: «negro», «rojo», «azul cielo»), cantidad de bobinas a ingresar (0 = solo catálogo), lote y ubicación. Atajos: **pegar una lista** («Negro, Blanco, Rojo») o **pegar/subir CSV/Excel** (`exceljs` ya es dependencia), duplicar fila, completar hacia abajo.
-3. **Catálogo de marcas y colores predefinido** (datos en el repo, editable): al elegir «Bambu Lab · PLA Basic» se proponen sus colores estándar con hex. Se curan pocas marcas al inicio y se amplía por demanda (la lista exacta es la pregunta Q-F9).
+3. **Catálogo de marcas y colores predefinido** (datos en el repo, editable): al elegir «Bambu Lab · PLA Basic» se proponen sus colores estándar con hex. Se curan pocas marcas al inicio y se amplía por demanda (lista inicial más abajo; es datos del repo, editable por el taller).
 4. **Vista previa y validación:** detección de duplicados (marca + línea + tipo + color) contra el inventario; resumen «se crearán 8 materiales y 14 bobinas».
 5. **Confirmación transaccional:** crea las líneas/colores (D14: modelo agrupado), registra la **entrada de compra** con `createSpool` (código y QR por bobina) y ofrece **imprimir etiquetas QR** del lote (ya existe la pantalla de etiquetas).
 6. Edición masiva posterior: cambiar costo/kg de una línea completa, archivar colores, ajustar stock mínimo (acciones de la tabla de materiales, doc 06 §2).
 
+**Catálogo inicial de marcas (F9 + búsqueda de marcas de la región).** Se curan primero las marcas elegidas y las que aparecen en tiendas chilenas; cada marca lleva líneas (PLA, PLA+, PETG, TPU, seda, mate…) y colores estándar con su hex. La columna «Evidencia» indica lo que pude comprobar (búsquedas web, sin acceso directo a esos sitios); **hay que confirmar disponibilidad y colores con cada proveedor**.
+
+| Marca | Origen / nota | Evidencia |
+|---|---|---|
+| Bambu Lab | Elegida; perfiles de fábrica en Orca (`Bambu PLA Basic`, etc.) | Vendida en TodoToner y Tugadget |
+| SUNLU · eSUN · Elegoo · Creality | Elegidas | Vendidas en TodoToner, eVStore, Tugadget, Cimech3D, Tecnosistec |
+| Polymaker | Elegida | No la encontré en tiendas chilenas en esta búsqueda: confirmar |
+| Grilon3 | Elegida | Aparece en un listado de PETG de Construex |
+| **Cicla 3D** | Fabricante chileno (Concepción): PLA reciclado y biodegradable, línea antimicrobiana «Cicla NANO» | Perfil en prensa; **catálogo y colores por confirmar** con cicla.cl |
+| **GST3D** | Pedida por el equipo; figura entre las más vendidas en MercadoLibre Argentina | **No pude confirmar su venta en Chile**: confirmar con el proveedor |
+| Flashforge · PopBit · Hello3D | Marcas vistas en tiendas chilenas | PopBit en Cimech3D; las otras en listados de tiendas |
+| Safe and Sound | Marca de tienda minorista (Líder) | PLA a ≈ CLP 13.000/kg |
+| Marca propia de tienda (p. ej. TodoToner) | Existe en tiendas locales | Visible en su catálogo |
+| Genéricos | PLA, PLA+, PETG, ABS, ASA, TPU por tipo y color | — |
+
+Tiendas observadas (para validar precios y marcas): TodoToner, eVStore, Tugadget, Cimech3D, Tecnosistec.
+
 **Modelo (con D14 «desde el inicio»):** `filament_lines` (marca, línea, tipo, densidad, diámetro, costo/kg por defecto, proveedor) + `materials` como **colores** (`line_id`, color, hex, costo propio opcional, stock mínimo). Migración idempotente que agrupa lo existente por (fabricante, línea, tipo, densidad), con vista previa y reversa.
 
-**Estimación:** N4 **5,5 / 7,5 / 10** (incluye ≈ 1,5–3 jornadas de curar el catálogo inicial) + WP-4.2' (mantenedor v2 con agrupación desde el inicio) **5 / 6,5 / 8**, ambos en R2.
+**Estimación:** N4 **6 / 8 / 10,5** (incluye ≈ 2–3,5 jornadas de curar el catálogo inicial ampliado con marcas de Chile) + WP-4.2' (mantenedor v2 con agrupación desde el inicio) **5 / 6,5 / 8**, ambos en R2.
 
 ### N5 · Detalle de la cotización: desplegar y «Ver detalles» (modal o página)
 
-**Interpretación** (confírmala, Q-F1): en la **vista de cotización dentro del sitio** (Vista cliente y detalle), cada línea se puede **desplegar** para ver su detalle, y un botón **«Ver detalles»** abre una **ventana (modal)** con todo, con la misma información disponible como **página** propia. Un PDF no es interactivo; para el documento impreso se ofrece un **anexo de detalles** opcional.
+**Interpretación** (**confirmada en F1**): en la **vista de cotización dentro del sitio** (Vista cliente y detalle), cada línea se puede **desplegar** para ver su detalle, y un botón **«Ver detalles»** abre una **ventana (modal)** con todo, con la misma información disponible como **página** propia. Un PDF no es interactivo; para el documento impreso se ofrece un **anexo de detalles** opcional.
 
 **Diseño:**
 
@@ -171,7 +203,7 @@ model_files.license  → pasa a valor normalizado (enum de arriba) + model_files
 
 ### N6 · Vista tabla además del layout existente (recordada en el navegador)
 
-**Interpretación** (Q-F2): aplica a (a) el **listado** de cotizaciones (tarjetas/fila rica · **tabla** · tablero kanban, D13) y (b) las **líneas** de una cotización (tarjetas · **tabla editable** tipo hoja).
+**Interpretación confirmada en F2**: aplica a (a) el **listado** de cotizaciones (tarjetas/fila rica · **tabla** · tablero kanban, D13) y (b) las **líneas** de una cotización (tarjetas · **tabla editable** tipo hoja).
 
 **Diseño:**
 - Componente `ViewToggle` + hook `useViewPref(clave)` en el kit: guarda la elección en **cookie** (el servidor la lee y renderiza la vista correcta sin parpadeo) con respaldo en `localStorage`. La preferencia es **por navegador**, como se pidió; sincronizar por usuario sería una mejora posterior.
@@ -181,21 +213,23 @@ model_files.license  → pasa a valor normalizado (enum de arriba) + model_files
 
 **Estimación (R3):** **4 / 5,5 / 7,5** (incluye tabla editable de líneas; el kanban ya está en WP-3.1).
 
-### N7 · Editor de los documentos generados (logo, diseño, secciones…)
+### N7 · Editor de plantillas de documentos (en Configuración)
 
-Se pide **estimar cómo sería el editor**. Tres niveles; recomiendo avanzar por etapas.
+**Aclaración del equipo (F3):** no se quiere editar un documento ya generado ni retocarlo «en sitio»; se quiere **modificar la plantilla desde una sección de Configuración** y que esa plantilla se use **al generar** los documentos. Eso es el nivel 1 propuesto, **sin** las sobrescrituras por cotización (que quedan descartadas salvo nueva decisión, pregunta G1).
 
 | Nivel | Qué permite | Cómo se construye | Estimación |
 |---|---|---|---|
-| **L1 · Personalización guiada** | Subir **logo** (con recorte y tamaño), **color de marca** y fuentes de una lista, **activar/ocultar y reordenar secciones** (cliente, detalle, opcionales, totales, cierre comercial, condiciones, anexo), textos del encabezado/pie y condiciones por sección, opciones (miniaturas, plazo, idioma), **vista previa en vivo** y **sobrescrituras por cotización** (cambiar un texto solo en este documento y regenerar) | Un **modelo de documento JSON** (secciones + tema + textos) que renderiza el mismo `<QuoteDocument>` de la vista cliente y del PDF (doc 05) | **8 / 10 / 13** (R3) |
-| **L2 · Editor de bloques** | Todo L1 más **agregar/quitar bloques** (texto enriquecido, imagen, tabla, columnas, separador, firma, QR), arrastrar para reordenar, **variables** (`{cliente}`, `{total}`, `{vigencia}`), **varias plantillas** por tipo de documento (presupuesto, orden de trabajo, comprobante, etiqueta), versiones de plantilla y plantilla por cliente/canal | Mismo modelo JSON con bloques tipados; reordenar con `dnd-kit`; texto enriquecido con TipTap o Lexical (carga diferida); previsualización idéntica al PDF | **+16 / 21 / 27** (opcional, R7) |
-| **L3 · Editor libre (HTML/CSS)** | Edición arbitraria de HTML/CSS | — | **No recomendado:** riesgo de seguridad (HTML no confiable en Chromium), plantillas rotas por cada cambio de diseño y soporte costoso (30+ jornadas) |
+| **L1 · Plantilla guiada en Configuración** _(alcance acordado)_ | Subir **logo** (recorte y tamaño), **color de marca** y fuentes de una lista, **activar/ocultar y reordenar secciones** (cliente, detalle, opcionales, totales, cierre comercial, condiciones, anexo de detalles), textos de encabezado, pie y condiciones por sección (con variables como `{cliente}`), opciones (miniaturas, plazo, idioma) y **vista previa en vivo** con datos de ejemplo | Un **modelo de plantilla JSON** (secciones + tema + textos) que renderiza el mismo `<QuoteDocument>` de la vista cliente y del PDF (doc 05); una plantilla por defecto del taller; el documento generado **congela** la versión de plantilla usada | **6 / 8 / 10,5** (R3) |
+| L2 · Editor de bloques _(opcional, posterior)_ | Agregar/quitar bloques (texto enriquecido, imagen, tabla, columnas, firma, QR), arrastrar para reordenar, varias plantillas por tipo de documento y por cliente/canal | Mismo modelo con bloques tipados; reordenar con `dnd-kit`; texto enriquecido con TipTap o Lexical (carga diferida) | **+16 / 21 / 27** |
+| L3 · Editor libre (HTML/CSS) | Edición arbitraria | — | **No recomendado:** riesgo de seguridad (HTML no confiable en Chromium) y soporte costoso |
 
-**Datos:** `document_templates(id, kind, name, locale, schema jsonb, theme jsonb, is_default, version, created_by, …)`, `quotes.template_id/template_version` y `quotes.doc_overrides jsonb`; el PDF almacenado (doc 05 §5.2) preserva lo entregado.
+**Datos:** `document_templates(id, kind, name, locale, schema jsonb, theme jsonb, is_default, version, updated_by, …)` y `quotes.template_id/template_version` (la copia del PDF guardada al enviar preserva lo entregado, D10). **Sin** `quotes.doc_overrides`.
 
-**Seguridad:** el contenido se guarda como **JSON tipado, no como HTML**; el texto enriquecido se serializa a un esquema restringido; los logos SVG se sanean (el servicio de assets ya sanea SVG); nada de HTML crudo hacia Chromium.
+**Seguridad:** la plantilla se guarda como **JSON tipado, no como HTML**; los logos SVG se sanean (el servicio de assets ya sanea SVG); nada de HTML crudo hacia Chromium.
 
-**Estimación del paquete:** **L1 = 8 / 10 / 13 en R3**; L2 opcional **16 / 21 / 27** (posterior).
+**Permisos:** solo quien tenga permiso de configuración edita plantillas; todos los usuarios con acceso a cotizaciones solo las usan.
+
+**Estimación del paquete:** **L1 = 6 / 8 / 10,5 en R3** (2 jornadas menos que la primera propuesta por descartar las sobrescrituras por cotización); L2 opcional **16 / 21 / 27**.
 
 ### N8 · Librería visual (componentes y widgets, siempre móvil y responsivo)
 
@@ -230,10 +264,10 @@ Se pide **estimar cómo sería el editor**. Tres niveles; recomiendo avanzar por
 - **Tres capas de tokens:** primitivas (escalas) → semánticos (`--bg`, `--card`, `--ink`, `--accent`, `--ok/--warn/--bad`, `--chart-1…8`) → componentes. Tailwind referencia variables (`rgb(var(--accent) / <alpha>)`).
 - **Selector de paleta** `data-palette` × `data-theme` (claro/oscuro/sistema). Paletas iniciales sugeridas: **Capa a capa** (actual), **Grafito**, **Océano**, **Bosque**, **Violeta** y **Alto contraste** (accesibilidad); cada una con claro y oscuro.
 - **Marca:** el color de marca (wizard N10 / Configuración) **deriva** una paleta con escala tonal y tinta de texto con contraste AA calculado; validación automática de contraste al guardar.
-- **Alcance de la elección:** paleta por defecto del taller (Configuración) y **preferencia por usuario** (opcional); el **PDF** sigue la marca del taller, no la paleta de la interfaz.
+- **Alcance de la elección (F5):** paleta por defecto del **taller** (guardada en la base de datos, Configuración) y **preferencia por usuario guardada en `localStorage`** (por navegador). Un **script en línea** en el `<head>` lee `localStorage` antes del primer pintado y fija `data-palette`/`data-theme` para evitar el parpadeo; si no hay preferencia, se usa la del taller. El **PDF** sigue la marca del taller, no la paleta de la interfaz.
 - Gráficos y estados semánticos usan los tokens (nada de colores sueltos).
 
-**Estimación:** tokenización y arquitectura (**incluida en WP-6.1'**, R1) · catálogo de paletas, selector, derivación desde marca y pruebas de contraste **N9b = 3,5 / 5 / 7** (R6).
+**Estimación:** tokenización y arquitectura (**incluida en WP-6.1'**, R1) · catálogo de paletas, selector, derivación desde marca y pruebas de contraste **N9b = 3 / 4,5 / 6,5** (R6; menor que antes porque la preferencia vive en `localStorage` y no requiere tabla ni API).
 
 ### N10 · Asistente de configuración inicial (primer arranque)
 
@@ -268,22 +302,15 @@ Se pide **estimar cómo sería el editor**. Tres niveles; recomiendo avanzar por
 
 **Estimación (R1):** marco, detección, token y guardas **3 / 4 / 5** · pasos obligatorios **2 / 2,5 / 3** · pasos opcionales (reutilizando formularios) **4 / 5,5 / 7,5** · lista de puesta en marcha en Inicio y re-ejecución **1 / 1,5 / 2** → **N10 = 10 / 13,5 / 17,5**. Fuera: el asistente de tarifas (spec calculadora, Fase 3) y las plantillas L2.
 
-## 4. Preguntas nuevas (segunda ronda)
+## 4. Segunda ronda respondida y una confirmación pendiente
 
-Se publican en el artefacto para responder allí:
+La segunda ronda (F1–F10) está respondida y se resume en §1.0. Queda **una confirmación**:
 
 | # | Pregunta | Recomendación |
 |---|---|---|
-| Q-F1 | «Ver detalles» de la cotización: ¿vista en el sitio, anexo en el PDF o ambos? | Ambos: en el sitio (modal + página) y anexo PDF opcional |
-| Q-F2 | Vista tabla: ¿listado, líneas de la cotización o ambos? | Ambos |
-| Q-F3 | Editor de documentos: ¿L1, L1 y luego L2, o L2 directo? | L1 primero; L2 después si hace falta |
-| Q-F4 | Librería visual: ¿shadcn/ui, Mantine o decidir tras el spike comparativo? | Decidir tras S8 (shadcn/ui como favorita) |
-| Q-F5 | Paletas: ¿solo el administrador elige la del taller o cada usuario la suya? | Taller por defecto y preferencia por usuario |
-| Q-F6 | Seguridad del primer arranque | Token en los logs; se mantiene `ADMIN_*` para instalaciones desatendidas; sin contraseña por defecto |
-| Q-F7 | Licencias de modelos importados al cotizar | Advertir en la línea (no bloquear) |
-| Q-F8 | Etiquetas por IA: ¿sugerir y confirmar o aplicar automáticamente? ¿Se puede enviar la miniatura a un proveedor en la nube? | Sugerir y confirmar; miniatura solo a IA local salvo que el administrador autorice la nube |
-| Q-F9 | Catálogo inicial de marcas y colores para el alta masiva | Bambu Lab, Sunlu, eSun, Polymaker, Creality, Elegoo, Grilon3 y genéricos |
-| Q-F10 | Tras eliminar el vínculo material→perfil: ¿recordar la «última elección» de filamento por (usuario, material, máquina)? | Sí, como preferencia de usuario (no como dato del material) |
+| **G1** | Confirmar el alcance del editor (F3): editor de **plantillas en Configuración** que se aplica a los documentos nuevos, **sin** edición por cotización | Sí; solo ajustar el texto de una cotización concreta antes de generarla si hace falta (+2 jornadas) |
+
+Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
 ## 5. Efecto neto en esfuerzo
 
@@ -292,16 +319,16 @@ Resumen (el detalle por paquete está en `09-plan-y-estimaciones.md`):
 | Bloque | Opt. | Prob. | Pes. |
 |---|---:|---:|---:|
 | Plan anterior (primera ronda) | 94 | 118,25 | 144 |
-| Cambios por decisiones (E2 spec Fase 1, kit con librería, agrupación D14, i18n mayor, spike S8) | +13 | +16,5 | +22,5 |
+| Cambios por decisiones (E2 spec Fase 1, kit con librería, agrupación D14, i18n mayor, spike S8, preferencia F10 en BD) | +13,5 | +17 | +23,5 |
 | N1 color y AMS (incluye spike S7) | +7 | +9,5 | +12,5 |
 | N2 etiquetas por IA | +4 | +5 | +7 |
 | N3 importador por URL + S6 | +9,5 | +13 | +18 |
-| N4 alta masiva | +5,5 | +7,5 | +10 |
+| N4 alta masiva (catálogo ampliado con marcas de Chile) | +6 | +8 | +10,5 |
 | N5 detalle y anexo | +4,5 | +6 | +8,5 |
 | N6 vista tabla y recordada | +4 | +5,5 | +7,5 |
-| N7 editor L1 | +8 | +10 | +13 |
-| N9b paletas | +3,5 | +5 | +7 |
+| N7 editor de plantillas en Configuración (L1) | +6 | +8 | +10,5 |
+| N9b paletas (preferencia en `localStorage`) | +3 | +4,5 | +6,5 |
 | N10 asistente inicial | +10 | +13,5 | +17,5 |
-| **Total** | **163** | **209,75** | **267,5** |
+| **Total** | **161,5** | **208,25** | **266** |
 
-_(Las filas suman exactamente el total; el desglose por paquete está en `09`.)_ Opcionales fuera del total: editor de bloques L2 (16 / 21 / 27), widgets de Inicio (6 / 8 / 11), edición de placa (10 / 12,5 / 15), y las Fases 2–5 de la spec de calculadora (27 / 36 / 49).
+_(Las filas suman exactamente el total; el desglose por paquete está en `09`.)_ Opcionales fuera del total: editor de plantillas con bloques L2 (16 / 21 / 27), widgets de Inicio (6 / 8 / 11), edición de placa (10 / 12,5 / 15), y las Fases 2–5 de la spec de calculadora (27 / 36 / 49).
