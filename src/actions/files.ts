@@ -142,3 +142,8 @@ export async function deleteFolderAction(path: string) {
 export async function setTagColorAction(name: string, color: string | null) {
   return safe(async () => { await requirePerm('archivos', 'E'); await (await import('@/lib/library/folders')).setTagColor(name, color); }, ['/archivos']);
 }
+
+/** Repara la malla de una versión (suelda, orienta, tapa huecos pequeños) y la guarda como versión nueva. */
+export async function repairFileAction(versionId: string) {
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); const { repairFileVersion } = await import('@/lib/mesh/repair-file'); const r = await repairFileVersion(versionId, u.id); await audit('model_file', r.modelFileId, 'reparar', { ...r.report }, u.id); return r; }, ['/archivos']);
+}

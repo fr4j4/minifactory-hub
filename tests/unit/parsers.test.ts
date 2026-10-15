@@ -84,3 +84,12 @@ describe('utilidades', () => {
     const r = await fetchLinkPreview('http://127.0.0.1:1/x'); expect(r.title).toBeNull(); expect(r.image).toBeNull();
   });
 });
+
+describe('STEP (OpenCascade)', () => {
+  it('convierte un cubo de 10 mm en malla y la analiza', async () => {
+    const fs = await import('node:fs'); const { parseMesh } = await import('@/lib/mesh/parse'); const { analyze } = await import('@/lib/mesh/ops');
+    const mesh = await parseMesh(new Uint8Array(fs.readFileSync('samples/cubo-10mm.stp')), 'stp');
+    const a = analyze(mesh);
+    expect(a.triangles).toBeGreaterThanOrEqual(12); expect(a.dimX).toBeCloseTo(10, 0); expect(a.dimY).toBeCloseTo(10, 0); expect(a.dimZ).toBeCloseTo(10, 0);
+  });
+});

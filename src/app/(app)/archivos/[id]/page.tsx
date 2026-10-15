@@ -7,6 +7,7 @@ import { can } from '@/lib/perm';
 import { PageHeader, Card, Badge, StatusBadge, Table, Empty } from '@/components/ui';
 import { ModelViewer } from '@/components/model-viewer';
 import { GcodeViewer } from '@/components/gcode-viewer';
+import { RepairButton } from '@/components/repair-button';
 import { SlicePanel } from '@/components/slice-panel';
 import { aiAvailableFor } from '@/lib/ai';
 import { Uploader } from '@/components/uploader';
@@ -77,7 +78,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
                   <dt className="muted">{t('files.bodies')}</dt><dd className="tabular">{a.shells}</dd>
                   <dt className="muted">{t('files.overhangs45')}</dt><dd className="tabular">{num(a.overhangPct, 1)}{t('files.ofTheSurface')}</dd>
                 </dl>
-                {(!a.closed || a.invertedNormals || a.nonManifoldEdges > 0) && <p className="text-xs text-warn mt-3">{t('files.warningAnOpenMeshOr')}</p>}
+                {(!a.closed || a.invertedNormals || a.nonManifoldEdges > 0) && <div className="mt-3"><p className="text-xs text-warn">{t('files.warningAnOpenMeshOr')}</p>{can(user, 'archivos', 'E') && kind === 'malla' && <RepairButton versionId={cur!.id} />}</div>}
               </Card>
             )}
             {sm && (

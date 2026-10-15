@@ -2,6 +2,21 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const files: Shape<typeof es['files']> = {
+  repairMesh: 'Repair mesh',
+  repairing: 'Repairing…',
+  repairDone: 'Mesh repaired',
+  repairClosed: 'It is now watertight: saved as a new version and the original was not touched.',
+  repairStillOpen: 'A new version was saved, but the mesh still has holes that cannot be closed automatically. Fix it in a 3D editor.',
+  repairRemoved_one: '{n} degenerate or duplicate triangle dropped',
+  repairRemoved_other: '{n} degenerate or duplicate triangles dropped',
+  repairFlipped_one: '{n} triangle flipped to orient the surface',
+  repairFlipped_other: '{n} triangles flipped to orient the surface',
+  repairHoles_one: '{n} hole closed',
+  repairHoles_other: '{n} holes closed',
+  repairHolesLeft_one: '{n} left open',
+  repairHolesLeft_other: '{n} left open',
+  repairInverted: 'Normals pointed inward: the whole mesh was inverted',
+  repairNote: 'Repair is basic (weld, orient and close small holes). It does not rebuild large missing areas.',
   manageFolders: 'Folders and tags',
   folders: 'Folders',
   noFolders: 'No folders yet. Create one or type a path like “Clients/Ana” when moving files.',
