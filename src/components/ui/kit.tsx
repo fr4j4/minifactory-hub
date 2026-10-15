@@ -73,7 +73,7 @@ export function DropdownMenu({ trigger, items, label }: { trigger: ReactNode; it
       <Dropdown.Trigger asChild><button type="button" className="btn-ghost btn-sm" aria-label={label}>{trigger}</button></Dropdown.Trigger>
       <Dropdown.Portal>
         <Dropdown.Content align="end" sideOffset={4} className="z-[100] card p-1 shadow-2xl min-w-[10rem]">
-          {items.map((i) => <Dropdown.Item key={i.key} onSelect={i.onSelect} className={cn('rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800', i.danger && 'text-red-600 dark:text-red-400')}>{i.label}</Dropdown.Item>)}
+          {items.map((i) => <Dropdown.Item key={i.key} onSelect={i.onSelect} className={cn('rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800', i.danger && 'text-danger')}>{i.label}</Dropdown.Item>)}
         </Dropdown.Content>
       </Dropdown.Portal>
     </Dropdown.Root>

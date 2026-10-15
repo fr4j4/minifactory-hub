@@ -49,7 +49,7 @@ export function VariantRow({ v, label, avgCost, channels, canEdit, materials }: 
     <>
       <tr data-testid="variant-row" className={!v.active ? 'opacity-50' : ''}>
         <td className="td"><div className="font-medium">{label}</div><div className="text-xs muted tabular">{v.sku}{v.location ? ` · ${v.location}` : ''}</div></td>
-        <td className="td text-right tabular"><span className={low ? 'text-red-600 dark:text-red-400 font-semibold' : ''} data-testid="variant-stock">{v.stock}</span>{v.reserved > 0 && <div className="text-xs muted">{t('catalog.avail')} {avail}</div>}</td>
+        <td className="td text-right tabular"><span className={low ? 'text-danger font-semibold' : ''} data-testid="variant-stock">{v.stock}</span>{v.reserved > 0 && <div className="text-xs muted">{t('catalog.avail')} {avail}</div>}</td>
         <td className="td text-right tabular muted">{v.minStock || '—'}</td><td className="td text-right tabular">{money(v.price)}</td><td className="td text-right tabular muted">{money(avgCost)}</td><td className="td text-right tabular">{margin != null ? `${margin.toFixed(0)}%` : '—'}</td>
         <td className="td text-right whitespace-nowrap">{canEdit && <><button className="btn-ghost btn-sm" onClick={() => setProd(true)} data-testid="variant-produce">{t('catalog.produce')}</button> <button className="btn-ghost btn-sm" onClick={() => { setQty(v.stock); setKind('ajuste'); setAdj(true); }} data-testid="variant-adjust">{t('common.stock')}</button> <button className="btn-ghost btn-sm" onClick={() => setEdit(true)}>{t('common.edit')}</button></>}</td>
       </tr>

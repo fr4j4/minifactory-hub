@@ -26,7 +26,7 @@ export function NozzlePicker({ value, onChange, multi, label, hint, testId }: { 
           <button type="button" className="btn-ghost btn-sm" onClick={add} disabled={!other.trim()}>{t('nozzle.add')}</button>
         </span>
       </div>
-      {err && <p className="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">{t('nozzle.otherError')}</p>}
+      {err && <p className="text-xs text-danger mt-1" role="alert">{t('nozzle.otherError')}</p>}
       {hint && <p className="text-xs muted mt-1">{hint}</p>}
     </div>
   );

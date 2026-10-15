@@ -1,4 +1,8 @@
 export const home = {
+  alertGroup_red: 'Urgente',
+  alertGroup_amber: 'Atención',
+  alertGroup_blue: 'Pendientes',
+  alertMore: 'y {n} más',
   lowStockGAvailableMinimum: 'Stock bajo: {type} {color} ({grams} g disponibles, mínimo {min} g)',
   lowStock: 'Stock bajo: {name} ({stock} {unit})',
   productToRestockUnits: 'Producto por reponer: {name} {variant} ({units} u.)',

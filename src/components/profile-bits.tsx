@@ -133,7 +133,7 @@ export function ProfileRowActions({ id, name, canDelete }: { id: string; name: s
             <button className="btn-ghost" disabled={pending || !copy.trim()} data-testid="dup-edit" onClick={() => run(() => duplicateProfileAction(id, copy), { ok: t('nozzle.copyCreated'), onOk: (nid) => { setOpen(false); router.push(`/laminador/perfiles/${nid}`); } })}>{t('nozzle.createAndEdit')}</button></div>
         </div>
       </Modal>
-      {canDelete && <ConfirmButton className="btn-ghost btn-sm text-red-600 dark:text-red-400" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
+      {canDelete && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
     </span>
   );
 }
@@ -209,7 +209,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
               <div className="flex flex-wrap gap-1.5">{wallOpts.map((o) => <button key={o.mm} type="button" disabled={!canEdit} onClick={() => set('wall_loops', String(o.loops))} aria-pressed={loops === o.loops} className={cn('min-h-[36px] px-3 rounded-xl border text-sm', loops === o.loops ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')} data-testid={`wall-${o.mm}`}><span className="num">{comma(o.mm)} mm</span> <span className="text-xs opacity-70">· {t('nozzle.nWalls', { count: o.loops })}</span></button>)}</div>
               {loops && <p className="text-xs muted mt-1">{t('nozzle.nowWalls', { count: loops, mm: comma(thicknessForLoops(loops, noz)) })}{lh && num('top_shell_layers') ? ` ${t('nozzle.topThickness', { mm: comma(numStr(num('top_shell_layers')! * lh)), layers: num('top_shell_layers') })}` : ''}{lh && num('bottom_shell_layers') ? ` ${t('nozzle.bottomThickness', { mm: comma(numStr(num('bottom_shell_layers')! * lh)) })}` : ''}</p>}
               {lh && <p className="text-xs muted">{t('nozzle.layersForOneMm', { layers: layersForThickness(1, lh) })}</p>}</div>
-            {warns.length > 0 && <ul className="text-xs text-amber-800 dark:text-amber-300 space-y-0.5" role="status" data-testid="profile-warnings">{warns.map((w) => <li key={w.key}>⚠ {t(w.key, w.params)}</li>)}</ul>}
+            {warns.length > 0 && <ul className="text-xs text-warn space-y-0.5" role="status" data-testid="profile-warnings">{warns.map((w) => <li key={w.key}>⚠ {t(w.key, w.params)}</li>)}</ul>}
           </div>
         )}
 

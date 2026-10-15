@@ -37,7 +37,7 @@ export function CreateAccountWizard() {
         <label className="block"><span className="label">{t('setup.email')}</span><input type="email" className="input" required autoComplete="username" value={v.email} onChange={set('email')} /></label>
         <label className="block"><span className="label">{t('setup.password')}</span><input type="password" className="input" required minLength={10} autoComplete="new-password" value={v.password} onChange={set('password')} /><span className="muted text-xs">{t('setup.passwordHint')} {v.password && t('setup.strength', { level: t(`setup.strength${st}` as 'setup.strength0') })}</span></label></div>}
       {step === 3 && <label className="block"><span className="label">{t('setup.shopName')}</span><input className="input" required autoFocus value={v.shopName} onChange={set('shopName')} /></label>}
-      {err && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger">{err}</p>}
       <div className="flex justify-between">
         {step > 0 && step < 4 ? <button type="button" className="btn" onClick={() => setStep(step - 1)}>{t('setup.back')}</button> : <span />}
         <button className="btn-primary" disabled={pending}>{step === 3 ? (pending ? t('setup.creating') : t('setup.create')) : step === 0 ? t('setup.verify') : t('setup.next')}</button>
@@ -87,7 +87,7 @@ export function StepsPanel({ mode, steps, shop }: { mode: 'rapido' | 'completo' 
               </form>)}
           </li>))}
       </ul>
-      {err && <p role="alert" className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+      {err && <p role="alert" className="text-sm text-danger">{err}</p>}
       <form action={finishSetupAction} className="flex justify-end"><button className="btn-primary">{t('setup.finish')}</button></form>
     </div>
   );

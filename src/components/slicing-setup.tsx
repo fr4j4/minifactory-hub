@@ -23,7 +23,7 @@ function Step({ n, title, done, total, children, hint }: { n: number; title: str
       <header className="flex items-start gap-3 px-4 py-3.5 border-b border-[var(--line)]">
         <span className={cn('h-8 w-8 shrink-0 rounded-full grid place-items-center font-display font-semibold', ok ? 'bg-emerald-600 text-white' : 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700')} aria-hidden>{ok ? '✓' : n}</span>
         <div className="min-w-0 flex-1"><h2 className="font-display text-lg font-semibold tracking-tight leading-tight">{title}</h2><p className="text-sm muted mt-0.5">{hint}</p></div>
-        <span className={cn('num text-xs shrink-0 mt-1', ok ? 'text-emerald-700 dark:text-emerald-400' : 'muted')} data-testid={`setup-step-${n}-count`}>{done}/{total}</span>
+        <span className={cn('num text-xs shrink-0 mt-1', ok ? 'text-ok' : 'muted')} data-testid={`setup-step-${n}-count`}>{done}/{total}</span>
       </header>
       <div className="p-4">{children}</div>
     </section>

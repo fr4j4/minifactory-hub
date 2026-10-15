@@ -25,5 +25,5 @@ export function ProcessOptions({ profiles, machineNozzle, compatibleIds }: { pro
 export function NozzleMismatch({ processNozzle, machineNozzle }: { processNozzle: string | null | undefined; machineNozzle: string | null | undefined }) {
   const t = useT();
   if (!processNozzle || !machineNozzle || Number(processNozzle) === Number(machineNozzle)) return null;
-  return <p className="text-xs text-amber-800 dark:text-amber-300 mt-1" role="status" data-testid="nozzle-mismatch">⚠ {t('nozzle.mismatchWarn', { process: processNozzle, machine: machineNozzle })}</p>;
+  return <p className="text-xs text-warn mt-1" role="status" data-testid="nozzle-mismatch">⚠ {t('nozzle.mismatchWarn', { process: processNozzle, machine: machineNozzle })}</p>;
 }

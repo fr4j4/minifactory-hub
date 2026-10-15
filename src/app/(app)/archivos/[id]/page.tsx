@@ -77,7 +77,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
                   <dt className="muted">{t('files.bodies')}</dt><dd className="tabular">{a.shells}</dd>
                   <dt className="muted">{t('files.overhangs45')}</dt><dd className="tabular">{num(a.overhangPct, 1)}{t('files.ofTheSurface')}</dd>
                 </dl>
-                {(!a.closed || a.invertedNormals || a.nonManifoldEdges > 0) && <p className="text-xs text-amber-700 dark:text-amber-300 mt-3">{t('files.warningAnOpenMeshOr')}</p>}
+                {(!a.closed || a.invertedNormals || a.nonManifoldEdges > 0) && <p className="text-xs text-warn mt-3">{t('files.warningAnOpenMeshOr')}</p>}
               </Card>
             )}
             {sm && (
@@ -91,7 +91,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
                   <dt className="muted">{t('common.machine')}</dt><dd>{sm.machine ?? '—'}</dd>
                 </dl>
                 {sm.filaments?.length > 1 && <ul className="text-sm mt-2">{sm.filaments.map((x: any, i: number) => <li key={i}>{t('files.colorN', { n: i + 1 })}{x.color ? ` (${x.color})` : ''}: <b>{grams(x.g)}</b></li>)}</ul>}
-                {(sm.notes ?? []).map((n: string) => <p key={n} className="text-xs text-amber-700 dark:text-amber-300 mt-2">{tOr(t, n, n)}</p>)}
+                {(sm.notes ?? []).map((n: string) => <p key={n} className="text-xs text-warn mt-2">{tOr(t, n, n)}</p>)}
               </Card>
             )}
             <Card title={t('files.sourceTitle')}><SourcePanel modelFileId={f.id} canEdit={can(user, 'archivos', 'E')} aiTags={aiTagsOk} source={srcRow ? { url: srcRow.url, provider: srcRow.provider, title: srcRow.title, authorName: srcRow.authorName, licenseCode: srcRow.licenseCode, licenseLabel: LICENSE_LABEL[srcRow.licenseCode as keyof typeof LICENSE_LABEL] ?? srcRow.licenseCode, commercialUse: srcRow.commercialUse, status: srcRow.fetchStatus, downloads: (srcRow.stats as any)?.downloads, likes: (srcRow.stats as any)?.likes, tags: srcRow.tags ?? [], images: (srcRow.images ?? []).map((x) => x.url) } : null} /></Card>

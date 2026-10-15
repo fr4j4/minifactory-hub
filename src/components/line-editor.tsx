@@ -152,7 +152,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       <p className="text-xs muted">{t('calculator.uploadAnStl3mfObj')}</p>
                       <button type="button" className="btn-primary" onClick={doSlice} disabled={dis || !slicable || (!!runId && (!run || run.status === 'queued' || run.status === 'running'))} data-testid="line-slice">{runId && (!run || run.status === 'queued' || run.status === 'running') ? t('common.slicing') : (qty > 1 ? t('calculator.sliceCopies', { n: qty }) : t('calculator.slicePart'))}</button>
                       {!slicable && <span className="text-xs muted ml-2">{t('calculator.addAnStl3mfObj')}</span>}
-                      {it.origin.stale && <p className="text-xs text-amber-700 dark:text-amber-300">{t('calculator.youChangedTheQuantityOr')}</p>}
+                      {it.origin.stale && <p className="text-xs text-warn">{t('calculator.youChangedTheQuantityOr')}</p>}
                     </div>
                   )}
                   {it.mode === 'semi' && (
@@ -161,7 +161,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       {library.filter((m) => m.hasSliced).length === 0 ? <p className="text-sm">{t('calculator.thereAreNoSlicedFiles')}</p> : (
                         <select className="input" aria-label={t('calculator.slicedFile')} data-testid="semi-pick" value="" disabled={dis} onChange={(e) => { const b = library.find((m) => m.id === e.target.value); if (b) { addModel(b.id); useSliced(b); } }}><option value="">{t('calculator.chooseASlicedFile')}</option>{library.filter((m) => m.hasSliced).map((m) => <option key={m.id} value={m.id}>{m.name} · {dur(m.sliced?.timeS)} · {grams(m.sliced?.totalG)}</option>)}</select>
                       )}
-                      {firstModel?.sliced && it.origin.grams === 'file' && <ul className="text-xs muted">{firstModel.sliced.filaments.map((f, i) => <li key={i}>{t('files.colorN', { n: i + 1 })}{f.color ? ` (${f.color})` : ''}: {grams(f.g)}</li>)}{firstModel.sliced.notes.map((n) => <li key={n} className="text-amber-700 dark:text-amber-300">{tOr(t, n, n)}</li>)}</ul>}
+                      {firstModel?.sliced && it.origin.grams === 'file' && <ul className="text-xs muted">{firstModel.sliced.filaments.map((f, i) => <li key={i}>{t('files.colorN', { n: i + 1 })}{f.color ? ` (${f.color})` : ''}: {grams(f.g)}</li>)}{firstModel.sliced.notes.map((n) => <li key={n} className="text-warn">{tOr(t, n, n)}</li>)}</ul>}
                     </div>
                   )}
                   {it.mode === 'manual' && (
@@ -219,7 +219,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   <table className="w-full mt-2 tabular"><tbody>
                     {([[t('common.material'), bd.material], [t('calculator.machineDepreciationAndMaintenanc'), bd.machine], [t('calculator.energy'), bd.energy], [t('calculator.preparation'), bd.prep], [t('calculator.postProcessing'), bd.post], [t('calculator.failureRisk'), bd.failure]] as const).map(([l, v]) => <tr key={l}><td className="py-0.5">{l}</td><td className="text-right">{money(v)}</td></tr>)}
                     <tr className="border-t border-slate-300 dark:border-slate-600 font-medium"><td className="py-1">{t('common.cost')}</td><td className="text-right">{money(bd.cost)}</td></tr>
-                    {bd.warnings && bd.warnings.length > 0 && <tr><td colSpan={2} className="text-amber-700 dark:text-amber-300 text-xs" data-testid="line-warnings">{t('calculator.incompleteData')}: {bd.warnings.map((w) => t(`calculator.warn_${w}` as 'calculator.warn_noMachine')).join(' · ')}</td></tr>}
+                    {bd.warnings && bd.warnings.length > 0 && <tr><td colSpan={2} className="text-warn text-xs" data-testid="line-warnings">{t('calculator.incompleteData')}: {bd.warnings.map((w) => t(`calculator.warn_${w}` as 'calculator.warn_noMachine')).join(' · ')}</td></tr>}
                     <tr><td className="muted">+ margen {bd.marginPct}%{bd.urgencyPct ? ` + urgencia ${bd.urgencyPct}%` : ''}{bd.volumePct ? ` ${bd.volumePct}% volumen` : ''}</td><td className="text-right muted">{money(bd.priceBeforeRound)}</td></tr>
                   </tbody></table>
                   <p className="muted mt-1">{t('calculator.effectiveNote', { grams: num(bd.gramsEffective, 1), waste: ctx.rates.wastePct, hours: num(bd.hoursEffective, 2) })}{mach ? ` ${t('calculator.onMachine', { name: mach.name })}` : ''}.</p>

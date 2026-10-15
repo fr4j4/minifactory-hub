@@ -40,7 +40,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: ReactN
   return (
     <div className="rounded-xl border border-[var(--line)] bg-[var(--bg)]/40 p-3.5">
       <div className="eyebrow !text-[10px] !tracking-[.12em]">{label}</div>
-      <div className={cn('num text-[1.55rem] leading-tight font-medium mt-1.5', tone === 'bad' && 'text-red-600 dark:text-red-400', tone === 'good' && 'text-emerald-600 dark:text-emerald-400', tone === 'warn' && 'text-amber-600 dark:text-amber-400')}>{value}</div>
+      <div className={cn('num text-[1.55rem] leading-tight font-medium mt-1.5', tone === 'bad' && 'text-danger', tone === 'good' && 'text-ok', tone === 'warn' && 'text-amber-600 dark:text-amber-400')}>{value}</div>
       {sub && <div className="text-xs muted mt-0.5">{sub}</div>}
     </div>
   );

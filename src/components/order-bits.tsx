@@ -19,7 +19,7 @@ export function OrderActions({ id, status, canPlan, canReady, hasStockLines, shi
       {status === 'listo' && <><CopyButton text={msgReady} label={t('orders.copyMessage')} className="btn-ghost" /><a className="btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">{t('orders.notifyViaWhatsapp')}</a></>}
       {status === 'entregado' && tracking && <><CopyButton text={msgShipped} label={t('orders.copyShippingMessage')} className="btn-ghost" /><a className="btn-ghost" href={waShipped} target="_blank" rel="noopener noreferrer">{t('orders.whatsapp')}</a></>}
       {canEdit && occasional && <button className="btn-ghost" onClick={() => run(() => promoteCustomerAction(id), { ok: t('orders.customerRecordCreated2') })}>{t('orders.createCustomerRecord')}</button>}
-      {canEdit && !closed && <button className="btn-ghost text-red-600 dark:text-red-400" onClick={() => setCan(true)}>{t('orders.cancelOrder')}</button>}
+      {canEdit && !closed && <button className="btn-ghost text-danger" onClick={() => setCan(true)}>{t('orders.cancelOrder')}</button>}
       <Modal open={del} onClose={() => setDel(false)} title={t('orders.deliverOrder')}>
         <div className="space-y-3"><div className="flex gap-2">{['retiro', 'despacho'].map((x) => <button key={x} className={`btn-ghost flex-1 ${m === x ? '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700' : ''}`} onClick={() => setM(x)}>{x === 'retiro' ? t('common.workshopPickup') : t('common.shipping')}</button>)}</div>
           {m === 'despacho' && <label className="block"><span className="label">{t('orders.trackingNumber')}</span><input className="input" value={trk} onChange={(e) => setTrk(e.target.value)} data-testid="tracking" /></label>}

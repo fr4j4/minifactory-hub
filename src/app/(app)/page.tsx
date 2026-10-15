@@ -95,7 +95,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </Card>
         </div>
         <Card title={<>{t('home.alerts')} <span className="num text-xs muted ml-1">{String(alerts.length).padStart(2, '0')}</span></>}>
-          {alerts.length === 0 ? <Empty title={t('home.noAlerts')} hint={t('home.stockMaintenanceAndPaymentsAre')} /> : <ul className="space-y-1.5 -mx-1" data-testid="alerts">{alerts.map((a, i) => <li key={i}><Link href={a.href} className={`flex items-start gap-2.5 text-sm rounded-xl px-2.5 py-2 border-l-[3px] hover:bg-slate-50 dark:hover:bg-slate-800/50 ${a.tone === 'red' ? 'border-red-500' : a.tone === 'amber' ? 'border-amber-500' : 'border-sky-500'}`}>{a.text}</Link></li>)}</ul>}
+          {alerts.length === 0 ? <Empty title={t('home.noAlerts')} hint={t('home.stockMaintenanceAndPaymentsAre')} /> : <div className="space-y-3" data-testid="alerts">{(['red', 'amber', 'blue'] as const).map((tone) => { const list = alerts.filter((a) => a.tone === tone); if (!list.length) return null; return (
+            <section key={tone} aria-label={t(`home.alertGroup_${tone}` as 'home.alertGroup_red')}>
+              <h3 className="eyebrow mb-1">{t(`home.alertGroup_${tone}` as 'home.alertGroup_red')} · {list.length}</h3>
+              <ul className="space-y-1.5 -mx-1">{list.slice(0, 5).map((a, i) => <li key={i}><Link href={a.href} className={`flex items-start gap-2.5 text-sm rounded-xl px-2.5 py-2 border-l-[3px] hover:bg-slate-50 dark:hover:bg-slate-800/50 ${tone === 'red' ? 'border-red-500' : tone === 'amber' ? 'border-amber-500' : 'border-sky-500'}`}>{a.text}</Link></li>)}</ul>
+              {list.length > 5 && <p className="text-xs muted mt-1 px-1">{t('home.alertMore', { n: list.length - 5 })}</p>}
+            </section>); })}</div>}
         </Card>
       </div>
     </>

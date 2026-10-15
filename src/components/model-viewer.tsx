@@ -192,7 +192,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
       <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
         <div ref={host} className="absolute inset-0" data-testid="viewer-host"><div data-dim-labels className="pointer-events-none absolute inset-0 overflow-hidden" /></div>
         {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingModel')}</div>}
-        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-red-600 dark:text-red-400" role="alert">{err}</div>}
+        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-danger" role="alert">{err}</div>}
         {status === 'listo' && (
           <>
             <div className="absolute left-2 top-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]" role="toolbar" aria-label={t('viewer.views')}>

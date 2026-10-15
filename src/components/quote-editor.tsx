@@ -120,7 +120,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
             <button className="btn-primary" onClick={async () => { const id = await save(false); if (id) router.push(`/presupuestos/${id}?guardado=1`); }} disabled={saving || q.items.length === 0} data-testid="quote-save">{t('common.save')}</button>
           </div>
         </div>
-        {(tt.belowCost || tt.belowMin) && showCosts && <p className="text-xs mt-1 text-amber-700 dark:text-amber-300 max-w-[1500px] mx-auto">{tt.belowCost ? t('quotes.theFinalPriceIsBelow') : t('quotes.theMarginIsBelowThe', { pct: ctx.rates.minMarginPct })}</p>}
+        {(tt.belowCost || tt.belowMin) && showCosts && <p className="text-xs mt-1 text-warn max-w-[1500px] mx-auto">{tt.belowCost ? t('quotes.theFinalPriceIsBelow') : t('quotes.theMarginIsBelowThe', { pct: ctx.rates.minMarginPct })}</p>}
         {tt.belowCost && <div className="max-w-[1500px] mx-auto mt-1"><input className="input" placeholder={t('quotes.reasonForThePriceRequired')} value={q.priceReason} onChange={(e) => set({ priceReason: e.target.value })} aria-label={t('quotes.reasonForThePrice2')} /></div>}
       </div>
 

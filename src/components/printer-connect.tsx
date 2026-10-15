@@ -75,11 +75,11 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
         {r ? <PrinterStateBadge r={r} /> : <span className="badge">{l.enabled ? t('machines.connecting') : t('machines.disabled')}</span>}
       </div>
       {r && <PrinterPill machineId={l.machineId} initial={r} />}
-      {r && !r.online && (r.error ?? l.lastError) && <p className="text-xs text-amber-800 dark:text-amber-300" role="alert">{r.error ?? l.lastError}</p>}
+      {r && !r.online && (r.error ?? l.lastError) && <p className="text-xs text-warn" role="alert">{r.error ?? l.lastError}</p>}
       {(canEdit || canRemove) && <div className="flex flex-wrap gap-2 mt-auto">
         {canEdit && <button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => updatePrinterAction(l.id, { enabled: !l.enabled }), { ok: l.enabled ? t('machines.connectionPaused3') : t('machines.connectionEnabled2') })}>{l.enabled ? t('machines.pauseConnection') : t('machines.enable')}</button>}
         {canEdit && <button className="btn-ghost btn-sm" onClick={() => setEdit(true)}>{t('common.edit')}</button>}
-        {canRemove && <ConfirmButton className="btn-ghost btn-sm text-red-600 dark:text-red-400" message={t('machines.disconnectThisPrinterTheMachine')} onConfirm={() => run(() => removePrinterAction(l.id), { ok: t('machines.printerDisconnected2') })}>{t('machines.disconnect')}</ConfirmButton>}
+        {canRemove && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('machines.disconnectThisPrinterTheMachine')} onConfirm={() => run(() => removePrinterAction(l.id), { ok: t('machines.printerDisconnected2') })}>{t('machines.disconnect')}</ConfirmButton>}
       </div>}
       {edit && <Modal open onClose={() => setEdit(false)} title={t('machines.edit', { name: l.machineName })}>
         <div className="space-y-3">

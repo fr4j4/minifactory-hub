@@ -177,7 +177,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
         <div className="flex items-center gap-1.5">
           {canSend && <button className="btn-primary btn-sm" disabled={!r.online || busy} onClick={() => setSend(true)} data-testid="send-open">{t('machines.sendToPrint')}</button>}
           {canControl && busy && (s.state === 'PAUSE' ? <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('resume', undefined, t('machines.resuming2'))} data-testid="cmd-resume">{t('machines.resume')}</button> : <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('pause', undefined, t('machines.pauseSent2'))} data-testid="cmd-pause">{t('machines.pause')}</button>)}
-          {canControl && busy && <ConfirmButton className="btn-ghost btn-sm text-red-600 dark:text-red-400" message={t('machines.stopThePrintItCannot')} onConfirm={() => cmd('stop', undefined, t('machines.printStopped2'))}>{t('machines.stop')}</ConfirmButton>}
+          {canControl && busy && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('machines.stopThePrintItCannot')} onConfirm={() => cmd('stop', undefined, t('machines.printStopped2'))}>{t('machines.stop')}</ConfirmButton>}
         </div>
       </header>
       {cloud && <p className="mx-4 mt-3 text-xs muted" data-testid="cloud-readonly">{t('machines.connectedThroughBambuCloudYou')}</p>}

@@ -25,7 +25,7 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
       {canEdit && ['enviado', 'vencido', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, false), { ok: t('quotes.newVersionCreated2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })} data-testid="quote-newversion">{t('quotes.newVersion')}</button>}
       {canEdit && ['enviado', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" onClick={openRecalc} data-testid="quote-recalc">{t('quotes.recalcCurrent')}</button>}
       {canEdit && status === 'vencido' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, true), { ok: t('quotes.reactivatedWithCurrentRates2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })}>{t('quotes.reactivateWithCurrentRates')}</button>}
-      {canEdit && ['enviado', 'vencido'].includes(status) && <button className="btn-ghost text-red-600 dark:text-red-400" onClick={() => setRj(true)}>{t('quotes.rejected')}</button>}
+      {canEdit && ['enviado', 'vencido'].includes(status) && <button className="btn-ghost text-danger" onClick={() => setRj(true)}>{t('quotes.rejected')}</button>}
       <Modal open={!!rc} onClose={() => setRc(null)} title={t('quotes.recalcTitle')} wide>
         {rc && <div className="space-y-3 text-sm" data-testid="recalc-preview">
           <p className="muted">{t('quotes.recalcHint')}</p>

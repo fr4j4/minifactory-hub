@@ -1,4 +1,9 @@
 export const settings = {
+  group_shop: 'Taller',
+  group_prices: 'Precios y ventas',
+  group_team: 'Equipo',
+  group_data: 'Datos',
+  group_system: 'Sistema',
   autoTag: 'Etiquetar automáticamente los archivos nuevos',
   autoTagHint: 'Aplica solas las etiquetas por reglas (nombre, carpeta, forma) con confianza alta. La IA nunca se aplica sola.',
   autoTagSaved: 'Guardado',

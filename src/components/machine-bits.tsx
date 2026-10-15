@@ -86,14 +86,14 @@ export function DeleteMachineButton({ machineId, machineName, className, onDone,
     run(() => removeMachineAction(machineId), { ok: t('machines.machineDeleted'), onOk: () => { setOpen(false); onDone?.(); if (redirectTo) router.push(redirectTo); } });
   };
   return (<span onClick={(e) => e.preventDefault()}>
-    <button type="button" className={className ?? 'btn-ghost btn-sm text-red-600 dark:text-red-400'} disabled={loading} onClick={check} data-testid="delete-machine">{loading ? t('machines.checking') : t('common.deleteLabel')}</button>
+    <button type="button" className={className ?? 'btn-ghost btn-sm text-danger'} disabled={loading} onClick={check} data-testid="delete-machine">{loading ? t('machines.checking') : t('common.deleteLabel')}</button>
     <Modal open={open} onClose={() => setOpen(false)} title={t('machines.deleteTitle', { name: machineName })}>
       <div className="space-y-3 text-sm">
         {!info ? null : !info.canDelete ? (
-          <p role="alert" className="text-amber-800 dark:text-amber-300"><Rich text={t('machines.deleteBlocked', { count: info.activeJobCount })} /></p>
+          <p role="alert" className="text-warn"><Rich text={t('machines.deleteBlocked', { count: info.activeJobCount })} /></p>
         ) : (<>
           <p><Rich text={t('machines.deleteInfo')} /></p>
-          {info.link && <p className="text-amber-800 dark:text-amber-300"><Rich text={t('machines.deleteLinked', { via: info.link.mode === 'cloud' ? 'Bambu Cloud' : 'LAN', serial: info.link.serial })} />{info.link.mode === 'cloud' && ` ${t('machines.deleteCloudNote')}`}</p>}
+          {info.link && <p className="text-warn"><Rich text={t('machines.deleteLinked', { via: info.link.mode === 'cloud' ? 'Bambu Cloud' : 'LAN', serial: info.link.serial })} />{info.link.mode === 'cloud' && ` ${t('machines.deleteCloudNote')}`}</p>}
         </>)}
         <div className="flex justify-end gap-2 pt-2">
           <button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button>

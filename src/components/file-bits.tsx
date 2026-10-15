@@ -32,7 +32,7 @@ export function FileMetaForm({ f, customers }: { f: { id: string; name: string; 
 export function DeleteFileButton({ id }: { id: string }) {
   const t = useT();
   const { run } = useAction(); const router = useRouter();
-  return <ConfirmButton className="btn-ghost text-red-600 dark:text-red-400" message={t('files.deleteThisFileFromThe')} onConfirm={() => run(() => deleteFileAction(id), { ok: t('files.fileDeleted2'), refresh: false, onOk: () => router.push('/archivos') })}>{t('common.deleteLabel')}</ConfirmButton>;
+  return <ConfirmButton className="btn-ghost text-danger" message={t('files.deleteThisFileFromThe')} onConfirm={() => run(() => deleteFileAction(id), { ok: t('files.fileDeleted2'), refresh: false, onOk: () => router.push('/archivos') })}>{t('common.deleteLabel')}</ConfirmButton>;
 }
 export function SetVersionButton({ modelId, versionId }: { modelId: string; versionId: string }) {
   const t = useT();

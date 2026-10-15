@@ -110,7 +110,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
       <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
         <div ref={host} className="absolute inset-0" />
         {!data && !err && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingToolpaths')}</div>}
-        {err && <div className="absolute inset-0 grid place-items-center text-sm text-red-600 dark:text-red-400 p-6 text-center" role="alert">{err}</div>}
+        {err && <div className="absolute inset-0 grid place-items-center text-sm text-danger p-6 text-center" role="alert">{err}</div>}
         {data && <div className="absolute left-2 top-2 rounded bg-slate-900/80 text-white text-xs px-2.5 py-1.5" data-testid="gcode-layer-readout">{t('viewer.layer')} {layer + 1} / {n} · Z {data.layers[layer]?.z.toFixed(2)} mm</div>}
         {data?.sampled && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.infillSampledForTheViewer')}</div>}
       </div>

@@ -27,7 +27,7 @@ export function ParamPanel({ base, overrides, onChange, disabled }: { base: Ov; 
           <button type="button" className={`btn-ghost btn-sm !px-1.5 ${modified ? '' : 'invisible'}`} onClick={() => onChange(type, p.key, null)} aria-label={t('studio.reset')} title={t('studio.reset')}><RotateCcw className="h-3.5 w-3.5" aria-hidden /></button>
         </div>
         <p className="muted text-xs mt-0.5">{tipOf(p, lang)}{modified && baseV !== '' && <span> · {t('studio.base')}: <b>{baseV}</b></span>}</p>
-        {issue && <p role="alert" className="text-xs text-red-600 dark:text-red-400 mt-0.5">{issue.kind === 'range' ? t('studio.issueRange', { min: issue.min ?? '—', max: issue.max ?? '—' }) : issue.kind === 'option' ? t('studio.issueOption') : t('studio.issueNumber')}</p>}
+        {issue && <p role="alert" className="text-xs text-danger mt-0.5">{issue.kind === 'range' ? t('studio.issueRange', { min: issue.min ?? '—', max: issue.max ?? '—' }) : issue.kind === 'option' ? t('studio.issueOption') : t('studio.issueNumber')}</p>}
       </li>);
   };
   return (

@@ -17,7 +17,7 @@ import type { ParamType } from '@/lib/slicer/schema';
 
 const EMPTY: Ov = { machine: {}, process: {}, filament: {} };
 const DEBOUNCE_MS = 700;
-const Delta = ({ v, unit, inv = true }: { v: number | null; unit: string; inv?: boolean }) => v == null || Math.abs(v) < 1e-9 ? null : <span className={`text-xs ml-1.5 ${(v < 0) === inv ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>{v > 0 ? '+' : '−'}{unit.replace('#', String(Math.abs(Math.round(v * 10) / 10)))}</span>;
+const Delta = ({ v, unit, inv = true }: { v: number | null; unit: string; inv?: boolean }) => v == null || Math.abs(v) < 1e-9 ? null : <span className={`text-xs ml-1.5 ${(v < 0) === inv ? 'text-ok' : 'text-amber-600 dark:text-amber-400'}`}>{v > 0 ? '+' : '−'}{unit.replace('#', String(Math.abs(Math.round(v * 10) / 10)))}</span>;
 
 /** Estudio de laminado: elige máquina, calidad y material, ajusta parámetros de sesión y re-lamina casi en vivo (con cancelación) comparando contra la base. */
 export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId, canSlice, canSaveProfile }: { fileVersionId: string; fileId: string; fileName: string; ctx: CalcContext; defaultMachineId?: string | null; canSlice: boolean; canSaveProfile: boolean }) {
@@ -109,8 +109,8 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
             <div><div className="label">{t('common.suggestedPrice')}</div><div className={`text-xl font-semibold tabular ${stale || busy ? 'opacity-50' : ''}`} data-testid="res-price">{bd ? money(bd.suggestedTotal) : '—'}<Delta v={dP} unit="$#" /></div></div>
             <div className="ml-auto text-sm flex items-center gap-2" data-testid="studio-status">
               {busy ? <><span className="inline-block h-2.5 w-2.5 rounded-full bg-[var(--accent)] animate-pulse" aria-hidden />{t('studio.slicing')}<button className="btn-ghost btn-sm" onClick={() => runId && cancelRunAction(runId)} data-testid="studio-cancel">{t('common.cancel')}</button></>
-                : run?.status === 'error' ? <span className="text-red-600">{t('studio.error')}</span> : stale ? <><span className="badge border-amber-400 text-amber-700 dark:text-amber-300">{t('studio.outdated')}</span><button className="btn-primary btn-sm" disabled={!canSlice} onClick={() => launch(ov)} data-testid="studio-reslice">{t('studio.reslice')}</button></>
-                : shown ? <span className="badge border-emerald-400 text-emerald-700 dark:text-emerald-300">{t('studio.sliced')}</span> : null}
+                : run?.status === 'error' ? <span className="text-red-600">{t('studio.error')}</span> : stale ? <><span className="badge border-amber-400 text-warn">{t('studio.outdated')}</span><button className="btn-primary btn-sm" disabled={!canSlice} onClick={() => launch(ov)} data-testid="studio-reslice">{t('studio.reslice')}</button></>
+                : shown ? <span className="badge border-emerald-400 text-ok">{t('studio.sliced')}</span> : null}
             </div>
           </div>
           {run?.status === 'error' && <div role="alert" className="mt-2 rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 p-2.5 text-sm text-red-800 dark:text-red-200" data-testid="studio-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}

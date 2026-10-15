@@ -2,6 +2,10 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const home: Shape<typeof es['home']> = {
+  alertGroup_red: 'Urgent',
+  alertGroup_amber: 'Attention',
+  alertGroup_blue: 'To do',
+  alertMore: 'and {n} more',
   lowStockGAvailableMinimum: 'Low stock: {type} {color} ({grams} g available, minimum {min} g)',
   lowStock: 'Low stock: {name} ({stock} {unit})',
   productToRestockUnits: 'Product to restock: {name} {variant} ({units} units)',

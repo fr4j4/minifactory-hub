@@ -19,10 +19,10 @@ export function RemoveButton({ kind, id, name, className, label, redirectTo, onD
   const confirm = () => run(() => removeAction(kind, id), { ok: t('remove.done'), onOk: () => { setOpen(false); onDone?.(); if (redirectTo) router.push(redirectTo); } });
   const replace = () => run(() => replaceMaterialAction(id, target), { ok: t('remove.done'), onOk: () => { setOpen(false); onDone?.(); router.refresh(); } });
   return (<span onClick={(e) => e.stopPropagation()}>
-    <button type="button" className={className ?? 'btn-ghost btn-sm text-red-600 dark:text-red-400'} disabled={loading} onClick={check} data-testid={testId ?? `remove-${kind}`}>{loading ? t('remove.checking') : label ?? t('remove.delete')}</button>
+    <button type="button" className={className ?? 'btn-ghost btn-sm text-danger'} disabled={loading} onClick={check} data-testid={testId ?? `remove-${kind}`}>{loading ? t('remove.checking') : label ?? t('remove.delete')}</button>
     <Modal open={open} onClose={() => setOpen(false)} title={t('remove.title', { name })}>
       <div className="space-y-3 text-sm">
-        {!info ? null : !info.canDelete ? <p role="alert" className="text-amber-800 dark:text-amber-300">{info.reason}</p> : <p>{t(`remove.confirm.${kind}` as MessageKey)}</p>}
+        {!info ? null : !info.canDelete ? <p role="alert" className="text-warn">{info.reason}</p> : <p>{t(`remove.confirm.${kind}` as MessageKey)}</p>}
         {info?.replaceable && replaceOptions?.length ? <label className="block"><span className="label">{t('remove.replaceWith')}</span><select className="input" value={target} onChange={(e) => setTarget(e.target.value)} data-testid="remove-replace-with"><option value="">—</option>{replaceOptions.filter((o) => o.id !== id).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label> : null}
         <div className="flex justify-end gap-2 pt-2">
           {info?.replaceable && replaceOptions?.length ? <button className="btn-danger" disabled={pending || !target} data-testid="remove-replace" onClick={replace}>{t('remove.replaceAndDelete')}</button> : null}

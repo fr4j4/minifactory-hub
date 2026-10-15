@@ -2,6 +2,11 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const settings: Shape<typeof es['settings']> = {
+  group_shop: 'Shop',
+  group_prices: 'Prices and sales',
+  group_team: 'Team',
+  group_data: 'Data',
+  group_system: 'System',
   autoTag: 'Tag new files automatically',
   autoTagHint: 'Applies rule-based tags (name, folder, shape) with high confidence. AI suggestions are never applied automatically.',
   autoTagSaved: 'Saved',

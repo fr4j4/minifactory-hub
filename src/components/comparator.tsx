@@ -65,10 +65,10 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
               const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId: setupOf(c.setupKey)?.machineId, materialId: c.materialId, qty: copies }) : null;
               return (
                 <tr key={id} data-testid="cmp-row"><td className="td"><div className="font-medium">{i + 1}. {m?.label}</div><div className="text-xs muted">{p?.name} · {ma?.label}</div></td>
-                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>{t('common.slicing')}</td> : run.status === 'error' ? <td className="td text-red-600 dark:text-red-400 text-sm" colSpan={5}>{run.error}</td> : (
+                  {!run || run.status === 'queued' || run.status === 'running' ? <td className="td muted" colSpan={5}>{t('common.slicing')}</td> : run.status === 'error' ? <td className="td text-danger text-sm" colSpan={5}>{run.error}</td> : (
                     <>
-                      <td className={cn('td text-right tabular', run.timeS === bestTime && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{dur(run.timeS)}</td>
-                      <td className={cn('td text-right tabular', g === bestG && 'font-semibold text-emerald-700 dark:text-emerald-300')}>{grams(g)}</td>
+                      <td className={cn('td text-right tabular', run.timeS === bestTime && 'font-semibold text-ok')}>{dur(run.timeS)}</td>
+                      <td className={cn('td text-right tabular', g === bestG && 'font-semibold text-ok')}>{grams(g)}</td>
                       <td className="td text-right tabular">{run.layers}</td><td className="td text-right tabular muted">{run.cached ? t('slicer.cached2') : `${num((run.durationMs ?? 0) / 1000, 1)} s`}</td>
                       <td className="td text-right tabular font-semibold">{money(bd?.suggestedTotal)}</td>
                       <td className="td text-right whitespace-nowrap"><button className="btn-ghost btn-sm" onClick={() => setView(view === id ? null : id)}>{t('slicer.viewLayers')}</button> <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${id}&machine=${setupOf(c.setupKey)?.machineId}&material=${c.materialId}&copies=${copies}`}>{t('slicer.use')}</Link></td>
