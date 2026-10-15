@@ -30,7 +30,7 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
   const nozzlesInUse = [...new Set([...nz.values()].filter(Boolean) as string[])].sort((a, b) => Number(a) - Number(b));
   const isOwn = (p: (typeof profs)[number]) => p.imported || Object.keys(p.changes ?? {}).length > 0;
   const shown = (kind: string) => profs.filter((p) => p.type === kind && (!own || isOwn(p)) && (!nozzleFilter || kind === 'filament' || !nz.get(p.id) || Number(nz.get(p.id)) === Number(nozzleFilter)));
-  const usedBy = (id: string, type: string) => type === 'machine' ? ctx.machines.filter((m) => m.machineProfileId === id).map((m) => `${m.name}${m.nozzle ? ` (${m.nozzle})` : ''}`) : type === 'filament' ? ctx.materials.filter((m) => m.filamentProfileId === id).map((m) => m.label) : ctx.machines.filter((m) => m.defaultProcessProfileId === id).map((m) => m.name);
+  const usedBy = (id: string, type: string): Array<{ label: string; href: string }> => type === 'machine' ? ctx.machines.filter((m) => m.machineProfileId === id).map((m) => ({ label: `${m.name}${m.nozzle ? ` (${m.nozzle})` : ''}`, href: `/maquinas/${m.id}` })) : type === 'filament' ? ctx.materials.filter((m) => m.filamentProfileId === id).map((m) => ({ label: m.label, href: '/inventario' })) : ctx.machines.filter((m) => m.defaultProcessProfileId === id).map((m) => ({ label: m.name, href: `/maquinas/${m.id}` }));
   return (
     <>
       <PageHeader title={t('slicer.slicer')} subtitle={<>{t('slicer.engineLabel')} <b>{orcaAvailable() ? t('slicer.orcaslicer', { engine }) : t('slicer.notInstalled')}</b>. {t('slicer.engineNote')}</>}
@@ -60,7 +60,7 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
                     <tr key={p.id}><td className="td font-medium"><Link className="hover:underline" href={`/laminador/perfiles/${p.id}`}>{p.name}</Link> {p.simulated && <Badge tone="violet">{t('slicer.simulated')}</Badge>} {p.imported && <Badge>{t('slicer.imported')}</Badge>}</td>
                       {tt !== 'filament' && <td className="td tabular">{nz.get(p.id) ? t('nozzle.mm', { n: nz.get(p.id)!.replace('.', ',') }) : <span className="muted">—</span>}</td>}
                       <td className="td text-xs muted">{p.vendor} · {p.baseName}</td><td className="td tabular">{Object.keys(p.changes ?? {}).length === 0 ? <span className="muted">{t('nozzle.factoryTag')}</span> : Object.keys(p.changes ?? {}).length}</td><td className="td tabular">v{p.version}</td>
-                      <td className="td text-xs">{usedBy(p.id, tt).join(', ') || <span className="muted">—</span>}</td>
+                      <td className="td text-xs">{usedBy(p.id, tt).length ? usedBy(p.id, tt).map((u, i) => <span key={u.href + u.label}>{i > 0 && ', '}<Link className="underline" href={u.href}>{u.label}</Link></span>) : <span className="muted">—</span>}</td>
                       <td className="td text-right whitespace-nowrap">{can(user, 'laminador', 'C') && <ProfileRowActions id={p.id} name={p.name} canDelete={can(user, 'laminador', 'X')} />}</td></tr>
                   ))}</tbody></Table>
               )}
