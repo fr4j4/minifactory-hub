@@ -809,3 +809,19 @@ export const jobs = pgTable('jobs', {
   startedAt: timestamp('started_at', { withTimezone: true }),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
 }, (t) => [index('jobs_status_ix').on(t.status, t.runAfter)]);
+
+/** Calidades por intención (borrador, estándar, fino…): definiciones relativas a la boquilla que se materializan como perfiles de proceso. */
+export const qualityPresets = pgTable('quality_presets', {
+  ...base(),
+  key: text('key').notNull(),
+  label: text('label'), // null en las de fábrica: se usa la traducción
+  builtin: boolean('builtin').notNull().default(false),
+  layerFactor: doublePrecision('layer_factor').notNull(), // altura de capa = boquilla × factor
+  wallMm: doublePrecision('wall_mm').notNull(),
+  wallNozzles: doublePrecision('wall_nozzles'), // pared mínima en múltiplos de la boquilla
+  topMm: doublePrecision('top_mm').notNull(),
+  bottomMm: doublePrecision('bottom_mm').notNull(),
+  infill: text('infill').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('quality_presets_key_uq').on(t.workspaceId, t.key)]);

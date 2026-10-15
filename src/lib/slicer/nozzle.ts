@@ -75,29 +75,34 @@ export function wallThicknessOptions(nozzle: string | number) {
     .filter((o, i, a) => a.findIndex((x) => x.loops === o.loops) === i);
 }
 
-export type TemplateKey = 'borrador' | 'estandar' | 'fino' | 'resistente' | 'funcional';
-export interface QualityTemplate { key: TemplateKey; label: MessageKey; hint: MessageKey; layer: number; changes: Record<string, string> }
+export type BuiltinTemplateKey = 'borrador' | 'estandar' | 'fino' | 'resistente' | 'funcional';
+/** Las calidades de fábrica tienen clave fija; las del taller (tabla `quality_presets`) son texto libre. */
+export type TemplateKey = BuiltinTemplateKey | (string & {});
+export interface QualityTemplate { key: TemplateKey; label: MessageKey; /** nombre propio de una calidad del taller (sustituye a `label`) */ customLabel?: string; hint: MessageKey; layer: number; changes: Record<string, string> }
+/** Definición de una calidad por intención: la capa y los grosores se expresan relativos a la boquilla, así sirven para 0,2 / 0,4 / 0,6… */
+export interface PresetSpec { key: TemplateKey; label?: string | null; /** altura de capa = boquilla × f */ f: number; /** grosor de pared mínimo (mm); se amplía a un múltiplo de la boquilla */ wall: number; top: number; bottom: number; infill: string; wallNozzles?: number }
+export const BUILTIN_PRESETS: PresetSpec[] = [
+  { key: 'borrador', f: 0.6, wall: 0.8, wallNozzles: 2, top: 0.8, bottom: 0.6, infill: '10%' },
+  { key: 'estandar', f: 0.5, wall: 0.8, wallNozzles: 2, top: 1.0, bottom: 0.6, infill: '15%' },
+  { key: 'fino', f: 0.3, wall: 0.8, wallNozzles: 2, top: 1.2, bottom: 0.8, infill: '15%' },
+  { key: 'resistente', f: 0.5, wall: 1.6, wallNozzles: 4, top: 1.2, bottom: 1.0, infill: '30%' },
+  { key: 'funcional', f: 0.5, wall: 1.2, wallNozzles: 3, top: 1.2, bottom: 1.0, infill: '20%' },
+];
 
 /**
  * Calidades «de la casa», calculadas para cualquier boquilla con las mismas proporciones que los perfiles de fábrica de Bambu
  * (Draft 60 % · Standard 50 % · Fine 30 % del diámetro). Se aplican sobre el perfil de fábrica más cercano de la impresora,
  * así que las velocidades y aceleraciones siguen siendo las de fábrica.
  */
-export function qualityTemplates(nozzle: string | number, machine?: { min?: number; max?: number }): QualityTemplate[] {
+export function qualityTemplates(nozzle: string | number, machine?: { min?: number; max?: number }, presets: PresetSpec[] = BUILTIN_PRESETS): QualityTemplate[] {
   const n = Number(nozzle); const { min, max } = layerRange(n, machine);
   const clamp = (h: number) => r3(Math.min(max, Math.max(min, h)));
-  const spec: Array<{ key: TemplateKey; f: number; wall: number; top: number; bottom: number; infill: string }> = [
-    { key: 'borrador', f: 0.6, wall: Math.max(0.8, 2 * n), top: 0.8, bottom: 0.6, infill: '10%' },
-    { key: 'estandar', f: 0.5, wall: Math.max(0.8, 2 * n), top: 1.0, bottom: 0.6, infill: '15%' },
-    { key: 'fino', f: 0.3, wall: Math.max(0.8, 2 * n), top: 1.2, bottom: 0.8, infill: '15%' },
-    { key: 'resistente', f: 0.5, wall: Math.max(1.6, 4 * n), top: 1.2, bottom: 1.0, infill: '30%' },
-    { key: 'funcional', f: 0.5, wall: Math.max(1.2, 3 * n), top: 1.2, bottom: 1.0, infill: '20%' },
-  ];
+  const spec = presets.map((p) => ({ ...p, wallMm: Math.max(p.wall, (p.wallNozzles ?? 2) * n) }));
   const lw = String(lineWidth(n)); const inner = String(innerLineWidth(n)); const first = String(firstLayerLineWidth(n));
   return spec.map((t) => {
-    const layer = clamp(n * t.f); const loops = loopsForThickness(t.wall, n);
+    const layer = clamp(n * t.f); const loops = loopsForThickness(t.wallMm, n);
     return {
-      key: t.key, label: `nozzle.tpl.${t.key}` as MessageKey, hint: `nozzle.tpl.${t.key}Hint` as MessageKey, layer,
+      key: t.key, label: `nozzle.tpl.${t.key}` as MessageKey, customLabel: t.label ?? undefined, hint: `nozzle.tpl.${t.key}Hint` as MessageKey, layer,
       changes: {
         layer_height: numStr(layer), initial_layer_print_height: numStr(clamp(n * 0.5)),
         line_width: lw, outer_wall_line_width: lw, inner_wall_line_width: inner, sparse_infill_line_width: inner, top_surface_line_width: lw, internal_solid_infill_line_width: lw, support_line_width: lw, initial_layer_line_width: first,

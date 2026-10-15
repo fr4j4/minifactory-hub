@@ -219,7 +219,8 @@ export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
   const baseName = i.baseName ?? templateBase(machineBase);
   if (!findVendorOf('process', baseName)) throw new Error(t('slicer.theFactoryProfileDoesNot2', { name: baseName }));
   const limits = machineBase ? machineLayerLimits(machineBase, machineChanges) : {};
-  const tpl = qualityTemplates(nozzle, limits).filter((q) => i.keys.includes(q.key)); if (!tpl.length) throw new Error(t('nozzle.errPickOneQuality'));
+  const { loadPresets } = await import('./presets');
+  const tpl = qualityTemplates(nozzle, limits, await loadPresets(db)).filter((q) => i.keys.includes(q.key)); if (!tpl.length) throw new Error(t('nozzle.errPickOneQuality'));
   const prefix = i.prefix?.trim() || (machineBase ? short(machineBase).replace(/^Bambu Lab /, '').replace(/ \d\.\d+ nozzle$/, '') : t('nozzle.genericPrefix'));
   const ids: Array<{ id: string; name: string }> = [];
   const baseNozzle = profileNozzle('process', baseName); const baseValues = resolveFactory('process', baseName, findVendorOf('process', baseName));
@@ -228,7 +229,7 @@ export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
     const speeds = baseNozzle && Number(baseNozzle) !== Number(nozzle) ? scaleSpeeds(baseValues, baseNozzle, nozzle) : {};
     // todos los anchos de línea que traiga la base (skin, skeleton…) al ancho de la boquilla: uno menor que la capa hace que OrcaSlicer rechace el laminado
     const widths = Object.fromEntries(Object.keys(baseValues).filter((k) => /_line_width$/.test(k) && !(k in q.changes)).map((k) => [k, /infill|skin|skeleton|inner/.test(k) ? q.changes.sparse_infill_line_width : q.changes.line_width]));
-    const changes = diffAgainstBase('process', baseName, { ...widths, ...q.changes, ...speeds }); const label = t(q.label);
+    const changes = diffAgainstBase('process', baseName, { ...widths, ...q.changes, ...speeds }); const label = q.customLabel ?? t(q.label);
     const qName = `${prefix} ${nozzle} · ${label} ${numStr(q.layer)}`;
     if (i.reuse) { const [ex] = await db.select({ id: s.slicerProfiles.id, name: s.slicerProfiles.name }).from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'process'), eq(s.slicerProfiles.name, qName), eq(s.slicerProfiles.baseName, baseName), isNull(s.slicerProfiles.deletedAt))); if (ex) { ids.push(ex); continue; } }
     const id = await createProfileRow({ type: 'process', name: qName, baseName, changes, nozzle, userId: i.userId, note: t('nozzle.noteTemplate', { label, nozzle }), notes: t('nozzle.noteTemplateLong', { label, nozzle, hint: t(q.hint) }) }, db);

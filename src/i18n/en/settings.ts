@@ -2,6 +2,23 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const settings: Shape<typeof es['settings']> = {
+  tabQualities: 'Qualities',
+  presetsHint: 'Qualities (Draft, Standard, Fine…) are defined once and work for any nozzle: layer height is a percentage of the diameter. Picking one in the slicer creates that printer’s profile.',
+  presetLoops: 'walls',
+  presetNew: 'New quality',
+  presetEditTitle: 'Edit quality',
+  presetName: 'Name',
+  presetLayer: 'Layer (× nozzle)',
+  presetLayerHint: '0.5 = half the diameter',
+  presetInfill: 'Infill',
+  presetWall: 'Minimum wall (mm)',
+  presetWallNozzles: 'Minimum wall (× nozzle)',
+  presetTop: 'Top (mm)',
+  presetBottom: 'Bottom (mm)',
+  presetSaved: 'Quality saved',
+  presetRemoved: 'Quality removed',
+  presetDisable: 'Disable',
+  presetEnable: 'Enable',
   jobsTitle: 'Background processes',
   jobsSummary: 'Waiting: {queued} · Running: {running} · Failed: {error}',
   jobRetry: 'Retry',

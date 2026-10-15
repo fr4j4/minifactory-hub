@@ -65,7 +65,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const busy = !!runId && (!run || run.status === 'queued' || run.status === 'running');
   const material = ctx.materials.find((m) => m.id === materialId);
   const [qBusy, setQBusy] = useState<string | null>(null);
-  const pickQuality = async (key: 'borrador' | 'estandar' | 'fino' | 'resistente') => {
+  const pickQuality = async (key: string) => {
     if (!machine?.machineProfileId) return; setQBusy(key);
     const r = await ensureQualityAction({ machineProfileId: machine.machineProfileId, key }); setQBusy(null);
     if (!r.ok) { toast.push(r.error, 'err'); return; }
@@ -94,7 +94,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => setSetupKey(e.target.value)} data-testid="slice-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}{ctx.machines.find((m) => m.id === x.machineId)?.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
         <div className="sm:col-span-2 flex flex-wrap items-center gap-2" role="group" aria-label={t('slicer.qualityIntent')} data-testid="quality-chips">
           <span className="label !mb-0">{t('slicer.qualityIntent')}</span>
-          {(['borrador', 'estandar', 'fino', 'resistente'] as const).map((k) => <button key={k} type="button" className="btn-ghost btn-sm" disabled={!machine?.machineProfileId || !!qBusy} onClick={() => pickQuality(k)} data-testid={`quality-${k}`}>{t(`nozzle.tpl.${k}` as 'nozzle.tpl.borrador')}</button>)}
+          {ctx.presets.map((pr) => <button key={pr.key} type="button" className="btn-ghost btn-sm" disabled={!machine?.machineProfileId || !!qBusy} onClick={() => pickQuality(pr.key)} data-testid={`quality-${pr.key}`}>{pr.label ?? t(`nozzle.tpl.${pr.key}` as 'nozzle.tpl.borrador')}</button>)}
         </div>
         <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} compatibleIds={setup?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
         <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
