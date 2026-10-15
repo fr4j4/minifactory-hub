@@ -29,7 +29,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
   if (editable) {
     const { ctx, customers, models: lib, variants } = await loadEditorData();
     const initial: QuoteState = {
-      id: q.id, customerId: q.customerId, customerName: q.customerName ?? '', customerPhone: q.customerPhone ?? '', source: q.source ?? '', title: q.title ?? '', urgency: q.urgency, discount: q.discount, finalTotal: q.finalTotal, priceReason: q.priceReason ?? '', notes: q.notes ?? '', validUntil: q.validUntil ?? '',
+      id: q.id, customerId: q.customerId, customerName: q.customerName ?? '', customerPhone: q.customerPhone ?? '', source: q.source ?? '', title: q.title ?? '', urgency: q.urgency, discount: q.discount, applyTax: q.applyTax, finalTotal: q.finalTotal, priceReason: q.priceReason ?? '', notes: q.notes ?? '', validUntil: q.validUntil ?? '',
       links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ id: l.id, url: l.url, title: l.title, kind: l.kind, note: l.note, imageUrl: l.imageUrl, showInPdf: l.showInPdf })),
       items: items.map((it): ItemState => ({
         uid: it.id, id: it.id, kind: it.kind as any, description: it.description, qty: it.qty, optional: it.optional, groupName: it.groupName ?? '', materialId: it.materialId, color: it.color ?? '', machineId: it.machineId, processProfileId: it.processProfileId, mode: it.mode as any,
@@ -80,7 +80,7 @@ export default async function QuotePage({ params }: { params: Promise<{ id: stri
               {costs && <div className="flex justify-between"><dt className="muted">{t('common.suggestedPrice')}</dt><dd>{money(q.suggestedTotal)}</dd></div>}
               <div className="flex justify-between"><dt className="muted">{t('quotes.subtotal')}</dt><dd>{money(tot.subtotal ?? q.total)}</dd></div>
               {q.discount > 0 && <div className="flex justify-between"><dt className="muted">{t('common.discount')}</dt><dd>−{money(q.discount)}</dd></div>}
-              <div className="flex justify-between"><dt className="muted">{st.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: st.rates.taxPct }) : 'IVA'}</dt><dd>{money(q.taxAmount)}</dd></div>
+              <div className="flex justify-between"><dt className="muted">{st.rates.pricingModel === 'neto' ? (q.applyTax ? t('quotes.plusVat', { pct: st.rates.taxPct }) : t('quotes.noVat')) : st.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: st.rates.taxPct }) : 'IVA'}</dt><dd>{money(q.taxAmount)}</dd></div>
               <div className="flex justify-between text-lg font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><dt>{t('common.total')}</dt><dd data-testid="view-total">{money(q.total)}</dd></div>
               {costs && <><div className="flex justify-between"><dt className="muted">{t('common.cost')}</dt><dd>{money(q.costTotal)}</dd></div><div className="flex justify-between"><dt className="muted">{t('common.margin')}</dt><dd>{tot.marginPct != null ? pct(tot.marginPct, 0) : '—'}</dd></div>{q.suggestedTotal > 0 && <div className="flex justify-between"><dt className="muted">{t('quotes.finalVsSuggested')}</dt><dd>{num(((q.total - q.suggestedTotal) / q.suggestedTotal) * 100, 1)}%</dd></div>}</>}
             </dl>

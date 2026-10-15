@@ -97,4 +97,5 @@ export const quotes = {
   plusVat: '+ IVA {pct}%',
   rejectedPrefix: 'Rechazado:',
   pdfUnavailable: 'No se pudo generar el PDF en el servidor (Chromium no disponible). Usa «Imprimir → Guardar como PDF» del navegador. Revisa Configuración → Sistema.',
+  netAmount: 'Neto',
 };

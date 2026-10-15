@@ -85,4 +85,8 @@ export const calculator = {
   reply: 'Hola, la cotización de {item} ({qty} u.) es {total}. ¿Te la preparo?',
   replyVat: 'Hola, la cotización de {item} ({qty} u.) es {total} IVA incluido. ¿Te la preparo?',
   yourPart: 'tu pieza',
+  incompleteData: 'Datos incompletos: precio poco confiable',
+  warn_materialCostZero: 'el material no tiene costo',
+  warn_machineIncomplete: 'la máquina no tiene valor de compra o potencia',
+  warn_noMachine: 'sin máquina',
 };

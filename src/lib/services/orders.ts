@@ -104,7 +104,7 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
     notes: q.notes, items: itemInputs, links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })), deposit: o.deposit, dueDate: o.dueDate ?? null,
     approvedBy: o.by, approvedChannel: o.channel,
   }, user);
-  await db.update(s.orders).set({ total: q.total }).where(eq(s.orders.id, orderId));
+  await db.update(s.orders).set({ total: q.total, taxAmount: q.taxAmount }).where(eq(s.orders.id, orderId));
   await db.update(s.quotes).set({ status: 'aprobado', frozen: true, approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() }).where(eq(s.quotes.id, quoteId));
   await audit('quote', quoteId, 'estado', { to: 'aprobado', by: o.by, channel: o.channel, orderId }, user.id);
   return orderId;

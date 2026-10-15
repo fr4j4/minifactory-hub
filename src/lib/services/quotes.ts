@@ -22,7 +22,7 @@ export interface ItemInput {
 }
 export interface QuoteInput {
   id?: string; customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null;
-  urgency?: string; discount?: number; finalTotal?: number | null; priceReason?: string | null; notes?: string | null; validUntil?: string | null;
+  urgency?: string; discount?: number; applyTax?: boolean; finalTotal?: number | null; priceReason?: string | null; notes?: string | null; validUntil?: string | null;
   items: ItemInput[]; links?: LinkInput[];
   _version?: { number: string; version: number; rootId: string };
 }
@@ -96,7 +96,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
   const valid = input.validUntil ?? new Date(Date.now() + ctx.settings.quoteValidDays * 86400_000).toISOString().slice(0, 10);
   const header = {
     customerId: input.customerId ?? null, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, source: input.source ?? null,
-    title: input.title ?? null, urgency: input.urgency ?? 'normal', discount: Math.max(0, Math.round(input.discount ?? 0)), finalTotal: input.finalTotal ?? null,
+    title: input.title ?? null, urgency: input.urgency ?? 'normal', applyTax: input.applyTax ?? (ctx.settings.rates.taxDefault ?? false), discount: Math.max(0, Math.round(input.discount ?? 0)), finalTotal: input.finalTotal ?? null,
     priceReason: input.priceReason ?? null, notes: input.notes ?? null, validUntil: valid, updatedAt: new Date(),
   };
   if (!quoteId) {
@@ -137,7 +137,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
     const prev = it.id ? oldById.get(it.id) : undefined;
     const prevFinal = prev?.finalUnit ?? null;
     if (finalUnit !== prevFinal && (finalUnit != null || prevFinal != null)) {
-      const net = ctx.settings.rates.taxMode === 'incluido' ? (finalUnit ?? priced.suggestedUnit) / (1 + rt.taxPct / 100) : (finalUnit ?? priced.suggestedUnit);
+      const net = rt.pricingModel === 'neto' ? (finalUnit ?? priced.suggestedUnit) : ctx.settings.rates.taxMode === 'incluido' ? (finalUnit ?? priced.suggestedUnit) / (1 + rt.taxPct / 100) : (finalUnit ?? priced.suggestedUnit);
       await db.insert(s.priceAdjustments).values({
         workspaceId: WORKSPACE_ID, ownerType: 'quote_item', ownerId: row.id, suggested: priced.suggestedUnit, previous: prevFinal, next: finalUnit,
         reason: input.priceReason ?? null, belowCost: net * Math.max(1, it.qty) < priced.costTotal, authorizedBy: canSellBelowCost(user) ? user.id : null, createdBy: user.id,
@@ -146,7 +146,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
     lines.push({ id: row.id, qty: Math.max(1, it.qty), optional: !!it.optional, suggestedUnit: priced.suggestedUnit, finalUnit, cost: priced.costTotal - (it.shipping ?? 0), shipping: it.shipping });
   }
   await replaceLinks(db, 'quote', quoteId, input.links, user.id);
-  const tt = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal });
+  const tt = calcQuote(lines, rt, { discount: header.discount, finalTotalOverride: header.finalTotal, applyTax: header.applyTax });
   if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) {
     throw new Error(t('quotes.theFinalPriceIsBelow2'));
   }

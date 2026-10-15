@@ -341,6 +341,7 @@ export const quotes = pgTable('quotes', {
   finalTotal: integer('final_total'), // si el usuario fija el total
   discount: integer('discount').notNull().default(0),
   taxAmount: integer('tax_amount').notNull().default(0),
+  applyTax: boolean('apply_tax').notNull().default(false), // casilla «+ IVA» (modelo de precios 'neto')
   total: integer('total').notNull().default(0),
   costTotal: integer('cost_total').notNull().default(0),
   priceReason: text('price_reason'),
@@ -429,6 +430,7 @@ export const orders = pgTable('orders', {
   dueDate: date('due_date'),
   title: text('title'),
   total: integer('total').notNull().default(0),
+  taxAmount: integer('tax_amount').notNull().default(0), // IVA cobrado dentro del total (modelo 'neto')
   costEstimated: integer('cost_estimated').notNull().default(0),
   costReal: integer('cost_real'),
   paid: integer('paid').notNull().default(0),

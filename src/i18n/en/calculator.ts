@@ -88,4 +88,8 @@ export const calculator: Shape<typeof es['calculator']> = {
   reply: 'Hi, the quote for {item} ({qty} pcs) is {total}. Shall I prepare it for you?',
   replyVat: 'Hi, the quote for {item} ({qty} pcs) is {total} VAT included. Shall I prepare it for you?',
   yourPart: 'your part',
+  incompleteData: 'Incomplete data: unreliable price',
+  warn_materialCostZero: 'the material has no cost',
+  warn_machineIncomplete: 'the machine has no purchase value or power',
+  warn_noMachine: 'no machine',
 };

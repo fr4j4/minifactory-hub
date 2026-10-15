@@ -163,4 +163,10 @@ export const settings = {
   supplierKind_servicio_casillero: 'Casillero / courier',
   supplierKind_retail: 'Retail',
   supplierKind_otro: 'Otro',
+  pricingModel: 'Modelo de precios',
+  pricingLegacy: 'Histórico (recargo sobre costo)',
+  pricingNet: 'Neto (margen sobre venta, IVA opcional)',
+  pricingLegacyHint: 'Se mantiene tal como está: el margen es un recargo sobre el costo y el IVA va según «IVA en precios».',
+  pricingNetHint: 'Costos y precios netos de IVA. El margen es un porcentaje de la venta neta (precio = costo ÷ (1 − margen)); el IVA es una casilla en cada presupuesto. Los presupuestos ya enviados no cambian.',
+  taxDefault: 'Marcar «+ IVA» por defecto en presupuestos nuevos',
 };

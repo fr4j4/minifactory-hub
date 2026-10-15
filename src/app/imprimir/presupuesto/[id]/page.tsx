@@ -31,7 +31,9 @@ export default async function PrintQuote({ params, searchParams }: { params: Pro
         {items.some((i) => i.optional) && <div className="muted" style={{ marginTop: 8 }}>{t('quotes.optionalNotIncludedInThe')} {items.filter((i) => i.optional).map((i) => `${i.description} ${money((i.finalUnit ?? i.suggestedUnit) * i.qty)}`).join(' · ')}</div>}
         <table className="tot" style={{ width: 260, marginLeft: 'auto', marginTop: 12 }}><tbody>
           {q.discount > 0 && <tr><td>{t('common.discount')}</td><td className="r">−{money(q.discount)}</td></tr>}
-          <tr><td>{st.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: st.rates.taxPct }) : 'IVA'}</td><td className="r">{money(q.taxAmount)}</td></tr>
+          {st.rates.pricingModel === 'neto'
+            ? (q.applyTax ? <><tr><td>{t('quotes.netAmount')}</td><td className="r">{money(q.total - q.taxAmount)}</td></tr><tr><td>{t('quotes.plusVat', { pct: st.rates.taxPct })}</td><td className="r">{money(q.taxAmount)}</td></tr></> : <tr><td>{t('quotes.noVat')}</td><td className="r muted">—</td></tr>)
+            : <tr><td>{st.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: st.rates.taxPct }) : 'IVA'}</td><td className="r">{money(q.taxAmount)}</td></tr>}
           <tr><td className="big">{t('common.total')}</td><td className="r big">{money(q.total)}</td></tr></tbody></table>
         {pdfLinks.length > 0 && <div style={{ marginTop: 14 }}><b>{t('quotes.references')}</b><ul>{pdfLinks.map((l) => <li key={l.id}>{l.title ?? l.url} — {l.url}</li>)}</ul></div>}
         {q.notes && <div style={{ marginTop: 10 }}><b>{t('common.notes')}</b><div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{q.notes}</div></div>}

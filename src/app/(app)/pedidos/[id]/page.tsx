@@ -17,6 +17,7 @@ import { getT } from '@/i18n/server';
 import { RemoveButton } from '@/components/remove-button';
 import { EditButton } from '@/components/edit-button';
 import { editFields } from '@/lib/edit-fields';
+import { netOfGross } from '@/lib/pricing';
 
 export async function generateMetadata() { return { title: (await getT())('meta.order') }; }
 const STEPS = ['recibido', 'en_produccion', 'post_proceso', 'listo', 'entregado'] as const;
@@ -42,7 +43,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const stepIdx = Math.max(0, STEPS.findIndex((k) => k === o.status));
   const vars = { cliente: o.customerName, numero: o.number, seguimiento: o.tracking ?? '' };
   const phone = o.customerPhone ?? cust?.phone;
-  const estCost = o.costEstimated; const real = o.costReal; const margin = o.total > 0 ? ((o.total / (st.rates.taxMode === 'incluido' ? 1 + st.rates.taxPct / 100 : 1) - (real ?? estCost)) / (o.total / (st.rates.taxMode === 'incluido' ? 1 + st.rates.taxPct / 100 : 1))) * 100 : null;
+  const estCost = o.costEstimated; const real = o.costReal; const netTotal = netOfGross(o.total, st.rates, o.taxAmount); const margin = o.total > 0 && netTotal > 0 ? ((netTotal - (real ?? estCost)) / netTotal) * 100 : null;
   const today = new Date().toISOString().slice(0, 10);
   return (
     <>

@@ -4,6 +4,7 @@ import { getSettings } from './settings';
 import { stockValue } from './stats';
 import { getT } from '@/i18n/server';
 import { tOr, type MessageKey } from '@/i18n/translate';
+import { netOfGross } from './pricing';
 
 export interface Col { key: string; label: string; fmt?: 'money' | 'num' | 'pct' | 'text' | 'date' | 'h' | 'kg' }
 export interface ReportData { title: string; question: string; columns: Col[]; rows: Array<Record<string, any>>; summary?: Array<{ label: string; value: string }> }
@@ -25,18 +26,18 @@ const mon = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 export async function reportData(kind: string, r: { from: Date; to: Date }, costs: boolean, onlyUser?: string): Promise<ReportData> {
   const t = await getT();
   const db = await getDb(); const st = await getSettings(); const meta = REPORTS[kind];
-  const netOf = (g: number) => (st.rates.taxMode === 'incluido' ? g / (1 + st.rates.taxPct / 100) : g);
+  const netOf = (g: number, tax = 0) => netOfGross(g, st.rates, tax);
   const oc = [gte(s.orders.createdAt, r.from), lte(s.orders.createdAt, r.to), ne(s.orders.status, 'cancelado'), isNull(s.orders.deletedAt)]; if (onlyUser) oc.push(eq(s.orders.createdBy, onlyUser));
   const orders = await db.select().from(s.orders).where(and(...oc));
   const sc = [gte(s.sales.createdAt, r.from), lte(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada'), isNull(s.sales.deletedAt)]; if (onlyUser) sc.push(eq(s.sales.createdBy, onlyUser));
   const sales = await db.select().from(s.sales).where(and(...sc));
   const base = { title: t(meta.title), question: t(meta.question) };
   if (kind === 'ventas') {
-    const by = new Map<string, { month: string; orders: number; sales: number; revenue: number; cost: number }>();
-    const add = (d: Date, rev: number, cost: number, o: number, sl: number) => { const k = mon(d); const e = by.get(k) ?? { month: k, orders: 0, sales: 0, revenue: 0, cost: 0 }; e.orders += o; e.sales += sl; e.revenue += rev; e.cost += cost; by.set(k, e); };
-    for (const o of orders) add(o.createdAt, o.total, o.costReal ?? o.costEstimated, 1, 0);
+    const by = new Map<string, { month: string; orders: number; sales: number; revenue: number; cost: number; tax: number }>();
+    const add = (d: Date, rev: number, cost: number, o: number, sl: number, tax = 0) => { const k = mon(d); const e = by.get(k) ?? { month: k, orders: 0, sales: 0, revenue: 0, cost: 0, tax: 0 }; e.orders += o; e.sales += sl; e.revenue += rev; e.cost += cost; e.tax += tax; by.set(k, e); };
+    for (const o of orders) add(o.createdAt, o.total, o.costReal ?? o.costEstimated, 1, 0, o.taxAmount);
     for (const x of sales) add(x.createdAt, x.total, x.costTotal + x.commission + x.shipping, 0, 1);
-    const rows = [...by.values()].sort((a, b) => a.month.localeCompare(b.month)).map((e) => ({ ...e, margin: Math.round(netOf(e.revenue) - e.cost), marginPct: e.revenue ? ((netOf(e.revenue) - e.cost) / netOf(e.revenue)) * 100 : null }));
+    const rows = [...by.values()].sort((a, b) => a.month.localeCompare(b.month)).map((e) => ({ ...e, margin: Math.round(netOf(e.revenue, e.tax) - e.cost), marginPct: e.revenue ? ((netOf(e.revenue, e.tax) - e.cost) / netOf(e.revenue, e.tax)) * 100 : null }));
     const cols: Col[] = [{ key: 'month', label: t('reports.month') }, { key: 'orders', label: t('common.orders'), fmt: 'num' }, { key: 'sales', label: t('reports.quickSales'), fmt: 'num' }, { key: 'revenue', label: t('common.sales'), fmt: 'money' }];
     if (costs) cols.push({ key: 'cost', label: t('common.cost'), fmt: 'money' }, { key: 'margin', label: t('common.margin'), fmt: 'money' }, { key: 'marginPct', label: t('reports.margin'), fmt: 'pct' });
     return { ...base, columns: cols, rows, summary: [{ label: t('reports.salesInThePeriod'), value: String(rows.reduce((a, x) => a + x.revenue, 0)) }] };

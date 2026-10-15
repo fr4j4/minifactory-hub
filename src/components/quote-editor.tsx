@@ -16,7 +16,7 @@ import { useLocale, useT } from '@/i18n/client';
 import { LOCALE_TAG } from '@/i18n/config';
 import { DateInput } from '@/components/date-input';
 
-export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
+export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; applyTax: boolean; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
 export type VariantOpt = { id: string; label: string; price: number; avgCost: number; stock: number };
 
 export function QuoteEditor({ initial, ctx, customers, models, variants, showCosts, canPrice, number, version }: { initial: QuoteState; ctx: CalcContext; customers: CustomerOpt[]; models: ModelBrief[]; variants: VariantOpt[]; showCosts: boolean; canPrice: boolean; number?: string; version?: number }) {
@@ -36,11 +36,11 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
     const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost - (it.shipping ?? 0), shipping: it.shipping }; });
     const urg = ctx.urgency.find((u) => u.key === q.urgency)?.pct ?? 0;
     if (urg) for (const l of lines) l.suggestedUnit = Math.round(l.suggestedUnit * (1 + urg / 100) / 10) * 10;
-    return calcQuote(lines, ctx.rates, { discount: q.discount, finalTotalOverride: q.finalTotal });
-  }, [q.items, q.discount, q.finalTotal, q.urgency, ctx, adj, vById]);
+    return calcQuote(lines, ctx.rates, { discount: q.discount, finalTotalOverride: q.finalTotal, applyTax: q.applyTax });
+  }, [q.items, q.discount, q.finalTotal, q.applyTax, q.urgency, ctx, adj, vById]);
 
   const payload = (x: QuoteState) => ({
-    id: idRef.current, customerId: x.customerId, customerName: x.customerName || null, customerPhone: x.customerPhone || null, source: x.source || null, title: x.title || null, urgency: x.urgency, discount: x.discount, finalTotal: x.finalTotal,
+    id: idRef.current, customerId: x.customerId, customerName: x.customerName || null, customerPhone: x.customerPhone || null, source: x.source || null, title: x.title || null, urgency: x.urgency, discount: x.discount, applyTax: x.applyTax, finalTotal: x.finalTotal,
     priceReason: x.priceReason || null, notes: x.notes || null, validUntil: x.validUntil || null, links: x.links,
     items: x.items.map((i) => ({ id: i.id, kind: i.kind, description: i.description, qty: i.qty, optional: i.optional, groupName: i.groupName || null, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
   });
@@ -111,7 +111,8 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
           <div><label className="text-[11px] muted block" htmlFor="final-total">{t('quotes.finalQuotePrice')}</label>
             <div className="flex items-center gap-1"><input id="final-total" type="number" min={0} inputMode="numeric" className="input !w-36 !min-h-[36px] font-semibold tabular" placeholder={String(tt.subtotal)} value={q.finalTotal ?? ''} disabled={!canPrice} onChange={(e) => set({ finalTotal: e.target.value === '' ? null : Math.max(0, Math.round(+e.target.value)) })} data-testid="final-total" />{q.finalTotal != null && <button className="btn-ghost btn-sm" onClick={() => set({ finalTotal: null })}>{t('quotes.remove')}</button>}</div></div>
           <div><label className="text-[11px] muted block" htmlFor="disc">{t('common.discount')}</label><input id="disc" type="number" min={0} className="input !w-28 !min-h-[36px] tabular" value={q.discount || ''} onChange={(e) => set({ discount: Math.max(0, +e.target.value || 0) })} /></div>
-          <div><div className="text-[11px] muted">{ctx.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: ctx.rates.taxPct }) : ctx.rates.taxMode === 'sumado' ? t('quotes.plusVat', { pct: ctx.rates.taxPct }) : t('quotes.noVat')}</div><div className="tabular text-sm">{money(tt.tax)}</div></div>
+          {ctx.rates.pricingModel === 'neto' && <label className="flex items-center gap-2 text-sm self-end pb-1"><input type="checkbox" checked={q.applyTax} onChange={(e) => set({ applyTax: e.target.checked })} data-testid="apply-tax" />{t('quotes.plusVat', { pct: ctx.rates.taxPct })}</label>}
+          <div><div className="text-[11px] muted">{ctx.rates.pricingModel === 'neto' ? (q.applyTax ? t('quotes.plusVat', { pct: ctx.rates.taxPct }) : t('quotes.noVat')) : ctx.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: ctx.rates.taxPct }) : ctx.rates.taxMode === 'sumado' ? t('quotes.plusVat', { pct: ctx.rates.taxPct }) : t('quotes.noVat')}</div><div className="tabular text-sm">{money(tt.tax)}</div></div>
           <div className="ml-auto text-right"><div className="text-[11px] muted">{t('common.total')} {tt.diffPct !== 0 && <span className={cn(tt.diffPct < 0 ? 'text-amber-600' : 'text-blue-600')}>({tt.diffPct > 0 ? '+' : ''}{num(tt.diffPct, 1)}% vs sugerido)</span>}</div><div className="text-xl font-bold tabular" data-testid="sum-total">{money(tt.total)}</div></div>
           {showCosts && <div className="text-right"><div className="text-[11px] muted">{t('common.margin')}</div><Badge tone={tt.belowCost ? 'red' : tt.belowMin ? 'amber' : 'green'}>{pct(tt.marginPct, 0)}</Badge></div>}
           <div className="flex items-center gap-2">

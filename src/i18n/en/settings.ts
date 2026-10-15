@@ -166,4 +166,10 @@ export const settings: Shape<typeof es['settings']> = {
   supplierKind_servicio_casillero: 'Mailbox / courier',
   supplierKind_retail: 'Retail',
   supplierKind_otro: 'Other',
+  pricingModel: 'Pricing model',
+  pricingLegacy: 'Legacy (markup on cost)',
+  pricingNet: 'Net (margin on sales, optional VAT)',
+  pricingLegacyHint: 'Kept as is: margin is a markup on cost and VAT follows “VAT in prices”.',
+  pricingNetHint: 'Costs and prices are net of VAT. Margin is a percentage of net sales (price = cost ÷ (1 − margin)); VAT is a checkbox on each quote. Quotes already sent do not change.',
+  taxDefault: 'Check “+ VAT” by default on new quotes',
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calcLine, calcQuote, estimateFromMesh, machineHourly, roundPrice, volumePct, type Rates } from '@/lib/pricing';
+import { calcLine, calcQuote, estimateFromMesh, machineHourly, netOfGross, roundPrice, volumePct, type Rates } from '@/lib/pricing';
 import { DEFAULT_SETTINGS } from '@/lib/settings';
 
 const rt: Rates = { ...DEFAULT_SETTINGS.rates, rounding: { mode: 'none', step: 1 } };
@@ -62,5 +62,37 @@ describe('precio final decidido por el usuario', () => {
     const inc = calcQuote(l, { ...rt, taxMode: 'incluido', taxPct: 19 }); expect(inc.total).toBe(11900); expect(inc.tax).toBe(1900);
     const sum = calcQuote(l, { ...rt, taxMode: 'sumado', taxPct: 19 }); expect(sum.total).toBe(14161);
     const ex = calcQuote(l, { ...rt, taxMode: 'exento' }, { discount: 900 }); expect(ex.total).toBe(11000);
+  });
+});
+
+describe('modelo de precios «neto» (calculadora, fase 1)', () => {
+  const base = { kwh: 180, laborHour: 6000, wastePct: 0, failRatePct: 10, marginPct: 40, minPrice: 0, minMarginPct: 25, rounding: { mode: 'none' as const, step: 1 }, taxPct: 19, taxMode: 'exento' as const, urgency: [{ key: 'normal', label: 'Normal', pct: 0 }], volumeTiers: [], prepMinutes: 0 };
+  const line = { qty: 1, gramsTotal: 100, hoursTotal: 0, costPerKg: 20000, machine: null };
+  it('el margen es sobre la venta neta: el margen real coincide con el pedido', () => {
+    const b = calcLine(line, { ...base, pricingModel: 'neto' });
+    expect(((b.suggestedUnit - b.cost) / b.suggestedUnit) * 100).toBeCloseTo(40, 0);
+    const old = calcLine(line, { ...base });
+    expect(b.suggestedUnit).toBeGreaterThan(old.suggestedUnit); // el 40 % histórico era recargo (≈28,6 % de margen real)
+  });
+  it('la falla se calcula con encogimiento f/(1−f)', () => {
+    const b = calcLine(line, { ...base, pricingModel: 'neto', marginPct: 0 });
+    expect(b.failure).toBeCloseTo(2000 * (0.1 / 0.9), 0);
+  });
+  it('avisa datos incompletos y aplica el factor de tiempo en todos los modos', () => {
+    const rt = { ...base, pricingModel: 'neto' as const };
+    expect(calcLine({ ...line, costPerKg: 0 }, rt).warnings).toEqual(expect.arrayContaining(['materialCostZero', 'noMachine']));
+    const m = { purchaseValue: 600000, residualValue: 0, lifeHours: 6000, watts: 120, maintCostHour: 0, timeFactor: 1.5 };
+    expect(calcLine({ ...line, machine: m, hoursTotal: 2 }, rt).hoursEffective).toBe(3);
+    expect(calcLine({ ...line, machine: m, hoursTotal: 2 }, { ...base }).hoursEffective).toBe(2); // histórico: solo si se pide
+  });
+  it('el IVA es una casilla: sin marcar el total es neto; marcada se suma', () => {
+    const rt = { ...base, pricingModel: 'neto' as const };
+    const ql = [{ id: 'a', qty: 1, suggestedUnit: 10000, finalUnit: null, cost: 5000 }];
+    expect(calcQuote(ql, rt, { applyTax: false })).toMatchObject({ tax: 0, total: 10000 });
+    expect(calcQuote(ql, rt, { applyTax: true })).toMatchObject({ tax: 1900, total: 11900, net: 10000 });
+  });
+  it('netOfGross: en el modelo neto resta el IVA cobrado; en el histórico lo deduce de la configuración', () => {
+    expect(netOfGross(11900, { ...base, pricingModel: 'neto' }, 1900)).toBe(10000);
+    expect(netOfGross(11900, { ...base, taxMode: 'incluido' })).toBeCloseTo(10000, 0);
   });
 });

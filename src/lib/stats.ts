@@ -1,3 +1,4 @@
+import { netOfGross } from './pricing';
 import { and, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSettings } from './settings';
@@ -8,7 +9,7 @@ export interface Range { from: Date; to: Date }
 export const monthRange = (d = new Date()): Range => ({ from: new Date(d.getFullYear(), d.getMonth(), 1), to: new Date(d.getFullYear(), d.getMonth() + 1, 1) });
 
 /** Neto sin IVA según la configuración de impuestos. */
-function net(gross: number, st: Awaited<ReturnType<typeof getSettings>>) { return st.rates.taxMode === 'incluido' ? gross / (1 + st.rates.taxPct / 100) : gross; }
+function net(gross: number, st: Awaited<ReturnType<typeof getSettings>>, tax = 0) { return netOfGross(gross, st.rates, tax); }
 
 export async function monthIndicators(r: Range = monthRange()) {
   const db = await getDb(); const st = await getSettings();
@@ -16,7 +17,7 @@ export async function monthIndicators(r: Range = monthRange()) {
   const sales = await db.select().from(s.sales).where(and(gte(s.sales.createdAt, r.from), lt(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada'), isNull(s.sales.deletedAt)));
   const revenue = orders.reduce((a, o) => a + o.total, 0) + sales.reduce((a, x) => a + x.total, 0);
   const cost = orders.reduce((a, o) => a + (o.costReal ?? o.costEstimated), 0) + sales.reduce((a, x) => a + x.costTotal + x.commission + x.shipping, 0);
-  const netRev = orders.reduce((a, o) => a + net(o.total, st), 0) + sales.reduce((a, x) => a + net(x.total, st), 0);
+  const netRev = orders.reduce((a, o) => a + net(o.total, st, o.taxAmount), 0) + sales.reduce((a, x) => a + net(x.total, st), 0);
   const delivered = orders.filter((o) => o.status === 'entregado').length;
   const quotes = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lt(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['enviado', 'aprobado', 'rechazado', 'vencido'])));
   const approved = quotes.filter((q) => q.status === 'aprobado').length;
