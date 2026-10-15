@@ -2,6 +2,10 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const slicer: Shape<typeof es['slicer']> = {
+  multicolorTitle: 'Multicolor: {n} extruders',
+  multicolorHint: 'The project carries the extruder of each part. Pick the material for each one.',
+  extruderN: 'Extruder {n}',
+  sameAsFirst: 'Same as the first',
   addToQueue: 'Add to print queue',
   queued: 'Added to the print queue',
   ownFilter: 'Filter profiles',

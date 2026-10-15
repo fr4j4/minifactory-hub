@@ -18,6 +18,7 @@ import { getT } from '@/i18n/server';
 const g = globalThis as unknown as { __sliceWorker?: { running: number; timer?: NodeJS.Timeout }; __sliceAbort?: Map<string, AbortController> };
 const aborts = () => (g.__sliceAbort ??= new Map());
 
+const EXTRA_COLOURS = ['#00AA00', '#E02020', '#2060E0', '#F0C020', '#A020C0', '#20C0C0'];
 export type Overrides = { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> };
 const cleanOverrides = (o?: Overrides): Overrides => { const out: Overrides = {}; for (const k of ['machine', 'process', 'filament'] as const) if (o?.[k] && Object.keys(o[k]!).length) out[k] = o[k]; return out; };
 
@@ -29,6 +30,8 @@ export interface EnqueueInput {
   overrides?: Overrides;
   /** Orientar la pieza automáticamente (--orient de OrcaSlicer) antes de acomodar. */
   orient?: boolean;
+  /** Material (o perfil) de los extrusores 2…n de un proyecto multicolor. */
+  extra?: Array<{ materialId?: string | null; filamentProfileId?: string | null }>;
   copies?: number; label?: string; groupId?: string; userId?: string; force?: boolean;
 }
 
@@ -41,23 +44,25 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   const t = await getT();
   const db = await getDb();
   const i = { ...input, filamentProfileId: (await resolveFilament({ materialId: input.materialId, explicitProfileId: input.filamentProfileId, machineProfileId: input.machineProfileId, userId: input.userId }, db)).profileId };
+  const extraIds: string[] = [];
+  for (const e of input.extra ?? []) extraIds.push((await resolveFilament({ materialId: e.materialId, explicitProfileId: e.filamentProfileId, machineProfileId: input.machineProfileId, userId: input.userId }, db)).profileId);
   const copies = Math.max(1, Math.min(200, i.copies ?? 1));
   const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, i.fileVersionId));
   if (!fv) throw new Error(t('slicer.fileNotFound'));
-  const P = await loadProfiles(db, [i.machineProfileId, i.processProfileId, i.filamentProfileId]);
+  const P = await loadProfiles(db, [i.machineProfileId, i.processProfileId, i.filamentProfileId, ...extraIds]);
   const m = P[i.machineProfileId], p = P[i.processProfileId], f = P[i.filamentProfileId];
   if (!m || !p || !f) throw new Error(t('slicer.machineProcessOrFilamentProfiles'));
   const engine = await engineVersion();
   const overrides = cleanOverrides(i.overrides);
   const cacheKey = crypto.createHash('sha256').update(JSON.stringify([fv.sha256 ?? fv.id, engine, copies,
-    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes]), sortKeys(overrides), ...(i.orient ? ['orient'] : [])])).digest('hex');
+    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes]), sortKeys(overrides), ...(i.orient ? ['orient'] : []), ...(extraIds.length ? [extraIds.map((id) => [id, P[id]?.version, P[id]?.changes])] : [])])).digest('hex');
   const profileVersions = { machine: [m.name, m.version], process: [p.name, p.version], filament: [f.name, f.version] };
   if (!i.force) {
     const [hit] = await db.select().from(s.sliceRuns).where(and(eq(s.sliceRuns.cacheKey, cacheKey), eq(s.sliceRuns.status, 'done'))).limit(1);
     if (hit) {
       const [row] = await db.insert(s.sliceRuns).values({
         workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}) }, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
+        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}), ...(extraIds.length ? { extraFilaments: extraIds } : {}) }, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
         filament: hit.filament, layers: hit.layers, plates: hit.plates, durationMs: 0, gcodeKey: hit.gcodeKey, threemfKey: hit.threemfKey,
         label: i.label, groupId: i.groupId, createdBy: i.userId ?? null, result: { ...(hit.result ?? {}), cached: true },
       }).returning({ id: s.sliceRuns.id });
@@ -66,7 +71,7 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   }
   const [row] = await db.insert(s.sliceRuns).values({
     workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}) }, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
+    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}), ...(extraIds.length ? { extraFilaments: extraIds } : {}) }, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
     createdBy: i.userId ?? null,
   }).returning({ id: s.sliceRuns.id });
   ensureWorker();
@@ -81,7 +86,8 @@ async function execute(runId: string) {
   let tmpDir: string | null = null;
   try {
     const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, run.fileVersionId));
-    const P = await loadProfiles(db, [run.machineProfileId!, run.processProfileId!, run.filamentProfileId!]);
+    const extraIds: string[] = ((run.inputs as any)?.extraFilaments ?? []) as string[];
+    const P = await loadProfiles(db, [run.machineProfileId!, run.processProfileId!, run.filamentProfileId!, ...extraIds]);
     const m = P[run.machineProfileId!], p = P[run.processProfileId!], f = P[run.filamentProfileId!];
     if (!fv || !m || !p || !f) throw new Error(t('slicer.incompleteDataForSlicing'));
     const ov = cleanOverrides(run.inputs?.overrides);
@@ -96,6 +102,8 @@ async function execute(runId: string) {
     }
     const ctl = new AbortController(); aborts().set(runId, ctl);
     const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, orient: !!(run.inputs as any)?.orient, signal: ctl.signal,
+      // OrcaSlicer falla (-100) si dos filamentos cargados no se distinguen por color: cada extrusor extra recibe uno distinto
+      extraFilaments: extraIds.filter((id) => P[id]).map((id, k) => buildCliProfile('filament', { name: P[id].name, vendor: P[id].vendor ?? undefined, baseName: P[id].baseName, changes: { filament_colour: [EXTRA_COLOURS[k % EXTRA_COLOURS.length]], ...P[id].changes }, machineName: m.name })),
       onProgress: (() => { let last = 0; let lastPct = -1; return (p: { pct: number; message: string }) => {
         const now = Date.now(); if (p.pct === lastPct || now - last < 700) return; last = now; lastPct = p.pct;
         void db.update(s.sliceRuns).set({ result: { progress: p } }).where(and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'running'))).catch(() => {});
@@ -124,7 +132,7 @@ async function execute(runId: string) {
   } catch (e) {
     await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, result: { errorCode: 'other' }, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
   } finally {
-    if (tmpDir) await cleanup(tmpDir).catch(() => {});
+    if (tmpDir && !process.env.MF_KEEP_TMP) await cleanup(tmpDir).catch(() => {});
   }
 }
 

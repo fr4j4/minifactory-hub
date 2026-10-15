@@ -76,6 +76,8 @@ export function parseProgressLine(line: string): { pct: number; message: string 
 
 export async function runOrca(o: {
   inputPath: string; ext: string; machine: Record<string, any>; process: Record<string, any>; filament: Record<string, any>;
+  /** Filamentos de los extrusores 2…n (proyectos multicolor: el 3MF ya trae el extrusor de cada objeto). */
+  extraFilaments?: Array<Record<string, any>>;
   copies: number; orient?: boolean; timeoutS?: number; signal?: AbortSignal;
   /** Progreso real del laminado (--pipe de OrcaSlicer): porcentaje de la placa y etapa. */
   onProgress?: (p: { pct: number; message: string }) => void;
@@ -95,8 +97,12 @@ export async function runOrca(o: {
   if (ext === 'stl' && o.ext === '3mf') { /* ya convertido */ } else await fsp.copyFile(o.inputPath, input);
   if (ext === '3mf') await sanitize3mf(input);
   const wr = async (n: string, d: unknown) => { const p = path.join(tmpDir, n); await fsp.writeFile(p, JSON.stringify(d)); return p; };
-  const mf = await wr('machine.json', o.machine), pf = await wr('process.json', o.process), ff = await wr('filament.json', o.filament);
-  const args = ['--slice', '0', '--arrange', '1', '--load-settings', `${mf};${pf}`, '--load-filaments', ff, '--outputdir', outDir, '--export-3mf', 'sliced.3mf', '--allow-newer-file'];
+  const mf = await wr('machine.json', o.machine), pf = await wr('process.json', o.process);
+  const ffs = [await wr('filament.json', o.filament)]; for (const [i, x] of (o.extraFilaments ?? []).entries()) ffs.push(await wr(`filament${i + 2}.json`, x));
+  const ff = ffs.join(';');
+  // un proyecto multicolor conserva las posiciones y extrusores del 3MF: no se reacomoda
+  const multi = (o.extraFilaments?.length ?? 0) > 0;
+  const args = ['--slice', '0', ...(multi ? [] : ['--arrange', '1']), '--load-settings', `${mf};${pf}`, '--load-filaments', ff, '--outputdir', outDir, '--export-3mf', 'sliced.3mf', '--allow-newer-file'];
   if (o.orient) args.push('--orient', '1');
   if (o.copies > 1) args.push('--clone-objects', String(o.copies));
   // progreso por tubería con nombre: OrcaSlicer escribe una línea JSON por etapa

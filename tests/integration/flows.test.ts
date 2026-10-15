@@ -193,6 +193,19 @@ describe.skipIf(!orcaAvailable())('orientación automática (P5)', () => {
   });
 });
 
+describe.skipIf(!orcaAvailable())('multicolor al laminar (P5)', () => {
+  it('un proyecto con dos extrusores lamina con dos filamentos y reparte el consumo', async () => {
+    const { ingestModel } = await import('@/lib/files');
+    const tmp = 'data/test-storage/mc.3mf'; fs.mkdirSync('data/test-storage', { recursive: true }); fs.copyFileSync('samples/multicolor-2-extrusores.3mf', tmp);
+    const r = await ingestModel({ tmpPath: tmp, filename: 'multicolor.3mf', sync: true, userId: admin.id });
+    const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, r.versionId)); expect((fv.meta as any).ams?.multicolor).toBe(true);
+    const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((p) => p.name === n)!.id;
+    const [run] = await waitForRuns([await enqueueSlice({ fileVersionId: fv.id, machineProfileId: P('Bambu Lab A1 0.4'), processProfileId: P('A1 · 0,20 Standard'), filamentProfileId: P('PLA Basic'), extra: [{ filamentProfileId: P('PLA Basic') }], label: 'mc' })], 180000);
+    expect(run.status, run.error ?? '').toBe('done'); expect((run.inputs as any).extraFilaments).toHaveLength(1);
+    expect(run.filament!.length).toBe(2); expect(run.filament!.every((f) => f.g > 0)).toBe(true);
+  });
+});
+
 describe('alta masiva de filamentos (N4)', async () => {
   const { planBulkMaterials, applyBulkMaterials } = await import('@/lib/services/inventory');
   const common = { manufacturer: 'Cicla 3D', line: 'PLA reciclado', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 14000, netG: 1000, tareG: 200 };

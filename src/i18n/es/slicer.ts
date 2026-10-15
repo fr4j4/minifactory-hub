@@ -1,4 +1,8 @@
 export const slicer = {
+  multicolorTitle: 'Multicolor: {n} extrusores',
+  multicolorHint: 'El proyecto trae el extrusor de cada pieza. Elige el material de cada uno.',
+  extruderN: 'Extrusor {n}',
+  sameAsFirst: 'Igual que el primero',
   addToQueue: 'Agregar a la cola',
   queued: 'Agregado a la cola de impresión',
   ownFilter: 'Filtrar perfiles',
