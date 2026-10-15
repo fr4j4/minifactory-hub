@@ -28,6 +28,8 @@ export const users = pgTable('users', {
   active: boolean('active').notNull().default(true),
   permOverrides: jsonb('perm_overrides').$type<Record<string, string>>().default({}),
   notifPrefs: jsonb('notif_prefs').$type<Record<string, boolean>>().default({}),
+  /** Nivel de la calculadora que eligió la persona: se recuerda entre sesiones. */
+  calcLevel: text('calc_level').notNull().default('basico'), // basico | avanzado
 }, (t) => [uniqueIndex('users_email_uq').on(t.email)]);
 
 export const sessions = pgTable('sessions', {
@@ -143,6 +145,8 @@ export const suppliers = pgTable('suppliers', {
   channels: jsonb('channels').$type<string[]>().default([]),
   brands: jsonb('brands').$type<string[]>().default([]),
   notes: text('notes'),
+  /** Si el taller recupera el IVA de lo que compra aquí (crédito fiscal): entonces el costo del material va sin IVA. */
+  recoversVat: boolean('recovers_vat').notNull().default(false),
   verified: boolean('verified').notNull().default(false),
   verifiedAt: timestamp('verified_at', { withTimezone: true }),
   verifiedBy: uuid('verified_by'),

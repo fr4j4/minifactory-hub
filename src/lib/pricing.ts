@@ -13,17 +13,12 @@ export interface Rates {
   minMarginPct: number;     // alerta bajo este margen
   rounding: { mode: 'none' | 'step' | 'ending990'; step: number };
   taxPct: number;
-  taxMode: 'incluido' | 'sumado' | 'exento';
+  /** Lo decide la casilla «+ IVA» de cada presupuesto (ver effectiveTaxMode); este valor es solo el de partida. */
+  taxMode: 'sumado' | 'exento';
   urgency: Array<{ key: string; label: string; pct: number }>;
   volumeTiers: Array<{ minQty: number; pct: number }>; // pct negativo = descuento
   prepMinutes: number;
-  /**
-   * 'heredado': comportamiento histórico (margen = recargo sobre el costo, IVA incluido/sumado según taxMode).
-   * 'neto': costos y precios netos de IVA, margen sobre la venta neta (precio = costo / (1 − margen)), falla con encogimiento
-   * y tiempo calibrado en todos los modos; el IVA es una casilla del presupuesto (spec de calculadora, fase 1).
-   */
-  pricingModel?: 'heredado' | 'neto';
-  /** Valor inicial de la casilla «+ IVA» en presupuestos nuevos (modelo 'neto'). */
+  /** Valor inicial de la casilla «+ IVA» en presupuestos nuevos . */
   taxDefault?: boolean;
 }
 
@@ -85,12 +80,11 @@ export function machineHourly(m: MachineCost | null, kwh: number) {
 }
 
 export function calcLine(i: LineInput, rt: Rates): CostBreakdown {
-  const neto = rt.pricingModel === 'neto';
   const qty = Math.max(1, Math.floor(i.qty || 1));
   const waste = rt.wastePct / 100;
   const gramsEff = Math.max(0, i.gramsTotal) * (1 + waste);
-  // CAL-10: el factor de tiempo (calibrado con el historial) se aplica en los tres modos de entrada; en el modelo histórico solo si se pide
-  const factor = (neto || i.applyTimeFactor) && i.machine?.timeFactor ? i.machine.timeFactor : 1;
+  // CAL-10: el factor de tiempo (calibrado con el historial) se aplica en los tres modos de entrada
+  const factor = i.machine?.timeFactor ? i.machine.timeFactor : 1;
   const hoursEff = Math.max(0, i.hoursTotal) * factor;
   const hr = machineHourly(i.machine, rt.kwh);
   const material = (gramsEff / 1000) * i.costPerKg;
@@ -98,30 +92,27 @@ export function calcLine(i: LineInput, rt: Rates): CostBreakdown {
   const energy = hoursEff * hr.energy;
   const prep = ((i.prepMinutes ?? rt.prepMinutes) / 60) * rt.laborHour;
   const post = (((i.postMinutesPerUnit ?? 0) * qty) / 60) * rt.laborHour + (i.postSuppliesPerUnit ?? 0) * qty;
-  // CAL-17: con pocas muestras la tasa nunca baja de un piso; el modelo 'neto' además usa f/(1−f): para entregar una pieza buena hay que imprimir 1/(1−f) piezas
+  // CAL-17: con pocas muestras la tasa nunca baja de un piso; se usa f/(1−f): para entregar una pieza buena hay que imprimir 1/(1−f) piezas
   const failRate = Math.min(0.9, (i.machine?.failRatePct ?? rt.failRatePct) / 100);
   const base = material + machine + energy;
-  const failure = neto ? (base * failRate) / (1 - failRate) : failRate * base;
+  const failure = (base * failRate) / (1 - failRate);
   const cost = base + prep + post + failure;
   const marginPct: number = (i.category ? rt.marginByCategory?.[i.category] : undefined) ?? rt.marginPct;
   const urg = rt.urgency.find((u) => u.key === (i.urgency ?? 'normal'))?.pct ?? 0;
   const vol = volumePct(qty, rt.volumeTiers);
-  // modelo 'neto': el margen es un porcentaje de la venta neta (tope 90 % para no dividir por ~0)
-  let price = neto ? (cost / (1 - Math.min(0.9, Math.max(0, marginPct / 100)))) * (1 + urg / 100) * (1 + vol / 100)
-    : cost * (1 + marginPct / 100) * (1 + urg / 100) * (1 + vol / 100);
+  // el margen es un porcentaje de la venta neta (tope 90 % para no dividir por ~0); el IVA se suma aparte sobre el precio final
+  let price = (cost / (1 - Math.min(0.9, Math.max(0, marginPct / 100)))) * (1 + urg / 100) * (1 + vol / 100);
   price = Math.max(price, rt.minPrice);
   const suggestedUnit = roundPrice(price / qty, rt.rounding);
   const warnings: NonNullable<CostBreakdown['warnings']> = [];
-  if (neto) {
-    if (!(i.costPerKg > 0) && i.gramsTotal > 0) warnings.push('materialCostZero');
-    if (!i.machine) warnings.push('noMachine'); else if (!(i.machine.purchaseValue > 0) || !(i.machine.watts > 0)) warnings.push('machineIncomplete');
-  }
+  if (!(i.costPerKg > 0) && i.gramsTotal > 0) warnings.push('materialCostZero');
+  if (!i.machine) warnings.push('noMachine'); else if (!(i.machine.purchaseValue > 0) || !(i.machine.watts > 0)) warnings.push('machineIncomplete');
   return {
     material: Math.round(material), machine: Math.round(machine), energy: Math.round(energy),
     prep: Math.round(prep), post: Math.round(post), failure: Math.round(failure),
     cost: Math.round(cost), marginPct, urgencyPct: urg, volumePct: vol, priceBeforeRound: Math.round(price),
     suggestedUnit, suggestedTotal: suggestedUnit * qty, shipping: i.shipping ?? 0,
-    hoursEffective: hoursEff, gramsEffective: gramsEff, ...(neto ? { warnings } : {}),
+    hoursEffective: hoursEff, gramsEffective: gramsEff, warnings,
   };
 }
 
@@ -140,18 +131,17 @@ export interface QuoteTotals {
  * finalTotalOverride: si el usuario fija el TOTAL del presupuesto, se reparte entre las líneas
  * en proporción a su precio sugerido para poder calcular el margen de cada una.
  */
-/** Modo de IVA efectivo: en el modelo 'neto' lo decide la casilla del presupuesto; en el histórico, la configuración. */
-export function effectiveTaxMode(rt: Rates, applyTax?: boolean): Rates['taxMode'] {
-  return rt.pricingModel === 'neto' ? (applyTax ? 'sumado' : 'exento') : rt.taxMode;
+/** Modo de IVA efectivo: lo decide la casilla «+ IVA» del presupuesto. */
+export function effectiveTaxMode(_rt: Rates, applyTax?: boolean): Rates['taxMode'] {
+  return applyTax ? 'sumado' : 'exento';
 }
-/** Neto de un importe cobrado. En el modelo 'neto' el IVA cobrado se guarda aparte (taxAmount); en el histórico se deduce de la configuración. */
-export function netOfGross(gross: number, rt: Rates, taxAmount = 0): number {
-  if (rt.pricingModel === 'neto') return gross - taxAmount;
-  return rt.taxMode === 'incluido' ? gross / (1 + rt.taxPct / 100) : gross;
+/** Neto de un importe cobrado: el IVA cobrado se guarda aparte (taxAmount). */
+export function netOfGross(gross: number, _rt: Rates, taxAmount = 0): number {
+  return gross - taxAmount;
 }
 
 export function calcQuote(lines: QuoteLine[], rt0: Rates, opts: { discount?: number; finalTotalOverride?: number | null; applyTax?: boolean } = {}): QuoteTotals {
-  const rt: Rates = rt0.pricingModel === 'neto' ? { ...rt0, taxMode: effectiveTaxMode(rt0, opts.applyTax) } : rt0;
+  const rt: Rates = { ...rt0, taxMode: effectiveTaxMode(rt0, opts.applyTax) };
   const active = lines.filter((l) => !l.optional);
   const sugTotals = active.map((l) => l.suggestedUnit * l.qty);
   const sugSum = sugTotals.reduce((a, b) => a + b, 0);
@@ -168,7 +158,7 @@ export function calcQuote(lines: QuoteLine[], rt0: Rates, opts: { discount?: num
   }
   const out = active.map((l, idx) => {
     const finalTotal = finals[idx];
-    const net = rt.taxMode === 'incluido' ? finalTotal / (1 + rt.taxPct / 100) : finalTotal;
+    const net = finalTotal;
     const marginPct = net > 0 ? ((net - l.cost) / net) * 100 : null;
     const diffPct = sugTotals[idx] > 0 ? ((finalTotal - sugTotals[idx]) / sugTotals[idx]) * 100 : 0;
     return {
@@ -180,8 +170,7 @@ export function calcQuote(lines: QuoteLine[], rt0: Rates, opts: { discount?: num
   const discount = Math.min(opts.discount ?? 0, subtotal);
   const afterDiscount = subtotal - discount;
   let net = afterDiscount, tax = 0, total = afterDiscount;
-  if (rt.taxMode === 'incluido') { net = Math.round(afterDiscount / (1 + rt.taxPct / 100)); tax = afterDiscount - net; }
-  else if (rt.taxMode === 'sumado') { tax = Math.round(afterDiscount * rt.taxPct / 100); total = afterDiscount + tax; }
+  if (rt.taxMode === 'sumado') { tax = Math.round(afterDiscount * rt.taxPct / 100); total = afterDiscount + tax; }
   const cost = out.reduce((a, l) => a + l.cost, 0);
   const marginPct = net > 0 ? ((net - shipping - cost) / (net - shipping || 1)) * 100 : null;
   const suggestedTotal = sugSum + shipping;

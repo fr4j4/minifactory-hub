@@ -134,6 +134,20 @@
       "when": 1792030727757,
       "tag": "0018_carpetas_etiquetas",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792117127757,
+      "tag": "0019_nivel_calculadora",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792203527757,
+      "tag": "0020_iva_proveedor",
+      "breakpoints": true
     }
   ]
 }

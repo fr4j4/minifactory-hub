@@ -8,7 +8,6 @@ import { dur } from '../format';
 export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote>>>, st: AppSettings, t: TFn): QuoteDocData {
   const { quote: q, items, models, links } = d;
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; finalTotal: number }>;
-  const neto = st.rates.pricingModel === 'neto';
   return {
     shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor, logoUrl: st.shop.logoKey ? '/api/branding/logo' : null },
     quote: { number: q.number, version: q.version, createdAt: q.createdAt, validUntil: q.validUntil, customerName: q.customerName, customerPhone: q.customerPhone, title: q.title, discount: q.discount, total: q.total, taxAmount: q.taxAmount, notes: q.notes },
@@ -21,9 +20,7 @@ export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote
       };
     }),
     links: links.filter((l) => l.showInPdf).map((l) => ({ id: l.id, title: l.title, url: l.url })),
-    tax: neto
-      ? (q.applyTax ? { label: t('quotes.plusVat', { pct: st.rates.taxPct }), showRow: true, netAmount: q.total - q.taxAmount } : { label: t('quotes.noVat'), showRow: false, netAmount: null })
-      : { label: st.rates.taxMode === 'incluido' ? t('quotes.vatIncluded', { pct: st.rates.taxPct }) : 'IVA', showRow: true, netAmount: null },
+    tax: q.applyTax ? { label: t('quotes.plusVat', { pct: st.rates.taxPct }), showRow: true, netAmount: q.total - q.taxAmount } : { label: t('quotes.noVat'), showRow: false, netAmount: null },
     terms: st.templates.terms,
   };
 }

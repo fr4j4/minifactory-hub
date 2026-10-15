@@ -138,7 +138,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
     const prev = it.id ? oldById.get(it.id) : undefined;
     const prevFinal = prev?.finalUnit ?? null;
     if (finalUnit !== prevFinal && (finalUnit != null || prevFinal != null)) {
-      const net = rt.pricingModel === 'neto' ? (finalUnit ?? priced.suggestedUnit) : ctx.settings.rates.taxMode === 'incluido' ? (finalUnit ?? priced.suggestedUnit) / (1 + rt.taxPct / 100) : (finalUnit ?? priced.suggestedUnit);
+      const net = finalUnit ?? priced.suggestedUnit;
       await db.insert(s.priceAdjustments).values({
         workspaceId: WORKSPACE_ID, ownerType: 'quote_item', ownerId: row.id, suggested: priced.suggestedUnit, previous: prevFinal, next: finalUnit,
         reason: input.priceReason ?? null, belowCost: net * Math.max(1, it.qty) < priced.costTotal, authorizedBy: canSellBelowCost(user) ? user.id : null, createdBy: user.id,

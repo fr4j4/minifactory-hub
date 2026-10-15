@@ -11,7 +11,7 @@ const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
 export interface SessionUser {
   id: string; email: string; name: string; role: Role;
-  permOverrides: Record<string, string>; notifPrefs: Record<string, boolean>; workspaceId: string;
+  permOverrides: Record<string, string>; notifPrefs: Record<string, boolean>; workspaceId: string; calcLevel: 'basico' | 'avanzado';
 }
 
 export async function hashPassword(pw: string) {
@@ -59,12 +59,12 @@ export async function getSession(): Promise<SessionUser | null> {
   const db = await getDb();
   const rows = await db.select({
     id: s.users.id, email: s.users.email, name: s.users.name, role: s.users.role, active: s.users.active,
-    permOverrides: s.users.permOverrides, notifPrefs: s.users.notifPrefs, workspaceId: s.users.workspaceId,
+    permOverrides: s.users.permOverrides, notifPrefs: s.users.notifPrefs, workspaceId: s.users.workspaceId, calcLevel: s.users.calcLevel,
   }).from(s.sessions).innerJoin(s.users, eq(s.users.id, s.sessions.userId))
     .where(and(eq(s.sessions.id, id), gt(s.sessions.expiresAt, new Date())));
   const u = rows[0];
   if (!u || !u.active) return null;
-  return { ...u, role: u.role as Role, permOverrides: u.permOverrides ?? {}, notifPrefs: u.notifPrefs ?? {} };
+  return { ...u, role: u.role as Role, permOverrides: u.permOverrides ?? {}, notifPrefs: u.notifPrefs ?? {}, calcLevel: u.calcLevel === 'avanzado' ? 'avanzado' : 'basico' };
 }
 
 export async function requireUser(): Promise<SessionUser> {

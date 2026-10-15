@@ -1,3 +1,4 @@
+import { getSettings } from '@/lib/settings';
 import { and, eq, inArray, isNull, ne, sql, desc } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
@@ -41,6 +42,11 @@ export async function createSpool(o: { materialId: string; initialG?: number; ta
   if (!m) throw new Error(t('inventory.materialNotFound'));
   const code = await nextSpoolCode(db);
   if (o.supplierId && !o.supplierText) { const [sup] = await db.select({ n: s.suppliers.name }).from(s.suppliers).where(eq(s.suppliers.id, o.supplierId)); o.supplierText = sup?.n; }
+  // El costo ingresado es lo pagado (con IVA). Si el proveedor permite recuperar el IVA, el costo real es el neto.
+  if (o.supplierId && o.unitCost != null) {
+    const [sup] = await db.select({ r: s.suppliers.recoversVat }).from(s.suppliers).where(eq(s.suppliers.id, o.supplierId));
+    if (sup?.r) o.unitCost = Math.round(o.unitCost / (1 + (await getSettings()).rates.taxPct / 100));
+  }
   const initial = o.initialG ?? 1000;
   const [sp] = await db.insert(s.spools).values({
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,

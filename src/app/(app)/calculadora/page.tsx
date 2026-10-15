@@ -10,5 +10,5 @@ export default async function CalcPage() {
   const t = await getT();
   const user = await pagePerm('presupuestos', 'V'); const { ctx, models } = await loadEditorData();
   return (<><PageHeader title={t('calculator.quickCalculator')} subtitle={t('calculator.forWhatsappInquiriesCalculateThe')} />
-    <QuickCalc ctx={ctx} models={models} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} canCreate={can(user, 'presupuestos', 'C')} whatsappTpl="" /></>);
+    <QuickCalc ctx={ctx} models={models} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} canCreate={can(user, 'presupuestos', 'C')} whatsappTpl="" level={user.calcLevel} /></>);
 }

@@ -10,9 +10,9 @@ describe('motor de precios', () => {
     const b = calcLine({ qty: 1, gramsTotal: 100, hoursTotal: 5, costPerKg: 17000, machine, prepMinutes: 10 }, rt);
     // material: 100 g × 1,08 = 108 g → 1836; máquina: 5 h × (76 + 150) = 1130; energía: 5 × 0,13 × 180 = 117; prep: 10/60 × 6000 = 1000
     expect(b.material).toBe(1836); expect(b.machine).toBe(1130); expect(b.energy).toBe(117); expect(b.prep).toBe(1000);
-    expect(b.failure).toBe(Math.round(0.05 * (1836 + 1130 + 117)));
+    expect(b.failure).toBe(Math.round((0.05 / 0.95) * (1836 + 1130 + 117)));
     expect(b.cost).toBe(b.material + b.machine + b.energy + b.prep + b.post + b.failure);
-    expect(b.priceBeforeRound).toBe(Math.round(b.cost * 1.7));
+    expect(Math.abs(b.priceBeforeRound - b.cost / (1 - rt.marginPct / 100))).toBeLessThanOrEqual(1.01);
   });
   it('respeta el precio mínimo y el redondeo', () => {
     const b = calcLine({ qty: 1, gramsTotal: 1, hoursTotal: 0.01, costPerKg: 15000, machine: null, prepMinutes: 0 }, { ...rt, rounding: { mode: 'step', step: 100 } });
@@ -25,7 +25,7 @@ describe('motor de precios', () => {
     expect(volumePct(9, rt.volumeTiers)).toBe(0); expect(volumePct(10, rt.volumeTiers)).toBe(-10); expect(volumePct(60, rt.volumeTiers)).toBe(-20);
     const base = calcLine({ qty: 1, gramsTotal: 100, hoursTotal: 5, costPerKg: 17000, machine, urgency: 'normal' }, rt);
     const urg = calcLine({ qty: 1, gramsTotal: 100, hoursTotal: 5, costPerKg: 17000, machine, urgency: '24h' }, rt);
-    expect(Math.abs(urg.priceBeforeRound - base.cost * 1.7 * 1.5)).toBeLessThanOrEqual(1);
+    expect(Math.abs(urg.priceBeforeRound - (base.cost / (1 - rt.marginPct / 100)) * 1.5)).toBeLessThanOrEqual(1.01);
   });
   it('cotiza por placa: 4 copias no cuestan 4 veces el tiempo (los totales vienen del laminador)', () => {
     const one = calcLine({ qty: 1, gramsTotal: 11.26, hoursTotal: 0.83, costPerKg: 17000, machine }, rt);
@@ -57,11 +57,10 @@ describe('precio final decidido por el usuario', () => {
     const ok = calcQuote([{ id: 'a', qty: 1, suggestedUnit: 10000, finalUnit: 6000, cost: 5000 }], { ...rt, taxMode: 'exento' });
     expect(ok.belowCost).toBe(false); expect(ok.belowMin).toBe(true);
   });
-  it('IVA incluido, sumado y exento; descuento; líneas opcionales no suman', () => {
+  it('IVA sumado o exento; descuento; líneas opcionales no suman', () => {
     const l = [{ id: 'a', qty: 1, suggestedUnit: 11900, finalUnit: null, cost: 1000 }, { id: 'o', qty: 1, optional: true, suggestedUnit: 5000, finalUnit: null, cost: 0 }];
-    const inc = calcQuote(l, { ...rt, taxMode: 'incluido', taxPct: 19 }); expect(inc.total).toBe(11900); expect(inc.tax).toBe(1900);
-    const sum = calcQuote(l, { ...rt, taxMode: 'sumado', taxPct: 19 }); expect(sum.total).toBe(14161);
-    const ex = calcQuote(l, { ...rt, taxMode: 'exento' }, { discount: 900 }); expect(ex.total).toBe(11000);
+    const sum = calcQuote(l, rt, { applyTax: true }); expect(sum.total).toBe(14161);
+    const ex = calcQuote(l, rt, { discount: 900 }); expect(ex.total).toBe(11000);
   });
 });
 
@@ -69,30 +68,26 @@ describe('modelo de precios «neto» (calculadora, fase 1)', () => {
   const base = { kwh: 180, laborHour: 6000, wastePct: 0, failRatePct: 10, marginPct: 40, minPrice: 0, minMarginPct: 25, rounding: { mode: 'none' as const, step: 1 }, taxPct: 19, taxMode: 'exento' as const, urgency: [{ key: 'normal', label: 'Normal', pct: 0 }], volumeTiers: [], prepMinutes: 0 };
   const line = { qty: 1, gramsTotal: 100, hoursTotal: 0, costPerKg: 20000, machine: null };
   it('el margen es sobre la venta neta: el margen real coincide con el pedido', () => {
-    const b = calcLine(line, { ...base, pricingModel: 'neto' });
+    const b = calcLine(line, base);
     expect(((b.suggestedUnit - b.cost) / b.suggestedUnit) * 100).toBeCloseTo(40, 0);
-    const old = calcLine(line, { ...base });
-    expect(b.suggestedUnit).toBeGreaterThan(old.suggestedUnit); // el 40 % histórico era recargo (≈28,6 % de margen real)
   });
   it('la falla se calcula con encogimiento f/(1−f)', () => {
-    const b = calcLine(line, { ...base, pricingModel: 'neto', marginPct: 0 });
+    const b = calcLine(line, { ...base, marginPct: 0 });
     expect(b.failure).toBeCloseTo(2000 * (0.1 / 0.9), 0);
   });
   it('avisa datos incompletos y aplica el factor de tiempo en todos los modos', () => {
-    const rt = { ...base, pricingModel: 'neto' as const };
+    const rt = { ...base };
     expect(calcLine({ ...line, costPerKg: 0 }, rt).warnings).toEqual(expect.arrayContaining(['materialCostZero', 'noMachine']));
     const m = { purchaseValue: 600000, residualValue: 0, lifeHours: 6000, watts: 120, maintCostHour: 0, timeFactor: 1.5 };
     expect(calcLine({ ...line, machine: m, hoursTotal: 2 }, rt).hoursEffective).toBe(3);
-    expect(calcLine({ ...line, machine: m, hoursTotal: 2 }, { ...base }).hoursEffective).toBe(2); // histórico: solo si se pide
   });
   it('el IVA es una casilla: sin marcar el total es neto; marcada se suma', () => {
-    const rt = { ...base, pricingModel: 'neto' as const };
+    const rt = { ...base };
     const ql = [{ id: 'a', qty: 1, suggestedUnit: 10000, finalUnit: null, cost: 5000 }];
     expect(calcQuote(ql, rt, { applyTax: false })).toMatchObject({ tax: 0, total: 10000 });
     expect(calcQuote(ql, rt, { applyTax: true })).toMatchObject({ tax: 1900, total: 11900, net: 10000 });
   });
-  it('netOfGross: en el modelo neto resta el IVA cobrado; en el histórico lo deduce de la configuración', () => {
-    expect(netOfGross(11900, { ...base, pricingModel: 'neto' }, 1900)).toBe(10000);
-    expect(netOfGross(11900, { ...base, taxMode: 'incluido' })).toBeCloseTo(10000, 0);
+  it('netOfGross: resta el IVA cobrado', () => {
+    expect(netOfGross(11900, base, 1900)).toBe(10000);
   });
 });

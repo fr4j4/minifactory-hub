@@ -47,7 +47,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   const vInfo = it.variantId ? variantsById[it.variantId] : undefined;
   const { bd, suggestedUnit, cost } = useMemo(() => computeItem(it, ctx, priceAdj, vInfo), [it, ctx, priceAdj, vInfo]);
   const qty = Math.max(1, it.qty);
-  const finalUnit = it.finalUnit ?? suggestedUnit; const netUnit = ctx.rates.taxMode === 'incluido' ? finalUnit / (1 + ctx.rates.taxPct / 100) : finalUnit;
+  const finalUnit = it.finalUnit ?? suggestedUnit; const netUnit = finalUnit;
   const margin = netUnit > 0 ? ((netUnit * qty - (cost - (it.shipping ?? 0))) / (netUnit * qty)) * 100 : null;
   const diff = suggestedUnit > 0 ? ((finalUnit - suggestedUnit) / suggestedUnit) * 100 : 0;
   const belowMin = margin != null && margin < ctx.rates.minMarginPct; const belowCost = margin != null && margin < 0;

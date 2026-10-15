@@ -47,13 +47,13 @@ export async function markNotificationsReadAction(ids?: string[]) {
   return safe(async () => { await requireUser(); const db = await getDb(); const { inArray } = await import('drizzle-orm'); if (ids?.length) await db.update(s.notifications).set({ read: true }).where(inArray(s.notifications.id, ids)); else await db.update(s.notifications).set({ read: true }).where(eq(s.notifications.read, false)); }, ['/notificaciones', '/']);
 }
 
-export async function saveSupplierAction(i: { id?: string; name: string; kind: string; country: string; city?: string; url?: string; notes?: string; verified?: boolean; active: boolean }) {
+export async function saveSupplierAction(i: { id?: string; name: string; kind: string; country: string; city?: string; url?: string; notes?: string; verified?: boolean; recoversVat?: boolean; active: boolean }) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('config', 'E'); const db = await getDb();
     if (!i.name.trim()) throw new Error(t('settings.supplierNeedsName'));
     const url = i.url?.trim() ? (/^https?:\/\//i.test(i.url.trim()) ? i.url.trim() : `https://${i.url.trim()}`) : null;
-    const v = { name: i.name.trim(), kind: i.kind, country: i.country.trim().toUpperCase().slice(0, 6) || 'CL', city: i.city?.trim() || null, url, notes: i.notes?.trim() || null, verified: !!i.verified, active: i.active, updatedAt: new Date() };
+    const v = { name: i.name.trim(), kind: i.kind, country: i.country.trim().toUpperCase().slice(0, 6) || 'CL', city: i.city?.trim() || null, url, notes: i.notes?.trim() || null, verified: !!i.verified, recoversVat: !!i.recoversVat, active: i.active, updatedAt: new Date() };
     if (i.id) {
       // quién y cuándo lo verificó: solo cambia cuando pasa de «sin verificar» a «verificado» (o al revés)
       const [cur] = await db.select({ verified: s.suppliers.verified }).from(s.suppliers).where(eq(s.suppliers.id, i.id));
@@ -74,4 +74,11 @@ export async function saveDocTemplateAction(raw: unknown) {
     await audit('settings', 'documents', 'editar', { sections: tpl.sections.filter((x) => x.visible).map((x) => x.id) }, u.id);
     return tpl;
   }, ['/configuracion']);
+}
+
+export async function setCalcLevelAction(level: 'basico' | 'avanzado') {
+  return safe(async () => {
+    const u = await requireUser(); const db = await getDb();
+    await db.update(s.users).set({ calcLevel: level === 'avanzado' ? 'avanzado' : 'basico', updatedAt: new Date() }).where(eq(s.users.id, u.id));
+  }, ['/calculadora']);
 }

@@ -36,8 +36,6 @@ Volúmenes: `pgdata` (base) y `files` (modelos, G-code, fotos). **Respalde ambos
 ```bash
 npm test                 # unitarias + integración (incluye laminado real si OrcaSlicer está instalado)
 npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas y videos en docs/reporte
-npm run build && npm run test:visual          # regresión visual contra tests/visual/__snapshots__ (opt-in)
-npm run test:visual:update                    # regenera las líneas base (hágalo en el mismo entorno donde se compara)
 ```
 
 ## Laminar en el servidor

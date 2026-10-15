@@ -42,7 +42,7 @@ export async function createAccountAction(input: unknown): Promise<R> {
   const db = await getDb();
   const [u] = await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: d.email, name: d.name, role: 'admin', passwordHash: await hashPassword(d.password) }).returning({ id: s.users.id });
   const st = await getSettingsRaw();
-  await saveSettings({ shop: { ...st.shop, name: d.shopName, lang: d.lang, currency: d.currency, timezone: d.timezone }, rates: { ...st.rates, pricingModel: 'neto', taxMode: 'exento', marginPct: 40 }, setup: { ...st.setup, pending: true, tokenHash: '' } });
+  await saveSettings({ shop: { ...st.shop, name: d.shopName, lang: d.lang, currency: d.currency, timezone: d.timezone }, rates: { ...st.rates, taxMode: 'exento', marginPct: 40 }, setup: { ...st.setup, pending: true, tokenHash: '' } });
   await createSession(u.id);
   loginOk(key);
   return { ok: true };

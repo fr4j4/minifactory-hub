@@ -28,8 +28,8 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   shop: { name: 'MiniFactory', legalName: '', taxId: '', address: '', phone: '', email: '', currency: 'CLP', timezone: 'America/Santiago', lang: 'es-CL', brandColor: '#1d62f0' },
   rates: {
-    kwh: 180, laborHour: 6000, wastePct: 8, failRatePct: 5, marginPct: 70, marginByCategory: {},
-    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'incluido',
+    kwh: 180, laborHour: 6000, wastePct: 8, failRatePct: 5, marginPct: 40, marginByCategory: {},
+    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'exento', taxDefault: false,
     urgency: [{ key: 'normal', label: 'Normal', pct: 0 }, { key: '48h', label: 'Urgente 48 h', pct: 25 }, { key: '24h', label: 'Urgente 24 h', pct: 50 }],
     volumeTiers: [{ minQty: 10, pct: -10 }, { minQty: 50, pct: -20 }], prepMinutes: 10,
   },
