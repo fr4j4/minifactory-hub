@@ -8,7 +8,7 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import * as Dropdown from '@radix-ui/react-dropdown-menu';
 import * as SwitchPrimitive from '@radix-ui/react-switch';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/format';
 
@@ -22,7 +22,7 @@ export function ModalDialog({ open, onClose, title, children, wide, closeLabel }
           <Dialog.Content aria-describedby={undefined} onOpenAutoFocus={(e) => { const f = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('input,select,textarea'); if (f) { e.preventDefault(); f.focus(); } }} className={cn('pointer-events-auto bg-[var(--card)] w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700 focus:outline-none', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
             <div className="sticky top-0 bg-inherit flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 z-10">
               <Dialog.Title className="font-semibold">{title}</Dialog.Title>
-              <Dialog.Close className="btn-ghost btn-sm !px-2.5" aria-label={closeLabel}>✕</Dialog.Close>
+              <Dialog.Close className="btn-ghost btn-sm !px-2.5" aria-label={closeLabel}><X className="h-4 w-4" /></Dialog.Close>
             </div>
             <div className="p-5">{children}</div>
           </Dialog.Content>

@@ -74,7 +74,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5 mb-6" aria-label={t('home.quickActions')}>
         {actions.map((a) => (
           <Link key={a.h} href={a.h} className="group card !rounded-2xl p-3 md:p-3.5 flex flex-col gap-3 min-h-[92px] justify-between hover:-translate-y-0.5 hover:border-[var(--accent)] transition-all">
-            <span className="flex items-center justify-between"><span className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[#17161a] transition-colors"><Icon name={a.i} className="h-[18px] w-[18px]" /></span><span className="hidden md:inline font-mono text-[10px] text-slate-500 dark:text-slate-500 group-hover:text-[var(--accent-ink)]" aria-hidden>↗</span></span>
+            <span className="flex items-center justify-between"><span className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[#17161a] transition-colors"><Icon name={a.i} className="h-[18px] w-[18px]" /></span><span className="hidden md:inline font-mono text-[10px] text-slate-500 dark:text-slate-500 group-hover:text-[var(--accent-ink)]"><Icon name="arrow-up-right" className="h-3.5 w-3.5" /></span></span>
             <span className="text-[13px] font-medium leading-tight">{a.l}</span>
           </Link>))}
       </div>

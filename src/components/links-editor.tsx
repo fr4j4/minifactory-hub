@@ -5,6 +5,7 @@ import { previewLinkAction, saveLinksAction, type LinkRow } from '@/actions/link
 import { useToast } from './client';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/i18n/client';
+import { Icon } from '@/components/shell';
 import { tOr } from '@/i18n/translate';
 
 export const LINK_KINDS = ['modelo_original', 'inspiracion', 'requerimiento', 'otro'] as const;
@@ -42,7 +43,7 @@ export function LinksEditor({ value, onChange, persist, readOnly, compact }: { v
                 <div className="text-xs muted truncate">{host(l.url)} · {tOr(t, `links.kind.${l.kind ?? 'otro'}`, l.kind ?? '')}</div>
                 {!readOnly && <label className="text-xs flex items-center gap-1.5 mt-1"><input type="checkbox" checked={!!l.showInPdf} onChange={(e) => commit(value.map((x, k) => (k === i ? { ...x, showInPdf: e.target.checked } : x)))} /> {t('links.showInTheQuotePdf')}</label>}
               </div>
-              {!readOnly && <button type="button" className="btn-ghost btn-sm self-start" onClick={() => commit(value.filter((_, k) => k !== i))} aria-label={t('links.removeLink', { title: l.title ?? l.url })}>✕</button>}
+              {!readOnly && <button type="button" className="btn-ghost btn-sm self-start" onClick={() => commit(value.filter((_, k) => k !== i))} aria-label={t('links.removeLink', { title: l.title ?? l.url })}><Icon name="x" className="h-4 w-4" /></button>}
             </li>
           ))}
         </ul>

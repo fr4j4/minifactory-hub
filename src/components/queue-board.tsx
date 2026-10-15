@@ -6,6 +6,7 @@ import { Modal, useAction } from './client';
 import { Badge, StatusBadge, Swatch } from './ui';
 import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
+import { Icon } from '@/components/shell';
 import { FAIL_CAUSES } from '@/lib/production/fail-causes';
 import type { MessageKey } from '@/i18n/translate';
 import { useT } from '@/i18n/client';
@@ -41,7 +42,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             {j.status === 'imprimiendo' && <><button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => pauseJobAction(j.id))}>{t('queue.pause')}</button><button className="btn-primary btn-sm" onClick={() => setFinish(j)} data-testid="job-finish">{t('queue.finish')}</button></>}
             {j.status === 'pausado' && <><button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => resumeJobAction(j.id))}>{t('queue.resume')}</button><button className="btn-ghost btn-sm" onClick={() => setFinish(j)}>{t('queue.finish')}</button></>}
             {j.status === 'en_cola' && <select className="input !min-h-[32px] !py-0.5 !w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.moveToAnotherMachine', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => e.target.value && run(() => moveJobAction(j.id, e.target.value, 999), { ok: t('queue.jobMoved3') })}><option value="">{t('queue.assign')}</option>{machines.map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>}
-            {j.status !== 'imprimiendo' && <button className="btn-ghost btn-sm text-danger" disabled={pending} onClick={() => run(() => cancelJobAction(j.id), { ok: t('queue.jobCancelled2') })} aria-label={t('queue.cancel', { job: j.number })}>✕</button>}
+            {j.status !== 'imprimiendo' && <button className="btn-ghost btn-sm text-danger" disabled={pending} onClick={() => run(() => cancelJobAction(j.id), { ok: t('queue.jobCancelled2') })} aria-label={t('queue.cancel', { job: j.number })}><Icon name="x" className="h-4 w-4" /></button>}
           </div>)}
       </li>
     );

@@ -6,6 +6,7 @@ import { bulkFilesAction, renameTagAction, type BulkOp } from '@/actions/files';
 import { useT } from '@/i18n/client';
 import { useToast } from './client';
 import { Badge } from './badge';
+import { Icon } from '@/components/shell';
 import { FavButton } from './file-bits';
 
 export interface FileCard { id: string; name: string; format: string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean }
@@ -34,7 +35,7 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
           <button className="btn-ghost btn-sm" disabled={busy || !tagText.trim()} onClick={() => run({ kind: 'addTags', tags: tagText.split(',').map((x) => x.trim()).filter(Boolean) }, t('files.bulkDone'))} data-testid="bulk-add-tags">{t('files.bulkAddTags')}</button>
           <input className="input !w-36 !min-h-[36px]" placeholder={t('files.folder')} value={folder} onChange={(e) => setFolder(e.target.value)} aria-label={t('files.folder')} />
           <button className="btn-ghost btn-sm" disabled={busy} onClick={() => run({ kind: 'folder', folder: folder || null }, t('files.bulkDone'))}>{t('files.bulkMove')}</button>
-          <button className="btn-ghost btn-sm" disabled={busy} onClick={() => run({ kind: 'favorite', value: true }, t('files.bulkDone'))}>★</button>
+          <button className="btn-ghost btn-sm" disabled={busy} onClick={() => run({ kind: 'favorite', value: true }, t('files.bulkDone'))}><Icon name="star" className="h-4 w-4" /></button>
           <button className="btn-ghost btn-sm ml-auto" onClick={() => setSel(new Set())}>{t('common.cancel')}</button>
         </div>)}
       <datalist id="vocab-tags">{vocabulary.map((v) => <option key={v.tag} value={v.tag} />)}</datalist>

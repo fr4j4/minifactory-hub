@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { adjustStockAction, produceAction, saveProductAction, updateVariantAction } from '@/actions/catalog';
 import { Modal, useAction } from './client';
 import { money } from '@/lib/format';
+import { Icon } from '@/components/shell';
 import { useT } from '@/i18n/client';
 
 type Mat = { id: string; label: string };
@@ -22,7 +23,7 @@ export function ProductForm({ p, materials, models }: { p?: { id: string; name: 
       <div className="sm:col-span-2"><span className="label">{t('catalog.typeLabel')}</span><div className="flex gap-2" role="radiogroup">{([['simple', t('catalog.simpleASingleReference')], ['variantes', t('catalog.withVariantsColorSize')]] as const).map(([k, l]) => <button type="button" key={k} role="radio" aria-checked={v.mode === k} onClick={() => setV({ ...v, mode: k })} className={`btn-ghost flex-1 ${v.mode === k ? '!bg-[var(--panel)] !text-[var(--panel-ink)] !border-[var(--panel)] dark:!bg-slate-700' : ''}`} data-testid={`mode-${k}`}>{l}</button>)}</div></div>
       {v.mode === 'variantes' && (
         <div className="sm:col-span-2 space-y-2"><span className="label">{t('catalog.attributesAllCombinationsAreGene')}</span>
-          {attrs.map((a, i) => <div key={i} className="grid grid-cols-5 gap-2"><input className="input col-span-2" placeholder={t('catalog.attributeColor')} value={a.name} onChange={(e) => setAttrs(attrs.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))} aria-label={t('catalog.nameOfAttribute', { i: i + 1 })} /><input className="input col-span-2" placeholder={t('catalog.valuesBlackRedWhite')} value={a.values} onChange={(e) => setAttrs(attrs.map((x, k) => (k === i ? { ...x, values: e.target.value } : x)))} aria-label={t('catalog.valuesOfAttribute', { i: i + 1 })} /><button type="button" className="btn-ghost" onClick={() => setAttrs(attrs.filter((_, k) => k !== i))} aria-label={t('catalog.removeAttribute')}>✕</button></div>)}
+          {attrs.map((a, i) => <div key={i} className="grid grid-cols-5 gap-2"><input className="input col-span-2" placeholder={t('catalog.attributeColor')} value={a.name} onChange={(e) => setAttrs(attrs.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)))} aria-label={t('catalog.nameOfAttribute', { i: i + 1 })} /><input className="input col-span-2" placeholder={t('catalog.valuesBlackRedWhite')} value={a.values} onChange={(e) => setAttrs(attrs.map((x, k) => (k === i ? { ...x, values: e.target.value } : x)))} aria-label={t('catalog.valuesOfAttribute', { i: i + 1 })} /><button type="button" className="btn-ghost" onClick={() => setAttrs(attrs.filter((_, k) => k !== i))} aria-label={t('catalog.removeAttribute')}><Icon name="x" className="h-4 w-4" /></button></div>)}
           <button type="button" className="btn-ghost btn-sm" onClick={() => setAttrs([...attrs, { name: '', values: '' }])}>{t('catalog.attribute')}</button></div>
       )}
       {!p && <>

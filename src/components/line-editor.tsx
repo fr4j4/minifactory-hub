@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { calcLine, estimateFromMesh, type CostBreakdown } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import { cn, dur, grams, money, num, pct } from '@/lib/format';
+import { Icon } from '@/components/shell';
 import { modelBriefAction, type ModelBrief } from '@/actions/quotes';
 import { sliceAction } from '@/actions/slicer';
 import { LinksEditor } from './links-editor';
@@ -105,10 +106,10 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   return (
     <div className={cn('card', it.optional && 'opacity-80 border-dashed')} data-testid="quote-line">
       <div className="flex items-center gap-2 p-3 border-b border-slate-200 dark:border-slate-700">
-        <button type="button" className="btn-ghost btn-sm !px-2" onClick={() => onChange({ open: !it.open })} aria-expanded={it.open} aria-label={it.open ? t('calculator.collapseItem') : t('calculator.expandItem')}>{it.open ? '▾' : '▸'}</button>
+        <button type="button" className="btn-ghost btn-sm !px-2" onClick={() => onChange({ open: !it.open })} aria-expanded={it.open} aria-label={it.open ? t('calculator.collapseItem') : t('calculator.expandItem')}><Icon name={it.open ? 'chevron-down' : 'chevron-right'} className="h-4 w-4" /></button>
         <div className="min-w-0 flex-1"><div className="font-medium truncate">{it.description || t('calculator.item', { index: index + 1 })}</div><div className="text-xs muted">{t('calculator.unitsShort', { n: qty })} · {it.variantId ? vInfo?.label : `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)}`}{it.groupName && ` · ${it.groupName}`}</div></div>
         <div className="text-right"><div className="font-semibold tabular" data-testid="line-total">{money(finalUnit * qty)}</div>{it.finalUnit != null && it.finalUnit !== suggestedUnit && <div className="text-xs muted tabular line-through">{money(suggestedUnit * qty)}</div>}</div>
-        {!dis && <div className="hidden sm:flex gap-1">{onDuplicate && <button className="btn-ghost btn-sm" onClick={onDuplicate} aria-label={t('calculator.duplicateItem')}>⧉</button>}{onRemove && <button className="btn-ghost btn-sm" onClick={onRemove} aria-label={t('calculator.removeItem')} data-testid="line-remove">✕</button>}</div>}
+        {!dis && <div className="hidden sm:flex gap-1">{onDuplicate && <button className="btn-ghost btn-sm" onClick={onDuplicate} aria-label={t('calculator.duplicateItem')}><Icon name="copy" className="h-4 w-4" /></button>}{onRemove && <button className="btn-ghost btn-sm" onClick={onRemove} aria-label={t('calculator.removeItem')} data-testid="line-remove"><Icon name="x" className="h-4 w-4" /></button>}</div>}
       </div>
       {it.open && (
         <div className="p-3 sm:p-4 grid gap-4 lg:grid-cols-5">
@@ -127,7 +128,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       {library.find((x) => x.id === m.modelFileId)?.thumb ? <img src={`/api/files/v/${m.fileVersionId ?? library.find((x) => x.id === m.modelFileId)?.versionId}/thumb`} alt="" className="h-10 w-12 rounded object-cover" /> : <div className="h-10 w-12 rounded bg-slate-100 dark:bg-slate-800" />}
                       <Link href={`/archivos/${m.modelFileId}`} className="flex-1 min-w-0 text-sm truncate hover:underline" target="_blank">{m.name}</Link>
                       <label className="text-xs muted flex items-center gap-1">×<input type="number" min={1} className="input !w-16 !min-h-[34px]" value={m.qty} disabled={dis} aria-label={t('calculator.quantityOf', { m: m.name })} onChange={(e) => onChange({ models: it.models.map((x, k) => (k === i ? { ...x, qty: Math.max(1, +e.target.value || 1) } : x)) })} /></label>
-                      {!dis && <button className="btn-ghost btn-sm" onClick={() => onChange({ models: it.models.filter((_, k) => k !== i) })} aria-label={t('calculator.remove', { m: m.name })}>✕</button>}
+                      {!dis && <button className="btn-ghost btn-sm" onClick={() => onChange({ models: it.models.filter((_, k) => k !== i) })} aria-label={t('calculator.remove', { m: m.name })}><Icon name="x" className="h-4 w-4" /></button>}
                     </li>))}</ul>
                   {!dis && (
                     <div className="flex flex-wrap gap-2 mt-2">

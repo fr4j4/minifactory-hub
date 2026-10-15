@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
 import { useT } from '@/i18n/client';
+import { Icon } from '@/components/shell';
 
 export interface ViewerMachine { id: string; name: string; volX: number; volY: number; volZ: number }
 type Mode = 'solido' | 'alambrico' | 'rayosx' | 'normales';
@@ -207,7 +208,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
       </div>
       {status === 'listo' && (
         <div className="border-t border-slate-200 dark:border-slate-700">
-          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>{t('viewer.tools')} {panel ? '▾' : '▸'}</button>
+          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>{t('viewer.tools')} <Icon name={panel ? 'chevron-down' : 'chevron-right'} className="inline h-4 w-4 -mt-0.5" /></button>
           <div className={cn('p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm', !panel && 'hidden md:grid')}>
             {materials.length > 0 && <div>
               <div className="label">{t('viewer.material')}</div>
@@ -230,7 +231,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
             <div>
               <div className="label">{t('viewer.machineBuildVolume')}</div>
               <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label={t('viewer.machineToCheckFit')} data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
-              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}>{f.ok ? '✓' : '✕'} {f.m.name}</li>)}</ul>}
+              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}><Icon name={f.ok ? 'check' : 'x'} className="inline h-3 w-3 mr-0.5 -mt-px" /> {f.m.name}</li>)}</ul>}
             </div>
             <div>
               <div className="label">{t('viewer.dimensions')}</div>

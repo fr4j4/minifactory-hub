@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createCustomFilamentAction, customFilamentDefaultsAction, previewImportAction, importSelectedAction, processesForAction, setupAllFilamentsAction, setupFilamentAction, setupMachineAction } from '@/actions/slicer';
 import { cn } from '@/lib/format';
+import { Icon } from '@/components/shell';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
 import type { TFn, MessageKey } from '@/i18n/translate';
@@ -22,7 +23,7 @@ function Step({ n, title, done, total, children, hint }: { n: number; title: str
   return (
     <section className="card overflow-hidden" data-testid={`setup-step-${n}`}>
       <header className="flex items-start gap-3 px-4 py-3.5 border-b border-[var(--line)]">
-        <span className={cn('h-8 w-8 shrink-0 rounded-full grid place-items-center font-display font-semibold', ok ? 'bg-emerald-600 text-white' : 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700')} aria-hidden>{ok ? '✓' : n}</span>
+        <span className={cn('h-8 w-8 shrink-0 rounded-full grid place-items-center font-display font-semibold', ok ? 'bg-emerald-600 text-white' : 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700')} aria-hidden>{ok ? <Icon name="check" className="h-4 w-4" /> : n}</span>
         <div className="min-w-0 flex-1"><h2 className="font-display text-lg font-semibold tracking-tight leading-tight">{title}</h2><p className="text-sm muted mt-0.5">{hint}</p></div>
         <span className={cn('num text-xs shrink-0 mt-1', ok ? 'text-ok' : 'muted')} data-testid={`setup-step-${n}-count`}>{done}/{total}</span>
       </header>

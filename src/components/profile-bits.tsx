@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createFromTemplatesAction, createProfileAction, deleteProfileAction, duplicateProfileAction, factoryListAction, factoryVendorsAction, profileBaseValuesAction, profileKeysAction, revertProfileAction, updateProfileAction } from '@/actions/slicer';
 import { ConfirmButton, Modal, useAction } from './client';
 import { useT } from '@/i18n/client';
+import { Icon } from '@/components/shell';
 import type { MessageKey } from '@/i18n/translate';
 import { NozzlePicker } from './nozzle-picker';
 import { SIMPLE_PARAMS, TYPE_EXPLAIN, TYPE_LABEL } from '@/lib/slicer/params';
@@ -239,7 +240,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
           {Object.keys(extra).length > 0 && <ul className="divide-y divide-[var(--line)]">{Object.entries(extra).map(([k, v]) => { const b = allKeys.find((x) => x.key === k)?.value; return (
             <li key={k} className="py-2 flex flex-wrap items-center gap-2"><code className="text-xs flex-1 min-w-[180px] break-all">{k}</code><span className="text-xs muted">{t('files.factory2')} {b ?? '—'}</span>
               <input className="input !w-40 !min-h-[34px] num" value={v} disabled={!canEdit} onChange={(e) => setExtra({ ...extra, [k]: e.target.value })} aria-label={t('files.valueOf', { k })} />
-              {canEdit && <button className="btn-ghost btn-sm" onClick={() => { const n = { ...extra }; delete n[k]; setExtra(n); }} aria-label={t('files.remove', { k })}>✕</button>}</li>); })}</ul>}
+              {canEdit && <button className="btn-ghost btn-sm" onClick={() => { const n = { ...extra }; delete n[k]; setExtra(n); }} aria-label={t('files.remove', { k })}><Icon name="x" className="h-4 w-4" /></button>}</li>); })}</ul>}
           {canEdit && <div className="space-y-1.5"><input className="input" placeholder={t('files.searchAmongParameters', { allKeys: allKeys.length })} value={kq} onChange={(e) => setKq(e.target.value)} data-testid="param-search" />
             {kq.length >= 2 && <ul className="max-h-56 overflow-y-auto rounded-xl border border-[var(--line)] divide-y divide-[var(--line)]">{allKeys.filter((x) => x.key.includes(kq.toLowerCase().replace(/\s+/g, '_')) && !(x.key in extra) && !params.some((pp) => pp.key === x.key)).slice(0, 40).map((x) =>
               <li key={x.key}><button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 dark:hover:bg-slate-800/50 flex justify-between gap-2" onClick={() => { setExtra({ ...extra, [x.key]: x.value }); setKq(''); }} data-testid="param-add"><code className="text-xs">{x.key}</code><span className="text-xs muted truncate">{t('files.factory2')} {x.value}</span></button></li>)}</ul>}</div>}

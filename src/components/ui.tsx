@@ -3,11 +3,12 @@ import { cn } from '@/lib/format';
 export { Badge, statusTone } from './badge';
 export { StatusBadge, Tabs, Meter } from './ui-client';
 import type { ReactNode } from 'react';
+import { Icon } from '@/components/shell';
 
 export function PageHeader({ title, subtitle, actions, back, eyebrow }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; back?: { href: string; label: string }; eyebrow?: ReactNode }) {
   return (
     <div className="mb-5 md:mb-7">
-      {back && <Link href={back.href} className="eyebrow hover:text-[var(--accent-ink)] inline-flex items-center gap-1.5 mb-2 min-h-[28px]"><span aria-hidden>←</span> {back.label}</Link>}
+      {back && <Link href={back.href} className="eyebrow hover:text-[var(--accent-ink)] inline-flex items-center gap-1.5 mb-2 min-h-[28px]"><Icon name="arrow-left" className="h-4 w-4" /> {back.label}</Link>}
       {!back && eyebrow && <div className="eyebrow mb-2 flex items-center gap-2"><span className="h-px w-6 bg-[var(--accent)]" aria-hidden />{eyebrow}</div>}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0"><h1 className="h1 truncate pb-0.5">{title}</h1>{subtitle && <p className="muted text-sm mt-1.5 max-w-2xl">{subtitle}</p>}</div>

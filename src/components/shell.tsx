@@ -96,7 +96,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
             <span className="h-8 w-8 rounded-full bg-white/10 grid place-items-center font-display font-semibold text-sm">{user.name.slice(0, 1)}</span>
             <span className="min-w-0 leading-tight"><span className="block text-[13px] truncate">{user.name}</span><span className="block font-mono text-[10px] uppercase tracking-[.12em] text-white/55">{user.role}</span></span>
           </div>
-          <button className="hidden xl:flex w-full items-center justify-center gap-2 rounded-lg min-h-[32px] text-xs text-white/60 hover:text-white hover:bg-white/[.06]" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? t('shell.expandMenu') : t('shell.collapseMenu')}>{collapsed ? '»' : t('shell.collapse')}</button>
+          <button className="hidden xl:flex w-full items-center justify-center gap-2 rounded-lg min-h-[32px] text-xs text-white/60 hover:text-white hover:bg-white/[.06]" onClick={() => setCollapsed((c) => !c)} aria-label={collapsed ? t('shell.expandMenu') : t('shell.collapseMenu')}>{collapsed ? <Icon name="chevrons-right" className="h-4 w-4" /> : <><Icon name="chevrons-left" className="h-4 w-4" /> {t('shell.collapse')}</>}</button>
         </div>
       </aside>
       <div className="flex-1 min-w-0 flex flex-col">
@@ -152,7 +152,7 @@ function Sheet({ children, title, onClose }: { children: React.ReactNode; title:
   return (
     <div className="md:hidden fixed inset-0 z-50 bg-black/50" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div role="dialog" aria-modal="true" aria-label={title} className="absolute bottom-0 inset-x-0 rounded-t-3xl bg-[var(--bg)] p-4 pb-8 safe-bottom animate-rise max-h-[85vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-3"><h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2><button onClick={onClose} className="btn-ghost btn-sm" aria-label={t('common.close')}>✕</button></div>{children}
+        <div className="flex items-center justify-between mb-3"><h2 className="font-display text-lg font-semibold tracking-tight">{title}</h2><button onClick={onClose} className="btn-ghost btn-sm" aria-label={t('common.close')}><Icon name="x" className="h-4 w-4" /></button></div>{children}
       </div>
     </div>
   );

@@ -4,11 +4,12 @@ import { updateFileAction, deleteFileAction, setCurrentVersionAction } from '@/a
 import { ConfirmButton, useAction } from './client';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/i18n/client';
+import { Icon } from '@/components/shell';
 
 export function FavButton({ id, fav }: { id: string; fav: boolean }) {
   const t = useT();
   const { run, pending } = useAction();
-  return <button className="btn-ghost btn-sm !px-2.5" aria-label={fav ? t('files.removeFromFavorites') : t('files.markAsFavorite')} aria-pressed={fav} disabled={pending} onClick={() => run(() => updateFileAction(id, { favorite: !fav }))}>{fav ? '★' : '☆'}</button>;
+  return <button className="btn-ghost btn-sm !px-2.5" aria-label={fav ? t('files.removeFromFavorites') : t('files.markAsFavorite')} aria-pressed={fav} disabled={pending} onClick={() => run(() => updateFileAction(id, { favorite: !fav }))}><Icon name="star" className={fav ? 'h-4 w-4 fill-current' : 'h-4 w-4'} /></button>;
 }
 
 export function FileMetaForm({ f, customers }: { f: { id: string; name: string; folder: string | null; tags: string[]; license: string | null; origin: string | null; author: string | null; customerId: string | null }; customers: Array<{ id: string; name: string }> }) {

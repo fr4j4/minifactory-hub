@@ -5,6 +5,7 @@ import { createSaleAction } from '@/actions/catalog';
 import { useToast } from './client';
 import { Badge } from './ui';
 import { cn, money, pct } from '@/lib/format';
+import { Icon } from '@/components/shell';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
 import { DateInput } from '@/components/date-input';
@@ -46,7 +47,7 @@ export function QuickSale({ variants, channels, showCosts }: { variants: SaleVar
             <ul className="space-y-2" data-testid="cart">{lines.map((l) => <li key={l.id} className="flex items-center gap-2 text-sm"><span className="flex-1 min-w-0 truncate">{l.v.label}</span>
               <input type="number" min={1} className="input !w-16 !min-h-[40px] text-center" value={l.qty} aria-label={t('sales.quantityOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, qty: Math.max(1, +e.target.value || 1) } : x)))} />
               <input type="number" min={0} className="input !w-24 !min-h-[40px] tabular" value={l.price ?? ''} placeholder={String(listOf(l.v))} aria-label={t('sales.priceOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, price: e.target.value === '' ? null : +e.target.value } : x)))} data-testid="sale-price" />
-              <button className="btn-ghost btn-sm" onClick={() => setCart(cart.filter((x) => x.id !== l.id))} aria-label={t('sales.remove')}>✕</button></li>)}</ul>)}
+              <button className="btn-ghost btn-sm" onClick={() => setCart(cart.filter((x) => x.id !== l.id))} aria-label={t('sales.remove')}><Icon name="x" className="h-4 w-4" /></button></li>)}</ul>)}
           {channel?.kind === 'marketplace' && <div className="grid grid-cols-2 gap-2"><input className="input" placeholder={t('sales.externalOrderNo')} value={ext} onChange={(e) => setExt(e.target.value)} aria-label={t('sales.externalOrder')} /><DateInput value={by} onChange={setBy} aria-label={t('sales.shipBefore')} /></div>}
           <input className="input" placeholder={t('sales.customerOptional')} value={cust} onChange={(e) => setCust(e.target.value)} aria-label={t('common.customer')} />
           <div className="grid grid-cols-2 gap-2"><label className="text-xs">{t('sales.shippingPaidByTheWorkshop')}<input type="number" min={0} className="input" value={ship ?? ''} placeholder={String(channel?.avgShipping ?? 0)} onChange={(e) => setShip(e.target.value === '' ? null : +e.target.value)} /></label>
