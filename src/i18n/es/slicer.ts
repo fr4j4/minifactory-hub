@@ -252,4 +252,6 @@ export const slicer = {
   filamentSource_material: 'del material',
   filamentSource_explicit: 'elegido',
   qualityIntent: 'Calidad',
+  studioSavedNote: 'Guardado desde el Estudio de laminado',
+  studioCopy: 'Estudio',
 };

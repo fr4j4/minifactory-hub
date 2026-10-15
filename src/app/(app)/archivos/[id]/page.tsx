@@ -104,6 +104,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
         <div className="grid gap-4 xl:grid-cols-3">
           <Card title={t('files.serverSideSlicing')} className="xl:col-span-2">
             {kind === 'malla' && f.format !== 'step' && f.format !== 'stp' ? (
+              <div className="flex justify-end mb-2"><Link className="btn-ghost btn-sm" href={`/archivos/${f.id}/estudio`} data-testid="open-studio">{t('studio.open')}</Link></div>
               <SlicePanel fileVersionId={cur.id} ctx={ctx} fileId={f.id} fileName={f.name} canSlice={can(user, 'laminador', 'V')} ai={{ advisor: await aiAvailableFor(user, 'profile.advisor'), diagnose: await aiAvailableFor(user, 'profile.diagnose'), canEdit: can(user, 'laminador', 'E'), canCreate: can(user, 'laminador', 'C') }} />
             ) : <Empty title={t('files.thisFormatIsNotSliced')} hint={t('files.gCodeFilesAreAlready')} />}
           </Card>

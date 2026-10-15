@@ -13,7 +13,7 @@ import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 
-export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean }) {
+export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean; overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }) {
   return safe(async () => {
     const u = await requirePerm('laminador', 'V');
     return enqueueSlice({ ...i, userId: u.id });
@@ -293,3 +293,46 @@ export async function switchNozzleAction(machineId: string, nozzle: string) {
   return safe(async () => { const u = await requirePerm('maquinas', 'E'); await requirePerm('laminador', 'C'); const { switchNozzle } = await import('@/lib/slicer/setup'); return switchNozzle(machineId, nozzle, u.id); }, ['/laminador', '/laminador/configurar', '/maquinas', `/maquinas/${machineId}`]);
 }
 export async function nozzleOfAction(type: ProfileType, baseName: string) { return safe(async () => { await requirePerm('laminador', 'V'); return profileNozzle(type, baseName); }); }
+
+/** Cancela un laminado en cola o en curso (el Estudio lo usa cuando llega un cambio nuevo). */
+export async function cancelRunAction(runId: string) {
+  return safe(async () => { await requirePerm('laminador', 'V'); const { cancelRun } = await import('@/lib/slicer/queue'); return cancelRun(runId); });
+}
+
+/** Valores efectivos (fábrica + cambios del perfil) de las claves del esquema, para mostrar la base del Estudio y resaltar lo modificado. */
+export async function studioBaseAction(i: { machineProfileId: string; processProfileId: string; filamentProfileId: string }) {
+  return safe(async () => {
+    await requirePerm('laminador', 'V'); const db = await getDb();
+    const { PARAMS } = await import('@/lib/slicer/schema');
+    const rows = await db.select().from(s.slicerProfiles).where(inArray(s.slicerProfiles.id, [i.machineProfileId, i.processProfileId, i.filamentProfileId]));
+    const out: Record<'machine' | 'process' | 'filament', Record<string, string>> = { machine: {}, process: {}, filament: {} };
+    for (const type of ['machine', 'process', 'filament'] as const) {
+      const row = rows.find((r) => r.type === type && (r.id === (type === 'machine' ? i.machineProfileId : type === 'process' ? i.processProfileId : i.filamentProfileId)));
+      if (!row) continue;
+      const eff = { ...resolveFactory(type, row.baseName, row.vendor ?? undefined), ...(row.changes ?? {}) } as Record<string, any>;
+      for (const p of PARAMS.filter((x) => x.type === type)) { const v = eff[p.key]; if (v !== undefined) out[type][p.key] = String(Array.isArray(v) ? v[0] : v); }
+    }
+    return out;
+  });
+}
+
+/** Promueve ajustes de sesión a un perfil guardado: nuevo (copia con cambios) o nueva versión del base. */
+export async function saveOverridesAsProfileAction(i: { type: ProfileType; baseProfileId: string; overrides: Record<string, any>; name?: string; asNewVersion?: boolean }) {
+  const t = await getT();
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'C'); const db = await getDb();
+    const [base] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.id, i.baseProfileId), isNull(s.slicerProfiles.deletedAt)));
+    if (!base || base.type !== i.type) throw new Error(t('slicer.profileNotFound'));
+    const changes = cleanChanges(i.type, { ...(base.changes ?? {}), ...i.overrides });
+    if (i.asNewVersion) {
+      const ver = base.version + 1;
+      await db.update(s.slicerProfiles).set({ changes, version: ver, updatedAt: new Date() }).where(eq(s.slicerProfiles.id, base.id));
+      await db.insert(s.slicerProfileVersions).values({ profileId: base.id, version: ver, baseName: base.baseName, changes, createdBy: u.id, note: t('slicer.studioSavedNote') });
+      await audit('slicer_profile', base.id, 'editar', { version: ver, via: 'estudio' }, u.id);
+      return base.id;
+    }
+    const { createProfileRow } = await import('@/lib/slicer/setup');
+    const name = (i.name ?? '').trim() || `${base.name} (${t('slicer.studioCopy')})`;
+    return createProfileRow({ type: i.type, name, baseName: base.baseName, vendor: base.vendor ?? undefined, changes, userId: u.id, note: t('slicer.studioSavedNote'), nozzle: base.nozzle });
+  }, ['/laminador']);
+}

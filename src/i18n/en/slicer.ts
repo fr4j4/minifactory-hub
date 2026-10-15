@@ -255,4 +255,6 @@ export const slicer: Shape<typeof es['slicer']> = {
   filamentSource_material: 'from the material',
   filamentSource_explicit: 'chosen',
   qualityIntent: 'Quality',
+  studioSavedNote: 'Saved from the Slicing Studio',
+  studioCopy: 'Studio',
 };

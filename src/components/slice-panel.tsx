@@ -13,7 +13,7 @@ import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
-export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
+export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
 
 export function useRunPolling(ids: string[], onDone?: () => void) {
   const [runs, setRuns] = useState<Record<string, RunInfo>>({});
@@ -23,7 +23,7 @@ export function useRunPolling(ids: string[], onDone?: () => void) {
     const tick = async () => {
       const res = await Promise.all(ids.map((id) => fetch(`/api/runs/${id}`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
       if (stop) return; const next: Record<string, RunInfo> = {}; res.forEach((r, i) => { if (r) next[ids[i]] = r; }); setRuns(next);
-      if (res.every((r) => r && (r.status === 'done' || r.status === 'error'))) { onDone?.(); return; }
+      if (res.every((r) => r && (r.status === 'done' || r.status === 'error' || r.status === 'cancelado'))) { onDone?.(); return; }
       setTimeout(tick, 700);
     };
     tick(); return () => { stop = true; };

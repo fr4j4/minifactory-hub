@@ -43,5 +43,6 @@ import { advisor } from './advisor';
 import { nozzle } from './nozzle';
 import { setup } from './setup';
 import { documents } from './documents';
+import { studio } from './studio';
 
-export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents };
+export const es = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents, studio };
