@@ -1,4 +1,5 @@
 export const queue = {
+  resin: 'Resina',
   productionQueue: 'Cola de producción',
   eachColumnIsAMachine: 'Cada columna es una máquina. Arrastra los trabajos para reordenar o reasignar; el sistema sugiere la máquina con el material cargado.',
   recentlyFinished: 'Terminados recientemente',

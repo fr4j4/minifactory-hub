@@ -2,6 +2,7 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const queue: Shape<typeof es['queue']> = {
+  resin: 'Resin',
   productionQueue: 'Production queue',
   eachColumnIsAMachine: 'Each column is a machine. Drag jobs to reorder or reassign them; the system suggests the machine with the material loaded.',
   recentlyFinished: 'Recently finished',
