@@ -1,4 +1,5 @@
 export const viewer = {
+  mode_flujo: 'Caudal',
   layerPreviewIsNotAvailable: 'La vista previa de capas no está disponible para este archivo',
   loadingToolpaths: 'Cargando trayectorias…',
   infillSampledForTheViewer: 'Relleno reducido (muestreado) para el visor',

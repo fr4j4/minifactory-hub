@@ -11,7 +11,7 @@ const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780];
 
 interface Stats { byType: Array<{ timeS: number; mm: number }>; layerTimeS: number[]; speed: [number, number]; width: [number, number] }
 interface Parsed { bbox: { min: number[]; max: number[] }; layers: Array<{ z: number; t: Array<[number, number, number]> }>; types: string[]; total: number; sampled: boolean; seg: Float32Array; speed?: Float32Array; width?: Float32Array; stats?: Stats }
-type ColorMode = 'tipo' | 'velocidad' | 'ancho' | 'tiempoCapa';
+type ColorMode = 'tipo' | 'velocidad' | 'ancho' | 'tiempoCapa' | 'flujo';
 /** Escala azul → verde → amarillo → rojo para t en 0…1. */
 const ramp = (t: number): [number, number, number] => { const x = Math.min(1, Math.max(0, t)); const c = new THREE.Color().setHSL((1 - x) * 0.66, 0.85, 0.5); return [c.r, c.g, c.b]; };
 function parse(buf: ArrayBuffer): Parsed {
@@ -29,7 +29,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   const t = useT();
   const host = useRef<HTMLDivElement>(null); const S = useRef<any>({});
   const [data, setData] = useState<Parsed | null>(null); const [err, setErr] = useState(''); const [layer, setLayer] = useState(0);
-  const [mode, setMode] = useState<ColorMode>('tipo'); const [show, setShow] = useState<boolean[]>([true, true, true, true, true]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
+  const [flowR, setFlowR] = useState<[number, number]>([0, 0]); const [mode, setMode] = useState<ColorMode>('tipo'); const [show, setShow] = useState<boolean[]>([true, true, true, true, true]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
 
   useEffect(() => {
     const el = host.current!; const dark = isDarkNow(); let disposed = false;
@@ -83,12 +83,17 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   useEffect(() => {
     const st = S.current; if (!st.lines || !data) return;
     const stt = data.stats; const lt = stt?.layerTimeS ?? []; const ltMin = lt.length ? Math.min(...lt) : 0, ltMax = lt.length ? Math.max(...lt) : 1;
+    // caudal volumétrico (mm³/s) = ancho × altura de capa × velocidad
+    const layerH = (l: number) => Math.max(0.05, (data.layers[l]?.z ?? 0) - (l > 0 ? data.layers[l - 1].z : 0));
+    const flowOf = (k: number, a: any) => a.w[k] * layerH(a.l[k]) * a.s[k];
+    let flowRange: [number, number] = [0, 1];
+    if (mode === 'flujo') { let lo = Infinity, hi = 0; for (let ti = 0; ti < 5; ti++) { const a = st.attr[ti]; for (let k = 0; k < a.l.length; k++) { const f = flowOf(k, a); if (f < lo) lo = f; if (f > hi) hi = f; } } flowRange = [Number.isFinite(lo) ? lo : 0, hi || 1]; setFlowR(flowRange); }
     for (let ti = 0; ti < 5; ti++) {
       const ls = st.lines[ti] as THREE.LineSegments; const m = ls.material as THREE.LineBasicMaterial; const a = st.attr[ti];
       if (mode === 'tipo' || !stt) { ls.geometry.deleteAttribute('color'); m.vertexColors = false; m.color.setHex(TYPE_COLOR[ti]); m.needsUpdate = true; continue; }
       const n = a.l.length; const col = new Float32Array(n * 6);
       for (let k = 0; k < n; k++) {
-        const t = mode === 'velocidad' ? (a.s[k] - stt.speed[0]) / Math.max(1e-6, stt.speed[1] - stt.speed[0]) : mode === 'ancho' ? (a.w[k] - stt.width[0]) / Math.max(1e-6, stt.width[1] - stt.width[0]) : (lt[a.l[k]] - ltMin) / Math.max(1e-6, ltMax - ltMin);
+        const t = mode === 'flujo' ? (flowOf(k, a) - flowRange[0]) / Math.max(1e-6, flowRange[1] - flowRange[0]) : mode === 'velocidad' ? (a.s[k] - stt.speed[0]) / Math.max(1e-6, stt.speed[1] - stt.speed[0]) : mode === 'ancho' ? (a.w[k] - stt.width[0]) / Math.max(1e-6, stt.width[1] - stt.width[0]) : (lt[a.l[k]] - ltMin) / Math.max(1e-6, ltMax - ltMin);
         const c = ramp(mode === 'tiempoCapa' ? 1 - t : t); col.set([...c, ...c], k * 6);
       }
       ls.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3)); m.vertexColors = true; m.color.setHex(0xffffff); m.needsUpdate = true;
@@ -117,10 +122,10 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
             {TYPE_LABEL.map((lk, i) => <label key={lk} className="flex items-center gap-1.5"><input type="checkbox" checked={show[i]} onChange={(e) => setShow((s) => s.map((v, k) => (k === i ? e.target.checked : v)))} /><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#' + TYPE_COLOR[i].toString(16).padStart(6, '0') }} />{t(lk)}</label>)}
-            {data.stats && <label className="flex items-center gap-1.5">{t('viewer.colorBy')}<select className="input !min-h-[32px] !py-0.5 !w-auto" value={mode} onChange={(e) => setMode(e.target.value as ColorMode)} data-testid="gcode-color-mode">{(['tipo', 'velocidad', 'ancho', 'tiempoCapa'] as const).map((m) => <option key={m} value={m}>{t(`viewer.mode_${m}` as 'viewer.mode_tipo')}</option>)}</select></label>}
+            {data.stats && <label className="flex items-center gap-1.5">{t('viewer.colorBy')}<select className="input !min-h-[32px] !py-0.5 !w-auto" value={mode} onChange={(e) => setMode(e.target.value as ColorMode)} data-testid="gcode-color-mode">{(['tipo', 'velocidad', 'ancho', 'tiempoCapa', 'flujo'] as const).map((m) => <option key={m} value={m}>{t(`viewer.mode_${m}` as 'viewer.mode_tipo')}</option>)}</select></label>}
             <label className="flex items-center gap-1.5"><input type="checkbox" checked={onlyCurrent} onChange={(e) => setOnlyCurrent(e.target.checked)} /> {t('viewer.highlightOnlyTheCurrentLayer')}</label>
           </div>
-          {data.stats && mode !== 'tipo' && <div className="flex items-center gap-2 text-xs muted" data-testid="gcode-legend"><span>{mode === 'velocidad' ? `${data.stats.speed[0].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[0].toFixed(2)} mm` : t('viewer.slowLayers')}</span><span className="h-2 flex-1 max-w-48 rounded" style={{ background: 'linear-gradient(90deg, hsl(240 85% 50%), hsl(120 85% 50%), hsl(60 85% 50%), hsl(0 85% 50%))' }} /><span>{mode === 'velocidad' ? `${data.stats.speed[1].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[1].toFixed(2)} mm` : t('viewer.fastLayers')}</span></div>}
+          {data.stats && mode !== 'tipo' && <div className="flex items-center gap-2 text-xs muted" data-testid="gcode-legend"><span>{mode === 'flujo' ? `${(flowR[0]).toFixed(1)} mm³/s` : mode === 'velocidad' ? `${data.stats.speed[0].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[0].toFixed(2)} mm` : t('viewer.slowLayers')}</span><span className="h-2 flex-1 max-w-48 rounded" style={{ background: 'linear-gradient(90deg, hsl(240 85% 50%), hsl(120 85% 50%), hsl(60 85% 50%), hsl(0 85% 50%))' }} /><span>{mode === 'flujo' ? `${(flowR[1]).toFixed(1)} mm³/s` : mode === 'velocidad' ? `${data.stats.speed[1].toFixed(0)} mm/s` : mode === 'ancho' ? `${data.stats.width[1].toFixed(2)} mm` : t('viewer.fastLayers')}</span></div>}
           {data.stats && mode === 'tipo' && (() => { const tot = data.stats.byType.reduce((a, x) => a + x.timeS, 0) || 1; return <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs muted" data-testid="gcode-time-by-type">{data.stats.byType.map((x, i) => x.timeS > 0 && <li key={i}>{t(TYPE_LABEL[i])}: <b>{Math.round((x.timeS / tot) * 100)}%</b></li>)}</ul>; })()}
         </div>
       )}

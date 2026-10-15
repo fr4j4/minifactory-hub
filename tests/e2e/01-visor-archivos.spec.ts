@@ -54,7 +54,7 @@ test.describe('Archivos 3D: subida, análisis y visor', () => {
     await page.waitForLoadState('networkidle'); await uploadAcceptingDuplicates(page, [path.join(SAMPLES, 'barquito-a1.gcode'), path.join(SAMPLES, 'llavero-a1.3mf')]); await page.waitForTimeout(3000); await page.reload();
     await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'barquito-a1' }).first().getAttribute('href'))!);
     await expect(page.getByTestId('sliced-meta')).toContainText('OrcaSlicer 2.4.2', { timeout: 40000 }); await expect(page.getByTestId('sliced-meta')).toContainText('0:32 h'); await expect(page.getByTestId('sliced-meta')).toContainText('7,4');
-    await expect(page.getByTestId('gcode-canvas')).toBeVisible(); await expect(page.getByTestId('gcode-layer-readout')).toContainText('Capa 164 / 164', { timeout: 30000 });
+    await expect(page.getByTestId('gcode-canvas')).toBeVisible(); await page.getByTestId('gcode-color-mode').selectOption('flujo'); await expect(page.getByTestId('gcode-legend')).toContainText('mm³/s'); await expect(page.getByTestId('gcode-layer-readout')).toContainText('Capa 164 / 164', { timeout: 30000 });
     await page.getByTestId('gcode-layer-slider').fill('60'); await expect(page.getByTestId('gcode-layer-readout')).toContainText('Capa 61'); await page.waitForTimeout(400); await shot(page, '09-gcode-capas', { full: true });
     await page.getByTestId('gcode-layer-slider').fill('0'); await page.getByTestId('gcode-play').click(); await page.waitForTimeout(2500); await shot(page, '10-gcode-animacion');
     // 3MF laminado: lee tiempo y gramos sin laminar de nuevo
