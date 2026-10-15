@@ -76,10 +76,10 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
     onChange(patch); setPick('');
   };
   const doSlice = async () => {
-    const missing = !firstModel ? 'calculator.missingModel' : !mach?.machineProfileId ? 'calculator.missingMachineProfile' : !it.processProfileId ? 'calculator.missingProcess' : !mat?.filamentProfileId ? 'calculator.missingFilamentProfile' : null;
-    if (missing || !firstModel || !mach?.machineProfileId || !mat?.filamentProfileId || !it.processProfileId) { toast.push(tOr(t, missing ?? 'calculator.chooseAModelAMachine', t('calculator.chooseAModelAMachine'), { name: mat?.label ?? '' }), 'err'); return; }
+    const missing = !firstModel ? 'calculator.missingModel' : !mach?.machineProfileId ? 'calculator.missingMachineProfile' : !it.processProfileId ? 'calculator.missingProcess' : !mat ? 'calculator.missingFilamentProfile' : null;
+    if (missing || !firstModel || !mach?.machineProfileId || !mat || !it.processProfileId) { toast.push(tOr(t, missing ?? 'calculator.chooseAModelAMachine', t('calculator.chooseAModelAMachine'), { name: mat?.label ?? '' }), 'err'); return; }
     onChange({ origin: { ...it.origin, stale: false } });
-    const r = await sliceAction({ fileVersionId: firstModel.versionId, machineProfileId: mach.machineProfileId, processProfileId: it.processProfileId, filamentProfileId: mat.filamentProfileId, copies: qty, label: `${firstModel.name} ×${qty}` });
+    const r = await sliceAction({ fileVersionId: firstModel.versionId, machineProfileId: mach.machineProfileId, processProfileId: it.processProfileId, materialId: mat.id, copies: qty, label: `${firstModel.name} ×${qty}` });
     if (r.ok) setRunId(r.data); else toast.push(r.error, 'err');
   };
   const useSliced = (b: ModelBrief) => {

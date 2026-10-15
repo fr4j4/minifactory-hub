@@ -17,7 +17,7 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
   const t = useT();
   const toast = useToast();
   const setups = ctx.setups; const setupOf = (k: string) => setups.find((x) => x.key === k); const nozzleOf = (k: string) => setupOf(k)?.nozzle ?? null;
-  const procs = ctx.profiles.filter((p) => p.type === 'process'); const mats = ctx.materials.filter((m) => m.tech === 'fdm' && m.filamentProfileId);
+  const procs = ctx.profiles.filter((p) => p.type === 'process'); const mats = ctx.materials.filter((m) => m.tech === 'fdm');
   const [fileId, setFileId] = useState(initialFile ?? files[0]?.id ?? ''); const [copies, setCopies] = useState(1);
   let k = 0;
   const mk = (): Combo => ({ key: k++, setupKey: setups[0]?.key ?? '', processId: setups[0]?.processProfileId ?? procs[0]?.id ?? '', materialId: mats[0]?.id ?? '' });
@@ -27,7 +27,7 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
   const file = files.find((f) => f.id === fileId);
   const go = async () => {
     if (!file) return; setBusy(true); setView(null);
-    const payload = combos.map((c) => { return { label: String(c.key), machineProfileId: setupOf(c.setupKey)!.machineProfileId, processProfileId: c.processId, filamentProfileId: ctx.materials.find((x) => x.id === c.materialId)!.filamentProfileId! }; });
+    const payload = combos.map((c) => { return { label: String(c.key), machineProfileId: setupOf(c.setupKey)!.machineProfileId, processProfileId: c.processId, materialId: c.materialId }; });
     const r = await compareAction({ fileVersionId: file.versionId, copies, combos: payload });
     if (!r.ok) { toast.push(r.error, 'err'); setBusy(false); return; }
     setIds(r.data.ids); setLabels(Object.fromEntries(r.data.ids.map((id, i) => [id, combos[i]])));

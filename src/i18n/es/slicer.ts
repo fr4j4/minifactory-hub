@@ -108,7 +108,7 @@ export const slicer = {
   addOne: 'Agrega una',
   connectYourBambuLab: 'conecta tu Bambu Lab',
   filamentsFromYourInventory: 'Filamentos de tu inventario',
-  eachMaterialNeedsAFilament: 'Cada material necesita un perfil de filamento (temperaturas, flujo y densidad: de aquí salen los gramos). Te sugerimos uno por marca y tipo.',
+  eachMaterialNeedsAFilament: 'Opcional: al laminar se elige solo un perfil de filamento por marca y tipo (lo ves marcado como «automático»). Aquí puedes fijar uno distinto para un material.',
   addThem: 'Agrégalos',
   slice2: 'Laminar',
   onceTheAboveIsReady: 'Con lo anterior listo, cualquier archivo se lamina desde Archivos 3D → «Laminar y cotizar» o desde un presupuesto.',
@@ -246,4 +246,9 @@ export const slicer = {
   importNotProfile: '{file}: no parece un perfil de impresora, proceso ni filamento',
   importEmptyBundle: '{file}: el paquete no trae perfiles',
   importUnsupported: '{file}: formato no soportado (usa .3mf, .bbscfg, .bbsflmt, .zip o .json)',
+  filamentLabel: 'Perfil de filamento',
+  filamentAuto: 'Automático (según el material)',
+  filamentSource_auto: 'automático',
+  filamentSource_material: 'del material',
+  filamentSource_explicit: 'elegido',
 };

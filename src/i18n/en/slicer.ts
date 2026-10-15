@@ -111,7 +111,7 @@ export const slicer: Shape<typeof es['slicer']> = {
   addOne: 'Add one',
   connectYourBambuLab: 'connect your Bambu Lab',
   filamentsFromYourInventory: 'Filaments from your inventory',
-  eachMaterialNeedsAFilament: 'Each material needs a filament profile (temperatures, flow and density: the grams come from here). We suggest one per brand and type.',
+  eachMaterialNeedsAFilament: 'Optional: when slicing, a filament profile is picked automatically by brand and type (shown as “automatic”). Here you can pin a different one for a material.',
   addThem: 'Add them',
   slice2: 'Slice',
   onceTheAboveIsReady: 'Once the above is ready, any file is sliced from 3D files → “Slice & quote” or from a quote.',
@@ -249,4 +249,9 @@ export const slicer: Shape<typeof es['slicer']> = {
   importNotProfile: '{file}: does not look like a printer, process or filament profile',
   importEmptyBundle: '{file}: the bundle has no profiles',
   importUnsupported: '{file}: unsupported format (use .3mf, .bbscfg, .bbsflmt, .zip or .json)',
+  filamentLabel: 'Filament profile',
+  filamentAuto: 'Automatic (from the material)',
+  filamentSource_auto: 'automatic',
+  filamentSource_material: 'from the material',
+  filamentSource_explicit: 'chosen',
 };

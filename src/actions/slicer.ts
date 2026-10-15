@@ -13,21 +13,30 @@ import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 
-export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId: string; copies?: number; label?: string; force?: boolean }) {
+export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean }) {
   return safe(async () => {
     const u = await requirePerm('laminador', 'V');
     return enqueueSlice({ ...i, userId: u.id });
   });
 }
 
-export async function compareAction(i: { fileVersionId: string; copies?: number; combos: Array<{ label: string; machineProfileId: string; processProfileId: string; filamentProfileId: string }> }) {
+export async function compareAction(i: { fileVersionId: string; copies?: number; combos: Array<{ label: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null }> }) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('laminador', 'V');
     if (i.combos.length < 1 || i.combos.length > 8) throw new Error(t('slicer.chooseBetween1And8'));
     const groupId = crypto.randomUUID(); const ids: string[] = [];
-    for (const c of i.combos) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, copies: i.copies ?? 1, label: c.label, groupId, userId: u.id, machineProfileId: c.machineProfileId, processProfileId: c.processProfileId, filamentProfileId: c.filamentProfileId }));
+    for (const c of i.combos) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, copies: i.copies ?? 1, label: c.label, groupId, userId: u.id, machineProfileId: c.machineProfileId, processProfileId: c.processProfileId, filamentProfileId: c.filamentProfileId, materialId: c.materialId }));
     return { groupId, ids };
+  });
+}
+
+/** Filamento que se usaría para un material en esa máquina (sin laminar): para mostrar «automático» y alimentar el asesor. */
+export async function resolveFilamentAction(i: { materialId: string; machineProfileId?: string | null; filamentProfileId?: string | null }) {
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'V');
+    const { resolveFilament } = await import('@/lib/slicer/resolve');
+    return resolveFilament({ materialId: i.materialId, explicitProfileId: i.filamentProfileId, machineProfileId: i.machineProfileId, userId: u.id });
   });
 }
 

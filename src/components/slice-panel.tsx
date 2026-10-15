@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calcLine } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import { dur, grams, money, num, cn } from '@/lib/format';
-import { sliceAction } from '@/actions/slicer';
+import { resolveFilamentAction, sliceAction } from '@/actions/slicer';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
 import { SliceErrorHelp } from './slice-error-help';
@@ -50,7 +50,8 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const machineId = setup?.machineId ?? '';
   const machine = ctx.machines.find((m) => m.id === machineId) ? { ...ctx.machines.find((m) => m.id === machineId)!, nozzle: setup?.nozzle ?? null, machineProfileId: setup?.machineProfileId ?? null, defaultProcessProfileId: setup?.processProfileId ?? null } : undefined;
   const procs = ctx.profiles.filter((p) => p.type === 'process');
-  const mats = ctx.materials.filter((m) => m.tech === 'fdm' && m.filamentProfileId);
+  const mats = ctx.materials.filter((m) => m.tech === 'fdm');
+  const filProfiles = ctx.profiles.filter((p) => p.type === 'filament');
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
   const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
@@ -59,27 +60,35 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const run = runId ? runs[runId] : null;
   const busy = !!runId && (!run || run.status === 'queued' || run.status === 'running');
   const material = ctx.materials.find((m) => m.id === materialId);
+  const [filamentId, setFilamentId] = useState(''); // '' = automático
+  const [fil, setFil] = useState<{ id: string; name: string; source: string } | null>(null);
+  useEffect(() => {
+    let off = false; setFil(null);
+    if (!materialId || !machine?.machineProfileId) return;
+    resolveFilamentAction({ materialId, machineProfileId: machine.machineProfileId, filamentProfileId: filamentId || null }).then((r) => { if (!off && r.ok) setFil({ id: r.data.profileId, name: r.data.name, source: r.data.source }); });
+    return () => { off = true; };
+  }, [materialId, filamentId, machine?.machineProfileId]);
   const go = async (force = false) => {
-    if (!machine?.machineProfileId || !material?.filamentProfileId || !processId) { toast.push(t('slicer.chooseMachineProcessAndMaterial'), 'err'); return; }
+    if (!machine?.machineProfileId || !material || !processId) { toast.push(t('slicer.chooseMachineProcessAndMaterial'), 'err'); return; }
     setShowLayers(false); setRunId(null);
-    const r = await sliceAction({ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: material.filamentProfileId, copies, label: `${fileName} · ${machine.name}`, force });
+    const r = await sliceAction({ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, materialId: material.id, filamentProfileId: filamentId || null, copies, label: `${fileName} · ${machine.name}`, force });
     if (!r.ok) toast.push(r.error, 'err'); else setRunId(r.data);
   };
   const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId, materialId, qty: copies }) : null;
   return (
     <div className="space-y-4" data-testid="slice-panel">
-      {(setups.length === 0 || mats.length === 0) && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
+      {setups.length === 0 && <div className="rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/40 dark:border-amber-900 p-3 text-sm" data-testid="slice-needs-setup">
         {setups.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
-      {setups.length > 0 && mats.length > 0 && ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length > 0 && <p className="text-xs muted">{ctx.materials.filter((m) => m.tech === 'fdm' && !m.filamentProfileId).length} {t('slicer.materialsHidden')} · <Link href="/laminador/configurar" className="underline">{t('slicer.setUp')}</Link></p>}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => setSetupKey(e.target.value)} data-testid="slice-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}{ctx.machines.find((m) => m.id === x.machineId)?.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
         <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
         <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
+        <label className="block"><span className="label">{t('slicer.filamentLabel')}</span><select className="input" value={filamentId} onChange={(e) => setFilamentId(e.target.value)} data-testid="slice-filament"><option value="">{t('slicer.filamentAuto')}</option>{filProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{fil && <span className="muted text-xs" data-testid="slice-filament-hint">{fil.name} · {t(`slicer.filamentSource_${fil.source}` as 'slicer.filamentSource_auto')}</span>}</label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>
-        {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && material?.filamentProfileId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
+        {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && fil && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
         {run?.status === 'done' && <button className="btn-ghost" onClick={() => go(true)} disabled={busy}>{t('slicer.sliceAgainBypassCache')}</button>}
         <span className="text-xs muted">{t('slicer.engineOrcaslicerTheSameFile')}</span>
       </div>
@@ -104,7 +113,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           </div>
         </div>
       )}
-      {advisorOpen && ai && machine?.machineProfileId && material?.filamentProfileId && <AdvisorPanel target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: material.filamentProfileId, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
+      {advisorOpen && ai && machine?.machineProfileId && fil && <AdvisorPanel target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: fil.id, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
       {showLayers && run?.status === 'done' && <GcodeViewer src={`/api/runs/${run.id}/preview`} />}
     </div>
   );

@@ -5,6 +5,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { config } from '../config';
 import { absPath, newKey, putFile } from '../storage';
 import { buildCliProfile } from './catalog';
+import { resolveFilament } from './resolve';
 import { cleanup, engineVersion, runOrca } from './run';
 import { extOf } from '../mesh/parse';
 import { getT } from '@/i18n/server';
@@ -17,7 +18,9 @@ import { getT } from '@/i18n/server';
 const g = globalThis as unknown as { __sliceWorker?: { running: number; timer?: NodeJS.Timeout } };
 
 export interface EnqueueInput {
-  fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId: string;
+  fileVersionId: string; machineProfileId: string; processProfileId: string;
+  /** Perfil de filamento explícito; si falta se resuelve desde `materialId` (ver resolveFilament). */
+  filamentProfileId?: string | null; materialId?: string | null;
   copies?: number; label?: string; groupId?: string; userId?: string; force?: boolean;
 }
 
@@ -26,9 +29,10 @@ async function loadProfiles(db: Awaited<ReturnType<typeof getDb>>, ids: string[]
   return Object.fromEntries(rows.map((r) => [r.id, r]));
 }
 
-export async function enqueueSlice(i: EnqueueInput): Promise<string> {
+export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   const t = await getT();
   const db = await getDb();
+  const i = { ...input, filamentProfileId: (await resolveFilament({ materialId: input.materialId, explicitProfileId: input.filamentProfileId, machineProfileId: input.machineProfileId, userId: input.userId }, db)).profileId };
   const copies = Math.max(1, Math.min(200, i.copies ?? 1));
   const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, i.fileVersionId));
   if (!fv) throw new Error(t('slicer.fileNotFound'));

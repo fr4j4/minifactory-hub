@@ -90,7 +90,7 @@ export function SlicingSetup({ data, canEdit }: { data: SetupData; canEdit: bool
   const t = useT();
   const { run, pending } = useAction();
   const missing = data.materials.filter((m) => (!m.filamentProfile || m.mismatch) && m.suggested);
-  const ready = data.machines.length > 0 && data.done.machines === data.machines.length && data.done.materials === data.materials.length;
+  const ready = data.machines.length > 0 && data.done.machines === data.machines.length;
   return (
     <div className="space-y-5">
       <section className={cn('rounded-3xl p-5 md:p-6 ring-1', ready ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-900' : 'bg-[var(--panel)] text-[var(--panel-ink)] ring-black/5 dark:ring-white/[.07]')} data-testid="setup-summary">
