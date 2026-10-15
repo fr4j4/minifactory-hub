@@ -1,4 +1,5 @@
 'use client';
+import { isDarkNow } from '@/lib/theme';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -31,7 +32,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   const [mode, setMode] = useState<ColorMode>('tipo'); const [show, setShow] = useState<boolean[]>([true, true, true, true, true]); const [playing, setPlaying] = useState(false); const [onlyCurrent, setOnlyCurrent] = useState(false);
 
   useEffect(() => {
-    const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches; let disposed = false;
+    const el = host.current!; const dark = isDarkNow(); let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'gcode-canvas');
     const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x161615 : 0xe8e5de);

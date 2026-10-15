@@ -10,6 +10,7 @@ import { DICTIONARIES } from '@/i18n/translate';
 import { getLocale, getT } from '@/i18n/server';
 import { getSettings } from '@/lib/settings';
 import { brandCss } from '@/lib/brand';
+import { bootScript, isPalette, paletteCss } from '@/lib/palettes';
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getT();
@@ -24,11 +25,14 @@ export const viewport: Viewport = { themeColor: [{ media: '(prefers-color-scheme
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
-  const css = brandCss((await getSettings().catch(() => null))?.shop.brandColor ?? '');
+  const st = await getSettings().catch(() => null);
+  const css = paletteCss() + brandCss(st?.shop.brandColor ?? '');
+  const shopPalette = isPalette(st?.shop.palette) ? st!.shop.palette : 'capa';
   return (
-    <html lang={LOCALE_TAG[locale]} className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    <html lang={LOCALE_TAG[locale]} className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: bootScript(shopPalette) }} /></head>
       <body className="min-h-screen antialiased">
-        {css && <style dangerouslySetInnerHTML={{ __html: css }} />}<I18nProvider locale={locale} messages={DICTIONARIES[locale]}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
+        <style dangerouslySetInnerHTML={{ __html: css }} /><I18nProvider locale={locale} messages={DICTIONARIES[locale]}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
     </html>
   );
 }

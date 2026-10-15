@@ -13,6 +13,7 @@ export async function generateMetadata() { return { title: (await getT())('studi
 
 export default async function StudioPage({ params }: { params: Promise<{ id: string }> }) {
   const t = await getT(); const user = await pagePerm('laminador', 'V'); const { id } = await params; const db = await getDb();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) notFound();
   const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, id)); if (!f?.currentVersionId) notFound();
   const ctx = await getCalcContext();
   return (

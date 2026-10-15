@@ -5,7 +5,7 @@ import { DEFAULT_AI, type AiSettings } from './ai/types';
 import type { DocTemplate } from './documents';
 
 export interface AppSettings {
-  shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string };
+  shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string; /** paleta por defecto de la interfaz (cada persona puede elegir otra en su navegador) */ palette?: string };
   rates: Rates;
   quoteValidDays: number;
   reservationDays: number;

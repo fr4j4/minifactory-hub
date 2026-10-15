@@ -4,7 +4,8 @@ import type { Config } from 'tailwindcss';
  * y un naranja de boquilla caliente como acento. brand-600+ cumple contraste AA con texto blanco.
  */
 export default {
-  darkMode: 'media',
+  // oscuro si el sistema lo pide (y no se eligió claro) o si se eligió oscuro a mano (data-theme en <html>)
+  darkMode: ['variant', ['@media (prefers-color-scheme: dark) { &:not(:is([data-theme="light"] *)) }', '&:is([data-theme="dark"] *)']],
   content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {

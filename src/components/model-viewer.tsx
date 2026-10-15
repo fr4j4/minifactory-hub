@@ -1,4 +1,5 @@
 'use client';
+import { isDarkNow } from '@/lib/theme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -52,7 +53,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
   /* ───────── escena ───────── */
   useEffect(() => {
     setStatus('cargando'); setErr(''); setInfo(null); setMeasure(null);
-    const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const el = host.current!; const dark = isDarkNow();
     let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.localClippingEnabled = true;
@@ -286,7 +287,7 @@ function frameCamera(st: any) {
 function drawBed(st: any, m: ViewerMachine | null) {
   const g: THREE.Group = st.bedGroup; while (g.children.length) { const o = g.children.pop()!; (o as any).geometry?.dispose(); }
   if (!m) return;
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark = isDarkNow();
   const box = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(m.volX, m.volY, m.volZ));
   const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(m.volX, m.volY, m.volZ)), new THREE.LineBasicMaterial({ color: dark ? 0x77736b : 0x9a9284 })); e.position.set(m.volX / 2, m.volY / 2, m.volZ / 2); g.add(e);
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.volX, m.volY), new THREE.MeshBasicMaterial({ color: dark ? 0x23221f : 0xdcd7cc, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false })); plane.position.set(m.volX / 2, m.volY / 2, -0.05); g.add(plane);

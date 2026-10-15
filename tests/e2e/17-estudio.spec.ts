@@ -28,8 +28,7 @@ test.describe('Estudio de laminado (R5)', () => {
   });
   test('valida en línea: una capa fuera de rango avisa sin romper', async ({ page }) => {
     await login(page, 'admin');
-    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
-    await page.waitForLoadState('networkidle');
+    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/);
     await page.goto(page.url().replace(/\?.*$/, '') + '/estudio');
     await page.getByTestId('studio-auto').uncheck();
     await page.getByTestId('param-search').fill('altura de capa');
@@ -41,8 +40,8 @@ test.describe('Estudio de laminado (R5)', () => {
 test.describe('Estudio · explorar', () => {
   test('barrido del relleno: tabla, gráfico y «usar esta» carga el ajuste', async ({ page }) => {
     await login(page, 'admin');
-    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click();
-    await page.waitForLoadState('networkidle'); await page.goto(page.url().replace(/\?.*$/, '') + '/estudio');
+    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.waitForURL(/\/archivos\/[0-9a-f-]{36}/);
+    await page.goto(page.url().replace(/\?.*$/, '') + '/estudio');
     await expect(page.getByTestId('studio-status')).toContainText(/Laminado|Sliced/, { timeout: 90_000 });
     await page.getByTestId('studio-explore').click();
     await page.getByTestId('preset-material').click();
