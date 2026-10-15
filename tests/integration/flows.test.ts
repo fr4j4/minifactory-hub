@@ -345,3 +345,17 @@ describe('edición masiva por línea de filamento (P2)', () => {
     expect(await bulkUpdateLine({ manufacturer: target.manufacturer, line: target.line }, {}, admin.id)).toBe(0);
   });
 });
+
+describe('etiquetado automático (P4)', () => {
+  it('solo aplica reglas con confianza alta y solo si el taller lo activó', async () => {
+    const { autoTagFile } = await import('@/lib/library/auto');
+    const [f] = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)).limit(1);
+    await db.update(s.modelFiles).set({ tags: [], tagMeta: {} }).where(eq(s.modelFiles.id, f.id));
+    const st = await getSettings();
+    await saveSettings({ library: { autoTag: false } }); expect(await autoTagFile(f.id)).toEqual([]);
+    await saveSettings({ library: { autoTag: true } }); const added = await autoTagFile(f.id);
+    const [after] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id));
+    expect(after.tags).toEqual(added); for (const t of added) expect(after.tagMeta![t].source).toBe('regla');
+    await saveSettings({ library: st.library });
+  });
+});

@@ -1,4 +1,7 @@
 export const settings = {
+  autoTag: 'Etiquetar automáticamente los archivos nuevos',
+  autoTagHint: 'Aplica solas las etiquetas por reglas (nombre, carpeta, forma) con confianza alta. La IA nunca se aplica sola.',
+  autoTagSaved: 'Guardado',
   nameAndEmailAreRequired: 'Nombre y correo son obligatorios',
   thePasswordMustBeAt: 'La contraseña debe tener al menos 8 caracteres',
   youCannotRemoveYourOwn: 'No puedes quitarte tu propio acceso de administrador',

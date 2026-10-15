@@ -2,6 +2,9 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const settings: Shape<typeof es['settings']> = {
+  autoTag: 'Tag new files automatically',
+  autoTagHint: 'Applies rule-based tags (name, folder, shape) with high confidence. AI suggestions are never applied automatically.',
+  autoTagSaved: 'Saved',
   nameAndEmailAreRequired: 'Name and email are required',
   thePasswordMustBeAt: 'The password must be at least 8 characters long',
   youCannotRemoveYourOwn: 'You cannot remove your own administrator access',

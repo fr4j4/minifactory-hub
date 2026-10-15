@@ -20,6 +20,8 @@ export interface AppSettings {
   ai: AiSettings;
   /** Asistente de configuración inicial (N10). `pending` = cuenta creada pero asistente sin terminar. */
   documents: { quote: Partial<DocTemplate> };
+  /** Biblioteca: aplicar solas las etiquetas por reglas con confianza alta al terminar el análisis. */
+  library: { autoTag: boolean };
   setup: { pending: boolean; mode?: 'rapido' | 'completo'; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
 }
 
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   watermark: { enabled: false, opacity: 0.4, position: 'abajo-derecha' },
   ai: DEFAULT_AI,
   documents: { quote: {} },
+  library: { autoTag: false },
   setup: { pending: false, completedAt: null, steps: {}, tokenHash: '' },
 };
 

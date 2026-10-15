@@ -115,7 +115,10 @@ export async function processVersion(versionId: string) {
   meta.processMs = Date.now() - t0;
   await db.update(s.fileVersions).set({ meta, thumbKey, updatedAt: new Date() }).where(eq(s.fileVersions.id, versionId));
   const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
-  if (mf?.currentVersionId === versionId) await db.update(s.modelFiles).set({ ...mfUpdate, updatedAt: new Date() }).where(eq(s.modelFiles.id, v.modelFileId));
+  if (mf?.currentVersionId === versionId) {
+    await db.update(s.modelFiles).set({ ...mfUpdate, updatedAt: new Date() }).where(eq(s.modelFiles.id, v.modelFileId));
+    await (await import('./library/auto')).autoTagFile(v.modelFileId).catch(() => []);
+  }
 }
 
 async function gcodeTopSvgToWebp(p: ReturnType<typeof buildGcodePreview>) {
