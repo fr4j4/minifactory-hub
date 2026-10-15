@@ -63,4 +63,6 @@ export const viewer = {
   testScale: 'Escala de prueba: {scale}%',
   rotateAxis: 'Girar {axis} 90°',
   angle: 'Ángulo: {deg}°',
+  material: 'Color del material',
+  materialDefault: 'Color por defecto',
 };

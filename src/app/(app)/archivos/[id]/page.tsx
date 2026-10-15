@@ -39,6 +39,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const processing = meta.status === 'processing';
   const tabs = [['visor', t('files.n3dViewer')], ['laminar', t('files.sliceQuote')], ['versiones', t('files.versions', { versions: versions.length })], ['vinculos', t('files.linksReferences')]];
   const color = '#ff6a2b';
+  const viewerMats = (await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.tech, 'fdm')))).map((m) => ({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, hex: m.hex }));
   return (
     <>
       <PageHeader back={{ href: '/archivos', label: t('nav.files') }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>{t('files.license')} {f.license}</span>}</span>}
@@ -52,7 +53,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       {tab === 'visor' && (
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2 space-y-4">
-            {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} analysis={a} />}
+            {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} materials={viewerMats} analysis={a} />}
             {!processing && cur && kind === 'malla' && meta.gcodePreviewKey && <Card title={t('files.toolpathsFromTheGCode')}><GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /></Card>}
             {!processing && cur && kind === 'gcode' && (meta.gcodePreviewKey ? <GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /> : <Card><Empty title={t('files.noLayerPreview')} hint={sm?.notes?.[0] ?? t('files.thisGCodeCannotBe')} /></Card>)}
             {!processing && cur && kind === 'imagen' && (f.format === 'pdf' ? <iframe src={`/api/files/v/${cur.id}/raw`} className="w-full h-[70vh] card" title={f.name} /> : <img src={`/api/files/v/${cur.id}/thumb`} alt={f.name} className="card w-full" />)}

@@ -24,8 +24,8 @@ function parseMesh(buf: ArrayBuffer) {
   return { verts, idx, colors, decimated: !!(flags & 2), origTris };
 }
 
-export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', analysis, className, initialMode, onCapture }: {
-  versionId: string; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string;
+export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', materials = [], analysis, className, initialMode, onCapture }: {
+  versionId: string; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string; materials?: Array<{ id: string; label: string; hex: string }>;
   analysis?: { dimX: number; dimY: number; dimZ: number; triangles: number } | null; className?: string; initialMode?: Mode;
   onCapture?: (dataUrl: string) => void;
 }) {
@@ -45,6 +45,8 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
   const [showDims, setShowDims] = useState(true);
   const [info, setInfo] = useState<{ tris: number; decimated: boolean; orig: number } | null>(null);
   const [panel, setPanel] = useState(true);
+  const [matId, setMatId] = useState(''); // color del material del inventario (N1a); '' = color por defecto
+  const shownColor = materials.find((m) => m.id === matId)?.hex ?? color;
   const machine = machines.find((m) => m.id === machineId);
 
   /* ───────── escena ───────── */
@@ -113,6 +115,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
 
   /* ───────── efectos de estado → escena ───────── */
   useEffect(() => { S.current.machine = machine; if (S.current.mesh) { drawBed(S.current, machine ?? null); placeOnBed(S.current); } }, [machine, status]);
+  useEffect(() => { const st = S.current; if (st.mat && !st.mat.vertexColors) { st.mat.color.set(shownColor); st.mat.needsUpdate = true; } }, [shownColor, status]);
   useEffect(() => {
     const st = S.current; if (!st.mat) return; const m: THREE.MeshStandardMaterial = st.mat;
     m.wireframe = mode === 'alambrico'; m.transparent = mode === 'rayosx'; m.opacity = mode === 'rayosx' ? 0.35 : 1; m.depthWrite = mode !== 'rayosx';
@@ -205,6 +208,10 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
         <div className="border-t border-slate-200 dark:border-slate-700">
           <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>{t('viewer.tools')} {panel ? '▾' : '▸'}</button>
           <div className={cn('p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm', !panel && 'hidden md:grid')}>
+            {materials.length > 0 && <div>
+              <div className="label">{t('viewer.material')}</div>
+              <div className="flex flex-wrap items-center gap-2"><span className="inline-block h-5 w-5 rounded-full border border-black/20" style={{ background: shownColor }} aria-hidden /><select className="input !min-h-[36px] !py-1 max-w-[220px]" value={matId} onChange={(e) => setMatId(e.target.value)} aria-label={t('viewer.material')} data-testid="viewer-material"><option value="">{t('viewer.materialDefault')}</option>{materials.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></div>
+            </div>}
             <div>
               <div className="label">{t('viewer.displayMode')}</div>
               <div className="flex flex-wrap gap-1">{([['solido', t('viewer.solid')], ['alambrico', t('viewer.wireframe')], ['rayosx', t('viewer.xRay')], ['normales', t('viewer.normals')]] as const).map(([k, l]) => <button key={k} className={btn(mode === k)} onClick={() => setMode(k)} aria-pressed={mode === k} data-testid={`mode-${k}`}>{l}</button>)}</div>

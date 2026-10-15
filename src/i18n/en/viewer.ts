@@ -66,4 +66,6 @@ export const viewer: Shape<typeof es['viewer']> = {
   testScale: 'Test scale: {scale}%',
   rotateAxis: 'Rotate {axis} 90°',
   angle: 'Angle: {deg}°',
+  material: 'Material color',
+  materialDefault: 'Default color',
 };
