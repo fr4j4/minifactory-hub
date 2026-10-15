@@ -60,6 +60,7 @@ export const viewer = {
   pauseShort: '❚❚ Pausar',
   playShort: '▶ Reproducir',
   simplifiedMesh: 'Malla simplificada para el visor ({shown}k de {total}k triángulos)',
+  orientationTestOnly: 'La orientación y la escala son solo de prueba: no se guardan ni cambian el laminado.',
   testScale: 'Escala de prueba: {scale}%',
   rotateAxis: 'Girar {axis} 90°',
   angle: 'Ángulo: {deg}°',

@@ -214,6 +214,19 @@ export async function newQuoteVersion(id: string, user: PermUser & { id: string 
   return newId;
 }
 
+/** Vista previa de «recalcular con tarifas actuales»: por línea, lo que vale hoy contra lo que figura en el presupuesto. */
+export async function previewRecalc(id: string) {
+  const data = await loadQuote(id); if (!data) return null;
+  const ctx = await pricingContext();
+  const lines: Array<{ id: string; description: string; qty: number; oldUnit: number; newUnit: number }> = [];
+  for (const it of data.items) {
+    const priced = await priceItem(it as unknown as ItemInput, ctx);
+    lines.push({ id: it.id, description: it.description, qty: it.qty, oldUnit: it.finalUnit ?? it.suggestedUnit, newUnit: priced.suggestedUnit });
+  }
+  const oldTotal = lines.reduce((a, l) => a + l.oldUnit * l.qty, 0); const newTotal = lines.reduce((a, l) => a + l.newUnit * l.qty, 0);
+  return { lines, oldTotal, newTotal, delta: newTotal - oldTotal };
+}
+
 /** Presupuestos enviados o en borrador cuya vigencia ya pasó pasan a "vencido". */
 export async function expireQuotes() {
   const db = await getDb();

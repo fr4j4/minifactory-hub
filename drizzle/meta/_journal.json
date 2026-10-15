@@ -78,6 +78,13 @@
       "when": 1792030247757,
       "tag": "0010_estudio_inputs",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792030307757,
+      "tag": "0011_proveedor_verificado",
+      "breakpoints": true
     }
   ]
 }

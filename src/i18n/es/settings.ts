@@ -149,6 +149,7 @@ export const settings = {
   supplierCountry: 'País',
   supplierCity: 'Ciudad',
   supplierVerified: 'Verificado',
+  supplierVerifiedOn: 'verificado el {date}',
   supplierSaved: 'Proveedor guardado',
   supplierNeedsName: 'Escribe el nombre del proveedor.',
   supplierUnverified: 'sin verificar',

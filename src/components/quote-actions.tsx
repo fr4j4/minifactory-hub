@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { approveQuoteAction, newVersionAction, rejectQuoteAction, sendQuoteAction } from '@/actions/quotes';
+import { approveQuoteAction, newVersionAction, previewRecalcAction, rejectQuoteAction, sendQuoteAction } from '@/actions/quotes';
 import { CopyButton, Modal, useAction } from './client';
 import { money, sources } from '@/lib/format';
 import { useT } from '@/i18n/client';
@@ -13,6 +13,8 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
   const { run, pending } = useAction(); const router = useRouter();
   const [ap, setAp] = useState(false); const [rj, setRj] = useState(false);
   const [by, setBy] = useState(defaultBy); const [channel, setChannel] = useState('whatsapp'); const [dep, setDep] = useState(Math.round(total * depositPct / 100)); const [method, setMethod] = useState('transferencia'); const [due, setDue] = useState(''); const [plan, setPlan] = useState(true); const [reason, setReason] = useState('');
+  const [rc, setRc] = useState<{ lines: Array<{ id: string; description: string; qty: number; oldUnit: number; newUnit: number }>; oldTotal: number; newTotal: number; delta: number } | null>(null);
+  const openRecalc = async () => { const r = await previewRecalcAction(id); if (r.ok && r.data) setRc(r.data); else run(async () => r); };
   return (
     <div className="flex flex-wrap items-center gap-2">
       <a className="btn-ghost" href={`/api/quotes/${id}/pdf`} data-testid="quote-pdf">{t('quotes.pdf')}</a>
@@ -21,8 +23,19 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
       {canEdit && status === 'borrador' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => sendQuoteAction(id), { ok: t('quotes.markedAsSentPricesAnd2') })} data-testid="quote-send">{t('quotes.markAsSent')}</button>}
       {canEdit && ['borrador', 'enviado', 'vencido'].includes(status) && canOrder && <button className="btn-primary" onClick={() => setAp(true)} data-testid="quote-approve">{t('quotes.theCustomerAccepted')}</button>}
       {canEdit && ['enviado', 'vencido', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, false), { ok: t('quotes.newVersionCreated2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })} data-testid="quote-newversion">{t('quotes.newVersion')}</button>}
+      {canEdit && ['enviado', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" onClick={openRecalc} data-testid="quote-recalc">{t('quotes.recalcCurrent')}</button>}
       {canEdit && status === 'vencido' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, true), { ok: t('quotes.reactivatedWithCurrentRates2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })}>{t('quotes.reactivateWithCurrentRates')}</button>}
       {canEdit && ['enviado', 'vencido'].includes(status) && <button className="btn-ghost text-red-600 dark:text-red-400" onClick={() => setRj(true)}>{t('quotes.rejected')}</button>}
+      <Modal open={!!rc} onClose={() => setRc(null)} title={t('quotes.recalcTitle')} wide>
+        {rc && <div className="space-y-3 text-sm" data-testid="recalc-preview">
+          <p className="muted">{t('quotes.recalcHint')}</p>
+          <table className="w-full"><thead><tr><th className="th">{t('quotes.recalcLine')}</th><th className="th text-right">{t('quotes.recalcBefore')}</th><th className="th text-right">{t('quotes.recalcNow')}</th></tr></thead>
+            <tbody>{rc.lines.map((l) => <tr key={l.id}><td className="td">{l.description} × {l.qty}</td><td className="td text-right tabular">{money(l.oldUnit * l.qty)}</td><td className="td text-right tabular">{money(l.newUnit * l.qty)}</td></tr>)}</tbody>
+            <tfoot><tr><td className="td font-semibold">{t('quotes.recalcTotal')}</td><td className="td text-right tabular font-semibold">{money(rc.oldTotal)}</td><td className="td text-right tabular font-semibold">{money(rc.newTotal)} <span className="muted font-normal">({rc.delta >= 0 ? '+' : '−'}{money(Math.abs(rc.delta))})</span></td></tr></tfoot></table>
+          <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setRc(null)}>{t('common.cancel')}</button>
+            <button className="btn-primary" disabled={pending} data-testid="recalc-apply" onClick={() => run(() => newVersionAction(id, true), { ok: t('quotes.reactivatedWithCurrentRates2'), onOk: (nid) => { setRc(null); router.push(`/presupuestos/${nid}`); } })}>{t('quotes.recalcApply')}</button></div>
+        </div>}
+      </Modal>
       <Modal open={ap} onClose={() => setAp(false)} title={t('quotes.registerCustomerApproval')}>
         <div className="space-y-3">
           <p className="text-sm muted">{t('quotes.approvalIsRecordedManuallyThe')}</p>

@@ -63,6 +63,7 @@ export const viewer: Shape<typeof es['viewer']> = {
   pauseShort: '❚❚ Pause',
   playShort: '▶ Play',
   simplifiedMesh: 'Mesh simplified for the viewer ({shown}k of {total}k triangles)',
+  orientationTestOnly: 'Orientation and scale are for preview only: they are not saved and do not change slicing.',
   testScale: 'Test scale: {scale}%',
   rotateAxis: 'Rotate {axis} 90°',
   angle: 'Angle: {deg}°',

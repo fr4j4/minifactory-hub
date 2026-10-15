@@ -54,8 +54,12 @@ export async function saveSupplierAction(i: { id?: string; name: string; kind: s
     if (!i.name.trim()) throw new Error(t('settings.supplierNeedsName'));
     const url = i.url?.trim() ? (/^https?:\/\//i.test(i.url.trim()) ? i.url.trim() : `https://${i.url.trim()}`) : null;
     const v = { name: i.name.trim(), kind: i.kind, country: i.country.trim().toUpperCase().slice(0, 6) || 'CL', city: i.city?.trim() || null, url, notes: i.notes?.trim() || null, verified: !!i.verified, active: i.active, updatedAt: new Date() };
-    if (i.id) { await db.update(s.suppliers).set(v).where(eq(s.suppliers.id, i.id)); await audit('supplier', i.id, 'editar', { name: v.name }, u.id); return i.id; }
-    const [r] = await db.insert(s.suppliers).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.suppliers.id });
+    if (i.id) {
+      // quién y cuándo lo verificó: solo cambia cuando pasa de «sin verificar» a «verificado» (o al revés)
+      const [cur] = await db.select({ verified: s.suppliers.verified }).from(s.suppliers).where(eq(s.suppliers.id, i.id));
+      const stamp = v.verified && !cur?.verified ? { verifiedAt: new Date(), verifiedBy: u.id } : !v.verified ? { verifiedAt: null, verifiedBy: null } : {};
+      await db.update(s.suppliers).set({ ...v, ...stamp }).where(eq(s.suppliers.id, i.id)); await audit('supplier', i.id, 'editar', { name: v.name }, u.id); return i.id; }
+    const [r] = await db.insert(s.suppliers).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v, ...(v.verified ? { verifiedAt: new Date(), verifiedBy: u.id } : {}) }).returning({ id: s.suppliers.id });
     await audit('supplier', r.id, 'crear', { name: v.name }, u.id); return r.id;
   }, ['/configuracion', '/inventario']);
 }

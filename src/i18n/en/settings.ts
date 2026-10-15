@@ -151,6 +151,7 @@ export const settings: Shape<typeof es['settings']> = {
   supplierKind: 'Type',
   supplierCountry: 'Country',
   supplierCity: 'City',
+  supplierVerifiedOn: 'verified on {date}',
   supplierVerified: 'Verified',
   supplierSaved: 'Supplier saved',
   supplierNeedsName: 'Enter the supplier name.',

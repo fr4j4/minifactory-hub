@@ -241,6 +241,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
               <label className="label" htmlFor="scale">{t('viewer.testScale', { scale })}</label>
               <input id="scale" type="range" min={10} max={300} value={scale} onChange={(e) => setScale(+e.target.value)} className="w-full" data-testid="scale-slider" />
               <div className="flex flex-wrap gap-1 mt-1.5">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className="btn-ghost btn-sm" onClick={() => rotate(a, 90)} data-testid={`rot-${a}`}>{t('viewer.rotateAxis', { axis: a.toUpperCase() })}</button>)}<button className="btn-ghost btn-sm" onClick={resetOrientation}>{t('viewer.reset')}</button></div>
+              <p className="text-xs muted mt-1.5" data-testid="orientation-test-only">{t('viewer.orientationTestOnly')}</p>
             </div>
             <div>
               <div className="label">{t('viewer.cuttingPlaneSection')}</div>

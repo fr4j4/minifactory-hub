@@ -286,3 +286,15 @@ describe('eliminar un material en uso (F0.2)', () => {
     const [gone] = await db.select().from(s.materials).where(eq(s.materials.id, cand.id)); expect(gone.deletedAt).not.toBeNull();
   });
 });
+
+describe('recalcular con tarifas actuales (P2)', () => {
+  it('la vista previa compara el precio guardado con el de las tarifas vigentes', async () => {
+    const { previewRecalc } = await import('@/lib/services/quotes');
+    const q = await saveQuote({ customerName: 'Cliente Z', items: [line({ gramsTotal: 100, hoursTotal: 3 })] }, admin);
+    await sendQuote(q, admin.id);
+    const st = await getSettings(); const before = await previewRecalc(q); expect(before!.delta).toBe(0);
+    await saveSettings({ rates: { ...st.rates, marginPct: st.rates.marginPct + 20 } });
+    const after = await previewRecalc(q); expect(after!.delta).toBeGreaterThan(0); expect(after!.lines[0].newUnit).toBeGreaterThan(after!.lines[0].oldUnit);
+    await saveSettings({ rates: st.rates });
+  });
+});

@@ -1,4 +1,5 @@
 'use client';
+import { Bell, Box, Calculator, Camera, ChartColumn, ClipboardList, FileText, House, Image, Layers, ListOrdered, Menu, Package, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Users, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -9,14 +10,13 @@ import { LocaleSwitcher } from './locale-switcher';
 import { ThemePicker } from './theme-picker';
 
 export interface NavItem { href: string; label: string; icon: string; group: 'main' | 'more' }
-const ICONS: Record<string, string> = {
-  home: 'M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z', orders: 'M9 5h10M9 12h10M9 19h10M4 5h.01M4 12h.01M4 19h.01', quote: 'M7 3h8l4 4v14H7zM15 3v4h4M10 12h6M10 16h6', calc: 'M6 3h12v18H6zM9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01',
-  users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8', cube: 'M12 2 3 7v10l9 5 9-5V7zM3 7l9 5 9-5M12 12v10', slice: 'M4 7h16M4 12h16M4 17h10', box: 'M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10', bag: 'M6 7h12l1 14H5zM9 7a3 3 0 0 1 6 0', cart: 'M3 4h2l2.4 11h10.2L20 7H6M9 20h.01M17 20h.01',
-  printer: 'M7 8V3h10v5M6 17H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2M7 14h10v7H7z', queue: 'M4 6h16M4 12h10M4 18h6', image: 'M3 5h18v14H3zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3M21 16l-5-5-8 8', chart: 'M4 20V10M10 20V4M16 20v-8M22 20H2', cog: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
-  plus: 'M12 5v14M5 12h14', search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16M21 21l-4.3-4.3', bell: 'M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0', menu: 'M4 6h16M4 12h16M4 18h16', camera: 'M3 8h4l2-3h6l2 3h4v12H3zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8', qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2v2h-2zM14 18h2v2h-2zM18 18h2v2h-2z',
+const ICONS: Record<string, LucideIcon> = {
+  home: House, orders: ClipboardList, quote: FileText, calc: Calculator, users: Users, cube: Box, slice: Layers, box: Package, bag: ShoppingBag, cart: ShoppingCart, printer: Printer, queue: ListOrdered,
+  image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
 };
 export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {
-  return <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICONS[name] ?? ICONS.box} /></svg>;
+  const C = ICONS[name] ?? Package;
+  return <C className={className} strokeWidth={1.8} aria-hidden />;
 }
 
 const SECTIONS: Array<{ t: 'nav.shop' | 'nav.sectionProduction' | 'nav.sectionStock' | 'nav.sectionSystem'; hrefs: string[] }> = [

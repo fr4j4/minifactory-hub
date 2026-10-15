@@ -2,6 +2,14 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const quotes: Shape<typeof es['quotes']> = {
+  recalcCurrent: 'Recalculate with current rates',
+  recalcTitle: 'Recalculate with current rates',
+  recalcHint: "Compares the current price with what today's rates would give. Applying creates a new version; the current one is not changed.",
+  recalcLine: 'Line',
+  recalcBefore: 'Before',
+  recalcNow: 'Now',
+  recalcTotal: 'Total',
+  recalcApply: 'Create a new version with these prices',
   enterWhoApprovedTheQuote: 'Enter who approved the quote',
   fileNotFound: 'File not found',
   draftItIsSavedAutomatically: 'Draft: it is saved automatically whenever you change something.',

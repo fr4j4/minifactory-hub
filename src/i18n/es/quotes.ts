@@ -1,4 +1,12 @@
 export const quotes = {
+  recalcCurrent: 'Recalcular con tarifas actuales',
+  recalcTitle: 'Recalcular con tarifas actuales',
+  recalcHint: 'Compara el precio que figura hoy con el que daría con las tarifas vigentes. Al aplicar se crea una nueva versión; la actual no se modifica.',
+  recalcLine: 'Línea',
+  recalcBefore: 'Antes',
+  recalcNow: 'Ahora',
+  recalcTotal: 'Total',
+  recalcApply: 'Crear nueva versión con estos precios',
   enterWhoApprovedTheQuote: 'Indica quién aprobó el presupuesto',
   fileNotFound: 'Archivo no encontrado',
   draftItIsSavedAutomatically: 'Borrador: se guarda automáticamente cada vez que cambias algo.',

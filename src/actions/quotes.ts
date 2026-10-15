@@ -4,7 +4,7 @@ import { getDb, s } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { canSetFinalPrice } from '@/lib/perm';
 import { approveQuote, planProduction } from '@/lib/services/orders';
-import { newQuoteVersion, rejectQuote, saveQuote, sendQuote, type QuoteInput } from '@/lib/services/quotes';
+import { newQuoteVersion, previewRecalc, rejectQuote, saveQuote, sendQuote, type QuoteInput } from '@/lib/services/quotes';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { normalizeLicense } from '@/lib/library/source';
@@ -18,6 +18,7 @@ export async function saveQuoteAction(input: QuoteInput) {
 }
 export async function sendQuoteAction(id: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await sendQuote(id, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }
 export async function rejectQuoteAction(id: string, reason: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await rejectQuote(id, reason, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }
+export async function previewRecalcAction(id: string) { return safe(async () => { await requirePerm('presupuestos', 'V'); return previewRecalc(id); }); }
 export async function newVersionAction(id: string, recalc = false) { return safe(async () => { const u = await requirePerm('presupuestos', 'C'); return newQuoteVersion(id, u, recalc); }, ['/presupuestos']); }
 export async function approveQuoteAction(id: string, i: { by: string; channel: string; depositAmount?: number; depositMethod?: string; dueDate?: string | null; plan?: boolean }) {
   const t = await getT();

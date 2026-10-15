@@ -144,6 +144,8 @@ export const suppliers = pgTable('suppliers', {
   brands: jsonb('brands').$type<string[]>().default([]),
   notes: text('notes'),
   verified: boolean('verified').notNull().default(false),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  verifiedBy: uuid('verified_by'),
   active: boolean('active').notNull().default(true),
 }, (t) => [uniqueIndex('suppliers_name_uq').on(t.workspaceId, t.name)]);
 
