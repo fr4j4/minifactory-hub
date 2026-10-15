@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { calcLine } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import { dur, grams, money, num, cn } from '@/lib/format';
-import { resolveFilamentAction, sliceAction } from '@/actions/slicer';
+import { ensureQualityAction, resolveFilamentAction, sliceAction } from '@/actions/slicer';
 import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
 import { SliceErrorHelp } from './slice-error-help';
@@ -43,6 +44,7 @@ export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'fil
 export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachineId, fileId, fileName, ai }: { fileVersionId: string; ctx: CalcContext; canSlice?: boolean; defaultMachineId?: string | null; fileId: string; fileName: string; ai?: { advisor: boolean; diagnose: boolean; canEdit: boolean; canCreate: boolean } }) {
   const t = useT();
   const toast = useToast();
+  const router = useRouter();
   const setups = ctx.setups;
   const first = setups.find((x) => x.machineId === defaultMachineId && x.active) ?? setups.find((x) => x.machineId === defaultMachineId) ?? setups[0];
   const [setupKey, setSetupKey] = useState(first?.key ?? '');
@@ -60,6 +62,13 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const run = runId ? runs[runId] : null;
   const busy = !!runId && (!run || run.status === 'queued' || run.status === 'running');
   const material = ctx.materials.find((m) => m.id === materialId);
+  const [qBusy, setQBusy] = useState<string | null>(null);
+  const pickQuality = async (key: 'borrador' | 'estandar' | 'fino' | 'resistente') => {
+    if (!machine?.machineProfileId) return; setQBusy(key);
+    const r = await ensureQualityAction({ machineProfileId: machine.machineProfileId, key }); setQBusy(null);
+    if (!r.ok) { toast.push(r.error, 'err'); return; }
+    setProcessId(r.data.id); router.refresh();
+  };
   const [filamentId, setFilamentId] = useState(''); // '' = automático
   const [fil, setFil] = useState<{ id: string; name: string; source: string } | null>(null);
   useEffect(() => {
@@ -81,6 +90,10 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         {setups.length === 0 ? t('slicer.noMachineHasItsPrinter') : t('slicer.noInventoryMaterialHasA')} <Link href="/laminador/configurar" className="underline font-medium">{t('slicer.setItUpInA')}</Link></div>}
       <div className="grid sm:grid-cols-2 gap-3">
         <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => setSetupKey(e.target.value)} data-testid="slice-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}{ctx.machines.find((m) => m.id === x.machineId)?.simulated ? ' (simulada)' : ''}</option>)}</select>{machine?.nozzle && <span className="text-xs muted" data-testid="slice-nozzle">{t('nozzle.nozzleSet', { n: machine.nozzle })}</span>}</label>
+        <div className="sm:col-span-2 flex flex-wrap items-center gap-2" role="group" aria-label={t('slicer.qualityIntent')} data-testid="quality-chips">
+          <span className="label !mb-0">{t('slicer.qualityIntent')}</span>
+          {(['borrador', 'estandar', 'fino', 'resistente'] as const).map((k) => <button key={k} type="button" className="btn-ghost btn-sm" disabled={!machine?.machineProfileId || !!qBusy} onClick={() => pickQuality(k)} data-testid={`quality-${k}`}>{t(`nozzle.tpl.${k}` as 'nozzle.tpl.borrador')}</button>)}
+        </div>
         <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
         <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
         <label className="block"><span className="label">{t('slicer.filamentLabel')}</span><select className="input" value={filamentId} onChange={(e) => setFilamentId(e.target.value)} data-testid="slice-filament"><option value="">{t('slicer.filamentAuto')}</option>{filProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{fil && <span className="muted text-xs" data-testid="slice-filament-hint">{fil.name} · {t(`slicer.filamentSource_${fil.source}` as 'slicer.filamentSource_auto')}</span>}</label>

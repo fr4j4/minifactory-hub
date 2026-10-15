@@ -40,6 +40,15 @@ export async function resolveFilamentAction(i: { materialId: string; machineProf
   });
 }
 
+/** «Calidad» por intención para una impresora: devuelve el perfil de proceso listo (se crea la primera vez). */
+export async function ensureQualityAction(i: { machineProfileId: string; key: TemplateKey }) {
+  return safe(async () => {
+    const u = await requirePerm('laminador', 'C');
+    const { ensureQuality } = await import('@/lib/slicer/setup');
+    return ensureQuality({ ...i, userId: u.id });
+  }, ['/laminador']);
+}
+
 export async function factoryVendorsAction() { return safe(async () => { await requirePerm('laminador', 'V'); return listVendors(); }); }
 export async function factoryListAction(type: ProfileType, vendor: string, machine?: string, q?: string, nozzle?: string) { return safe(async () => { await requirePerm('laminador', 'V'); return listFactory(type, vendor, { machine, q, nozzle }); }); }
 

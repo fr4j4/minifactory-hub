@@ -254,4 +254,5 @@ export const slicer: Shape<typeof es['slicer']> = {
   filamentSource_auto: 'automatic',
   filamentSource_material: 'from the material',
   filamentSource_explicit: 'chosen',
+  qualityIntent: 'Quality',
 };

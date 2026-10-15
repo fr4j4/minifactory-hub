@@ -36,3 +36,18 @@ describe.skipIf(!orcaAvailable())('el material no depende de un perfil de filame
     expect(run.filamentProfileId).toBeTruthy();
   }, 240_000);
 });
+
+describe.skipIf(!orcaAvailable())('calidad por intención', () => {
+  it('«Fino» y «Estándar» se resuelven para la boquilla de la máquina y se reutilizan', async () => {
+    const { ensureQuality } = await import('@/lib/slicer/setup');
+    const m = await P('Bambu Lab A1 0.4');
+    const fino = await ensureQuality({ machineProfileId: m, key: 'fino' });
+    const again = await ensureQuality({ machineProfileId: m, key: 'fino' });
+    expect(again.id).toBe(fino.id);
+    const [row] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, fino.id));
+    expect(row.nozzle).toBe('0.4'); expect(String((row.changes as any).layer_height)).toBe('0.12');
+    const est = await ensureQuality({ machineProfileId: m, key: 'estandar' });
+    const [r2] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, est.id));
+    expect(String((r2.changes as any).layer_height ?? '0.2')).toBe('0.2');
+  });
+});

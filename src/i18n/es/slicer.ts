@@ -251,4 +251,5 @@ export const slicer = {
   filamentSource_auto: 'automático',
   filamentSource_material: 'del material',
   filamentSource_explicit: 'elegido',
+  qualityIntent: 'Calidad',
 };

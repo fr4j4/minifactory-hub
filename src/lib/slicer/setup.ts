@@ -197,7 +197,7 @@ export function machineLayerLimits(machineBase: string, changes?: Record<string,
   return { min: Number.isFinite(min) && min > 0 ? min : undefined, max: Number.isFinite(max) && max > 0 ? max : undefined };
 }
 
-export interface TemplateInput { machineBase?: string | null; machineChanges?: Record<string, any> | null; nozzle: string; keys: TemplateKey[]; baseName?: string; prefix?: string; userId?: string | null }
+export interface TemplateInput { machineBase?: string | null; machineChanges?: Record<string, any> | null; nozzle: string; keys: TemplateKey[]; baseName?: string; prefix?: string; userId?: string | null; /** reutiliza la calidad ya creada con el mismo nombre en vez de duplicarla */ reuse?: boolean }
 /** Crea perfiles de calidad «de la casa» (Borrador/Estándar/Fino/Resistente/Funcional) calculados para la boquilla. */
 export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
   db ??= await getDb(); const t = await getT();
@@ -218,7 +218,9 @@ export async function createQualityFromTemplates(i: TemplateInput, db?: Db) {
     // todos los anchos de línea que traiga la base (skin, skeleton…) al ancho de la boquilla: uno menor que la capa hace que OrcaSlicer rechace el laminado
     const widths = Object.fromEntries(Object.keys(baseValues).filter((k) => /_line_width$/.test(k) && !(k in q.changes)).map((k) => [k, /infill|skin|skeleton|inner/.test(k) ? q.changes.sparse_infill_line_width : q.changes.line_width]));
     const changes = diffAgainstBase('process', baseName, { ...widths, ...q.changes, ...speeds }); const label = t(q.label);
-    const id = await createProfileRow({ type: 'process', name: `${prefix} ${nozzle} · ${label} ${numStr(q.layer)}`, baseName, changes, nozzle, userId: i.userId, note: t('nozzle.noteTemplate', { label, nozzle }), notes: t('nozzle.noteTemplateLong', { label, nozzle, hint: t(q.hint) }) }, db);
+    const qName = `${prefix} ${nozzle} · ${label} ${numStr(q.layer)}`;
+    if (i.reuse) { const [ex] = await db.select({ id: s.slicerProfiles.id, name: s.slicerProfiles.name }).from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'process'), eq(s.slicerProfiles.name, qName), eq(s.slicerProfiles.baseName, baseName), isNull(s.slicerProfiles.deletedAt))); if (ex) { ids.push(ex); continue; } }
+    const id = await createProfileRow({ type: 'process', name: qName, baseName, changes, nozzle, userId: i.userId, note: t('nozzle.noteTemplate', { label, nozzle }), notes: t('nozzle.noteTemplateLong', { label, nozzle, hint: t(q.hint) }) }, db);
     const [r] = await db.select({ name: s.slicerProfiles.name }).from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); ids.push({ id, name: r.name });
   }
   return ids;
@@ -316,4 +318,14 @@ export async function createCustomFilament(i: CustomFilamentInput) {
     materialId = m.id;
   }
   return { profileId: id, materialId };
+}
+
+/** Calidad por intención (Borrador / Estándar / Fino / Resistente / Funcional) resuelta para la impresora y boquilla de un perfil de máquina. Crea el perfil de proceso la primera vez y luego lo reutiliza. */
+export async function ensureQuality(i: { machineProfileId: string; key: TemplateKey; userId?: string | null }, db?: Db) {
+  db ??= await getDb(); const t = await getT();
+  const [m] = await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.id, i.machineProfileId), isNull(s.slicerProfiles.deletedAt)));
+  if (!m || m.type !== 'machine') throw new Error(t('nozzle.errPrinterProfileNotFound'));
+  const nozzle = rowNozzle(m) ?? profileNozzle('machine', m.baseName) ?? '0.4';
+  const [r] = await createQualityFromTemplates({ machineBase: m.baseName, machineChanges: m.changes, nozzle, keys: [i.key], userId: i.userId, reuse: true }, db);
+  return r;
 }
