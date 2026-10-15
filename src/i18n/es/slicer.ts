@@ -1,4 +1,7 @@
 export const slicer = {
+  progress: 'Progreso del laminado',
+  autoOrient: 'Orientar automáticamente',
+  autoOrientHint: 'El laminador busca la cara de apoyo que necesita menos soportes.',
   chooseBetween1And8: 'Elige entre 1 y 8 combinaciones',
   giveTheProfileAName: 'Ponle un nombre al perfil',
   theSelectedFactoryProfileDoes: 'El perfil de fábrica elegido no existe',

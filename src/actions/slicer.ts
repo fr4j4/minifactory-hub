@@ -13,7 +13,7 @@ import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 
-export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean; overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }) {
+export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean; orient?: boolean; overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }) {
   return safe(async () => {
     const u = await requirePerm('laminador', 'V');
     return enqueueSlice({ ...i, userId: u.id });

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { config } from '../config';
 import { unzipSync, zipSync } from 'fflate';
 import { parseGcodeMeta, type SliceMeta } from '../gcode';
@@ -65,9 +65,20 @@ async function threemfToStl(file: string, dest: string) {
   await fsp.writeFile(dest, buf);
 }
 
+/** Una línea de `--pipe` → porcentaje y etapa; null si no es JSON de progreso. */
+export function parseProgressLine(line: string): { pct: number; message: string } | null {
+  try {
+    const j = JSON.parse(line.trim()); const pct = Number(j.plate_percent ?? j.percent);
+    if (!Number.isFinite(pct)) return null;
+    return { pct: Math.max(0, Math.min(100, Math.round(pct))), message: String(j.message ?? '') };
+  } catch { return null; }
+}
+
 export async function runOrca(o: {
   inputPath: string; ext: string; machine: Record<string, any>; process: Record<string, any>; filament: Record<string, any>;
-  copies: number; timeoutS?: number; signal?: AbortSignal;
+  copies: number; orient?: boolean; timeoutS?: number; signal?: AbortSignal;
+  /** Progreso real del laminado (--pipe de OrcaSlicer): porcentaje de la placa y etapa. */
+  onProgress?: (p: { pct: number; message: string }) => void;
 }): Promise<CliResult> {
   const t = await getT();
   const t0 = Date.now();
@@ -86,7 +97,21 @@ export async function runOrca(o: {
   const wr = async (n: string, d: unknown) => { const p = path.join(tmpDir, n); await fsp.writeFile(p, JSON.stringify(d)); return p; };
   const mf = await wr('machine.json', o.machine), pf = await wr('process.json', o.process), ff = await wr('filament.json', o.filament);
   const args = ['--slice', '0', '--arrange', '1', '--load-settings', `${mf};${pf}`, '--load-filaments', ff, '--outputdir', outDir, '--export-3mf', 'sliced.3mf', '--allow-newer-file'];
+  if (o.orient) args.push('--orient', '1');
   if (o.copies > 1) args.push('--clone-objects', String(o.copies));
+  // progreso por tubería con nombre: OrcaSlicer escribe una línea JSON por etapa
+  let pipeStream: fs.ReadStream | null = null;
+  if (o.onProgress) {
+    try {
+      const pipe = path.join(tmpDir, 'progress.pipe'); spawnSync('mkfifo', [pipe]);
+      if (fs.existsSync(pipe)) {
+        args.push('--pipe', pipe); let buf = '';
+        pipeStream = fs.createReadStream(pipe, { encoding: 'utf8' });
+        pipeStream.on('data', (d) => { buf += d; const lines = buf.split('\n'); buf = lines.pop() ?? ''; for (const l of lines) { const p = parseProgressLine(l); if (p) o.onProgress!(p); } });
+        pipeStream.on('error', () => { /* sin progreso: el laminado sigue igual */ });
+      }
+    } catch { /* sin mkfifo (p. ej. Windows): no hay progreso */ }
+  }
   args.push(input);
   const log: string[] = [];
   const code: number = await new Promise((res) => {
@@ -97,6 +122,7 @@ export async function runOrca(o: {
     if (o.signal?.aborted) p.kill('SIGKILL'); else o.signal?.addEventListener('abort', () => p.kill('SIGKILL'), { once: true });
     p.on('close', (c) => { clearTimeout(timer); res(c ?? -1); }); p.on('error', () => { clearTimeout(timer); res(-1); });
   });
+  pipeStream?.destroy();
   const durationMs = Date.now() - t0;
   let rc = code, errStr = '';
   try { const r = JSON.parse(await fsp.readFile(path.join(outDir, 'result.json'), 'utf8')); rc = r.return_code ?? rc; errStr = r.error_string ?? ''; } catch { /* sin result.json */ }

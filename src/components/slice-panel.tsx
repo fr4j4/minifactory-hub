@@ -13,7 +13,7 @@ import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
-export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
+export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; progress?: { pct: number; message: string } | null; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
 
 export function useRunPolling(ids: string[], onDone?: () => void) {
   const [runs, setRuns] = useState<Record<string, RunInfo>>({});
@@ -56,7 +56,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const filProfiles = ctx.profiles.filter((p) => p.type === 'filament');
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
-  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(false); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
   useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [setupKey]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
@@ -80,7 +80,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const go = async (force = false) => {
     if (!machine?.machineProfileId || !material || !processId) { toast.push(t('slicer.chooseMachineProcessAndMaterial'), 'err'); return; }
     setShowLayers(false); setRunId(null);
-    const r = await sliceAction({ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, materialId: material.id, filamentProfileId: filamentId || null, copies, label: `${fileName} · ${machine.name}`, force });
+    const r = await sliceAction({ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, materialId: material.id, filamentProfileId: filamentId || null, copies, orient, label: `${fileName} · ${machine.name}`, force });
     if (!r.ok) toast.push(r.error, 'err'); else setRunId(r.data);
   };
   const bd = run?.status === 'done' ? priceFromRun(ctx, run, { machineId, materialId, qty: copies }) : null;
@@ -99,13 +99,14 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
         <label className="block"><span className="label">{t('slicer.filamentLabel')}</span><select className="input" value={filamentId} onChange={(e) => setFilamentId(e.target.value)} data-testid="slice-filament"><option value="">{t('slicer.filamentAuto')}</option>{filProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{fil && <span className="muted text-xs" data-testid="slice-filament-hint">{fil.name} · {t(`slicer.filamentSource_${fil.source}` as 'slicer.filamentSource_auto')}</span>}</label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>
       </div>
+      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={orient} onChange={(e) => setOrient(e.target.checked)} data-testid="slice-orient" />{t('slicer.autoOrient')}<span className="muted text-xs">{t('slicer.autoOrientHint')}</span></label>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>
         {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && fil && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
         {run?.status === 'done' && <button className="btn-ghost" onClick={() => go(true)} disabled={busy}>{t('slicer.sliceAgainBypassCache')}</button>}
         <span className="text-xs muted">{t('slicer.engineOrcaslicerTheSameFile')}</span>
       </div>
-      {busy && <div className="flex items-center gap-2 text-sm muted" role="status"><span className="inline-block h-3 w-3 rounded-full bg-brand-600 animate-pulse" /> {run?.status === 'running' ? t('slicer.slicingWithOrcaslicer') : t('slicer.inTheSlicingQueue')}</div>}
+      {busy && <div className="flex items-center gap-2 text-sm muted" role="status"><span className="inline-block h-3 w-3 rounded-full bg-brand-600 animate-pulse" /> {run?.status === 'running' ? t('slicer.slicingWithOrcaslicer') : t('slicer.inTheSlicingQueue')}{run?.status === 'running' && run.progress && <><span className="tabular" data-testid="slice-progress-pct">{run.progress.pct}%</span><progress className="h-1.5 w-32" max={100} value={run.progress.pct} aria-label={t('slicer.progress')} /><span className="text-xs truncate">{run.progress.message}</span></>}</div>}
       {run?.status === 'error' && <div className="rounded-lg border border-red-300 bg-red-50 dark:bg-red-950/40 dark:border-red-800 p-3 text-sm text-red-800 dark:text-red-200" role="alert" data-testid="slice-error">{run.error}<SliceErrorHelp runId={run.id} /></div>}
       {run?.status === 'done' && bd && (
         <div className="rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 p-4 space-y-3" data-testid="slice-result">

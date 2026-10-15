@@ -182,6 +182,17 @@ describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
   });
 });
 
+describe.skipIf(!orcaAvailable())('orientación automática (P5)', () => {
+  it('--orient lamina de verdad y se separa en la caché del laminado sin orientar', async () => {
+    const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((p) => p.name === n)!.id;
+    const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo'));
+    const base = { fileVersionId: bar.currentVersionId!, machineProfileId: P('Bambu Lab A1 0.4'), processProfileId: P('A1 · 0,20 Standard'), filamentProfileId: P('PLA Basic') };
+    const [plain, oriented] = await waitForRuns([await enqueueSlice({ ...base, label: 'sin orientar' }), await enqueueSlice({ ...base, orient: true, label: 'orientado' })], 180000);
+    expect(plain.status).toBe('done'); expect(oriented.status).toBe('done');
+    expect((oriented.result as any).cached).not.toBe(true); expect((oriented.inputs as any).orient).toBe(true);
+  });
+});
+
 describe('alta masiva de filamentos (N4)', async () => {
   const { planBulkMaterials, applyBulkMaterials } = await import('@/lib/services/inventory');
   const common = { manufacturer: 'Cicla 3D', line: 'PLA reciclado', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 14000, netG: 1000, tareG: 200 };

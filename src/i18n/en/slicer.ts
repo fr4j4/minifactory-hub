@@ -2,6 +2,9 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const slicer: Shape<typeof es['slicer']> = {
+  progress: 'Slicing progress',
+  autoOrient: 'Auto-orient',
+  autoOrientHint: 'The slicer looks for the resting face that needs the fewest supports.',
   chooseBetween1And8: 'Choose between 1 and 8 combinations',
   giveTheProfileAName: 'Give the profile a name',
   theSelectedFactoryProfileDoes: 'The selected factory profile does not exist',

@@ -27,6 +27,8 @@ export interface EnqueueInput {
   filamentProfileId?: string | null; materialId?: string | null;
   /** Ajustes de sesión sobre los perfiles (no crean perfiles; forman parte de la clave de caché). */
   overrides?: Overrides;
+  /** Orientar la pieza automáticamente (--orient de OrcaSlicer) antes de acomodar. */
+  orient?: boolean;
   copies?: number; label?: string; groupId?: string; userId?: string; force?: boolean;
 }
 
@@ -48,14 +50,14 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   const engine = await engineVersion();
   const overrides = cleanOverrides(i.overrides);
   const cacheKey = crypto.createHash('sha256').update(JSON.stringify([fv.sha256 ?? fv.id, engine, copies,
-    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes]), sortKeys(overrides)])).digest('hex');
+    [m, p, f].map((x) => [x.id, x.version, x.baseName, x.changes]), sortKeys(overrides), ...(i.orient ? ['orient'] : [])])).digest('hex');
   const profileVersions = { machine: [m.name, m.version], process: [p.name, p.version], filament: [f.name, f.version] };
   if (!i.force) {
     const [hit] = await db.select().from(s.sliceRuns).where(and(eq(s.sliceRuns.cacheKey, cacheKey), eq(s.sliceRuns.status, 'done'))).limit(1);
     if (hit) {
       const [row] = await db.insert(s.sliceRuns).values({
         workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides }, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
+        filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}) }, engineVersion: hit.engineVersion, status: 'done', timeS: hit.timeS,
         filament: hit.filament, layers: hit.layers, plates: hit.plates, durationMs: 0, gcodeKey: hit.gcodeKey, threemfKey: hit.threemfKey,
         label: i.label, groupId: i.groupId, createdBy: i.userId ?? null, result: { ...(hit.result ?? {}), cached: true },
       }).returning({ id: s.sliceRuns.id });
@@ -64,7 +66,7 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   }
   const [row] = await db.insert(s.sliceRuns).values({
     workspaceId: WORKSPACE_ID, fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId,
-    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides }, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
+    filamentProfileId: i.filamentProfileId, profileVersions, cacheKey, copies, inputs: { overrides, ...(i.orient ? { orient: true } : {}) }, engineVersion: engine, status: 'queued', label: i.label, groupId: i.groupId,
     createdBy: i.userId ?? null,
   }).returning({ id: s.sliceRuns.id });
   ensureWorker();
@@ -93,7 +95,11 @@ async function execute(runId: string) {
       if (bed) proc.curr_bed_type = bed;
     }
     const ctl = new AbortController(); aborts().set(runId, ctl);
-    const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, signal: ctl.signal });
+    const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, orient: !!(run.inputs as any)?.orient, signal: ctl.signal,
+      onProgress: (() => { let last = 0; let lastPct = -1; return (p: { pct: number; message: string }) => {
+        const now = Date.now(); if (p.pct === lastPct || now - last < 700) return; last = now; lastPct = p.pct;
+        void db.update(s.sliceRuns).set({ result: { progress: p } }).where(and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'running'))).catch(() => {});
+      }; })() });
     aborts().delete(runId);
     tmpDir = r.tmpDir;
     if (r.errorCode === 'cancelled') { await db.update(s.sliceRuns).set({ status: 'cancelado', error: null, result: { errorCode: 'cancelled' }, durationMs: r.durationMs, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId)); return; }
