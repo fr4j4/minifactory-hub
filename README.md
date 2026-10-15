@@ -9,7 +9,7 @@ Fuera de alcance por decisión: relación con proveedores e interacción directa
 ```bash
 npm install
 cp .env.example .env            # cambie SESSION_SECRET
-npm run orca:install            # descarga OrcaSlicer 2.4.2 en .orca/ (laminador; ~200 MB)
+npm run orca:install            # descarga OrcaSlicer 2.4.2 en .orca/ (laminador; ~200 MB) y genera el esquema ampliado de parámetros en data/
 npm run db:seed -- --reset      # base de datos con datos de demostración
 npm run build && npm start      # http://localhost:3000
 ```
@@ -29,11 +29,15 @@ SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
 
 Volúmenes: `pgdata` (base) y `files` (modelos, G-code, fotos). **Respalde ambos**; además, Configuración → Respaldo descarga un ZIP.
 
+**Worker aparte.** `docker-compose.yml` levanta dos procesos con la misma imagen: `app` (páginas; solo encola, `MF_EXTERNAL_WORKER=1`) y `worker` (`npm run worker`: laminados de OrcaSlicer y trabajos en segundo plano). Así un laminado largo no compite con las páginas. Requiere Postgres; con la base embebida (PGlite) todo corre en un solo proceso, que es el comportamiento por defecto.
+
 ## Pruebas
 
 ```bash
 npm test                 # unitarias + integración (incluye laminado real si OrcaSlicer está instalado)
 npm run build && npm run test:e2e   # usabilidad con Playwright; genera capturas y videos en docs/reporte
+npm run build && npm run test:visual          # regresión visual contra tests/visual/__snapshots__ (opt-in)
+npm run test:visual:update                    # regenera las líneas base (hágalo en el mismo entorno donde se compara)
 ```
 
 ## Laminar en el servidor
