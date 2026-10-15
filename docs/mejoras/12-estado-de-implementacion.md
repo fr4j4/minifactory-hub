@@ -2,6 +2,8 @@
 
 Qué se construyó de cada release, qué quedó fuera a propósito y por qué. Ramas apiladas: `feature/r1-cimientos` ⊂ `r2-perfiles` ⊂ `r3-cotizaciones` ⊂ `r4-biblioteca` ⊂ **`feature/r5-r6-estudio-paletas`** (integra todo). Ninguna se ha fusionado a `development`; no hay PR abierto.
 
+Pendientes consolidados: [`13-pendientes.md`](13-pendientes.md).
+
 Convención: ✅ hecho y probado · ◐ hecho en parte (se indica el recorte) · ✗ no se hizo.
 
 ## R1 · Cimientos, PDF y arranque
