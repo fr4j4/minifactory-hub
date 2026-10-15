@@ -51,7 +51,7 @@ export function Field({ label, children, hint, className }: { label: string; chi
 }
 
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('overflow-x-auto', className)}><table className="w-full border-collapse">{children}</table></div>;
+  return <div className={cn('overflow-x-auto', className)} tabIndex={0} role="region" aria-label="tabla"><table className="w-full border-collapse">{children}</table></div>;
 }
 
 export function Swatch({ hex, className }: { hex: string; className?: string }) { return <span className={cn('inline-block h-3.5 w-3.5 rounded-full border border-black/20 align-[-2px]', className)} style={{ background: hex }} aria-hidden />; }

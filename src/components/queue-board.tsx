@@ -56,7 +56,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
         {canCreate && <button className="btn-ghost ml-auto" onClick={() => setNewJob(true)} data-testid="new-job">{t('queue.testJob')}</button>}
       </div>
       {view === 'tablero' ? (
-        <div className="flex md:grid gap-3 overflow-x-auto pb-2 snap-x md:overflow-visible" style={{ gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, minmax(0, 1fr))` }} data-testid="board">
+        <div className="flex md:grid gap-3 overflow-x-auto pb-2 snap-x md:overflow-visible" style={{ gridTemplateColumns: `repeat(${Math.min(cols.length, 4)}, minmax(0, 1fr))` }} data-testid="board" tabIndex={0}>
           {cols.map((c) => { const list = live.filter((j) => (j.machineId ?? null) === c.id).sort((a, b) => a.position - b.position); if (c.id === null && list.length === 0) return null; const mach = machines.find((m) => m.id === c.id);
             return (
               <section key={c.id ?? 'none'} className={cn('rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5 min-w-[270px] md:min-w-0 snap-start', drag && c.id && 'ring-2 ring-brand-400/50')} onDragOver={(e) => c.id && e.preventDefault()} onDrop={() => drop(c.id, list.length + 1)} aria-label={t('queue.queue', { machine: c.name })}>
