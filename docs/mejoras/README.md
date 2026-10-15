@@ -30,7 +30,7 @@
 - **Calculadoras y mantenedores:** la calculadora **ya está especificada** (`docs/spec-calculadora.md`); aquí se agregan complementos (barra de costos «en capas», selectores ricos, enlace al Estudio, chips «¿y si…?») y se coordinan totales/IVA con presupuestos y PDF; materiales agrupados por línea con carretes visuales; «Mis perfiles» con diff → `06`.
 - **Visual y usabilidad:** kit de componentes (Select rico, Tabs sin recarga, Drawer, DataTable…), esqueletos de carga, íconos unificados, fechas es-CL, regresión visual → `07`.
 
-**Esfuerzo (orden de magnitud), tras la segunda ronda:** ≈ **162–266 jornadas**, probable **≈ 208** (≈ 240 con 15 % de contingencia), sin opcionales (editor de plantillas con bloques, widgets de Inicio y edición de placa suman ≈ 41 más). Antes de la segunda ronda eran ≈ 118: la ampliación (+90) viene de las decisiones D14/E2/E3 y de diez requisitos nuevos (asistente inicial, importador MakerWorld, editor de plantillas de documentos en Configuración, librería visual con temas, alta masiva de filamentos con marcas de Chile, multicolor/AMS, etiquetas por IA, detalle y vista tabla de cotizaciones). Entregable en **R0 + 6 releases** y con «recortes posibles» si hay que acotar → `09`, `10`.
+**Esfuerzo (orden de magnitud), tras la segunda ronda:** ≈ **164–271 jornadas**, probable **≈ 212** (≈ 244 con 15 % de contingencia), sin opcionales (editor de plantillas con bloques, widgets de Inicio y edición de placa suman ≈ 41 más). Antes de la segunda ronda eran ≈ 118: la ampliación (+93,5) viene de las decisiones D14/E2/E3 y de once requisitos nuevos (asistente inicial, importador MakerWorld, editor de plantillas de documentos en Configuración, librería visual con temas, alta masiva de filamentos con marcas y proveedores de Chile, multicolor/AMS, etiquetas por IA, detalle y vista tabla de cotizaciones). Entregable en **R0 + 6 releases** y con «recortes posibles» si hay que acotar → `09`, `10`, `11`.
 
 ## Índice
 
@@ -45,6 +45,7 @@
 | [`07-sistema-visual.md`](07-sistema-visual.md) | Principios, kit de componentes, mejoras visuales, migración |
 | [`08-otras-mejoras.md`](08-otras-mejoras.md) | Robustez, rendimiento, flujo, calidad de código, arreglos rápidos y lo que **no** conviene hacer |
 | [`09-plan-y-estimaciones.md`](09-plan-y-estimaciones.md) | Paquetes de trabajo, estimaciones (opt./prob./pes.), releases, dependencias, recortes, riesgos |
+| [`11-datos-iniciales-proveedores.md`](11-datos-iniciales-proveedores.md) | **Datos iniciales:** directorio de proveedores y tiendas de Chile y del extranjero (TodoToner, Imperio 3D, Maxi3D, Mercado Libre…), con evidencia, propuesta de datos y lista de verificación; datos en `datos/proveedores-iniciales.json` |
 | [`10-decisiones-y-alcance-ampliado.md`](10-decisiones-y-alcance-ampliado.md) | **Segunda ronda:** decisiones D1–E3 respondidas, su impacto y los requisitos N1–N10 (color y AMS en 3MF, etiquetas por IA, importador MakerWorld, alta masiva de filamentos, detalle y vista tabla de cotizaciones, editor de documentos, librería visual, temas, asistente inicial) |
 
 ## Decisiones tomadas (primera ronda)
@@ -90,15 +91,17 @@ Respondidas en el artefacto; detalle y matices en `10` §1.0.
 
 ## Decisiones abiertas
 
+**G1 quedó confirmada:** «Sí: plantilla en Configuración aplicada a todos los documentos nuevos» (sin edición por cotización).
+
 | # | Pregunta | Recomendación |
 |---|---|---|
-| G1 | Confirmar que el editor de F3 es un editor de **plantillas en Configuración**, sin edición por cotización | Sí (solo ajustar textos de una cotización concreta si hace falta: +2 jornadas) |
+| H1 | ¿Se acepta un **directorio liviano de proveedores** (nombre, tipo, sitio, marcas, notas; sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance»? | Sí |
 
 Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
 ## Próximos pasos sugeridos
 
-1. Confirmar **G1** (alcance del editor de plantillas) y responder las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**.
+1. Responder **H1** (directorio de proveedores) y las **10 decisiones abiertas de `docs/spec-calculadora.md §14`**; revisar con cada proveedor la lista de `11`.
 2. Ejecutar **R0 · Spikes S1–S8** (≈ 9,5 jornadas probables): alcance del Estudio, MakerWorld con token real, 3MF multicolor y piloto comparativo de librería visual.
 3. Empezar por **R1 · Cimientos, PDF y arranque** (asistente inicial, PDF v2, librería y temas).
 4. Mantener este directorio como fuente de verdad: al implementar, marcar cada ID como resuelto y actualizar el README principal.

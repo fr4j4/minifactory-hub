@@ -32,7 +32,7 @@ Segunda ronda. Recoge (1) las respuestas a las decisiones D1–E3 de la primera 
 |---|---|---|---|
 | F1 | Ambos: en el sitio (modal y página) y anexo opcional en el PDF | — | N5a y N5b tal como se diseñaron |
 | F2 | Ambos: listado y líneas de la cotización | — | N6 tal como se diseñó |
-| F3 | «Sin editor por ahora» | **Aclaración:** el editor no es para editar documentos ya generados ni «en sitio»; es para **modificar la plantilla en una sección de Configuración** y que se use al generar documentos | Se reinterpreta como **editor de plantillas en Configuración** (N7, nivel 1 sin edición por cotización). Ver §3 N7 y pregunta G1 para confirmarlo |
+| F3 | «Sin editor por ahora» | **Aclaración:** el editor no es para editar documentos ya generados ni «en sitio»; es para **modificar la plantilla en una sección de Configuración** y que se use al generar documentos | Se reinterpreta como **editor de plantillas en Configuración** (N7, nivel 1 sin edición por cotización). Confirmado en G1 (ver §3 N7) |
 | F4 | Decidir tras el piloto comparativo (2,5 jornadas) | — | S8 sigue en R0; la librería se fija al terminar el piloto |
 | F5 | Paleta del taller por defecto y preferencia por usuario | La preferencia de usuario **se guarda en `localStorage`** | N9b usa `localStorage` + script en línea anti-parpadeo; la paleta del taller va en la base de datos |
 | F6 | Token de un solo uso en los logs; `ADMIN_*` para desatendido; sin contraseña por defecto | — | N10 tal como se diseñó |
@@ -65,7 +65,7 @@ Inyección de datos comerciales (sin cambio): `filament_density`, `filament_cost
 | Kit visual | WP-6.1 «kit propio» | WP-6.1' **adopción de una librería de componentes** + arquitectura de temas (N8, N9) |
 | Materiales | agrupación «opcional» | WP-4.2' **agrupación desde el inicio** + alta masiva (N4) |
 | Calculadora | Fase 1 de la spec fuera de totales | **R2b** incluida en el plan |
-| Totales | ≈ 118 jornadas probables | **≈ 208** (ver §5): +90 por las decisiones y los requisitos N1–N10 |
+| Totales | ≈ 118 jornadas probables | **≈ 212** (ver §5): +93,5 por las decisiones y los requisitos N1–N10 |
 
 ## 3. Requisitos nuevos
 
@@ -178,7 +178,10 @@ model_files.license  → pasa a valor normalizado (enum de arriba) + model_files
 | Flashforge · PopBit · Hello3D | Marcas vistas en tiendas chilenas | PopBit en Cimech3D; las otras en listados de tiendas |
 | Safe and Sound | Marca de tienda minorista (Líder) | PLA a ≈ CLP 13.000/kg |
 | Marca propia de tienda (p. ej. TodoToner) | Existe en tiendas locales | Visible en su catálogo |
+| Plast Ar · Macrotec · Jamg He · Hatchbox | Marcas vistas en publicaciones de Imperio 3D, MakersChile, Horus3D y FullCompras | Listados en Mercado Libre Chile y tiendas locales |
 | Genéricos | PLA, PLA+, PETG, ABS, ASA, TPU por tipo y color | — |
+
+Los **proveedores y tiendas** (TodoToner, Imperio 3D, Maxi3D, Mercado Libre, etc.) se investigaron aparte en [`11-datos-iniciales-proveedores.md`](11-datos-iniciales-proveedores.md) y se proponen como directorio de partida (N4b).
 
 Tiendas observadas (para validar precios y marcas): TodoToner, eVStore, Tugadget, Cimech3D, Tecnosistec.
 
@@ -215,7 +218,7 @@ Tiendas observadas (para validar precios y marcas): TodoToner, eVStore, Tugadget
 
 ### N7 · Editor de plantillas de documentos (en Configuración)
 
-**Aclaración del equipo (F3):** no se quiere editar un documento ya generado ni retocarlo «en sitio»; se quiere **modificar la plantilla desde una sección de Configuración** y que esa plantilla se use **al generar** los documentos. Eso es el nivel 1 propuesto, **sin** las sobrescrituras por cotización (que quedan descartadas salvo nueva decisión, pregunta G1).
+**Aclaración del equipo (F3), confirmada en G1:** no se quiere editar un documento ya generado ni retocarlo «en sitio»; se quiere **modificar la plantilla desde una sección de Configuración** y que esa plantilla se use **al generar** los documentos. Eso es el nivel 1 propuesto, **sin** las sobrescrituras por cotización (que quedan descartadas salvo nueva decisión, pregunta G1).
 
 | Nivel | Qué permite | Cómo se construye | Estimación |
 |---|---|---|---|
@@ -304,11 +307,11 @@ Tiendas observadas (para validar precios y marcas): TodoToner, eVStore, Tugadget
 
 ## 4. Segunda ronda respondida y una confirmación pendiente
 
-La segunda ronda (F1–F10) está respondida y se resume en §1.0. Queda **una confirmación**:
+La segunda ronda (F1–F10) está respondida y se resume en §1.0. **G1 quedó confirmada:** «Sí: plantilla en Configuración aplicada a todos los documentos nuevos» (sin edición por cotización). Queda **una confirmación**, derivada del directorio de proveedores:
 
 | # | Pregunta | Recomendación |
 |---|---|---|
-| **G1** | Confirmar el alcance del editor (F3): editor de **plantillas en Configuración** que se aplica a los documentos nuevos, **sin** edición por cotización | Sí; solo ajustar el texto de una cotización concreta antes de generarla si hace falta (+2 jornadas) |
+| **H1** | ¿Se acepta un **directorio liviano de proveedores** (nombre, tipo, sitio, marcas, notas; sin pedidos ni contactos) como excepción acotada a «relación con proveedores fuera de alcance»? | Sí |
 
 Siguen pendientes las **10 decisiones abiertas de `docs/spec-calculadora.md §14`** (bloquean su Fase 2).
 
@@ -324,11 +327,12 @@ Resumen (el detalle por paquete está en `09-plan-y-estimaciones.md`):
 | N2 etiquetas por IA | +4 | +5 | +7 |
 | N3 importador por URL + S6 | +9,5 | +13 | +18 |
 | N4 alta masiva (catálogo ampliado con marcas de Chile) | +6 | +8 | +10,5 |
+| N4b directorio de proveedores (doc 11) | +2,5 | +3,5 | +5 |
 | N5 detalle y anexo | +4,5 | +6 | +8,5 |
 | N6 vista tabla y recordada | +4 | +5,5 | +7,5 |
 | N7 editor de plantillas en Configuración (L1) | +6 | +8 | +10,5 |
 | N9b paletas (preferencia en `localStorage`) | +3 | +4,5 | +6,5 |
 | N10 asistente inicial | +10 | +13,5 | +17,5 |
-| **Total** | **161,5** | **208,25** | **266** |
+| **Total** | **164** | **211,75** | **271** |
 
 _(Las filas suman exactamente el total; el desglose por paquete está en `09`.)_ Opcionales fuera del total: editor de plantillas con bloques L2 (16 / 21 / 27), widgets de Inicio (6 / 8 / 11), edición de placa (10 / 12,5 / 15), y las Fases 2–5 de la spec de calculadora (27 / 36 / 49).

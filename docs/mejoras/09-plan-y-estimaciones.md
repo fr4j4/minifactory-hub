@@ -101,13 +101,14 @@
 | N3a | Importador MakerWorld (rutas A y B), esquema `model_sources`, galería, licencias | 6 | 8 | 11 |
 | N3b | Importador genérico (OpenGraph) para otros sitios | 2 | 3 | 4 |
 | N4 | Alta masiva de filamentos y stock (+ catálogo inicial de marcas/colores **incluidas marcas de Chile**) | 6 | 8 | 10,5 |
+| N4b | **Directorio de proveedores** (tabla, carga inicial desde `datos/proveedores-iniciales.json`, selector en entrada de compra y alta masiva, pantalla en Configuración) — doc 11 | 2,5 | 3,5 | 5 |
 | N5a | Fila desplegable + «Ver detalles» (modal y página, ruta interceptada) | 3 | 4 | 5,5 |
 | N5b | Anexo de detalles opcional en el PDF | 1,5 | 2 | 3 |
 | N6 | Vista tabla (listado y líneas editables) con preferencia recordada en el navegador | 4 | 5,5 | 7,5 |
 | N7a | **Editor de plantillas de documentos en Configuración** (nivel L1: logo, colores, secciones, textos, vista previa; **sin** edición por cotización, F3) | 6 | 8 | 10,5 |
 | N9b | Catálogo de paletas, selector con preferencia de usuario en `localStorage` (script anti-parpadeo), derivación desde la marca y pruebas de contraste | 3 | 4,5 | 6,5 |
 | N10 | Asistente de configuración inicial (primer arranque, token de configuración, 15 pasos) | 10 | 13,5 | 17,5 |
-| | **Subtotal segunda ronda** | **63,5** | **84,5** | **113** |
+| | **Subtotal segunda ronda** | **66** | **88** | **118** |
 
 _Opcionales posteriores (fuera de totales):_ N7b editor de bloques L2 **16 / 21 / 27** · widgets configurables de Inicio **6 / 8 / 11** · 5.5 edición de placa **10 / 12,5 / 15**.
 
@@ -116,11 +117,11 @@ _Opcionales posteriores (fuera de totales):_ N7b editor de bloques L2 **16 / 21 
 | Alcance | Optimista | **Probable** | Pesimista | Probable +15 % |
 |---|---:|---:|---:|---:|
 | Primera ronda (F0–F6 con las correcciones de arriba) | 98 | **123,75** | 153 | ≈ 142 |
-| Segunda ronda (R0, R2b, N1–N10) | 63,5 | **84,5** | 113 | ≈ 97 |
-| **Total del plan** (sin opcionales) | **161,5** | **208,25** | **266** | **≈ 240** |
-| Con edición de placa (5.5) | 171,5 | **220,75** | 281 | ≈ 254 |
+| Segunda ronda (R0, R2b, N1–N10, N4b) | 66 | **88** | 118 | ≈ 101 |
+| **Total del plan** (sin opcionales) | **164** | **211,75** | **271** | **≈ 244** |
+| Con edición de placa (5.5) | 174 | **224,25** | 286 | ≈ 258 |
 
-Referencia de calendario con una persona (20 jornadas productivas/mes): ≈ 10,4 meses (probable, sin contingencia) · ≈ 12 meses (con 15 %). **El plan casi se duplicó** respecto de la primera ronda (118,25 → 208,25): los mayores aportes son el asistente inicial (13,5), el importador por URL (13 con su spike), el editor de plantillas de documentos (8), la librería visual con temas (≈ 12 entre kit, paletas y spike), la alta masiva con agrupación (≈ 14) y la fase 1 de la calculadora (5). Si hay que acotar, ver «Recortes posibles» al final de §4.
+Referencia de calendario con una persona (20 jornadas productivas/mes): ≈ 10,6 meses (probable, sin contingencia) · ≈ 12,2 meses (con 15 %). **El plan casi se duplicó** respecto de la primera ronda (118,25 → 211,75): los mayores aportes son el asistente inicial (13,5), el importador por URL (13 con su spike), el editor de plantillas de documentos (8), la librería visual con temas (≈ 12 entre kit, paletas y spike), la alta masiva con agrupación y proveedores (≈ 17,5) y la fase 1 de la calculadora (5). Si hay que acotar, ver «Recortes posibles» al final de §4.
 
 ### 3.1 Trabajo ya especificado fuera de los totales
 
@@ -146,14 +147,14 @@ La **Fase 1** (4 / 5 / 7) **ya está en el plan como R2b** por la decisión E2; 
 |---|---|---:|---:|---:|---|
 | **R0 · Spikes** (E3) | S1–S8: CLI de Orca, esquema de parámetros, tiempos, 3MF, parser de G-code, MakerWorld, AMS, librería visual | 7,5 | **9,5** | 12 | Decisiones técnicas confirmadas; cifras de R4–R5 afinadas |
 | **R1 · Cimientos, PDF y arranque** | F0 + WP-6.1' (librería, kit, temas) + WP-3.4 (PDF v2) + **N10 (asistente inicial)** | 27,5 | **36** | 46,5 | Primer arranque guiado y seguro; PDF presentable; kit visual y base de temas; sin pantallas en blanco |
-| **R2 · Perfiles y filamentos** | F1 + WP-4.2' + N4 (alta masiva con marcas de Chile) + N1a (color en visor) | 25,5 | **32,75** | 41 | Calidad y filamento simples; alta rápida de filamentos; modelos con el color del material |
+| **R2 · Perfiles y filamentos** | F1 + WP-4.2' + N4 (alta masiva con marcas de Chile) + **N4b (directorio de proveedores)** + N1a (color en visor) | 28 | **36,25** | 46 | Calidad y filamento simples; alta rápida de filamentos; modelos con el color del material |
 | **R2b · Calculadora, fase 1** (E2) | Fase 1 de la spec de calculadora | 4 | **5** | 7 | Precios netos, IVA opcional y margen sobre neto |
 | **R3 · Cotizaciones y documentos** | WP-3.1, 3.2, 3.3, 3.5 + WP-4.1 + **N5a/N5b + N6 + N7a** | 27 | **35,5** | 46 | Gestor con detalle completo, «Ver detalles», vista tabla recordada y editor de plantillas en Configuración |
 | **R4 · Biblioteca e importación** | F2 + **N3 (MakerWorld y genérico)** + **N2 (etiquetas por IA)** + **N1b (AMS)** | 28,5 | **37,5** | 49 | Importación por URL, etiquetas automáticas, multicolor |
 | **R5 · Estudio de laminado** | WP-5.1 a 5.4 (nivel A) | 23,5 | **29** | 35 | Slicer configurable embebido con exploración |
 | **R6 · Pulido y paletas** | WP-6.2, 6.3, 4.3 + **N9b** | 12 | **15,5** | 20,5 | Consistencia visual, temas y regresión automática |
 | **Transv.** | WP-6.4 i18n es/en (reparto en R1–R6) | 6 | **7,5** | 9 | Todo en español e inglés con pruebas de paridad |
-| | **Total** | **161,5** | **208,25** | **266** | |
+| | **Total** | **164** | **211,75** | **271** | |
 
 ### Dependencias
 
@@ -207,7 +208,7 @@ flowchart LR
 | **Asistente inicial abierto:** quien llegue primero al servidor se queda el administrador | Media | Alto (seguridad) | Token de configuración de un solo uso; eliminar la contraseña por defecto; `ADMIN_*` para instalaciones desatendidas |
 | **Migrar a una librería de componentes** con 280 archivos de UI en movimiento | Alta | Medio | S8 comparativo; adopción componente a componente; coexistencia con `.btn/.input/.card` |
 | **El plan se duplicó** (≈ 118 → ≈ 210 jornadas) | Alta | Alto | Releases independientes y «Recortes posibles» (§4); revisar prioridades tras R1 |
-| Alcance de «editor de documentos»: se pidió una plantilla editable en Configuración (no edición por documento) | Media | Medio | Contrato: L1 en R3 sin sobrescrituras por cotización (G1 por confirmar); L2 solo con decisión explícita; L3 descartado |
+| Alcance de «editor de documentos»: se pidió una plantilla editable en Configuración (no edición por documento) | Media | Medio | Contrato: L1 en R3 sin sobrescrituras por cotización (G1 confirmada); L2 solo con decisión explícita; L3 descartado |
 | **Trabajo concurrente en `development`** (la rama avanzó ≈ 280 archivos de UI mientras se hacía este análisis: i18n, boquillas, IA) → conflictos y supuestos que caducan | Alta | Medio | Integrar `development` antes de cada release, PR pequeños y frecuentes, revalidar `01-diagnostico.md §0.1` al empezar cada fase |
 | Solapamiento con `docs/spec-calculadora.md` (totales/IVA/perfiles de precio) | Media | Medio | Ejecutar la Fase 1 de la spec antes de WP-3.2/3.4; vocabulario «perfil de precio» vs «perfil de laminado» |
 | Calidades como preset vs perfiles por boquilla ya creados por el taller | Media | Medio | Backfill que conserva los perfiles existentes como `custom`; presets nuevos conviven (doc 02 §5) |
