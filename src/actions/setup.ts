@@ -24,7 +24,7 @@ export async function checkTokenAction(token: string): Promise<R> {
 }
 
 const Account = z.object({
-  token: z.string(), lang: z.enum(['es-CL', 'en-US']), currency: z.enum(['CLP', 'USD', 'EUR']), timezone: z.string().min(1),
+  token: z.string(), lang: z.enum(['es-CL', 'en-US']), currency: z.enum(['CLP']) /* los montos se guardan en enteros sin decimales: USD/EUR vuelven con montos en centavos (docs/mejoras/15) */, timezone: z.string().min(1),
   name: z.string().trim().min(2), email: z.string().trim().toLowerCase().email(), password: z.string().min(10),
   shopName: z.string().trim().min(2),
 });

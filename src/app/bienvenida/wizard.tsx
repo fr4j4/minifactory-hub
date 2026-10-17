@@ -30,7 +30,7 @@ export function CreateAccountWizard() {
       {step === 0 && <><p className="muted text-sm">{t('setup.step0Hint')}</p><label className="block"><span className="label">{t('setup.token')}</span><input className="input font-mono tracking-widest uppercase" autoFocus autoComplete="off" required value={v.token} onChange={set('token')} /></label></>}
       {step === 1 && <div className="grid gap-4 sm:grid-cols-3">
         <label className="block"><span className="label">{t('setup.language')}</span><select className="input" value={v.lang} onChange={set('lang')}><option value="es-CL">Español</option><option value="en-US">English</option></select></label>
-        <label className="block"><span className="label">{t('setup.currency')}</span><select className="input" value={v.currency} onChange={set('currency')}><option>CLP</option><option>USD</option><option>EUR</option></select></label>
+        <label className="block"><span className="label">{t('setup.currency')}</span><select className="input" value={v.currency} onChange={set('currency')}><option>CLP</option></select></label>
         <label className="block"><span className="label">{t('setup.timezone')}</span><select className="input" value={v.timezone} onChange={set('timezone')}>{TZ.map((z) => <option key={z}>{z}</option>)}</select></label></div>}
       {step === 2 && <div className="space-y-4">
         <label className="block"><span className="label">{t('setup.yourName')}</span><input className="input" required autoFocus autoComplete="name" value={v.name} onChange={set('name')} /></label>
