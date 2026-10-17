@@ -3,10 +3,10 @@ import type { TFn } from '@/i18n/translate';
 import { dmy, money } from '@/lib/format';
 import { DOC_FONTS, fillVars, isCustomId, normalizeTemplate, type DocTemplate } from '@/lib/documents';
 
-export interface QuoteDocItem { id: string; description: string; groupName?: string | null; qty: number; unitPrice: number; total: number; optional: boolean; leadTime?: string | null; models: Array<{ name: string; thumbUrl?: string | null }> }
+export interface QuoteDocItem { id: string; description: string; groupName?: string | null; qty: number; /** null cuando total/qty no es entero: así nunca se imprime cant. × precio ≠ total */ unitPrice: number | null; total: number; optional: boolean; leadTime?: string | null; models: Array<{ name: string; thumbUrl?: string | null }> }
 export interface QuoteDocData {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; brandColor: string; logoUrl?: string | null };
-  quote: { number: string; version: number; createdAt: Date | string; validUntil: Date | string | null; customerName: string | null; customerPhone: string | null; title: string | null; discount: number; total: number; taxAmount: number; notes: string | null };
+  quote: { number: string; version: number; createdAt: Date | string; validUntil: Date | string | null; customerName: string | null; customerPhone: string | null; title: string | null; discount: number; /** despacho de las líneas incluidas: suma al neto aunque no figure en ninguna línea */ shipping: number; total: number; taxAmount: number; notes: string | null };
   items: QuoteDocItem[];
   links: Array<{ id: string; title: string | null; url: string }>;
   tax: { label: string; showRow: boolean; netAmount: number | null };
@@ -28,22 +28,23 @@ export function QuoteDocument({ data, template, t }: { data: QuoteDocData; templ
   const muted: CSSProperties = { color: '#64748b' };
   const box: CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 12px' };
   const blocks: Record<string, React.ReactNode> = {
-    customer: <div key="customer" style={{ ...box, marginBottom: 14 }}><b>{q.customerName ?? t('common.customer')}</b>{q.customerPhone ? ` · ${q.customerPhone}` : ''}{q.title && <div style={muted}>{q.title}</div>}{sec('customer').text && <div style={{ ...muted, whiteSpace: 'pre-wrap' }}>{fillVars(sec('customer').text, vars)}</div>}</div>,
+    customer: <div key="customer" data-section="customer" style={{ ...box, marginBottom: 14 }}><b>{q.customerName ?? t('common.customer')}</b>{q.customerPhone ? ` · ${q.customerPhone}` : ''}{q.title && <div style={muted}>{q.title}</div>}{sec('customer').text && <div style={{ ...muted, whiteSpace: 'pre-wrap' }}>{fillVars(sec('customer').text, vars)}</div>}</div>,
     items: <div key="items" data-section="items"><table style={{ width: '100%', borderCollapse: 'collapse' }}><thead><tr><th style={th}>{title('items', t('common.details'))}</th><th style={{ ...th, ...r }}>{t('common.qty')}</th><th style={{ ...th, ...r }}>{t('common.unitPrice')}</th><th style={{ ...th, ...r }}>{t('common.total')}</th></tr></thead>
       <tbody>{items.map((it) => (
         <tr key={it.id}><td style={td}>{tpl.theme.showThumbs && it.models.slice(0, 2).map((m, i) => m.thumbUrl ? /* eslint-disable-next-line @next/next/no-img-element */ <img key={i} alt="" src={m.thumbUrl} style={{ width: 54, height: 40, objectFit: 'cover', borderRadius: 4, marginRight: 6, verticalAlign: 'middle' }} /> : null)}<b>{it.description || t('quotes.n3dPrintedPart')}</b>{it.groupName && <span style={muted}> · {it.groupName}</span>}
-          <div style={muted}>{tpl.options.showModelNames ? it.models.map((m) => m.name).join(', ') : ''}{tpl.options.showLeadTime && it.leadTime ? it.leadTime : ''}</div></td>
-          <td style={{ ...td, ...r }}>{it.qty}</td><td style={{ ...td, ...r }}>{money(it.unitPrice)}</td><td style={{ ...td, ...r }}>{money(it.total)}</td></tr>))}</tbody></table>
+          <div style={muted}>{[tpl.options.showModelNames && it.models.map((m) => m.name).join(', '), tpl.options.showLeadTime && it.leadTime].filter(Boolean).join(' · ')}</div></td>
+          <td style={{ ...td, ...r }}>{it.qty}</td><td style={{ ...td, ...r }}>{it.unitPrice != null ? money(it.unitPrice) : ''}</td><td style={{ ...td, ...r }}>{money(it.total)}</td></tr>))}</tbody></table>
       {sec('items').text && <div style={{ ...muted, marginTop: 6, whiteSpace: 'pre-wrap' }}>{fillVars(sec('items').text, vars)}</div>}</div>,
-    optionals: optionals.length ? <div key="optionals" style={{ ...muted, marginTop: 8 }}>{title('optionals', t('quotes.optionalNotIncludedInThe'))} {optionals.map((i) => `${i.description} ${money(i.total)}`).join(' · ')}</div> : null,
-    totals: <table key="totals" style={{ width: 260, marginLeft: 'auto', marginTop: 12, borderCollapse: 'collapse' }}><tbody>
+    optionals: optionals.length ? <div key="optionals" data-section="optionals" style={{ ...muted, marginTop: 8 }}>{title('optionals', t('quotes.optionalNotIncludedInThe'))} {optionals.map((i) => `${i.description} ${money(i.total)}`).join(' · ')}</div> : null,
+    totals: <table key="totals" data-section="totals" style={{ width: 260, marginLeft: 'auto', marginTop: 12, borderCollapse: 'collapse' }}><tbody>
+      {q.shipping > 0 && <tr><td style={{ padding: '3px 6px' }}>{t('common.shipping')}</td><td style={{ ...r, padding: '3px 6px' }}>{money(q.shipping)}</td></tr>}
       {q.discount > 0 && <tr><td style={{ padding: '3px 6px' }}>{t('common.discount')}</td><td style={{ ...r, padding: '3px 6px' }}>−{money(q.discount)}</td></tr>}
       {data.tax.netAmount != null && <tr><td style={{ padding: '3px 6px' }}>{t('quotes.netAmount')}</td><td style={{ ...r, padding: '3px 6px' }}>{money(data.tax.netAmount)}</td></tr>}
       <tr><td style={{ padding: '3px 6px' }}>{data.tax.label}</td><td style={{ ...r, padding: '3px 6px', ...(data.tax.showRow ? {} : muted) }}>{data.tax.showRow ? money(q.taxAmount) : '—'}</td></tr>
       <tr><td style={{ padding: '3px 6px', fontSize: 16, fontWeight: 700 }}>{t('common.total')}</td><td style={{ ...r, padding: '3px 6px', fontSize: 16, fontWeight: 700, color: brand }}>{money(q.total)}</td></tr></tbody></table>,
-    references: data.links.length ? <div key="references" style={{ marginTop: 14 }}><b>{title('references', t('quotes.references'))}</b><ul>{data.links.map((l) => <li key={l.id}>{l.title ?? l.url} — {l.url}</li>)}</ul></div> : null,
-    notes: q.notes || sec('notes').text ? <div key="notes" style={{ marginTop: 10 }}><b>{title('notes', t('common.notes'))}</b><div style={{ ...muted, whiteSpace: 'pre-wrap' }}>{[q.notes, fillVars(sec('notes').text, vars)].filter(Boolean).join('\n')}</div></div> : null,
-    terms: <div key="terms" style={{ ...muted, marginTop: 18, fontSize: 10 }}><b>{title('terms', t('quotes.terms'))}</b> {fillVars(sec('terms').text || data.terms, vars)}</div>,
+    references: data.links.length ? <div key="references" data-section="references" style={{ marginTop: 14 }}><b>{title('references', t('quotes.references'))}</b><ul>{data.links.map((l) => <li key={l.id}>{l.title ?? l.url} — {l.url}</li>)}</ul></div> : null,
+    notes: q.notes || sec('notes').text ? <div key="notes" data-section="notes" style={{ marginTop: 10 }}><b>{title('notes', t('common.notes'))}</b><div style={{ ...muted, whiteSpace: 'pre-wrap' }}>{[q.notes, fillVars(sec('notes').text, vars)].filter(Boolean).join('\n')}</div></div> : null,
+    terms: sec('terms').text || data.terms ? <div key="terms" data-section="terms" style={{ ...muted, marginTop: 18, fontSize: 10 }}><b>{title('terms', t('quotes.terms'))}</b> {fillVars(sec('terms').text || data.terms, vars)}</div> : null,
   };
   return (
     <div className="quote-doc" style={{ fontFamily: DOC_FONTS[tpl.theme.font], color: '#0f172a', padding: '28px 34px', fontSize: 12, background: '#fff' }}>

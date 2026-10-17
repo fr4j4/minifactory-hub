@@ -44,7 +44,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
       {tab === 'tarifas' && <Card><RatesForm st={st} /></Card>}
       {tab === 'documentos' && <DocTemplateEditor initial={st.documents.quote} hasLogo={!!st.shop.logoKey} sample={{
         shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor },
-        quote: { number: 'P-2026-0001', version: 1, createdAt: new Date(), validUntil: new Date(Date.now() + st.quoteValidDays * 86400_000), customerName: t('documents.sampleCustomer'), customerPhone: '+56 9 1234 5678', title: null, discount: 0, total: 38000, taxAmount: 0, notes: null },
+        quote: { number: 'P-2026-0001', version: 1, createdAt: new Date(), validUntil: new Date(Date.now() + st.quoteValidDays * 86400_000), customerName: t('documents.sampleCustomer'), customerPhone: '+56 9 1234 5678', title: null, discount: 0, shipping: 0, total: 38000, taxAmount: 0, notes: null },
         items: [{ id: 'a', description: t('documents.sampleItem'), qty: 1, unitPrice: 18000, total: 18000, optional: false, models: [{ name: 'soporte.stl' }], leadTime: null }, { id: 'b', description: t('documents.sampleItem2'), qty: 10, unitPrice: 2000, total: 20000, optional: false, models: [], leadTime: null }],
         links: [], tax: { label: t('quotes.noVat'), showRow: false, netAmount: null }, terms: st.templates.terms,
       }} />}

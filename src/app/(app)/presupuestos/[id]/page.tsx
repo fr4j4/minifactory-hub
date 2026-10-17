@@ -21,7 +21,7 @@ import { tOr } from '@/i18n/translate';
 import { RemoveButton } from '@/components/remove-button';
 import { LineDetailLink } from '@/components/line-detail';
 import { QuoteDocument } from '@/components/quote-document';
-import { buildQuoteDoc } from '@/lib/services/quote-doc';
+import { buildQuoteDoc, quoteTaxPct } from '@/lib/services/quote-doc';
 import { diffQuotes } from '@/lib/quote-diff';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quote') }; }
@@ -96,7 +96,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
               {costs && <div className="flex justify-between"><dt className="muted">{t('common.suggestedPrice')}</dt><dd>{money(q.suggestedTotal)}</dd></div>}
               <div className="flex justify-between"><dt className="muted">{t('quotes.subtotal')}</dt><dd>{money(tot.subtotal ?? q.total)}</dd></div>
               {q.discount > 0 && <div className="flex justify-between"><dt className="muted">{t('common.discount')}</dt><dd>−{money(q.discount)}</dd></div>}
-              <div className="flex justify-between"><dt className="muted">{q.applyTax ? t('quotes.plusVat', { pct: st.rates.taxPct }) : t('quotes.noVat')}</dt><dd>{money(q.taxAmount)}</dd></div>
+              <div className="flex justify-between"><dt className="muted">{q.applyTax ? t('quotes.plusVat', { pct: quoteTaxPct(q, st) }) : t('quotes.noVat')}</dt><dd>{money(q.taxAmount)}</dd></div>
               <div className="flex justify-between text-lg font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><dt>{t('common.total')}</dt><dd data-testid="view-total">{money(q.total)}</dd></div>
               {costs && <><div className="flex justify-between"><dt className="muted">{t('common.cost')}</dt><dd>{money(q.costTotal)}</dd></div><div className="flex justify-between"><dt className="muted">{t('common.margin')}</dt><dd>{tot.marginPct != null ? pct(tot.marginPct, 0) : '—'}</dd></div>{q.suggestedTotal > 0 && <div className="flex justify-between"><dt className="muted">{t('quotes.finalVsSuggested')}</dt><dd>{num(((q.total - q.suggestedTotal) / q.suggestedTotal) * 100, 1)}%</dd></div>}</>}
             </dl>

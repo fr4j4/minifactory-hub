@@ -65,7 +65,7 @@ export const quotes = {
   title: 'Título',
   validUntil: 'Válido hasta',
   n3dPrintedPart: 'Pieza impresa en 3D',
-  approxPrintLeadTime: ' · plazo de impresión aprox. {time}',
+  approxPrintLeadTime: 'Plazo de impresión aprox. {time}',
   optionalNotIncludedInThe: 'Opcionales (no incluidos en el total):',
   references: 'Referencias',
   terms: 'Condiciones.',

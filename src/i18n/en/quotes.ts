@@ -68,7 +68,7 @@ export const quotes: Shape<typeof es['quotes']> = {
   title: 'Title',
   validUntil: 'Valid until',
   n3dPrintedPart: '3D-printed part',
-  approxPrintLeadTime: ' · approx. print lead time {time}',
+  approxPrintLeadTime: 'Approx. print lead time {time}',
   optionalNotIncludedInThe: 'Optional (not included in the total):',
   references: 'References',
   terms: 'Terms.',
