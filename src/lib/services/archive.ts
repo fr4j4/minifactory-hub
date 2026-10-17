@@ -8,7 +8,7 @@ import { recomputePaid } from './orders';
 /** Tablas de cada tipo eliminable. */
 const TABLE = {
   material: s.materials, spool: s.spools, item: s.inventoryItems, product: s.products, variant: s.productVariants, customer: s.customers, quote: s.quotes, order: s.orders,
-  priceList: s.priceLists, channel: s.salesChannels, user: s.users, collection: s.collections, plan: s.maintenancePlans, incident: s.incidents, contact: s.contactLog, payment: s.payments, file: s.modelFiles,
+  priceList: s.priceLists, channel: s.salesChannels, user: s.users, collection: s.collections, plan: s.maintenancePlans, incident: s.incidents, contact: s.contactLog, payment: s.payments, file: s.modelFiles, photo: s.photos, machine: s.machines,
 } as const satisfies Record<RemovableKind, any>;
 
 /** Quita el sufijo que se agrega al eliminar para liberar códigos, SKU y correos únicos. */

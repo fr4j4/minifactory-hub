@@ -134,6 +134,7 @@ export const orders: Shape<typeof es['orders']> = {
   createdOn: 'created {date}',
   dueOn: 'due {date}',
   late: 'overdue',
+  noOpenOrders: 'There are no orders in progress. Delivered and cancelled orders show up with the status filter.',
   orderItems: 'Order items',
   fromQuote: 'from {number} v{version}',
   catalogProductStock: 'Catalog product · {n} from stock',

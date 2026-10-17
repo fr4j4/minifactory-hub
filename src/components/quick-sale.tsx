@@ -35,12 +35,12 @@ export function QuickSale({ variants, channels, showCosts, canPrice }: { variant
   };
   return (
     <div className="grid gap-4 lg:grid-cols-5" data-testid="quick-sale">
-      <div className="lg:col-span-3 space-y-3">
+      <div className="lg:col-span-3 min-w-0 space-y-3">
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t('sales.salesChannel')}>{channels.map((c) => <button key={c.id} role="radio" aria-checked={ch === c.id} onClick={() => setCh(c.id)} className={cn('btn-ghost', ch === c.id && '!bg-[var(--panel)] !text-[var(--panel-ink)] !border-[var(--panel)] dark:!bg-slate-700')} data-testid={`channel-${c.name}`}>{c.name}</button>)}</div>
         <input className="input" placeholder={t('sales.searchProductOrSku')} value={q} onChange={(e) => setQ(e.target.value)} aria-label={t('sales.searchProduct')} data-testid="sale-search" />
         <ul className="grid grid-cols-2 xl:grid-cols-3 gap-2">{hits.map((v) => <li key={v.id}><button className="card w-full text-left p-3 min-h-[76px] hover:border-brand-500" onClick={() => add(v.id)} data-testid="sale-product"><div className="text-sm font-medium leading-snug">{v.label}</div><div className="flex justify-between text-xs muted mt-1 tabular"><span>{money(listOf(v))}</span><span className={v.stock <= 0 ? 'text-danger font-medium' : ''}>{t('sales.stock')} {v.stock}</span></div></button></li>)}{hits.length === 0 && <li className="text-sm muted col-span-full">{t('sales.noResults')}</li>}</ul>
       </div>
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 min-w-0">
         <div className="card p-4 space-y-3 lg:sticky lg:top-20">
           <h2 className="font-semibold">{t('sales.sale')}</h2>
           {lines.length === 0 ? <p className="text-sm muted">{t('sales.tapAProductToAdd')}</p> : (

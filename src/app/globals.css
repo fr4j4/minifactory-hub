@@ -78,7 +78,7 @@ canvas { touch-action: none; }
 .page-enter > * { animation: rise .4s cubic-bezier(.2,.7,.2,1) backwards; }
 .page-enter > *:nth-child(2) { animation-delay: .04s; } .page-enter > *:nth-child(3) { animation-delay: .08s; } .page-enter > *:nth-child(n+4) { animation-delay: .12s; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; animation-delay: 0s !important; transition-delay: 0s !important; } }
 @media print { .no-print { display: none !important; } body { background: #fff; color: #000; } }
 /* escena del login: la pieza se revela de abajo hacia arriba y la boquilla sube con ella */
 .login-print { animation: print 7s cubic-bezier(.45,.05,.55,.95) infinite; }

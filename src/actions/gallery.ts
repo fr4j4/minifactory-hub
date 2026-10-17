@@ -3,6 +3,7 @@ import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
+import { removeRecord } from '@/lib/services/removal';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { noPhotoConsent } from '@/lib/photos';
@@ -15,7 +16,7 @@ export async function updatePhotoAction(id: string, p: { stage?: string; feature
     await db.update(s.photos).set(p).where(eq(s.photos.id, id)); await audit('photo', id, 'editar', Object.keys(p), u.id);
   }, ['/galeria']);
 }
-export async function deletePhotoAction(id: string) { return safe(async () => { const u = await requirePerm('galeria', 'X'); const db = await getDb(); await db.update(s.photos).set({ deletedAt: new Date() }).where(eq(s.photos.id, id)); await audit('photo', id, 'eliminar', {}, u.id); }, ['/galeria']); }
+export async function deletePhotoAction(id: string) { return safe(async () => { const u = await requirePerm('galeria', 'X'); await removeRecord('photo', id, u.id); }, ['/galeria']); }
 export async function createCollectionAction(name: string, photoIds: string[]) {
   const t = await getT();
   return safe(async () => {

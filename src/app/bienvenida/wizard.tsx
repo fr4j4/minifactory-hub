@@ -25,7 +25,7 @@ export function CreateAccountWizard() {
   const st = strength(v.password);
   return (
     <form onSubmit={(e) => { e.preventDefault(); next(); }} className="space-y-5">
-      <ol className="flex gap-1.5" aria-label="progreso">{labels.map((l, i) => <li key={i} aria-current={i === step ? 'step' : undefined} className={`flex-1 h-1.5 rounded-full ${i <= step ? 'bg-[var(--accent)]' : 'bg-[var(--line)]'}`} title={l} />)}</ol>
+      <ol className="flex gap-1.5" aria-label={t('setup.progress')}>{labels.map((l, i) => <li key={i} aria-current={i === step ? 'step' : undefined} className={`flex-1 h-1.5 rounded-full ${i <= step ? 'bg-[var(--accent)]' : 'bg-[var(--line)]'}`} title={l} />)}</ol>
       <h2 className="text-lg font-semibold">{labels[step]}</h2>
       {step === 0 && <><p className="muted text-sm">{t('setup.step0Hint')}</p><label className="block"><span className="label">{t('setup.token')}</span><input className="input font-mono tracking-widest uppercase" autoFocus autoComplete="off" required value={v.token} onChange={set('token')} /></label></>}
       {step === 1 && <div className="grid gap-4 sm:grid-cols-3">

@@ -113,7 +113,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
       </div>
       {it.open && (
         <div className="p-3 sm:p-4 grid gap-4 lg:grid-cols-5">
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 min-w-0 space-y-4">
             <div className="grid sm:grid-cols-4 gap-3">
               <label className="block sm:col-span-3"><span className="label">{t('common.description')}</span><input className="input" value={it.description} disabled={dis} onChange={(e) => onChange({ description: e.target.value })} placeholder={t('calculator.eGCameraMount')} data-testid="line-desc" /></label>
               <label className="block"><span className="label">{t('common.quantity')}</span><input type="number" min={1} inputMode="numeric" className={num_} value={it.qty} disabled={dis} onChange={(e) => setQty(+e.target.value)} data-testid="line-qty" /></label>
@@ -133,14 +133,14 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   {!dis && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       <select className="input sm:!w-72" value={pick} onChange={(e) => { setPick(e.target.value); addModel(e.target.value); }} aria-label={t('calculator.addAModelFromThe')} data-testid="model-pick"><option value="">{t('calculator.addAModelFromThe2')}</option>{library.filter((m) => !it.models.some((x) => x.modelFileId === m.id)).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.format.toUpperCase()})</option>)}</select>
-                      <button type="button" className="btn-ghost" onClick={() => setShowUp((v) => !v)}>{t('calculator.uploadANewFile')}</button>
+                      <button type="button" className="btn-ghost" onClick={() => setShowUp((v) => !v)}><Icon name="upload" className="h-4 w-4" />{t('calculator.uploadANewFile')}</button>
                     </div>
                   )}
                   {showUp && <Uploader className="mt-2" compact intent={{ intent: 'model', sync: true }} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode" label={t('calculator.dropTheCustomerSFile')} onDone={(r) => { r.forEach((x) => x.ok && addModel(x.data.modelFileId)); setShowUp(false); }} />}
                 </div>
                 <div className="grid sm:grid-cols-3 gap-3">
                   <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={it.materialId ?? ''} disabled={dis} onChange={(e) => { const m = mats.find((x) => x.id === e.target.value); onChange({ materialId: e.target.value || null, color: m?.colorName ?? it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} data-testid="line-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label} · {money(m.costPerKg)}/kg{m.tech === 'fdm' && !m.filamentProfileId ? ` · ${t('calculator.noSlicerProfile')}` : ''}</option>)}</select></label>
-                  <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated ? ' (simulada)' : ''}</option>)}</select></label>
+                  <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated && !/simula/i.test(m.name) ? ` (${t('slicer.simulatedLower')})` : ''}</option>)}</select></label>
                   <label className="block"><span className="label">{t('calculator.processProfile')}</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option><ProcessOptions profiles={ctx.profiles.filter((p) => p.type === 'process')} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle ?? null} compatibleIds={(ctx.setups.find((x) => x.machineId === it.machineId && x.active) ?? ctx.setups.find((x) => x.machineId === it.machineId))?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={ctx.profiles.find((p) => p.id === it.processProfileId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle} /></label>
                 </div>
                 <div>
@@ -202,7 +202,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
               </div>
             </details>
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 min-w-0">
             <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-3 space-y-3 sticky top-20">
               <div className="flex items-baseline justify-between"><span className="label !mb-0">{t('common.suggestedPrice')}</span><span className="tabular text-lg font-semibold" data-testid="line-suggested">{money(suggestedUnit)}<span className="text-xs muted font-normal"> {t('calculator.unit')}</span></span></div>
               <label className="block"><span className="label">{t('calculator.finalPricePerUnitYou')}</span>
@@ -210,7 +210,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   {it.finalUnit != null && !dis && <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => onChange({ finalUnit: null })} data-testid="line-reset-price">{t('calculator.useSuggested')}</button>}</div>
               </label>
               <div id={`d${it.uid}`} className="flex flex-wrap gap-1.5 text-xs" data-testid="line-chips">
-                {it.finalUnit != null && it.finalUnit !== suggestedUnit && <Badge tone={diff < 0 ? 'amber' : 'blue'}>{diff > 0 ? '+' : ''}{num(diff, 1)}% vs sugerido ({money(finalUnit - suggestedUnit)}/u)</Badge>}
+                {it.finalUnit != null && it.finalUnit !== suggestedUnit && <Badge tone={diff < 0 ? 'amber' : 'blue'}>{t('quotes.vsSuggested', { pct: `${diff > 0 ? '+' : ''}${num(diff, 1)}` })} ({money(finalUnit - suggestedUnit)} {t('calculator.unit')})</Badge>}
                 {showCosts && margin != null && <Badge tone={belowCost ? 'red' : belowMin ? 'amber' : 'green'}>{t('common.margin')} {pct(margin, 0)}</Badge>}
                 {belowCost && <Badge tone="red">{t('calculator.belowCost')}</Badge>}{!belowCost && belowMin && showCosts && <Badge tone="amber">{t('calculator.belowMinMargin', { pct: ctx.rates.minMarginPct })}</Badge>}
               </div>
@@ -221,7 +221,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                     {([[t('common.material'), bd.material], [t('calculator.machineDepreciationAndMaintenanc'), bd.machine], [t('calculator.energy'), bd.energy], [t('calculator.preparation'), bd.prep], [t('calculator.postProcessing'), bd.post], [t('calculator.failureRisk'), bd.failure]] as const).map(([l, v]) => <tr key={l}><td className="py-0.5">{l}</td><td className="text-right">{money(v)}</td></tr>)}
                     <tr className="border-t border-slate-300 dark:border-slate-600 font-medium"><td className="py-1">{t('common.cost')}</td><td className="text-right">{money(bd.cost)}</td></tr>
                     {bd.warnings && bd.warnings.length > 0 && <tr><td colSpan={2} className="text-warn text-xs" data-testid="line-warnings">{t('calculator.incompleteData')}: {bd.warnings.map((w) => t(`calculator.warn_${w}` as 'calculator.warn_noMachine')).join(' · ')}</td></tr>}
-                    <tr><td className="muted">+ margen {bd.marginPct}%{bd.urgencyPct ? ` + urgencia ${bd.urgencyPct}%` : ''}{bd.volumePct ? ` ${bd.volumePct}% volumen` : ''}</td><td className="text-right muted">{money(bd.priceBeforeRound)}</td></tr>
+                    <tr><td className="muted">{t('quotes.bdMargin', { pct: bd.marginPct })}{bd.urgencyPct ? ` ${t('quotes.bdUrgency', { pct: bd.urgencyPct })}` : ''}{bd.volumePct ? ` ${t('quotes.bdVolume', { pct: bd.volumePct })}` : ''}</td><td className="text-right muted">{money(bd.priceBeforeRound)}</td></tr>
                   </tbody></table>
                   <p className="muted mt-1">{t('calculator.effectiveNote', { grams: num(bd.gramsEffective, 1), waste: ctx.rates.wastePct, hours: num(bd.hoursEffective, 2) })}{mach ? ` ${t('calculator.onMachine', { name: mach.name })}` : ''}.</p>
                 </details>

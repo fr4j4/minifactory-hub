@@ -7,6 +7,7 @@ import { money, sources } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
 import { DateInput } from '@/components/date-input';
+import { Icon } from '@/components/shell';
 
 /** El editor de borrador de la misma página se registra aquí: antes de aprobar guarda lo pendiente y entrega el total vigente (null si no pudo guardar). */
 export const draftFlush: { current: null | (() => Promise<number | null>) } = { current: null };
@@ -32,7 +33,7 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
   const openRecalc = async () => { const r = await previewRecalcAction(id); if (r.ok && r.data) setRc(r.data); else run(async () => r); };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <a className="btn-ghost" href={`/api/quotes/${id}/pdf`} data-testid="quote-pdf">{t('quotes.pdf')}</a>
+      <a className="btn-ghost" href={`/api/quotes/${id}/pdf`} data-testid="quote-pdf"><Icon name="download" className="h-4 w-4" />{t('quotes.pdf')}</a>
       <CopyButton text={msg} label={t('quotes.copyMessage')} className="btn-ghost" />
       <a className="btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">{t('quotes.whatsapp')}</a>
       {canEdit && status === 'borrador' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => sendQuoteAction(id), { ok: t('quotes.markedAsSentPricesAnd2') })} data-testid="quote-send">{t('quotes.markAsSent')}</button>}

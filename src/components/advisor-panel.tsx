@@ -9,6 +9,7 @@ import { useT } from '@/i18n/client';
 import { dur, grams, num, cn } from '@/lib/format';
 import { Modal, useToast } from './client';
 import { useRunPolling } from './slice-panel';
+import { Icon } from '@/components/shell';
 
 export interface AdvisorTarget { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId: string; copies: number }
 const LEVEL: Record<string, 'down' | 'same' | 'up'> = { '-': 'down', '=': 'same', '+': 'up' };
@@ -21,7 +22,7 @@ function Bar({ label, v, base, bad }: { label: string; v: number; base: number; 
 }
 
 /** Asesor de perfiles con IA: propone → lamina de verdad → compara → el usuario decide. */
-export function AdvisorPanel({ target, features, canEdit, canCreate, onClose }: { target: AdvisorTarget; features: { advisor: boolean; diagnose: boolean }; canEdit: boolean; canCreate: boolean; onClose: () => void }) {
+export function AdvisorPanel({ target, open, features, canEdit, canCreate, onClose }: { target: AdvisorTarget; open: boolean; features: { advisor: boolean; diagnose: boolean }; canEdit: boolean; canCreate: boolean; onClose: () => void }) {
   const t = useT(); const toast = useToast();
   const [mode, setMode] = useState<'goal' | 'symptom'>(features.advisor ? 'goal' : 'symptom');
   const [goal, setGoal] = useState<Goal>('equilibrado'); const [text, setText] = useState('');
@@ -56,7 +57,7 @@ export function AdvisorPanel({ target, features, canEdit, canCreate, onClose }: 
   const label = (k: string) => { const d = PARAM_BY_KEY.get(k); return d ? t(d.label) : k; };
 
   return (
-    <Modal open onClose={onClose} title={t('advisor.title')} wide>
+    <Modal open={open} onClose={onClose} title={t('advisor.title')} wide>
       <div className="space-y-4" data-testid="advisor-panel">
         <p className="text-sm muted">{t('advisor.intro')}</p>
         {!sug && (
@@ -85,11 +86,11 @@ export function AdvisorPanel({ target, features, canEdit, canCreate, onClose }: 
                     <header className="flex items-center justify-between gap-2"><h4 className="font-semibold">{t(`advisor.candidate.${c.name}` as MessageKey)}</h4>{isBest && <span className="badge" data-testid="advisor-best">{t('advisor.best')}</span>}</header>
                     <p>{c.summary}</p>
                     <table className="w-full text-xs"><thead><tr><th className="th">{t('advisor.colParam')}</th><th className="th">{t('advisor.colFrom')}</th><th className="th">{t('advisor.colTo')}</th></tr></thead>
-                      <tbody>{c.changes.map((a) => <tr key={a.key}><td className="td" title={`${a.reason}${a.evidence ? ' — ' + a.evidence : ''}`}>{label(a.key)}</td><td className="td num">{a.from ?? '—'}</td><td className="td num font-medium">{String(a.to)}{a.clamped ? ' *' : ''}{a.risk === 'moderate' ? ' ⚠' : ''}</td></tr>)}</tbody></table>
+                      <tbody>{c.changes.map((a) => <tr key={a.key}><td className="td" title={`${a.reason}${a.evidence ? ' — ' + a.evidence : ''}`}>{label(a.key)}</td><td className="td num">{a.from ?? '—'}</td><td className="td num font-medium">{String(a.to)}{a.clamped ? ' *' : ''}{a.risk === 'moderate' && <Icon name="alert" className="inline h-3.5 w-3.5 ml-1 -mt-0.5 text-warn" />}</td></tr>)}</tbody></table>
                     <ul className="text-xs muted list-disc pl-4">{c.changes.map((a) => <li key={a.key}>{a.reason}</li>)}</ul>
                     {c.rejected.length > 0 && <p className="text-xs muted" data-testid="advisor-rejected">{t('advisor.rejectedNote', { n: c.rejected.length })}</p>}
                     {c.changes.some((a) => a.clamped) && <p className="text-xs muted">* {t('advisor.clamped')}</p>}
-                    {c.changes.some((a) => a.risk === 'moderate') && <p className="text-xs muted">⚠ {t('advisor.tryFirst')}</p>}
+                    {c.changes.some((a) => a.risk === 'moderate') && <p className="text-xs muted"><Icon name="alert" className="inline h-3.5 w-3.5 mr-1 -mt-0.5 text-warn" />{t('advisor.tryFirst')}</p>}
                     <div className="text-xs"><b>{t('advisor.expectedTitle')}:</b> {(['time', 'material', 'strength', 'quality'] as const).map((k) => `${t(({ time: 'advisor.expTime', material: 'advisor.expMaterial', strength: 'advisor.expStrength', quality: 'advisor.expQuality' } as const)[k])} ${t(`advisor.level.${LEVEL[c.expected[k]]}` as MessageKey)}`).join(' · ')}</div>
                     <div className="space-y-1"><div className="text-xs font-medium">{t('advisor.scoresTitle')}</div>
                       <Bar label={t('advisor.scoreStrength')} v={c.scores.strength} base={p.base.scores.strength} /><Bar label={t('advisor.scoreQuality')} v={c.scores.quality} base={p.base.scores.quality} /><Bar label={t('advisor.scoreRisk')} v={c.scores.risk} base={p.base.scores.risk} bad /></div>

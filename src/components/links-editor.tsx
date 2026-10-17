@@ -37,7 +37,7 @@ export function LinksEditor({ value, onChange, persist, readOnly, compact }: { v
         <ul className="mt-3 space-y-2">
           {value.map((l, i) => (
             <li key={(l.id ?? '') + l.url + i} className="flex gap-3 rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
-              {l.imageUrl ? <img src={l.imageUrl} alt="" className="h-14 w-14 rounded object-cover shrink-0 bg-slate-100" referrerPolicy="no-referrer" /> : <div className="h-14 w-14 rounded bg-slate-100 dark:bg-slate-800 grid place-items-center text-slate-400 shrink-0" aria-hidden>🔗</div>}
+              {l.imageUrl ? <img src={l.imageUrl} alt="" className="h-14 w-14 rounded object-cover shrink-0 bg-slate-100" referrerPolicy="no-referrer" /> : <div className="h-14 w-14 rounded bg-slate-100 dark:bg-slate-800 grid place-items-center text-slate-400 shrink-0" aria-hidden><Icon name="link" className="h-5 w-5" /></div>}
               <div className="min-w-0 flex-1">
                 <a href={l.url} target="_blank" rel="noopener noreferrer" className="font-medium text-sm text-brand-700 dark:text-brand-300 hover:underline break-words">{l.title || host(l.url)}</a>
                 <div className="text-xs muted truncate">{host(l.url)} · {tOr(t, `links.kind.${l.kind ?? 'otro'}`, l.kind ?? '')}</div>

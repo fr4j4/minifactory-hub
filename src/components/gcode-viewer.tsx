@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
 import { useT } from '@/i18n/client';
+import type { TFn } from '@/i18n/translate';
+import { Icon } from '@/components/shell';
 
 const TYPE_LABEL = ['viewer.perimeters', 'viewer.infill', 'viewer.surfaces', 'viewer.supports', 'viewer.other', 'viewer.travel'] as const;
 const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780, 0xc084fc];
@@ -15,9 +17,9 @@ interface Parsed { bbox: { min: number[]; max: number[] }; layers: Array<{ z: nu
 type ColorMode = 'tipo' | 'velocidad' | 'ancho' | 'tiempoCapa' | 'flujo' | 'ventilador' | 'temperatura' | 'herramienta';
 /** Escala azul → verde → amarillo → rojo para t en 0…1. */
 const ramp = (t: number): [number, number, number] => { const x = Math.min(1, Math.max(0, t)); const c = new THREE.Color().setHSL((1 - x) * 0.66, 0.85, 0.5); return [c.r, c.g, c.b]; };
-function parse(buf: ArrayBuffer): Parsed {
+function parse(buf: ArrayBuffer, t: TFn): Parsed {
   const dv = new DataView(buf); const magic = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
-  if (magic !== 'MFG1' && magic !== 'MFG2' && magic !== 'MFG3') throw new Error('Invalid G-code preview');
+  if (magic !== 'MFG1' && magic !== 'MFG2' && magic !== 'MFG3') throw new Error(t('viewer.layerPreviewIsNotAvailable'));
   const hl = dv.getUint32(4, true); const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl)));
   const off = 8 + hl;
   if (magic === 'MFG1') return { ...head, seg: new Float32Array(buf.slice(off)) };
@@ -49,7 +51,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
     (async () => {
       try {
         const r = await fetch(src); if (!r.ok) throw new Error(t('viewer.layerPreviewIsNotAvailable'));
-        const d = parse(await r.arrayBuffer()); if (disposed) return;
+        const d = parse(await r.arrayBuffer(), t); if (disposed) return;
         const mn = d.bbox.min, mx = d.bbox.max; const cx = (mn[0] + mx[0]) / 2, cy = (mn[1] + mx[1]) / 2;
         // una geometría por tipo, ordenada por capa (para recortar con drawRange)
         const per: number[][] = range(NT).map(() => []); const idx: number[][] = range(NT).map(() => []); const attr: Array<{ s: number[]; w: number[]; l: number[]; f: number[]; p: number[]; o: number[] }> = range(NT).map(() => ({ s: [], w: [], l: [], f: [], p: [], o: [] }));
@@ -120,7 +122,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
       {data && (
         <div className="p-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
           <div className="flex items-center gap-3">
-            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? t('viewer.pauseAnimation') : t('viewer.playAnimation')} data-testid="gcode-play">{playing ? t('viewer.pauseShort') : t('viewer.playShort')}</button>
+            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? t('viewer.pauseAnimation') : t('viewer.playAnimation')} data-testid="gcode-play"><Icon name={playing ? 'pause' : 'play'} className="h-4 w-4" />{playing ? t('viewer.pauseShort') : t('viewer.playShort')}</button>
             <input type="range" min={0} max={n - 1} value={layer} onChange={(e) => { setPlaying(false); setLayer(+e.target.value); }} className="flex-1" aria-label={t('viewer.layer')} data-testid="gcode-layer-slider" />
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">

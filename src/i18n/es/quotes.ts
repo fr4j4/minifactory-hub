@@ -1,5 +1,9 @@
 export const quotes = {
   viewKanban: 'Tablero',
+  vsSuggested: '{pct}% vs sugerido',
+  bdMargin: '+ margen {pct}%',
+  bdUrgency: '+ urgencia {pct}%',
+  bdVolume: '{pct}% volumen',
   kanbanEmpty: 'No hay presupuestos en este estado.',
   followUpTitle: 'Seguimiento: {number}',
   followUpBody: 'Enviado hace {days} días sin respuesta · {customer}',
@@ -69,7 +73,7 @@ export const quotes = {
   optionalNotIncludedInThe: 'Opcionales (no incluidos en el total):',
   references: 'Referencias',
   terms: 'Condiciones.',
-  pdf: '⬇ PDF',
+  pdf: 'PDF',
   copyMessage: 'Copiar mensaje',
   whatsapp: 'WhatsApp',
   markAsSent: 'Marcar como enviado',

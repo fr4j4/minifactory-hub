@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createCustomFilamentAction, customFilamentDefaultsAction, previewImportAction, importSelectedAction, processesForAction, setupAllFilamentsAction, setupFilamentAction, setupMachineAction } from '@/actions/slicer';
-import { cn } from '@/lib/format';
+import { cn, num } from '@/lib/format';
 import { Icon } from '@/components/shell';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
@@ -59,7 +59,7 @@ function MachineRow({ m, options }: { m: SetupData['machines'][number]; options:
         <div data-testid="setup-nozzles"><span className="label">{t('nozzle.nozzleSetLabel')}</span>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{m.variants.map((v) => { const on = v.base === base; const done = m.setups.some((x) => x.nozzle === v.nozzle); return (
             <button key={v.nozzle} type="button" role="radio" aria-checked={on} onClick={() => { setBase(v.base); setPick(false); }} data-testid={`setup-nozzle-${v.nozzle}`}
-              className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: v.nozzle.replace('.', ',') })}{done ? ' ✓' : ''}</button>); })}</div>
+              className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: num(+v.nozzle, 2) })}{done && <><Icon name="check" className="inline h-3.5 w-3.5 ml-1 -mt-0.5" /><span className="sr-only"> ({t('nozzle.nozzleReady')})</span></>}</button>); })}</div>
           <p className="text-xs muted mt-1">{t('nozzle.setupNozzleHelp')}</p>
         </div>)}
       <p className="text-xs muted">{t('slicer.theQualitiesAreTheOrcaslicer')}</p>
@@ -76,7 +76,7 @@ function MaterialRow({ m, options, profiles }: { m: SetupData['materials'][numbe
     <li className="py-2.5 flex flex-wrap items-center gap-3" data-testid="setup-material">
       <span className="h-5 w-5 rounded-full border border-black/15 shrink-0" style={{ background: m.hex }} aria-hidden />
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium" data-testid="setup-material-label">{m.label}</div><div className="text-xs muted">{m.filamentProfile ? <>{t('slicer.profile')} <b>{m.filamentProfile.name}</b></> : t('slicer.noFilamentProfileThisMaterial')}</div>
-        {m.mismatch && <div className="text-xs text-red-700 dark:text-red-400 mt-0.5" role="alert" data-testid="setup-material-mismatch">{t('slicer.profileMismatch', { profile: m.profileType, material: m.type })}</div>}</div>
+        {m.mismatch && <div className="text-xs text-red-700 dark:text-red-400 mt-0.5" role="alert" data-testid="setup-material-mismatch"><Icon name="alert" className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{t('slicer.profileMismatch', { profile: m.profileType, material: m.type })}</div>}</div>
       <select className="input !w-auto min-w-[240px] max-w-full" value={val} onChange={(e) => setVal(e.target.value)} aria-label={t('slicer.filamentProfileFor', { material: m.label })} data-testid="setup-material-select">
         <option value="">{t('slicer.chooseProfile')}</option>
         {profiles.length > 0 && <optgroup label={t('slicer.myProfiles')}>{profiles.map((p) => <option key={p.id} value={`p:${p.id}`}>{p.name}</option>)}</optgroup>}
@@ -145,7 +145,7 @@ export function ImportPresetsButton({ dark }: { dark?: boolean }) {
           <div className="flex flex-wrap gap-1 rounded-xl border border-[var(--line)] p-1 w-fit" role="tablist">{([['3mf', t('slicer.easiestA3mfProject')], ['bundle', t('slicer.profileBundle')], ['json', t('slicer.jsonFiles')]] as const).map(([k, l]) => <button key={k} role="tab" aria-selected={how === k} className={cn('px-3 min-h-[36px] rounded-lg text-sm', how === k ? 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700' : 'muted hover:bg-slate-100 dark:hover:bg-slate-800')} onClick={() => setHow(k)}>{l}</button>)}</div>
           {how === '3mf' && <ol className="list-decimal pl-5 text-sm space-y-1"><li>{t('slicer.step3mf1')} <b>{t('slicer.yourPrinter')}</b>, <b>{t('slicer.yourFilaments')}</b> {t('slicer.andWord')} <b>{t('slicer.yourProcess')}</b> {t('slicer.step3mf1b')}</li><li>{t('slicer.step3mf2')} <b>{t('slicer.fileSaveProjectAs')}</b> {t('slicer.step3mf2b')}</li><li>{t('slicer.uploadItHereWeImport')}</li></ol>}
           {how === 'bundle' && <ol className="list-decimal pl-5 text-sm space-y-1"><li>{t('slicer.stepBundle1')} <b>{t('slicer.fileExportExportPresetBundle')}</b> (Export Preset Bundle).</li><li>{t('slicer.stepBundle2a')} <b>{t('slicer.printer')}</b> {t('slicer.stepBundle2b')} <b>{t('slicer.filament')}</b> (<code>.bbsflmt</code>).</li><li>{t('slicer.stepBundle3')}</li></ol>}
-          {how === 'json' && <div className="text-sm space-y-1"><p>{t('slicer.bambuStudioStoresYourUser')}</p><ul className="list-disc pl-5 muted"><li>Windows: <code>%APPDATA%\BambuStudio\user\&lt;tu id&gt;\filament</code> (y <code>process</code>, <code>machine</code>)</li><li>macOS: <code>~/Library/Application Support/BambuStudio/user/&lt;tu id&gt;/…</code></li><li>Linux: <code>~/.config/BambuStudio/user/&lt;tu id&gt;/…</code></li></ul><p className="muted">{t('slicer.jsonMulti')} <code>OrcaSlicer/user/default/…</code>.</p></div>}
+          {how === 'json' && <div className="text-sm space-y-1"><p>{t('slicer.bambuStudioStoresYourUser')}</p><ul className="list-disc pl-5 muted"><li>Windows: <code>%APPDATA%\BambuStudio\user\&lt;{t('slicer.yourId')}&gt;\filament</code> ({t('slicer.andAlso')} <code>process</code>, <code>machine</code>)</li><li>macOS: <code>~/Library/Application Support/BambuStudio/user/&lt;{t('slicer.yourId')}&gt;/…</code></li><li>Linux: <code>~/.config/BambuStudio/user/&lt;{t('slicer.yourId')}&gt;/…</code></li></ul><p className="muted">{t('slicer.jsonMulti')} <code>OrcaSlicer/user/default/…</code>.</p></div>}
           <label className={cn('block rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors', busy ? 'border-[var(--accent)]' : 'border-[var(--line)] hover:border-slate-400')}>
             <input type="file" multiple accept=".3mf,.bbscfg,.bbsflmt,.zip,.json" className="sr-only" onChange={(e) => analyze(Array.from(e.target.files ?? []))} data-testid="import-files" />
             <span className="font-medium">{busy ? t('slicer.analyzing') : files.length ? files.map((f) => f.name).join(', ') : t('slicer.chooseFiles3mfBbscfgBbsflmt')}</span>

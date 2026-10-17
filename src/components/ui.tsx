@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, actions, back, eyebrow }: { title:
 export function Card({ title, actions, children, className, pad = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
     <section className={cn('card min-w-0', className)}>
-      {(title || actions) && <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1"><h2 className="text-[13px] font-semibold tracking-tight flex items-center gap-2"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden />{title}</h2>{actions}</header>}
+      {(title || actions) && <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1">{title ? <h2 className="text-[13px] font-semibold tracking-tight flex items-center gap-2"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden />{title}</h2> : <span />}{actions}</header>}
       <div className={pad ? 'p-4' : ''}>{children}</div>
     </section>
   );
@@ -51,8 +51,9 @@ export function Field({ label, children, hint, className }: { label: string; chi
   return <label className={cn('block', className)}><span className="label">{label}</span>{children}{hint && <span className="text-xs muted mt-1 block">{hint}</span>}</label>;
 }
 
+/** tabIndex permite desplazar con el teclado una tabla más ancha que la pantalla. */
 export function Table({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('overflow-x-auto', className)} tabIndex={0} role="region" aria-label="tabla"><table className="w-full border-collapse">{children}</table></div>;
+  return <div className={cn('overflow-x-auto', className)} tabIndex={0}><table className="w-full border-collapse">{children}</table></div>;
 }
 
 export function Swatch({ hex, className }: { hex: string; className?: string }) { return <span className={cn('inline-block h-3.5 w-3.5 rounded-full border border-black/20 align-[-2px]', className)} style={{ background: hex }} aria-hidden />; }

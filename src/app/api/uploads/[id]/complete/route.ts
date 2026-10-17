@@ -8,6 +8,7 @@ import { ingestModel, ingestZip } from '@/lib/files';
 import { ingestPhoto } from '@/lib/photos';
 import { newKey, putFile } from '@/lib/storage';
 import { getT } from '@/i18n/server';
+import { errorText } from '@/i18n/errors';
 
 /** Cierra la subida y crea lo que corresponda: modelo 3D (nuevo o versión), foto/video o adjunto. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json(result);
   } catch (e) {
     await fs.rm(u.tmpPath, { force: true }); await db.delete(s.uploadSessions).where(eq(s.uploadSessions.id, id));
-    return NextResponse.json({ error: (e as Error).message }, { status: 400 });
+    return NextResponse.json({ error: errorText(e, await getT()) }, { status: 400 });
   }
 }

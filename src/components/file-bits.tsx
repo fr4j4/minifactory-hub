@@ -32,8 +32,8 @@ export function FileMetaForm({ f, customers }: { f: { id: string; name: string; 
 
 export function DeleteFileButton({ id }: { id: string }) {
   const t = useT();
-  const { run } = useAction(); const router = useRouter();
-  return <ConfirmButton className="btn-ghost text-danger" message={t('files.deleteThisFileFromThe')} onConfirm={() => run(() => deleteFileAction(id), { ok: t('files.fileDeleted2'), refresh: false, onOk: () => router.push('/archivos') })}>{t('common.deleteLabel')}</ConfirmButton>;
+  const { run, pending } = useAction(); const router = useRouter();
+  return <ConfirmButton disabled={pending} className="btn-ghost text-danger" message={t('files.deleteThisFileFromThe')} onConfirm={() => run(() => deleteFileAction(id), { ok: t('files.fileDeleted2'), refresh: false, onOk: () => router.push('/archivos') })}>{t('common.deleteLabel')}</ConfirmButton>;
 }
 export function SetVersionButton({ modelId, versionId }: { modelId: string; versionId: string }) {
   const t = useT();

@@ -1,5 +1,6 @@
 export const edit = {
   edit: 'Editar',
+  editNamed: 'Editar «{name}»',
   saved: 'Cambios guardados',
   invalid: 'Hay un valor inválido: revisa los datos del formulario.',
   required: 'Falta un dato obligatorio.',

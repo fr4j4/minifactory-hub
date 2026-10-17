@@ -1,6 +1,7 @@
 'use client';
 import { useT } from '@/i18n/client';
 import { splitByNozzle } from '@/lib/slicer/nozzle';
+import { Icon } from '@/components/shell';
 
 type Opt = { id: string; name: string; nozzle: string | null };
 
@@ -25,5 +26,5 @@ export function ProcessOptions({ profiles, machineNozzle, compatibleIds }: { pro
 export function NozzleMismatch({ processNozzle, machineNozzle }: { processNozzle: string | null | undefined; machineNozzle: string | null | undefined }) {
   const t = useT();
   if (!processNozzle || !machineNozzle || Number(processNozzle) === Number(machineNozzle)) return null;
-  return <p className="text-xs text-warn mt-1" role="status" data-testid="nozzle-mismatch">⚠ {t('nozzle.mismatchWarn', { process: processNozzle, machine: machineNozzle })}</p>;
+  return <p className="text-xs text-warn mt-1" role="status" data-testid="nozzle-mismatch"><Icon name="alert" className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{t('nozzle.mismatchWarn', { process: processNozzle, machine: machineNozzle })}</p>;
 }

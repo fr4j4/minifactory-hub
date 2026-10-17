@@ -26,7 +26,9 @@ export function createT(locale: Locale, dict: Messages = DICTIONARIES[locale]): 
   const rules = new Intl.PluralRules(locale);
   return (key, params) => {
     let raw: string | undefined;
-    if (params && typeof params.count === 'number') raw = lookup(dict, `${key}_${rules.select(params.count)}`) ?? lookup(dict, `${key}_other`);
+    // el plural se elige con `count`; si no viene, con `n` (varios textos usan {n} como cantidad)
+    const count = typeof params?.count === 'number' ? params.count : typeof params?.n === 'number' ? params.n : undefined;
+    if (count !== undefined) raw = lookup(dict, `${key}_${rules.select(count)}`) ?? lookup(dict, `${key}_other`);
     raw ??= lookup(dict, key) ?? lookup(DICTIONARIES.es, key) ?? key;
     return params ? raw.replace(/\{(\w+)\}/g, (m, name: string) => (params[name] == null ? m : String(params[name]))) : raw;
   };

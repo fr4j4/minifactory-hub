@@ -25,7 +25,7 @@ export default async function SpoolPage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader back={{ href: '/inventario?tab=bobinas', label: t('nav.crumbSpools') }} title={<span>{sp.code} · <Swatch hex={m.hex} /> {m.type} {m.colorName} <StatusBadge status={sp.status} /></span>} subtitle={`${m.manufacturer ?? ''} ${m.line ?? ''} · ${t('inventory.lotBought', { lot: sp.lot ?? '—', date: dmy(sp.boughtAt) })}`} actions={<>{can(user, 'inventario', 'E') && <EditButton kind="spool" id={sp.id} fields={editFields('spool', t)} values={sp} className="btn-ghost" testId="edit-spool" />}{can(user, 'inventario', 'X') && <RemoveButton kind="spool" id={sp.id} name={sp.code} redirectTo="/inventario?tab=bobinas" />}</>} />
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 min-w-0 space-y-4">
           <Card title={t('inventory.remainingWeight')}><div className="flex items-end justify-between mb-2"><div className="text-3xl font-bold tabular" data-testid="spool-remaining">{grams(sp.remainingG)}</div><div className="muted text-sm">{t('inventory.ofTare', { total: grams(sp.initialG), tare: sp.tareG })}</div></div><Meter value={sp.remainingG} max={sp.initialG} tone={sp.remainingG < sp.initialG * 0.15 ? 'bad' : 'ok'} /></Card>
           <Card title={t('inventory.movements')} pad={false}><Table><tbody>{mv.map((x) => <tr key={x.id}><td className="td text-xs tabular">{dmyHm(x.createdAt)}</td><td className="td">{x.kind}</td><td className={`td text-right tabular ${x.qty < 0 ? 'text-danger' : x.qty > 0 ? 'text-emerald-600' : ''}`}>{x.qty > 0 ? '+' : ''}{num(x.qty, 1)} g</td><td className="td text-xs muted">{x.note}</td></tr>)}</tbody></Table></Card>
         </div>

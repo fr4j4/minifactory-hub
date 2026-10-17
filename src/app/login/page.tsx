@@ -29,7 +29,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             {LAYERS.map((w, i) => <span key={i} className="block h-[6.5px] rounded-[3px]" style={{ width: `${w}%`, background: `linear-gradient(90deg, #c13d0b, #ff5b1f ${30 + (i % 3) * 8}%, #ff9e6c 55%, #ff5b1f 80%, #9c310a)` }} />)}
           </div>
           <div className="absolute inset-x-0 bottom-0 h-[290px] login-climb pointer-events-none">
-            <div className="absolute bottom-0 left-1/2 -ml-[11px] login-nozzle"><div className="h-4 w-[22px] rounded-t-[3px] bg-[#e9e5dc]" /><div className="mx-auto h-0 w-0 border-x-[6px] border-x-transparent border-t-[7px] border-t-[#e9e5dc]" /><div className="mx-auto mt-0.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_10px_3px_rgba(255,91,31,.8)]" /></div>
+            <div className="absolute bottom-0 left-1/2 -ml-[11px] login-nozzle"><div className="h-4 w-[22px] rounded-t-[3px] bg-[#e9e5dc]" /><div className="mx-auto h-0 w-0 border-x-[6px] border-x-transparent border-t-[7px] border-t-[#e9e5dc]" /><div className="mx-auto mt-0.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_10px_3px_color-mix(in_srgb,var(--accent)_80%,transparent)]" /></div>
           </div>
           <div className="mt-2 h-3 rounded-md bg-gradient-to-b from-[#3a3935] to-[#22211f] border-t border-white/15" />
           <div className="mt-1 h-px bg-white/10" />

@@ -95,6 +95,7 @@ export const nozzle: Shape<typeof es['nozzle']> = {
   factoryTag: 'factory',
   nozzleSet: 'Nozzle installed: {n} mm',
   nozzleSetLabel: 'Nozzle installed',
+  nozzleReady: 'ready to slice',
   setupNozzleHelp: 'Each nozzle has its own factory printer and its own qualities (0.2 → fine layers · 0.4 → standard · 0.6/0.8 → fast and thick). What you already configured is saved with ✓ and can be changed later from the machine page.',
   machineNozzles: 'Nozzles you use with this machine',
   machineNozzlesHint: 'Mark every one you own (0.2 · 0.4 …). The installed one is changed on the machine page and decides which printer profile and qualities are used when slicing.',

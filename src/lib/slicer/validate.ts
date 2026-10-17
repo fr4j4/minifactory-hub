@@ -1,5 +1,5 @@
 import { SIMPLE_PARAMS, type ProfileKind } from './params';
-import { LocalizedError, tDefault } from '@/i18n/errors';
+import { LocalizedError } from '@/i18n/errors';
 
 const INTEGER_KEYS = new Set(['wall_loops', 'top_shell_layers', 'bottom_shell_layers']);
 const scalar = (v: unknown) => (Array.isArray(v) ? v[0] : v);
@@ -22,16 +22,16 @@ export function cleanChanges(type: ProfileKind, changes: Record<string, any>): R
     const t = String(v).trim();
     if (p.kind === 'number') {
       const n = t.replace(',', '.');
-      if (!/^-?\d+(\.\d+)?$/.test(n)) throw new LocalizedError('nozzle.valNumber', { field: tDefault(p.label), value: t });
-      if (Number(n) < 0) throw new LocalizedError('nozzle.valNegative', { field: tDefault(p.label) });
-      if (INTEGER_KEYS.has(k) && !/^\d+$/.test(n)) throw new LocalizedError('nozzle.valInteger', { field: tDefault(p.label) });
+      if (!/^-?\d+(\.\d+)?$/.test(n)) throw new LocalizedError('nozzle.valNumber', { field: p.label, value: t });
+      if (Number(n) < 0) throw new LocalizedError('nozzle.valNegative', { field: p.label });
+      if (INTEGER_KEYS.has(k) && !/^\d+$/.test(n)) throw new LocalizedError('nozzle.valInteger', { field: p.label });
       out[k] = n;
     } else if (k === 'sparse_infill_density') {
       const n = t.replace(',', '.').replace(/%$/, '');
       if (!/^\d+(\.\d+)?$/.test(n) || Number(n) > 100) throw new LocalizedError('nozzle.valPercent');
       out[k] = `${n}%`;
     } else if (p.kind === 'select' && p.options && !p.options.includes(t)) {
-      throw new LocalizedError('nozzle.valOption', { field: tDefault(p.label), value: t });
+      throw new LocalizedError('nozzle.valOption', { field: p.label, value: t });
     } else out[k] = t;
   }
   return out;

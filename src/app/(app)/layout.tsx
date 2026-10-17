@@ -5,7 +5,7 @@ import { getDb, s } from '@/db';
 import { can, type Module } from '@/lib/perm';
 import { getT } from '@/i18n/server';
 import type { MessageKey } from '@/i18n/translate';
-import { AppShell, type NavItem } from '@/components/shell';
+import { AppShell, type IconName, type NavItem } from '@/components/shell';
 import { expireQuotes, followUpQuotes } from '@/lib/services/quotes';
 import { ensureWorker } from '@/lib/slicer/queue';
 import { ensureBambu } from '@/lib/bambu/manager';
@@ -28,7 +28,7 @@ const NAV = [
   { href: '/galeria', label: 'nav.gallery', icon: 'image', group: 'more', mod: 'galeria' },
   { href: '/reportes', label: 'nav.reports', icon: 'chart', group: 'more', mod: 'reportes' },
   { href: '/configuracion', label: 'nav.settings', icon: 'cog', group: 'more', mod: 'config' },
-] as const satisfies ReadonlyArray<{ href: string; label: MessageKey; icon: string; group: 'main' | 'more'; mod: Module }>;
+] as const satisfies ReadonlyArray<{ href: string; label: MessageKey; icon: IconName; group: 'main' | 'more'; mod: Module }>;
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();

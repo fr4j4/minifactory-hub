@@ -1,6 +1,8 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { BUILTIN_PRESETS, type PresetSpec } from './nozzle';
+import { LocalizedError } from '@/i18n/errors';
+import type { MessageKey } from '@/i18n/translate';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -33,10 +35,10 @@ const slug = (v: string) => v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,
 /** Crea o edita una calidad. Las de fábrica conservan su clave; las nuevas la derivan del nombre. */
 export async function savePreset(i: PresetInput, userId?: string | null, db?: Db): Promise<string> {
   db ??= await getDb(); await ensurePresets(db);
-  const num = (v: number, lo: number, hi: number, what: string) => { if (!Number.isFinite(v) || v < lo || v > hi) throw new Error(`${what}: ${lo}–${hi}`); return v; };
-  const v = { layerFactor: num(i.layerFactor, 0.15, 0.85, 'layer'), wallMm: num(i.wallMm, 0.4, 6, 'wall'), wallNozzles: i.wallNozzles == null ? null : num(i.wallNozzles, 1, 8, 'wallNozzles'), topMm: num(i.topMm, 0.4, 4, 'top'), bottomMm: num(i.bottomMm, 0.4, 4, 'bottom'), infill: /^\d{1,3}%$/.test(i.infill.trim()) && parseInt(i.infill) <= 100 ? i.infill.trim() : (() => { throw new Error('infill: 0%–100%'); })(), label: i.label?.trim() || null, active: i.active ?? true, updatedAt: new Date() };
+  const num = (v: number, lo: number, hi: number, field: MessageKey) => { if (!Number.isFinite(v) || v < lo || v > hi) throw new LocalizedError('settings.presetRange', { field, lo, hi }); return v; };
+  const v = { layerFactor: num(i.layerFactor, 0.15, 0.85, 'settings.presetLayer'), wallMm: num(i.wallMm, 0.4, 6, 'settings.presetWall'), wallNozzles: i.wallNozzles == null ? null : num(i.wallNozzles, 1, 8, 'settings.presetWallNozzles'), topMm: num(i.topMm, 0.4, 4, 'settings.presetTop'), bottomMm: num(i.bottomMm, 0.4, 4, 'settings.presetBottom'), infill: /^\d{1,3}%$/.test(i.infill.trim()) && parseInt(i.infill) <= 100 ? i.infill.trim() : (() => { throw new LocalizedError('settings.presetRange', { field: 'settings.presetInfill', lo: '0%', hi: '100%' }); })(), label: i.label?.trim() || null, active: i.active ?? true, updatedAt: new Date() };
   if (i.id) { await db.update(s.qualityPresets).set(v).where(eq(s.qualityPresets.id, i.id)); return i.id; }
-  if (!v.label) throw new Error('label');
+  if (!v.label) throw new LocalizedError('settings.presetNameRequired');
   let key = slug(v.label) || 'calidad'; const taken = new Set((await db.select({ k: s.qualityPresets.key }).from(s.qualityPresets)).map((r) => r.k)); let n = 2; const base = key; while (taken.has(key)) key = `${base}-${n++}`;
   const m = Math.max(0, ...(await db.select({ o: s.qualityPresets.sortOrder }).from(s.qualityPresets)).map((r) => r.o));
   const [row] = await db.insert(s.qualityPresets).values({ workspaceId: WORKSPACE_ID, key, builtin: false, sortOrder: m + 1, createdBy: userId ?? null, ...v }).returning({ id: s.qualityPresets.id });

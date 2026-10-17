@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/format';
-import { Modal, useToast } from './client';
+import { Modal, useLinger, useToast } from './client';
 import { useT } from '@/i18n/client';
 import type { TFn } from '@/i18n/translate';
 
@@ -51,7 +51,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
   const t = useT();
   const router = useRouter(); const toast = useToast();
   const [items, setItems] = useState<Array<{ name: string; p: number; state: 'up' | 'ok' | 'err'; msg?: string }>>([]);
-  const [dup, setDup] = useState<{ file: string; existing: { id: string; name: string }; resolve: (v: 'skip' | 'upload') => void } | null>(null);
+  const [dup0, setDup] = useState<{ file: string; existing: { id: string; name: string }; resolve: (v: 'skip' | 'upload') => void } | null>(null); const dup = useLinger(dup0);
   const [drag, setDrag] = useState(false); const input = useRef<HTMLInputElement>(null);
   const go = useCallback(async (files: File[]) => {
     if (!files.length) return;
@@ -82,7 +82,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
     setTimeout(() => setItems([]), 4000);
   }, [intent, onDone, router, toast]);
   const dupDialog = dup && (
-    <Modal open onClose={() => dup.resolve('skip')} title={t('files.duplicateTitle')}>
+    <Modal open={!!dup0} onClose={() => dup.resolve('skip')} title={t('files.duplicateTitle')}>
       <div className="space-y-3 text-sm" data-testid="duplicate-dialog">
         <p>{t('files.duplicateBody', { f: dup.file, name: dup.existing.name })}</p>
         <div className="flex flex-wrap justify-end gap-2">
@@ -105,7 +105,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
       {items.length > 0 && (
         <ul className="mt-2 space-y-1.5" aria-live="polite">
           {items.map((it, i) => (
-            <li key={i} className="text-xs"><div className="flex justify-between gap-2"><span className="truncate">{it.name}</span><span className={cn(it.state === 'err' && 'text-danger')}>{it.state === 'ok' ? t('files.done') : it.state === 'err' ? it.msg : `${Math.round(it.p * 100)}%`}</span></div>
+            <li key={i} className="text-xs"><div className="flex justify-between gap-2"><span className="truncate min-w-0">{it.name}</span><span className={cn(it.state === 'err' && 'text-danger')}>{it.state === 'ok' ? t('files.done') : it.state === 'err' ? it.msg : `${Math.round(it.p * 100)}%`}</span></div>
               <div className="h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className={cn('h-full', it.state === 'err' ? 'bg-red-500' : 'bg-brand-600')} style={{ width: `${it.p * 100}%` }} /></div></li>
           ))}
         </ul>

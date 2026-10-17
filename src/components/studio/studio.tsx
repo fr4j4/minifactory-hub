@@ -8,7 +8,7 @@ import { useT } from '@/i18n/client';
 import { dur, grams, money } from '@/lib/format';
 import { estimateFromMesh } from '@/lib/pricing';
 import { GcodeViewer } from '../gcode-viewer';
-import { useToast } from '../client';
+import { useLinger, useToast } from '../client';
 import { priceFromRun, useRunPolling } from '../slice-panel';
 import { SliceErrorHelp } from '../slice-error-help';
 import { ProcessOptions } from '../process-options';
@@ -16,6 +16,7 @@ import { ParamPanel, type Ov } from './param-panel';
 import { Explore } from './explore';
 import { AdvisorPanel } from '../advisor-panel';
 import { extendSchema, type ParamDef, type ParamType } from '@/lib/slicer/schema';
+import { Icon } from '@/components/shell';
 
 const EMPTY: Ov = { machine: {}, process: {}, filament: {} };
 const DEBOUNCE_MS = 700;
@@ -30,7 +31,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
   const [processId, setProcessId] = useState(setup?.processProfileId ?? procs[0]?.id ?? ''); const [materialId, setMaterialId] = useState(mats[0]?.id ?? ''); const [copies, setCopies] = useState(1);
   const [ov, setOv] = useState<Ov>(EMPTY); const [base, setBase] = useState<Ov>(EMPTY); const [baseRunId, setBaseRunId] = useState<string | null>(null);
   const [filId, setFilId] = useState<string | null>(null); const [runId, setRunId] = useState<string | null>(null); const [lastGood, setLastGood] = useState<string | null>(null); const [stale, setStale] = useState(false); const [auto, setAuto] = useState(true); const [exploring, setExploring] = useState(false);
-  const [advisorOpen, setAdvisorOpen] = useState(false); const [ab, setAb] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const advisorShown = useLinger(advisorOpen); const [ab, setAb] = useState(false);
   const schemaV = useMemo(() => { extendSchema(extraParams ?? []); return extraParams?.length ?? 0; }, [extraParams]);
   const inflight = useRef<string | null>(null); const baseRef = useRef<string | null>(null); const seq = useRef(0); const baseSeq = useRef(0); const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const machine = setup ? ctx.machines.find((m) => m.id === setup.machineId) : undefined; const material = ctx.materials.find((m) => m.id === materialId);
@@ -135,8 +136,8 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
           : <div className={stale ? 'opacity-60' : ''}><GcodeViewer src={`/api/runs/${shown.id}/preview`} /></div>) : <div className="card grid place-items-center text-sm muted" style={{ height: 320 }} role="status">{busy ? t('studio.slicing') : t('studio.noResult')}</div>}
         <div className="flex flex-wrap gap-2">
           {shown?.status === 'done' && <Link className="btn-primary" href={`/presupuestos/nuevo?file=${fileId}&run=${shown.id}&machine=${machine?.id ?? ''}&material=${materialId}&copies=${copies}`} data-testid="studio-use-in-quote">{t('slicer.useInAQuote')}</Link>}
-          {shown?.status === 'done' && <a className="btn-ghost" href={`/api/runs/${shown.id}/gcode`}>{t('slicer.gCode')}</a>}
-          {ai && (ai.advisor || ai.diagnose) && canSlice && setup?.machineProfileId && filId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
+          {shown?.status === 'done' && <a className="btn-ghost" href={`/api/runs/${shown.id}/gcode`}><Icon name="download" className="h-4 w-4" />{t('slicer.gCode')}</a>}
+          {ai && (ai.advisor || ai.diagnose) && canSlice && setup?.machineProfileId && filId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} data-testid="advisor-open"><Icon name="sparkles" className="h-4 w-4" />{t('advisor.open')}</button>}
           {setup?.machineProfileId && canSlice && <button className="btn-ghost" onClick={() => setExploring(true)} data-testid="studio-explore">{t('studio.explore')}</button>}
         </div>
       </div>
@@ -145,7 +146,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
         <ParamPanel schemaKey={schemaV} base={base} overrides={ov} onChange={change} disabled={noSetup} />
         {nOv > 0 && canSaveProfile && <div className="border-t border-[var(--line)] mt-3 pt-3 flex flex-wrap gap-2" data-testid="studio-save"><button className="btn-ghost btn-sm" onClick={() => save(true)} data-testid="studio-save-new">{t('studio.saveAsProfile')}</button><button className="btn-ghost btn-sm" onClick={() => save(false)}>{t('studio.updateBase')}</button></div>}
       </aside>
-      {advisorOpen && ai && setup?.machineProfileId && filId && <AdvisorPanel target={{ fileVersionId, machineProfileId: setup.machineProfileId, processProfileId: processId, filamentProfileId: filId, copies }} features={{ advisor: ai.advisor, diagnose: ai.diagnose }} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
+      {advisorShown && ai && setup?.machineProfileId && filId && <AdvisorPanel open={advisorOpen} target={{ fileVersionId, machineProfileId: setup.machineProfileId, processProfileId: processId, filamentProfileId: filId, copies }} features={{ advisor: ai.advisor, diagnose: ai.diagnose }} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
       {exploring && setup?.machineProfileId && <Explore open onClose={() => setExploring(false)} ctx={ctx} machineId={machine?.id} materialId={materialId} nozzle={setup.nozzle ?? null} base={{ fileVersionId, machineProfileId: setup.machineProfileId, processProfileId: processId, materialId, copies }} onUse={(o) => { const n = { ...EMPTY, process: o }; setOv(n); setStale(true); if (canSlice) void launch(n); }} />}
     </div>
   );

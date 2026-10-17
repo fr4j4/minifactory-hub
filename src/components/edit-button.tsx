@@ -5,18 +5,19 @@ import { Modal, useAction } from './client';
 import { useT } from '@/i18n/client';
 import type { EditKind } from '@/lib/services/edits';
 import type { MessageKey } from '@/i18n/translate';
+import { Icon } from './shell';
 
 export interface EditField { key: string; label: string; type?: 'text' | 'number' | 'date' | 'textarea' | 'select'; options?: Array<{ value: string; label: string }>; required?: boolean }
 
 /** Botón + diálogo para editar campos sueltos de un registro. El servidor decide qué campos acepta. */
-export function EditButton({ kind, id, fields, values, className, label, testId }: { kind: EditKind; id: string; fields: EditField[]; values: object; className?: string; label?: string; testId?: string }) {
+export function EditButton({ kind, id, fields, values, className, label, icon, name, testId }: { kind: EditKind; id: string; fields: EditField[]; values: object; className?: string; label?: string; /** solo el ícono de lápiz (con nombre accesible) */ icon?: boolean; /** nombre del registro para el nombre accesible del ícono */ name?: string; testId?: string }) {
   const t = useT(); const { run, pending } = useAction(); const [open, setOpen] = useState(false);
   const init = () => Object.fromEntries(fields.map((f) => { const x = (values as Record<string, unknown>)[f.key]; return [f.key, x == null ? '' : String(x)]; }));
   const [v, setV] = useState<Record<string, string>>(init);
   const set = (k: string, x: string) => setV((o) => ({ ...o, [k]: x }));
   const missing = fields.some((f) => f.required && !v[f.key]?.trim());
   return (<span onClick={(e) => e.stopPropagation()}>
-    <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={() => { setV(init()); setOpen(true); }} data-testid={testId ?? `edit-${kind}`}>{label ?? t('edit.edit')}</button>
+    <button type="button" className={className ?? 'btn-ghost btn-sm'} onClick={() => { setV(init()); setOpen(true); }} data-testid={testId ?? `edit-${kind}`} aria-label={icon ? (name ? t('edit.editNamed', { name }) : t('edit.edit')) : undefined} title={icon ? (name ? t('edit.editNamed', { name }) : t('edit.edit')) : undefined}>{icon ? <Icon name="pencil" className="h-4 w-4" /> : label ?? t('edit.edit')}</button>
     <Modal open={open} onClose={() => setOpen(false)} title={t(`edit.title.${kind}` as MessageKey)}>
       <form className="grid sm:grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); run(() => editRecordAction(kind, id, v), { ok: t('edit.saved'), onOk: () => setOpen(false) }); }}>
         {fields.map((f) => (

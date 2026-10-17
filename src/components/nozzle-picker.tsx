@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { COMMON_NOZZLES, normNozzle } from '@/lib/slicer/nozzle';
-import { cn } from '@/lib/format';
+import { cn, num } from '@/lib/format';
 import { useT } from '@/i18n/client';
 
 /**
@@ -20,7 +20,7 @@ export function NozzlePicker({ value, onChange, multi, label, hint, testId }: { 
       <div className="flex flex-wrap items-center gap-1.5" role={multi ? 'group' : 'radiogroup'} aria-label={label}>
         {shown.map((n) => { const on = value.includes(n); return (
           <button key={n} type="button" role={multi ? undefined : 'radio'} aria-checked={multi ? undefined : on} aria-pressed={multi ? on : undefined} onClick={() => toggle(n)} data-testid={`nozzle-${n}`}
-            className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: n.replace('.', ',') })}</button>); })}
+            className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: num(+n, 2) })}</button>); })}
         <span className="inline-flex items-center gap-1">
           <input className={cn('input !w-20 !min-h-[36px] num', err && 'ring-2 ring-red-500/50')} inputMode="decimal" placeholder={t('nozzle.otherPlaceholder')} value={other} onChange={(e) => { setOther(e.target.value); setErr(false); }} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }} aria-label={t('nozzle.otherAria')} data-testid="nozzle-other" />
           <button type="button" className="btn-ghost btn-sm" onClick={add} disabled={!other.trim()}>{t('nozzle.add')}</button>

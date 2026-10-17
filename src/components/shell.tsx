@@ -1,5 +1,5 @@
 'use client';
-import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Copy, FileText, House, Image, Layers, ListOrdered, Menu, Package, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Star, Users, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Cloud, Copy, Download, Eye, FileText, House, Image, Layers, Lightbulb, Link2, ListOrdered, Menu, Moon, Package, Pause, Pencil, Play, Plus, Printer, QrCode, Radio, Search, Settings, ShoppingBag, Sparkles, ShoppingCart, Square, Star, Tag, TriangleAlert, Upload, Users, Video, X, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -8,15 +8,20 @@ import { logoutAction } from '@/actions/auth';
 import { useT } from '@/i18n/client';
 import { LocaleSwitcher } from './locale-switcher';
 import { ThemePicker } from './theme-picker';
+import { LinkPending } from './ui-client';
 
-export interface NavItem { href: string; label: string; icon: string; group: 'main' | 'more' }
-const ICONS: Record<string, LucideIcon> = {
+export interface NavItem { href: string; label: string; icon: IconName; group: 'main' | 'more' }
+// sin respaldo: un nombre que no está aquí no compila (antes caía en Package y todo se veía como una caja)
+const ICONS = {
   home: House, orders: ClipboardList, quote: FileText, calc: Calculator, users: Users, cube: Box, slice: Layers, box: Package, bag: ShoppingBag, cart: ShoppingCart, printer: Printer, queue: ListOrdered,
   image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
-  x: X, copy: Copy, check: Check, star: Star, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
-};
-export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {
-  const C = ICONS[name] ?? Package;
+  x: X, pencil: Pencil, check: Check, star: Star, copy: Copy, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
+  'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight,
+  play: Play, pause: Pause, stop: Square, download: Download, upload: Upload, eye: Eye, light: Lightbulb, radio: Radio, cloud: Cloud, alert: TriangleAlert, moon: Moon, tag: Tag, video: Video, link: Link2, sparkles: Sparkles,
+} satisfies Record<string, LucideIcon>;
+export type IconName = keyof typeof ICONS;
+export function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
+  const C = ICONS[name];
   return <C className={className} strokeWidth={1.8} aria-hidden />;
 }
 
@@ -26,6 +31,8 @@ const SECTIONS: Array<{ t: 'nav.shop' | 'nav.sectionProduction' | 'nav.sectionSt
   { t: 'nav.sectionStock', hrefs: ['/inventario', '/catalogo', '/ventas'] },
   { t: 'nav.sectionSystem', hrefs: ['/galeria', '/reportes', '/configuracion'] },
 ];
+// secciones que no están en el menú lateral
+const OFF_NAV = { notificaciones: 'shell.notifications' } as const;
 const CRUMB = { nuevo: 'nav.crumbNew', nueva: 'nav.crumbNewF', perfil: 'nav.crumbProfile', perfiles: 'nav.crumbProfiles', bobinas: 'nav.crumbSpools', escanear: 'nav.crumbScan', etiquetas: 'nav.crumbLabels' } as const;
 
 /** Marca: capas apiladas bajo una boquilla. */
@@ -57,21 +64,23 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
   }, []);
   const active = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
-  // 4 casillas + el botón central caben en grid-cols-5 (con una más, la barra se parte en dos filas y tapa los botones fijos); inventario queda en «Más»
-  const bottom = ['/', '/pedidos', '/cola'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[];
+  // 2 enlaces + botón central + 1 enlace + «Más» = las 5 columnas; con uno más la barra se partía en dos filas
+  // Inventario entra solo si el permiso quita uno de los tres primeros, así no queda una columna vacía
+  const bottom = (['/', '/pedidos', '/cola', '/inventario'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[]).slice(0, 3);
   const quick = [
     { href: '/pedidos/nuevo', label: t('shell.quickNewOrder'), icon: 'orders' }, { href: '/ventas/nueva', label: t('shell.quickQuickSale'), icon: 'cart' },
     { href: '/presupuestos/nuevo', label: t('shell.quickNewQuote'), icon: 'quote' }, { href: '/calculadora', label: t('shell.quickCalculator'), icon: 'calc' },
     { href: '/galeria?subir=1', label: t('shell.quickUploadPhoto'), icon: 'camera' }, { href: '/inventario/escanear', label: t('shell.quickScanQr'), icon: 'qr' },
-  ];
+  ] satisfies Array<{ href: string; label: string; icon: IconName }>;
   const sections = SECTIONS.map((s) => ({ t: t(s.t), items: s.hrefs.map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[] })).filter((s) => s.items.length);
   const section = nav.filter((n) => active(n.href)).sort((a, b) => b.href.length - a.href.length)[0];
   const tail = section ? path.slice(section.href.length).split('/').filter(Boolean) : [];
+  const offNav = section ? undefined : OFF_NAV[path.split('/')[1] as keyof typeof OFF_NAV];
   const full = !collapsed;
   return (
     <div className="min-h-screen md:flex">
       {/* panel de control: riel con íconos en tablet, completo en escritorio */}
-      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 transition-[width] duration-300 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
+      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
         <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0" aria-label="MiniFactory">
           <Mark className="h-9 w-9 shrink-0" />
           <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">{t('nav.tagline')}</span></span>
@@ -84,10 +93,10 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
               <div className="space-y-0.5">
                 {s.items.map((n) => { const on = active(n.href); return (
                   <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} title={n.label}
-                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
-                    {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_rgba(255,91,31,.55)]" aria-hidden />}
+                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] xl:min-h-[36px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
+                    {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_color-mix(in_srgb,var(--accent)_55%,transparent)]" aria-hidden />}
                     <Icon name={n.icon} className={cn('h-[18px] w-[18px] shrink-0 transition-colors', on ? 'text-[var(--accent)]' : 'text-white/60 group-hover:text-white')} />
-                    <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span>
+                    <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span><LinkPending className="right-2 top-2" />
                   </Link>); })}
               </div>
             </div>
@@ -105,7 +114,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
         <header className="sticky top-0 z-30 h-16 bg-[var(--bg)]/80 backdrop-blur-xl border-b border-[var(--line)] flex items-center gap-3 px-3 md:px-6 no-print">
           <Link href="/" className="md:hidden grid place-items-center h-11 w-11 -ml-1" aria-label={t('shell.home')}><Mark className="h-8 w-8" /></Link>
           <nav aria-label={t('nav.location')} className="hidden lg:flex items-center gap-2 font-mono text-[11px] uppercase tracking-[.12em] text-slate-600 dark:text-slate-400 shrink-0">
-            <span>{t('nav.shop')}</span>{section && <><span className="text-slate-400 dark:text-slate-600">/</span><Link href={section.href} className={cn(tail.length ? 'hover:text-[var(--accent-ink)]' : 'text-[var(--ink)]')}>{section.label}</Link></>}
+            <span>{t('nav.shop')}</span>{offNav && <><span className="text-slate-400 dark:text-slate-600">/</span><span className="text-[var(--ink)]">{t(offNav)}</span></>}{section && <><span className="text-slate-400 dark:text-slate-600">/</span><Link href={section.href} className={cn(tail.length ? 'hover:text-[var(--accent-ink)]' : 'text-[var(--ink)]')}>{section.label}</Link></>}
             {tail.length > 0 && <><span className="text-slate-400 dark:text-slate-600">/</span><span className="text-[var(--ink)] max-w-[120px] truncate">{t(CRUMB[tail[0] as keyof typeof CRUMB] ?? 'nav.crumbDetail')}</span></>}
           </nav>
           <button onClick={() => setSearch(true)} className="flex-1 min-w-0 max-w-md lg:ml-4 flex items-center gap-2.5 rounded-full border border-[var(--line)] bg-[var(--card)] px-4 text-sm muted min-h-[40px] text-left hover:border-slate-400 dark:hover:border-slate-500 transition-colors" aria-label={t('shell.searchAria')}>
@@ -114,9 +123,9 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
           <div className="ml-auto flex items-center gap-1.5">
             <div className="relative hidden md:block">
               <button onClick={() => setPlus((p) => !p)} className="btn-primary !min-h-[38px] !rounded-full !px-4" aria-expanded={plus} aria-haspopup="menu"><Icon name="plus" className="h-4 w-4" /> {t('shell.newMenu')}</button>
-              {plus && <div className="absolute right-0 mt-2 card p-1.5 w-60 shadow-2xl animate-rise z-50" role="menu">{quick.map((q) => <Link key={q.href} href={q.href} role="menuitem" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 group"><span className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[#17161a] transition-colors"><Icon name={q.icon} className="h-4 w-4" /></span>{q.label}</Link>)}</div>}
+              {plus && <div className="absolute right-0 mt-2 card p-1.5 w-60 shadow-2xl animate-rise z-50" role="menu">{quick.map((q) => <Link key={q.href} href={q.href} role="menuitem" className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm hover:bg-slate-100 dark:hover:bg-slate-800 group"><span className="h-8 w-8 rounded-lg bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)] transition-colors"><Icon name={q.icon} className="h-4 w-4" /></span>{q.label}</Link>)}</div>}
             </div>
-            <Link href="/notificaciones" className="relative grid place-items-center h-11 w-11 md:h-10 md:w-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={unread ? t('shell.notificationsUnread', { n: unread }) : t('shell.notifications')}><Icon name="bell" className="h-5 w-5" />{unread > 0 && <span className="absolute top-1 right-1 h-[18px] min-w-[18px] px-1 rounded-full bg-[var(--accent)] text-[#17161a] font-mono text-[10px] font-semibold grid place-items-center ring-2 ring-[var(--bg)]">{unread}</span>}</Link>
+            <Link href="/notificaciones" className="relative grid place-items-center h-11 w-11 md:h-10 md:w-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={unread ? t('shell.notificationsUnread', { n: unread }) : t('shell.notifications')}><Icon name="bell" className="h-5 w-5" />{unread > 0 && <span className="absolute top-1 right-1 h-[18px] min-w-[18px] px-1 rounded-full bg-[var(--accent)] text-[var(--on-accent)] font-mono text-[10px] font-semibold grid place-items-center ring-2 ring-[var(--bg)]">{unread}</span>}</Link>
             <details className="relative">
               <summary className="list-none cursor-pointer grid place-items-center h-11 w-11 md:h-10 md:w-10 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800" aria-label={t('shell.account')}><span className="h-8 w-8 rounded-full bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700 grid place-items-center font-display font-semibold text-sm">{user.name.slice(0, 1)}</span></summary>
               <div className="absolute right-0 mt-2 w-60 card p-2 z-40 shadow-2xl animate-rise">
@@ -134,11 +143,11 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
       {/* barra inferior móvil: panel oscuro con botón de acción central */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[var(--panel)] text-[var(--panel-ink)] grid grid-cols-5 safe-bottom no-print rounded-t-2xl shadow-[0_-8px_24px_-12px_rgba(0,0,0,.35)]" aria-label={t('nav.mobile')}>
         {bottom.slice(0, 2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}
-        <div className="grid place-items-center"><button onClick={() => setPlus((p) => !p)} aria-label={t('shell.quickActions')} aria-expanded={plus} className={cn('h-14 w-14 -mt-6 rounded-2xl bg-[var(--accent)] text-[#17161a] grid place-items-center shadow-[0_2px_0_#b8410f,0_10px_24px_-6px_rgba(255,91,31,.7)] transition-transform', plus && 'rotate-45')}><Icon name="plus" className="h-6 w-6" /></button></div>
+        <div className="grid place-items-center"><button onClick={() => setPlus((p) => !p)} aria-label={t('shell.quickActions')} aria-expanded={plus} className={cn('h-14 w-14 -mt-6 rounded-2xl bg-[var(--accent)] text-[var(--on-accent)] grid place-items-center shadow-[0_2px_0_var(--accent-shadow),0_10px_24px_-6px_var(--accent)] transition-transform', plus && 'rotate-45')}><Icon name="plus" className="h-6 w-6" /></button></div>
         {bottom.slice(2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}
         <button onClick={() => setMore(true)} className="flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px] text-white/70 col-start-5 row-start-1" aria-label={t('shell.moreAria')}><Icon name="menu" className="h-5 w-5" /><span>{t('shell.more')}</span></button>
       </nav>
-      {plus && <Sheet onClose={() => setPlus(false)} title={t('shell.quickActions')}><div className="grid grid-cols-2 gap-2">{quick.map((q) => <Link key={q.href} href={q.href} className="card p-4 flex flex-col items-start gap-3 text-sm font-medium min-h-[96px] justify-between"><span className="h-9 w-9 rounded-xl bg-[var(--accent)] text-[#17161a] grid place-items-center"><Icon name={q.icon} className="h-5 w-5" /></span>{q.label}</Link>)}</div></Sheet>}
+      {plus && <Sheet onClose={() => setPlus(false)} title={t('shell.quickActions')}><div className="grid grid-cols-2 gap-2">{quick.map((q) => <Link key={q.href} href={q.href} className="card p-4 flex flex-col items-start gap-3 text-sm font-medium min-h-[96px] justify-between"><span className="h-9 w-9 rounded-xl bg-[var(--accent)] text-[var(--on-accent)] grid place-items-center"><Icon name={q.icon} className="h-5 w-5" /></span>{q.label}</Link>)}</div></Sheet>}
       {more && <Sheet onClose={() => setMore(false)} title={t('shell.allSections')}><div className="space-y-4">{sections.map((s) => <div key={s.t}><div className="eyebrow mb-2">{s.t}</div><div className="grid grid-cols-3 gap-2">{s.items.map((n) => <Link key={n.href} href={n.href} className={cn('rounded-xl border p-3 flex flex-col items-center gap-1.5 text-xs text-center min-h-[76px] justify-center border-[var(--line)]', active(n.href) && 'border-[var(--accent)] bg-brand-50 dark:bg-brand-950/50')}><Icon name={n.icon} className="h-6 w-6" />{n.label}</Link>)}</div></div>)}</div></Sheet>}
       {search && <Palette onClose={() => setSearch(false)} go={(h) => { setSearch(false); router.push(h); }} />}
     </div>
@@ -146,7 +155,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
 }
 
 function BottomLink({ n, on }: { n: NavItem; on: boolean }) {
-  return <Link href={n.href} aria-current={on ? 'page' : undefined} className={cn('relative flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px]', on ? 'text-white font-medium' : 'text-white/70')}>{on && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-[var(--accent)]" aria-hidden />}<Icon name={n.icon} className={cn('h-5 w-5', on && 'text-[var(--accent)]')} /><span>{n.label}</span></Link>;
+  return <Link href={n.href} aria-current={on ? 'page' : undefined} className={cn('relative flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px]', on ? 'text-white font-medium' : 'text-white/70')}>{on && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-[var(--accent)]" aria-hidden />}<Icon name={n.icon} className={cn('h-5 w-5', on && 'text-[var(--accent)]')} /><span>{n.label}</span><LinkPending className="right-[calc(50%-18px)] top-2" /></Link>;
 }
 
 function Sheet({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {

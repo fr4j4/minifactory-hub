@@ -3,6 +3,7 @@ import { getDb, s } from '@/db';
 import { linkedProfileId } from './links';
 import { lineProfileOf } from '../services/lines';
 import { ensureProfile, suggestFilamentBase } from './setup';
+import { LocalizedError } from '@/i18n/errors';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 /** De dónde salió el filamento: lo eligió la persona, viene de la ficha heredada del material, o se sugirió por marca/tipo. */
@@ -21,9 +22,9 @@ export async function resolveFilament(i: { materialId?: string | null; explicitP
     const p = await load(i.explicitProfileId);
     if (p?.type === 'filament') return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'explicit' };
   }
-  if (!i.materialId) throw new Error('filament: falta material o perfil');
+  if (!i.materialId) throw new LocalizedError('slicer.errNoMaterial');
   const [mat] = await db.select().from(s.materials).where(eq(s.materials.id, i.materialId));
-  if (!mat) throw new Error('filament: material no encontrado');
+  if (!mat) throw new LocalizedError('slicer.materialNotFound');
   const linked = await linkedProfileId(mat.id, i.machineProfileId, db);
   if (linked) {
     const p = await load(linked);
@@ -33,7 +34,7 @@ export async function resolveFilament(i: { materialId?: string | null; explicitP
   if (viaLine) { const p = await load(viaLine); if (p?.type === 'filament') return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'material' }; }
   const machine = i.machineProfileId ? await load(i.machineProfileId) : null;
   const base = suggestFilamentBase(mat, machine?.baseName ?? null);
-  if (!base) throw new Error('filament: no hay perfil de filamento para este tipo');
+  if (!base) throw new LocalizedError('slicer.errNoFilamentForType');
   const id = await ensureProfile('filament', base, base.replace(/ @.*$/, ''), i.userId, db);
   const p = await load(id);
   return { profileId: id, name: p?.name ?? base, baseName: base, source: 'auto' };

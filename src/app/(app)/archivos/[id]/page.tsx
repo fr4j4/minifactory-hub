@@ -21,6 +21,7 @@ import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
 import { SourcePanel } from '@/components/source-panel';
 import { LICENSE_LABEL } from '@/lib/library/source';
+import { Icon } from '@/components/shell';
 
 export async function generateMetadata() { return { title: (await getT())('meta.file') }; }
 
@@ -49,7 +50,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   return (
     <>
       <PageHeader back={{ href: '/archivos', label: t('nav.files') }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>{t('files.license')} {f.license}</span>}</span>}
-        actions={<>{cur && <a className="btn-ghost" href={`/api/files/v/${cur.id}/raw`} data-testid="download-file">{t('files.download')}</a>}{can(user, 'archivos', 'X') && <DeleteFileButton id={f.id} />}</>} />
+        actions={<>{cur && <a className="btn-ghost" href={`/api/files/v/${cur.id}/raw`} data-testid="download-file"><Icon name="download" className="h-4 w-4" />{t('files.download')}</a>}{can(user, 'archivos', 'X') && <DeleteFileButton id={f.id} />}</>} />
       <AutoRefresh active={processing} />
       {meta.status === 'error' && <div className="rounded-lg box-danger p-3 text-sm text-red-800 dark:text-red-200 mb-4" role="alert">{t('files.theFileCouldNotBe')} {meta.error}</div>}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4" aria-label={t('files.fileSections')}>
@@ -58,7 +59,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
 
       {tab === 'visor' && (
         <div className="grid gap-4 xl:grid-cols-3">
-          <div className="xl:col-span-2 space-y-4">
+          <div className="xl:col-span-2 min-w-0 space-y-4">
             {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} materials={viewerMats} analysis={a} />}
             {!processing && f.format === '3mf' && can(user, 'laminador', 'C') && cur && <div className="mt-3"><ImportProjectButton versionId={cur.id} /><p className="text-xs muted mt-1">{t('files.importProjectHint')}</p></div>}
             {!processing && (meta as any).ams?.multicolor && <div className="card p-3 mt-3 text-sm" data-testid="ams-card"><div className="font-medium mb-1.5">{t('files.amsTitle', { n: (meta as any).ams.filaments.filter((x: any) => x.used).length })}</div><ul className="flex flex-wrap gap-2">{(meta as any).ams.filaments.filter((x: any) => x.used).map((x: any) => <li key={x.index} className="badge border-[var(--line)]"><span className="inline-block h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: x.color }} aria-hidden />{t('files.amsSlot', { n: x.index })}{x.type ? ` · ${x.type}` : ''}</li>)}</ul>{(meta as any).ams.painted && <p className="muted text-xs mt-1.5">{t('files.amsPainted')}</p>}<p className="muted text-xs mt-1.5">{t('files.amsHint')}</p></div>}
@@ -113,7 +114,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
           </Card>
           <div className="space-y-4">
             <Card title={t('files.previousSlicesOfThisVersion')}>
-              {slicedRuns.length === 0 ? <p className="text-sm muted">{t('files.itHasNotBeenSliced')}</p> : <ul className="space-y-2 text-sm">{slicedRuns.map((r) => <li key={r.id} className="flex items-center justify-between gap-2"><span className="truncate">{r.label ?? t('files.slice')}</span><span className="tabular shrink-0">{r.status === 'done' ? `${dur(r.timeS)} · ${grams((r.filament ?? []).reduce((x, y) => x + y.g, 0))}` : <StatusBadge status={r.status} />}</span></li>)}</ul>}
+              {slicedRuns.length === 0 ? <p className="text-sm muted">{t('files.itHasNotBeenSliced')}</p> : <ul className="space-y-2 text-sm">{slicedRuns.map((r) => <li key={r.id} className="flex items-center justify-between gap-2"><span className="truncate min-w-0">{r.label ?? t('files.slice')}</span><span className="tabular shrink-0">{r.status === 'done' ? `${dur(r.timeS)} · ${grams((r.filament ?? []).reduce((x, y) => x + y.g, 0))}` : <StatusBadge status={r.status} />}</span></li>)}</ul>}
             </Card>
             <Card title={t('files.doesItFitMyMachines')}><p className="text-sm muted">{t('files.useThe3dViewerTab')} {a ? `${num(a.dimX, 1)}×${num(a.dimY, 1)}×${num(a.dimZ, 1)} mm.` : t('files.noAnalysisYet')}</p></Card>
           </div>
@@ -124,7 +125,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
         <div className="grid gap-4 xl:grid-cols-3">
           <Card title={t('files.versionHistory')} className="xl:col-span-2" pad={false}>
             <Table><thead><tr><th className="th">{t('files.version')}</th><th className="th">{t('common.date')}</th><th className="th">{t('files.size')}</th><th className="th">{t('files.comment')}</th><th className="th" /></tr></thead>
-              <tbody>{versions.map((v) => <tr key={v.id}><td className="td font-medium">v{v.number} {v.id === cur?.id && <Badge tone="green">{t('files.current')}</Badge>}</td><td className="td tabular">{dmy(v.createdAt)}</td><td className="td tabular">{num(v.size / 1024, 0)} KB</td><td className="td">{v.comment ?? '—'}</td><td className="td text-right whitespace-nowrap"><a className="btn-ghost btn-sm" href={`/api/files/v/${v.id}/raw`}>⬇</a> {v.id !== cur?.id && can(user, 'archivos', 'E') && <SetVersionButton modelId={f.id} versionId={v.id} />}</td></tr>)}</tbody></Table>
+              <tbody>{versions.map((v) => <tr key={v.id}><td className="td font-medium">v{v.number} {v.id === cur?.id && <Badge tone="green">{t('files.current')}</Badge>}</td><td className="td tabular">{dmy(v.createdAt)}</td><td className="td tabular">{num(v.size / 1024, 0)} KB</td><td className="td">{v.comment ?? '—'}</td><td className="td text-right whitespace-nowrap"><a className="btn-ghost btn-sm" href={`/api/files/v/${v.id}/raw`} aria-label={t('files.download')} title={t('files.download')}><Icon name="download" className="h-4 w-4" /></a> {v.id !== cur?.id && can(user, 'archivos', 'E') && <SetVersionButton modelId={f.id} versionId={v.id} />}</td></tr>)}</tbody></Table>
           </Card>
           {can(user, 'archivos', 'C') && <Card title={t('files.uploadANewVersion')}><Uploader intent={{ intent: 'model', modelFileId: f.id }} multiple={false} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode" label={t('files.dropTheUpdatedFile')} hint={t('files.itIsSavedAsV2')} /></Card>}
         </div>

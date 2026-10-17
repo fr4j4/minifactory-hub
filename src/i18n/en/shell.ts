@@ -4,7 +4,7 @@ import type { es } from '../es';
 export const shell: Shape<typeof es['shell']> = {
   expandMenu: 'Expand menu',
   collapseMenu: 'Collapse menu',
-  collapse: '« Collapse',
+  collapse: 'Collapse',
   home: 'Home',
   searchAria: 'Search (Ctrl+K)',
   searchShort: 'Search…',

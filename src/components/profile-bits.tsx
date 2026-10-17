@@ -135,7 +135,7 @@ export function ProfileRowActions({ id, name, canDelete }: { id: string; name: s
             <button className="btn-ghost" disabled={pending || !copy.trim()} data-testid="dup-edit" onClick={() => run(() => duplicateProfileAction(id, copy), { ok: t('nozzle.copyCreated'), onOk: (nid) => { setOpen(false); router.push(`/laminador/perfiles/${nid}`); } })}>{t('nozzle.createAndEdit')}</button></div>
         </div>
       </Modal>
-      {canDelete && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
+      {canDelete && <ConfirmButton disabled={pending} className="btn-ghost btn-sm text-danger" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
     </span>
   );
 }
@@ -190,7 +190,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
   const set = (k: string, v: string) => setVals((cur) => ({ ...cur, [k]: v }));
   return (
     <div className="grid gap-4 xl:grid-cols-3">
-      <div className="xl:col-span-2 space-y-4">
+      <div className="xl:col-span-2 min-w-0 space-y-4">
         <div className="card p-4 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block"><span className="label">{t('common.name')}</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} data-testid="profile-title" /></label>
@@ -214,7 +214,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
             {nChanged > 0 && <details className="rounded-xl border border-[var(--line)] p-3 text-sm" data-testid="profile-diff"><summary className="cursor-pointer font-medium">{t('files.diffFromFactory', { count: nChanged, n: nChanged })}</summary>
               <table className="w-full mt-2 text-xs"><thead><tr><th className="th">{t('files.diffParam')}</th><th className="th text-right">{t('files.factory')}</th><th className="th text-right">{t('files.diffYours')}</th></tr></thead>
                 <tbody>{Object.entries(changes).map(([k, v]) => <tr key={k}><td className="td font-mono">{k}</td><td className="td text-right tabular muted">{String(base[k] ?? '—')}</td><td className="td text-right tabular font-medium">{toStr(v)}</td></tr>)}</tbody></table></details>}
-            {warns.length > 0 && <ul className="text-xs text-warn space-y-0.5" role="status" data-testid="profile-warnings">{warns.map((w) => <li key={w.key}>⚠ {t(w.key, w.params)}</li>)}</ul>}
+            {warns.length > 0 && <ul className="text-xs text-warn space-y-0.5" role="status" data-testid="profile-warnings">{warns.map((w) => <li key={w.key}><Icon name="alert" className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{t(w.key, w.params)}</li>)}</ul>}
           </div>
         )}
 

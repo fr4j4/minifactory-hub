@@ -6,6 +6,7 @@ import { machineCostOf } from './services/quotes';
 import type { MachineCost, Rates } from './pricing';
 import { rowNozzle } from './slicer/catalog';
 import { nozzleVariants, processFitsMachineBase } from './slicer/setup';
+import { num } from '@/lib/format';
 
 export interface CalcMachine { id: string; name: string; tech: string; nozzle: string | null; volX: number; volY: number; volZ: number; simulated: boolean; machineProfileId: string | null; defaultProcessProfileId: string | null; feedGph: number; cost: MachineCost; status: string }
 export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; density: number; filamentProfileId: string | null; tech: string }
@@ -39,7 +40,7 @@ export async function getCalcContext(): Promise<CalcContext> {
     // máquinas con un perfil asignado a mano (o anteriores a «boquilla puesta»)
     if (m.machineProfileId && alive.has(m.machineProfileId) && !list.some((x) => x.mp === m.machineProfileId)) list.push({ nozzle: nozzleOf(m.machineProfileId), mp: m.machineProfileId, pp: m.defaultProcessProfileId });
     list.sort((a, b) => Number(a.nozzle ?? 0) - Number(b.nozzle ?? 0));
-    for (const x of list) setups.push({ key: `${m.id}|${x.nozzle ?? ''}`, machineId: m.id, label: list.length > 1 ? `${m.name} · ${x.nozzle ? x.nozzle.replace('.', ',') + ' mm' : '—'}` : m.name, nozzle: x.nozzle, machineProfileId: x.mp, processProfileId: x.pp, active: x.mp === m.machineProfileId, compatibleProcessIds: compatFor(x.mp) });
+    for (const x of list) setups.push({ key: `${m.id}|${x.nozzle ?? ''}`, machineId: m.id, label: list.length > 1 ? `${m.name} · ${x.nozzle ? num(+x.nozzle, 2) + ' mm' : '—'}` : m.name, nozzle: x.nozzle, machineProfileId: x.mp, processProfileId: x.pp, active: x.mp === m.machineProfileId, compatibleProcessIds: compatFor(x.mp) });
   }
   const { loadPresets } = await import('./slicer/presets');
   return {

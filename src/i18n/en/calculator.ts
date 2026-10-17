@@ -27,7 +27,7 @@ export const calculator: Shape<typeof es['calculator']> = {
   remove: 'Remove {m}',
   addAModelFromThe: 'Add a model from the library',
   addAModelFromThe2: '+ Add a model from the library…',
-  uploadANewFile: '⬆ Upload a new file',
+  uploadANewFile: 'Upload a new file',
   dropTheCustomerSFile: 'Drop the customer\'s file',
   processProfile: 'Process profile',
   howTimeAndGramsAre: 'How time and grams are obtained',

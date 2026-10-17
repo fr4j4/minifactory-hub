@@ -10,6 +10,7 @@ import { PrinterPill } from '@/components/printer-live';
 import { liveByMachine } from '@/lib/bambu/manager';
 import { getT } from '@/i18n/server';
 import { DeleteMachineButton } from '@/components/machine-bits';
+import { Icon } from '@/components/shell';
 
 export async function generateMetadata() { return { title: (await getT())('meta.machines') }; }
 export default async function MachinesPage() {
@@ -18,14 +19,14 @@ export default async function MachinesPage() {
   const ms = await db.select().from(s.machines).where(isNull(s.machines.deletedAt)).orderBy(asc(s.machines.name)); const due = await maintenanceDue(); const live = liveByMachine();
   return (
     <>
-      <PageHeader title={t('machines.machinesMaintenance')} subtitle={t('machines.specificationsHourlyCostsLiveSta')} actions={<><Link href="/maquinas/conectores" className="btn-ghost" data-testid="connectors">{t('machines.connectPrinters2')}</Link>{can(user, 'maquinas', 'C') && <Link href="/maquinas/nueva" className="btn-primary" data-testid="new-machine">{t('machines.newMachine2')}</Link>}</>} />
+      <PageHeader title={t('machines.machinesMaintenance')} subtitle={t('machines.specificationsHourlyCostsLiveSta')} actions={<><Link href="/maquinas/conectores" className="btn-ghost" data-testid="connectors"><Icon name="radio" className="h-4 w-4" />{t('machines.connectPrinters2')}</Link>{can(user, 'maquinas', 'C') && <Link href="/maquinas/nueva" className="btn-primary" data-testid="new-machine">{t('machines.newMachine2')}</Link>}</>} />
       {ms.length === 0 ? <Card><Empty title={t('machines.noMachines')} hint={t('machines.registerYourPrintersToCalculate')} /></Card> : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="machine-grid">{ms.map((m) => { const done = m.jobsOk + m.jobsFailed; const d = due.filter((x) => x.machineId === m.id); return (
           <div key={m.id} className="card p-4 hover:border-brand-500 relative group">
             <Link href={`/maquinas/${m.id}`} className="block"><div className="flex items-start justify-between gap-2"><div><div className="font-semibold">{m.name}</div><div className="text-xs muted">{m.brand} {m.model} · {m.tech} · {m.volX}×{m.volY}×{m.volZ} mm</div></div><StatusBadge status={m.status} /></div>
             {live[m.id] && <div className="mt-2"><PrinterPill machineId={m.id} initial={live[m.id]} /></div>}
             <dl className="grid grid-cols-3 gap-2 mt-3 text-sm tabular"><div><dt className="text-xs muted">{t('common.hours')}</dt><dd>{num(m.hoursTotal, 0)} {t('common.h')}</dd></div><div><dt className="text-xs muted">{t('machines.success')}</dt><dd>{done ? `${Math.round((m.jobsOk / done) * 100)}%` : '—'}</dd></div><div><dt className="text-xs muted">{t('machines.timeFactor')}</dt><dd>{num(m.timeFactor, 2)}×</dd></div></dl>
-            <div className="flex flex-wrap gap-1 mt-3">{m.tech === 'FDM' && (m.nozzles ?? []).length > 0 && <Badge>{t('nozzle.nozzleBadge', { count: (m.nozzles ?? []).length, list: (m.nozzles ?? []).map((n) => n.replace('.', ',')).join(' · ') })}</Badge>}{m.simulated && <Badge tone="violet">{t('machines.simulated')}</Badge>}{live[m.id] && <Badge tone="green">{t('machines.connected')}</Badge>}{m.multicolorSlots > 1 && <Badge>{m.multicolorSlots} {t('machines.colors')}</Badge>}{m.enclosed && <Badge>{t('machines.closed')}</Badge>}{d.length > 0 && <Badge tone="red">{d.length} {t('machines.maintenanceOverdue')}</Badge>}</div></Link>
+            <div className="flex flex-wrap gap-1 mt-3">{m.tech === 'FDM' && (m.nozzles ?? []).length > 0 && <Badge>{t('nozzle.nozzleBadge', { count: (m.nozzles ?? []).length, list: (m.nozzles ?? []).map((n) => num(+n, 2)).join(' · ') })}</Badge>}{m.simulated && <Badge tone="violet">{t('machines.simulated')}</Badge>}{live[m.id] && <Badge tone="green">{t('machines.connected')}</Badge>}{m.multicolorSlots > 1 && <Badge>{m.multicolorSlots} {t('machines.colors')}</Badge>}{m.enclosed && <Badge>{t('machines.closed')}</Badge>}{d.length > 0 && <Badge tone="red">{d.length} {t('machines.maintenanceOverdue')}</Badge>}</div></Link>
             {can(user, 'maquinas', 'X') && <div className="mt-2 flex justify-end"><DeleteMachineButton machineId={m.id} machineName={m.name} className="btn-ghost btn-sm text-danger opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity" /></div>}
           </div>); })}</div>)}
     </>

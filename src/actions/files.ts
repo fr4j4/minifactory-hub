@@ -5,6 +5,7 @@ import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { safe } from './common';
 import { processVersion } from '@/lib/files';
+import { LocalizedError } from '@/i18n/errors';
 
 export async function updateFileAction(id: string, i: { name?: string; folder?: string | null; tags?: string[]; license?: string; origin?: string | null; author?: string | null; customerId?: string | null; favorite?: boolean }) {
   return safe(async () => {
@@ -47,7 +48,7 @@ export async function attachSourceAction(modelFileId: string, url: string) {
 export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'V'); const db = await getDb();
-    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new Error('not found');
+    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new LocalizedError('files.errFileNotFound');
     const [src] = f.sourceId ? await db.select().from(s.modelSources).where(eq(s.modelSources.id, f.sourceId)) : [];
     const { ruleCandidates, mergeSuggestions } = await import('@/lib/library/tags');
     const vocab = [...new Set((await db.select({ tags: s.modelFiles.tags }).from(s.modelFiles)).flatMap((r) => r.tags ?? []))];
@@ -74,7 +75,7 @@ export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
 export async function addTagsAction(modelFileId: string, tags: Array<{ name: string; source: 'manual' | 'ia' | 'import' | 'regla'; confidence?: number }>) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
-    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new Error('not found');
+    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new LocalizedError('files.errFileNotFound');
     const { normalizeTag } = await import('@/lib/library/tags');
     const cur = new Set((f.tags ?? []).map(normalizeTag)); const next = [...(f.tags ?? [])]; const meta = { ...(f.tagMeta ?? {}) };
     for (const t of tags.slice(0, 40)) { const n = normalizeTag(t.name); if (!n || cur.has(n)) continue; cur.add(n); next.push(n); meta[n] = { source: t.source, confidence: t.confidence }; }
@@ -117,7 +118,7 @@ export async function renameTagAction(from: string, to: string) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
     const { normalizeTag } = await import('@/lib/library/tags'); const a = normalizeTag(from), b = normalizeTag(to);
-    if (!a || !b) throw new Error('tag');
+    if (!a || !b) throw new LocalizedError('files.errTagName');
     const rows = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)); let n = 0;
     for (const f of rows) {
       if (!(f.tags ?? []).some((t) => normalizeTag(t) === a)) continue;
@@ -137,7 +138,7 @@ export async function setAutoOrientAction(modelFileId: string, on: boolean) {
 
 /** Carpetas de la biblioteca: crear, renombrar/mover y eliminar (los archivos suben a la carpeta madre). */
 export async function createFolderAction(path: string) {
-  return safe(async () => { await requirePerm('archivos', 'E'); const p = await (await import('@/lib/library/folders')).ensureFolder(path); if (!p) throw new Error('folder'); return p; }, ['/archivos']);
+  return safe(async () => { await requirePerm('archivos', 'E'); const p = await (await import('@/lib/library/folders')).ensureFolder(path); if (!p) throw new LocalizedError('files.errFolderInvalid'); return p; }, ['/archivos']);
 }
 export async function renameFolderAction(from: string, to: string) {
   return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).renameFolder(from, to); await audit('model_file', 'folders', 'renombrar_carpeta', { from, to, n }, u.id); return n; }, ['/archivos']);

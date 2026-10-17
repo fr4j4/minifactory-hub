@@ -92,6 +92,7 @@ export const nozzle = {
   factoryTag: 'de fábrica',
   nozzleSet: 'Boquilla puesta: {n} mm',
   nozzleSetLabel: 'Boquilla puesta',
+  nozzleReady: 'lista para laminar',
   setupNozzleHelp: 'Cada boquilla tiene su propia impresora de fábrica y sus propias calidades (0,2 → capas finas · 0,4 → estándar · 0,6/0,8 → rápido y grueso). Lo que ya configuraste queda guardado con ✓ y se cambia después desde la ficha de la máquina.',
   machineNozzles: 'Boquillas que usas con esta máquina',
   machineNozzlesHint: 'Marca todas las que tienes (0,2 · 0,4 …). La que está puesta se cambia en la ficha de la máquina y define qué perfil de impresora y qué calidades se usan al laminar.',

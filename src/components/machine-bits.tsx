@@ -8,9 +8,10 @@ import { MaterialTypesPicker } from './material-types-picker';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 import { Modal, useAction } from './client';
 import { machineHourly } from '@/lib/pricing';
-import { money } from '@/lib/format';
+import { money, num } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
+import { Icon } from '@/components/shell';
 
 export function MachineForm({ m, profiles, kwh, materialTypes }: { m?: any; materialTypes?: string[]; profiles: Array<{ id: string; name: string; type: string; nozzle: string | null }>; kwh: number }) {
   const t = useT();
@@ -25,7 +26,7 @@ export function MachineForm({ m, profiles, kwh, materialTypes }: { m?: any; mate
       <div className="sm:col-span-3 grid grid-cols-3 gap-3"><label className="block"><span className="label">{t('machines.buildVolumeXMm')}</span><input type="number" className="input" value={v.volX} onChange={f('volX')} data-testid="machine-volx" /></label><label className="block"><span className="label">{t('machines.yMm')}</span><input type="number" className="input" value={v.volY} onChange={f('volY')} /></label><label className="block"><span className="label">{t('machines.zMm')}</span><input type="number" className="input" value={v.volZ} onChange={f('volZ')} /></label></div>
       {v.tech === 'FDM' && <div className="sm:col-span-3"><NozzlePicker multi label={t('nozzle.machineNozzles')} value={v.nozzles} onChange={(n) => setV({ ...v, nozzles: n })} hint={t('nozzle.machineNozzlesHint')} testId="machine-nozzles" /></div>}<div className="sm:col-span-2"><MaterialTypesPicker value={v.materialsOk} onChange={(x) => setV({ ...v, materialsOk: x })} options={materialTypes} testId="machine-materials" /></div><label className="block"><span className="label">{t('machines.multicolorSlotsAmsMmu')}</span><input type="number" min={1} className="input" value={v.multicolorSlots} onChange={f('multicolorSlots')} /></label>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.heatedBed} onChange={f('heatedBed')} /> {t('machines.heatedBed')}</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.enclosed} onChange={f('enclosed')} /> {t('machines.enclosedChamber')}</label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={v.simulated} onChange={f('simulated')} /> {t('machines.simulatedMachineNoPhysicalDevice')}</label>
-      <div className="sm:col-span-3 grid grid-cols-2 sm:grid-cols-5 gap-3"><label className="block"><span className="label">{t('machines.purchaseValue')}</span><input type="number" className="input" value={v.purchaseValue} onChange={f('purchaseValue')} /></label><label className="block"><span className="label">{t('machines.residualValue')}</span><input type="number" className="input" value={v.residualValue} onChange={f('residualValue')} /></label><label className="block"><span className="label">{t('machines.serviceLifeH')}</span><input type="number" className="input" value={v.lifeHours} onChange={f('lifeHours')} /></label><label className="block"><span className="label">{t('machines.powerDrawW')}</span><input type="number" className="input" value={v.watts} onChange={f('watts')} /></label><label className="block"><span className="label">{t('machines.maintenanceH')}</span><input type="number" className="input" value={v.maintCostHour} onChange={f('maintCostHour')} /></label></div>
+      <div className="sm:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-3"><label className="block"><span className="label">{t('machines.purchaseValue')}</span><input type="number" className="input" value={v.purchaseValue} onChange={f('purchaseValue')} /></label><label className="block"><span className="label">{t('machines.residualValue')}</span><input type="number" className="input" value={v.residualValue} onChange={f('residualValue')} /></label><label className="block"><span className="label">{t('machines.serviceLifeH')}</span><input type="number" className="input" value={v.lifeHours} onChange={f('lifeHours')} /></label><label className="block"><span className="label">{t('machines.powerDrawW')}</span><input type="number" className="input" value={v.watts} onChange={f('watts')} /></label><label className="block"><span className="label">{t('machines.maintenanceH')}</span><input type="number" className="input" value={v.maintCostHour} onChange={f('maintCostHour')} /></label></div>
       <div className="sm:col-span-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-3 text-sm" data-testid="cost-hour">{t('machines.calculatedCostPerHour')} <b className="tabular">{money(Math.round(perHour))}</b> <span className="muted">({t('machines.hourlyBreakdown', { dep: money(Math.round(hr.dep)), maint: money(Math.round(hr.maint)), energy: money(Math.round(hr.energy)) })})</span></div>
       <div className="sm:col-span-3 rounded-xl border border-[var(--line)] p-3 grid sm:grid-cols-2 gap-3">
         <p className="sm:col-span-2 text-xs muted">{t('nozzle.forSlicingNote')}</p>
@@ -59,7 +60,7 @@ export function PlanTools({ machineId, items, plans }: { machineId: string; item
 }
 function DonePlanButtons({ plans, onPick }: { plans: Array<{ id: string; task: string; due: boolean }>; onPick: (id: string) => void }) {
   const t = useT();
-  return <div className="w-full mt-2 flex flex-wrap gap-2">{plans.map((p) => <button key={p.id} className={`btn-sm ${p.due ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onPick(p.id)} data-testid={`maint-done-${p.task}`}>{p.due ? '⚠ ' : ''}{t('machines.doneTask', { task: p.task })}</button>)}</div>;
+  return <div className="w-full mt-2 flex flex-wrap gap-2">{plans.map((p) => <button key={p.id} className={`btn-sm ${p.due ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onPick(p.id)} data-testid={`maint-done-${p.task}`}>{p.due && <Icon name="alert" className="h-3.5 w-3.5" />}{t('machines.doneTask', { task: p.task })}</button>)}</div>;
 }
 
 export function IncidentForm({ machineId }: { machineId: string }) {
@@ -114,8 +115,8 @@ export function ActiveNozzle({ machineId, nozzles, active, setups }: { machineId
     <div className="card p-4" data-testid="active-nozzle">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div><div className="label !mb-1">{t('nozzle.nozzleSetLabel')}</div>
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{all.map((n) => <button key={n} type="button" role="radio" aria-checked={n === active} disabled={pending} onClick={() => n !== active && run(() => switchNozzleAction(machineId, n), { ok: t('nozzle.nozzleSwitched', { n: n.replace('.', ',') }) })} data-testid={`set-nozzle-${n}`}
-            className={`num min-h-[36px] px-3 rounded-xl border text-sm ${n === active ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{t('nozzle.mm', { n: n.replace('.', ',') })}{setups[n] ? '' : ' ·'}</button>)}</div></div>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{all.map((n) => <button key={n} type="button" role="radio" aria-checked={n === active} disabled={pending} onClick={() => n !== active && run(() => switchNozzleAction(machineId, n), { ok: t('nozzle.nozzleSwitched', { n: num(+n, 2) }) })} data-testid={`set-nozzle-${n}`}
+            className={`num min-h-[36px] px-3 rounded-xl border text-sm ${n === active ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{t('nozzle.mm', { n: num(+n, 2) })}{setups[n] ? '' : ' ·'}</button>)}</div></div>
         <p className="text-xs muted flex-1 min-w-[220px]">{cur ? <>{t('nozzle.slicesWithPrinter')} <b>{cur.machine}</b>{cur.process ? <> {t('nozzle.andQuality')} <b>{cur.process}</b></> : ''}. {t('nozzle.markWhenChanging')}</> : t('nozzle.noPrinterProfileYet')}{all.some((n) => !setups[n]) && ` ${t('nozzle.dotNozzlesAutoSetup')}`}</p>
       </div>
     </div>

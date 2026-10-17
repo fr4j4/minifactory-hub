@@ -5,10 +5,11 @@ import type { LiveRow } from '@/lib/bambu/manager';
 import type { Tray } from '@/lib/bambu/state';
 import { assignTraySpoolAction, printerCommandAction, sendToPrinterAction } from '@/actions/printers';
 import { cn, dur, grams, num } from '@/lib/format';
-import { ConfirmButton, Modal, useAction } from './client';
+import { ConfirmButton, Modal, useAction, useLinger } from './client';
 import { useLocale, useT } from '@/i18n/client';
 import type { MessageKey, TFn } from '@/i18n/translate';
 import { LOCALE_TAG } from '@/i18n/config';
+import { Icon } from '@/components/shell';
 
 /* ── un solo EventSource compartido por todos los componentes en vivo ─────────────────────────── */
 type Feed = { rows: Record<string, LiveRow>; ok: boolean };
@@ -44,7 +45,7 @@ export function PrinterStateBadge({ r }: { r: LiveRow }) {
 export function SpoolGlyph({ color, remain, active, size = 44 }: { color: string | null; remain: number | null; active?: boolean; size?: number }) {
   const r = 18, c = 2 * Math.PI * r, p = remain == null ? 1 : Math.max(0, Math.min(100, remain)) / 100;
   return (
-    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className={cn(active && 'drop-shadow-[0_0_6px_rgba(255,91,31,.6)]')}>
+    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className={cn(active && 'drop-shadow-[0_0_6px_color-mix(in_srgb,var(--accent)_60%,transparent)]')}>
       <circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" strokeOpacity=".15" strokeWidth="1.5" />
       <circle cx="24" cy="24" r={r} fill="none" stroke={color ?? 'transparent'} strokeOpacity=".22" strokeWidth="7" />
       {color && <circle cx="24" cy="24" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 24 24)" strokeLinecap="butt" strokeDashoffset={remain == null ? 0 : 0} style={remain == null ? { strokeDasharray: '3 3' } : undefined} />}
@@ -161,7 +162,7 @@ function SendDialog({ r, runs, jobs, open, onClose }: { r: LiveRow; runs: RunOpt
 /** Panel completo de una impresora conectada (ficha de la máquina). */
 export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSend, spools, runs, jobs }: { initial: LiveRow; cameraKind: string; canControl: boolean; canAssign: boolean; canSend: boolean; spools: SpoolOpt[]; runs: RunOpt[]; jobs: Array<{ id: string; label: string }> }) {
   const t = useT(); const locale = useLocale();
-  const r = usePrinter(initial.id, initial)!; const s = r.status; const { run, pending } = useAction(); const [send, setSend] = useState(false);
+  const r = usePrinter(initial.id, initial)!; const s = r.status; const { run, pending } = useAction(); const [send, setSend] = useState(false); const sendShown = useLinger(send);
   // el estado de la máquina (encabezado, cola) lo cambia el servidor al recibir la transición: se refresca la página
   const router = useRouter(); const prevState = useRef(s.state);
   useEffect(() => { if (prevState.current !== s.state) { prevState.current = s.state; const tt = setTimeout(() => router.refresh(), 600); return () => clearTimeout(tt); } }, [s.state, router]);
@@ -173,11 +174,11 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
   return (
     <section className="card overflow-hidden" data-testid="printer-panel">
       <header className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3.5 pb-3 border-b border-[var(--line)]">
-        <div className="flex items-center gap-2.5 min-w-0"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden /><h2 className="text-[13px] font-semibold tracking-tight truncate">{t('machines.live2')} {r.modelName ? t('machines.bambuLab', { model: r.modelName }) : t('common.bambuLab')}</h2><PrinterStateBadge r={r} />{cloud && <span className="font-mono text-[10px] uppercase tracking-[.1em] rounded-full border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 px-2 py-0.5" data-testid="mode-cloud">{t('machines.cloudReadOnly')}</span>}</div>
+        <div className="flex items-center gap-2.5 min-w-0"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden /><h2 className="text-[13px] font-semibold tracking-tight truncate">{t('machines.live2')} {r.modelName ? t('machines.bambuLab', { model: r.modelName }) : t('common.bambuLab')}</h2><PrinterStateBadge r={r} />{cloud && <span className="font-mono text-[10px] uppercase tracking-[.1em] rounded-full border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 px-2 py-0.5" data-testid="mode-cloud"><Icon name="cloud" className="inline h-3 w-3 mr-1 -mt-px" />{t('machines.cloudReadOnly')}</span>}</div>
         <div className="flex items-center gap-1.5">
           {canSend && <button className="btn-primary btn-sm" disabled={!r.online || busy} onClick={() => setSend(true)} data-testid="send-open">{t('machines.sendToPrint')}</button>}
-          {canControl && busy && (s.state === 'PAUSE' ? <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('resume', undefined, t('machines.resuming2'))} data-testid="cmd-resume">{t('machines.resume')}</button> : <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('pause', undefined, t('machines.pauseSent2'))} data-testid="cmd-pause">{t('machines.pause')}</button>)}
-          {canControl && busy && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('machines.stopThePrintItCannot')} onConfirm={() => cmd('stop', undefined, t('machines.printStopped2'))}>{t('machines.stop')}</ConfirmButton>}
+          {canControl && busy && (s.state === 'PAUSE' ? <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('resume', undefined, t('machines.resuming2'))} data-testid="cmd-resume"><Icon name="play" className="h-4 w-4" />{t('machines.resume')}</button> : <button className="btn-ghost btn-sm" disabled={pending} onClick={() => cmd('pause', undefined, t('machines.pauseSent2'))} data-testid="cmd-pause"><Icon name="pause" className="h-4 w-4" />{t('machines.pause')}</button>)}
+          {canControl && busy && <ConfirmButton disabled={pending} className="btn-ghost btn-sm text-danger" message={t('machines.stopThePrintItCannot')} onConfirm={() => cmd('stop', undefined, t('machines.printStopped2'))}><Icon name="stop" className="h-4 w-4" />{t('machines.stop')}</ConfirmButton>}
         </div>
       </header>
       {cloud && <p className="mx-4 mt-3 text-xs muted" data-testid="cloud-readonly">{t('machines.connectedThroughBambuCloudYou')}</p>}
@@ -194,7 +195,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
           <div className="grid grid-cols-3 gap-2"><Temp label={t('machines.nozzle')} t={s.nozzle.temp} target={s.nozzle.target} /><Temp label={t('machines.bed')} t={s.bed.temp} target={s.bed.target} /><Temp label={t('machines.camera')} t={s.chamber} /></div>
           <div className="flex flex-wrap items-center gap-2 text-sm">
             {canControl ? <label className="flex items-center gap-2"><span className="eyebrow !text-[10px]">{t('machines.speed')}</span><select className="input !w-auto !min-h-[34px] !py-1" value={s.speed.level ?? 2} disabled={!r.online || pending} onChange={(e) => cmd('speed', Number(e.target.value), t('machines.speedChanged2'))} data-testid="cmd-speed"><option value={1}>{t('machines.silent')}</option><option value={2}>{t('machines.standard')}</option><option value={3}>{t('machines.sport')}</option><option value={4}>{t('machines.ludicrous')}</option></select></label> : <span className="muted">{t('machines.speed2')} {s.speed.label ? t(s.speed.label) : '—'}</span>}
-            {canControl && <button className="btn-ghost btn-sm" disabled={!r.online || pending} onClick={() => cmd(s.light === 'on' ? 'light_off' : 'light_on')} aria-pressed={s.light === 'on'} data-testid="cmd-light">{t('machines.light')} {s.light === 'on' ? t('machines.lightOn') : t('machines.lightOff')}</button>}
+            {canControl && <button className="btn-ghost btn-sm" disabled={!r.online || pending} onClick={() => cmd(s.light === 'on' ? 'light_off' : 'light_on')} aria-pressed={s.light === 'on'} data-testid="cmd-light"><Icon name="light" className="h-4 w-4" />{t('machines.light')} {s.light === 'on' ? t('machines.lightOn') : t('machines.lightOff')}</button>}
             <span className="num text-xs muted ml-auto">{t('machines.fansLine', { part: s.fans.part ?? 0, aux: s.fans.aux ?? 0 })} · {s.wifi ?? ''}</span>
           </div>
           {(s.hms.length > 0 || s.errorCode) && <ul className="space-y-1.5" data-testid="printer-hms">
@@ -207,8 +208,8 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
         <div className="eyebrow mb-2">{t('machines.loadedFilament')}{s.ams.length ? ` · ${t('machines.amsHumidity', { values: s.ams.map((u) => u.humidity ?? '—').join(', ') })}` : ''}</div>
         {trays.length === 0 ? <p className="text-sm muted">{t('machines.thePrinterDidNotReport')}</p> : <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{trays.map((tt) => <TrayCard key={tt.slot} t={tt} linkId={r.id} spools={spools} machineId={r.machineId} canAssign={canAssign} />)}</ul>}
       </div>
-      <footer className="px-4 py-2.5 border-t border-[var(--line)] flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[.1em] muted"><span>{t('machines.firmware')} {s.firmware ?? '—'}</span><span>boquilla {s.nozzle.diameter ?? '—'} mm</span><span>{t('machines.updated')} {new Date(s.updatedAt).toLocaleTimeString(LOCALE_TAG[locale])}</span></footer>
-      {send && <SendDialog r={r} runs={runs} jobs={jobs} open={send} onClose={() => setSend(false)} />}
+      <footer className="px-4 py-2.5 border-t border-[var(--line)] flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[.1em] muted"><span>{t('machines.firmware')} {s.firmware ?? '—'}</span><span>{t('machines.nozzle')} {s.nozzle.diameter ?? '—'} mm</span><span>{t('machines.updated')} {new Date(s.updatedAt).toLocaleTimeString(LOCALE_TAG[locale])}</span></footer>
+      {sendShown && <SendDialog r={r} runs={runs} jobs={jobs} open={send} onClose={() => setSend(false)} />}
     </section>
   );
 }
