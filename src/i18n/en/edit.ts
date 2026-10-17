@@ -3,6 +3,7 @@ import type { es } from '../es';
 
 export const edit: Shape<typeof es['edit']> = {
   edit: 'Edit',
+  editNamed: 'Edit “{name}”',
   saved: 'Changes saved',
   invalid: 'There is an invalid value: check the form data.',
   required: 'A required field is missing.',
