@@ -7,6 +7,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { assignJob, cancelJob, completeMaintenance, createJob, finishJob, machineDeleteInfo, pauseJob, removeMachine, reorderJob, requeueJob, resumeJob, scheduleQueue, startJob, type FinishInput } from '@/lib/services/production';
+import { LocalizedError } from '@/i18n/errors';
 import { safe } from './common';
 import type { MessageKey, TFn } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
@@ -76,7 +77,7 @@ export async function saveMachineAction(i: MachineInput) {
     const [m] = await db.insert(s.machines).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...row }).returning({ id: s.machines.id }); await audit('machine', m.id, 'crear', { name: v.name }, u.id); return m.id;
   }, ['/maquinas', '/cola', '/laminador']);
 }
-export async function setMachineStatusAction(id: string, status: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); await db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, id)); await audit('machine', id, 'estado', { to: status }, u.id); await scheduleQueue(); }, ['/maquinas', `/maquinas/${id}`, '/cola']); }
+export async function setMachineStatusAction(id: string, status: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); if (!['disponible', 'imprimiendo', 'pausada', 'mantenimiento', 'fuera_de_servicio'].includes(status)) throw new LocalizedError('edit.invalid'); const db = await getDb(); await db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, id)); await audit('machine', id, 'estado', { to: status }, u.id); await scheduleQueue(); }, ['/maquinas', `/maquinas/${id}`, '/cola']); }
 export async function addPlanAction(i: { machineId: string; task: string; intervalHours?: number | null; intervalDays?: number | null }) {
   const t = await getT();
   return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.task.trim() || (!i.intervalHours && !i.intervalDays)) throw new Error(t('machines.enterTheTaskAndIts')); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, i.machineId)); await db.insert(s.maintenancePlans).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, task: i.task, intervalHours: i.intervalHours || null, intervalDays: i.intervalDays || null, lastDoneHours: m?.hoursTotal ?? 0, lastDoneAt: new Date().toISOString().slice(0, 10), createdBy: u.id }); }, [`/maquinas/${i.machineId}`]);
