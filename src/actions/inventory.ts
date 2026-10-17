@@ -6,7 +6,6 @@ import { audit } from '@/lib/audit';
 import { bulkUpdateLine, createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
 import { checkNum, safe } from './common';
 import { getT } from '@/i18n/server';
-import { LocalizedError } from '@/i18n/errors';
 
 export interface MaterialInput { id?: string; tech: string; manufacturer?: string; line?: string; type: string; colorName: string; hex: string; diameter?: number | null; density: number; costPerKg: number; stockMinG: number; tempNozzle?: string; tempBed?: string; supplierText?: string; filamentProfileId?: string | null }
 export async function saveMaterialAction(i: MaterialInput) {

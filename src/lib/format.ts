@@ -6,7 +6,6 @@ export const pct = (n: number | null | undefined, d = 0) => (n == null ? '—' :
 export const dur = (sec: number | null | undefined) => { if (sec == null) return '—'; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return `${h}:${String(m).padStart(2, '0')} h`; };
 export const hoursFmt = (h: number | null | undefined) => (h == null ? '—' : dur(Math.round(h * 3600)));
 export const grams = (g: number | null | undefined) => (g == null ? '—' : `${num(g, g < 100 ? 1 : 0)} g`);
-const pad = (n: number) => String(n).padStart(2, '0');
 /** Zona horaria del taller (Ajustes → shop.timezone). El servidor la fija al leer los ajustes; el navegador la recibe en I18nProvider.
  *  ponytail: una sola zona por proceso (hay un solo taller); si llega multi-taller, pasarla por contexto. */
 let TZ = 'America/Santiago';
