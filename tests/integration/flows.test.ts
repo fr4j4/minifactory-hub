@@ -140,6 +140,14 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await expect(setSaleStatus(r.id, 'anulada', ventas)).rejects.toThrow(/motivo/); await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Devolución', returnToStock: true });
     expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])))[0].stock).toBe(v0.stock);
   });
+  it('venta rápida: precio a mano bajo el costo solo para el Administrador; nunca negativo', async () => {
+    const items = (unitPrice: number) => ({ items: [{ variantId: variantIds[0], qty: 1, unitPrice }] });
+    await expect(createSale(items(1), ventas)).rejects.toThrow(/bajo el costo/);
+    await expect(createSale(items(-10), admin)).rejects.toThrow(/inválido/);
+  });
+  it('pedido manual: la cantidad se normaliza y un precio final negativo se rechaza', async () => {
+    await expect(createOrder({ items: [line({ finalUnit: -1 })] }, admin)).rejects.toThrow(/inválido/);
+  });
   it('pedido mixto: reserva stock, produce solo lo que falta y descuenta al entregar', async () => {
     const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])); expect(v.stock).toBeGreaterThanOrEqual(5);
     const oid = await createOrder({ customerName: 'Mixto', items: [line({ description: 'Pieza a medida' }), { description: 'Posavasos', qty: v.stock + 2, variantId: variantIds[0], kind: 'producto' as const }] }, admin);
