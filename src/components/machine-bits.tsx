@@ -8,7 +8,7 @@ import { MaterialTypesPicker } from './material-types-picker';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 import { Modal, useAction } from './client';
 import { machineHourly } from '@/lib/pricing';
-import { money } from '@/lib/format';
+import { money, num } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
 import { Icon } from '@/components/shell';
@@ -115,8 +115,8 @@ export function ActiveNozzle({ machineId, nozzles, active, setups }: { machineId
     <div className="card p-4" data-testid="active-nozzle">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div><div className="label !mb-1">{t('nozzle.nozzleSetLabel')}</div>
-          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{all.map((n) => <button key={n} type="button" role="radio" aria-checked={n === active} disabled={pending} onClick={() => n !== active && run(() => switchNozzleAction(machineId, n), { ok: t('nozzle.nozzleSwitched', { n: n.replace('.', ',') }) })} data-testid={`set-nozzle-${n}`}
-            className={`num min-h-[36px] px-3 rounded-xl border text-sm ${n === active ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{t('nozzle.mm', { n: n.replace('.', ',') })}{setups[n] ? '' : ' ·'}</button>)}</div></div>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{all.map((n) => <button key={n} type="button" role="radio" aria-checked={n === active} disabled={pending} onClick={() => n !== active && run(() => switchNozzleAction(machineId, n), { ok: t('nozzle.nozzleSwitched', { n: num(+n, 2) }) })} data-testid={`set-nozzle-${n}`}
+            className={`num min-h-[36px] px-3 rounded-xl border text-sm ${n === active ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{t('nozzle.mm', { n: num(+n, 2) })}{setups[n] ? '' : ' ·'}</button>)}</div></div>
         <p className="text-xs muted flex-1 min-w-[220px]">{cur ? <>{t('nozzle.slicesWithPrinter')} <b>{cur.machine}</b>{cur.process ? <> {t('nozzle.andQuality')} <b>{cur.process}</b></> : ''}. {t('nozzle.markWhenChanging')}</> : t('nozzle.noPrinterProfileYet')}{all.some((n) => !setups[n]) && ` ${t('nozzle.dotNozzlesAutoSetup')}`}</p>
       </div>
     </div>

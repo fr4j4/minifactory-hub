@@ -3,21 +3,21 @@ import { isDarkNow } from '@/lib/theme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { cn } from '@/lib/format';
+import { cn, num } from '@/lib/format';
 import { useT } from '@/i18n/client';
+import type { TFn } from '@/i18n/translate';
 import { Icon } from '@/components/shell';
 
 export interface ViewerMachine { id: string; name: string; volX: number; volY: number; volZ: number }
 type Mode = 'solido' | 'alambrico' | 'rayosx' | 'normales';
 type Tool = 'orbitar' | 'medir' | 'cara';
 
-const f1 = (n: number, d = 1) => n.toFixed(d).replace('.', ',');
 const fits = (d: [number, number, number], v: [number, number, number]) => (d[0] <= v[0] + 0.01 && d[1] <= v[1] + 0.01 && d[2] <= v[2] + 0.01) || (d[1] <= v[0] + 0.01 && d[0] <= v[1] + 0.01 && d[2] <= v[2] + 0.01);
 
-function parseMesh(buf: ArrayBuffer) {
+function parseMesh(buf: ArrayBuffer, t: TFn) {
   const dv = new DataView(buf);
   const magic = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
-  if (magic !== 'MFM1') throw new Error('Unknown preview format');
+  if (magic !== 'MFM1') throw new Error(t('viewer.theModelCouldNotBe'));
   const nv = dv.getUint32(4, true), ni = dv.getUint32(8, true), flags = dv.getUint32(12, true), origTris = dv.getUint32(16, true);
   const verts = new Float32Array(buf, 20, nv * 3);
   const idx = new Uint32Array(buf, 20 + nv * 12, ni);
@@ -96,7 +96,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
       try {
         const res = await fetch(`/api/files/v/${versionId}/mesh`);
         if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? t('viewer.thePreviewIsStillBeing') : t('viewer.theModelCouldNotBe'));
-        const m = parseMesh(await res.arrayBuffer()); if (disposed) return;
+        const m = parseMesh(await res.arrayBuffer(), t); if (disposed) return;
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(m.verts, 3)); geo.setIndex(new THREE.BufferAttribute(m.idx, 1));
         if (m.colors) { geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Array.from(m.colors, (x) => x / 255)), 3)); mat.vertexColors = true; mat.color.set(0xffffff); }
@@ -201,7 +201,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
               <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">{t('viewer.fitToView')}</button>
             </div>
             {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge"><Icon name={cur.ok ? 'check' : 'x'} className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{cur.ok ? t('viewer.fitsIn', { m: cur.m.name }) : t('viewer.doesNotFitIn', { m: cur.m.name })}</div>}
-            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? t('viewer.chooseTheSecondPoint') : <>{t('viewer.distance')} <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
+            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? t('viewer.chooseTheSecondPoint') : <>{t('viewer.distance')} <b>{num(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {num(measure.dx!)} · Δy {num(measure.dy!)} · Δz {num(measure.dz!)})</span></>}</div>}
             {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.simplifiedMesh', { shown: (info.tris / 1000).toFixed(0), total: (info.orig / 1000).toFixed(0) })}</div>}
           </>
         )}
@@ -235,7 +235,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
             </div>
             <div>
               <div className="label">{t('viewer.dimensions')}</div>
-              <div className="tabular font-medium" data-testid="dims">{dims ? `${f1(dims[0])} × ${f1(dims[1])} × ${f1(dims[2])} mm` : '—'}</div>
+              <div className="tabular font-medium" data-testid="dims">{dims ? `${num(dims[0])} × ${num(dims[1])} × ${num(dims[2])} mm` : '—'}</div>
               <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> {t('viewer.showDimensionsInTheViewer')}</label>
             </div>
             <div>
@@ -308,7 +308,7 @@ function drawDimLabels(st: any, host: HTMLElement, dims: [number, number, number
   const holder = host.querySelector('[data-dim-labels]') as HTMLElement; holder.innerHTML = ''; st.dimLabels = [];
   if (!dims || !st.mesh) return;
   st.group.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(st.mesh); const mn = b.min, mx = b.max;
-  const edges: Array<[THREE.Vector3, THREE.Vector3, string]> = [[new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z), `${f1(mx.x - mn.x)}`], [new THREE.Vector3(mx.x, mn.y, mn.z), new THREE.Vector3(mx.x, mx.y, mn.z), `${f1(mx.y - mn.y)}`], [new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mx.x, mx.y, mx.z), `${f1(mx.z - mn.z)}`]];
+  const edges: Array<[THREE.Vector3, THREE.Vector3, string]> = [[new THREE.Vector3(mn.x, mn.y, mn.z), new THREE.Vector3(mx.x, mn.y, mn.z), `${num(mx.x - mn.x)}`], [new THREE.Vector3(mx.x, mn.y, mn.z), new THREE.Vector3(mx.x, mx.y, mn.z), `${num(mx.y - mn.y)}`], [new THREE.Vector3(mx.x, mx.y, mn.z), new THREE.Vector3(mx.x, mx.y, mx.z), `${num(mx.z - mn.z)}`]];
   for (const [a, c, txt] of edges) {
     const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, c]), new THREE.LineBasicMaterial({ color: 0x151514, depthTest: false })); l.userData.kind = 'dims'; l.renderOrder = 5; o.add(l);
     const el = document.createElement('span'); el.textContent = `${txt} mm`; el.className = 'absolute left-0 top-0 num text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#151514] text-[#ece8df] ring-1 ring-white/10 whitespace-nowrap'; el.setAttribute('data-testid', 'dim-label'); holder.appendChild(el);

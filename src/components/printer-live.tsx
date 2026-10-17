@@ -208,7 +208,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
         <div className="eyebrow mb-2">{t('machines.loadedFilament')}{s.ams.length ? ` · ${t('machines.amsHumidity', { values: s.ams.map((u) => u.humidity ?? '—').join(', ') })}` : ''}</div>
         {trays.length === 0 ? <p className="text-sm muted">{t('machines.thePrinterDidNotReport')}</p> : <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{trays.map((tt) => <TrayCard key={tt.slot} t={tt} linkId={r.id} spools={spools} machineId={r.machineId} canAssign={canAssign} />)}</ul>}
       </div>
-      <footer className="px-4 py-2.5 border-t border-[var(--line)] flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[.1em] muted"><span>{t('machines.firmware')} {s.firmware ?? '—'}</span><span>boquilla {s.nozzle.diameter ?? '—'} mm</span><span>{t('machines.updated')} {new Date(s.updatedAt).toLocaleTimeString(LOCALE_TAG[locale])}</span></footer>
+      <footer className="px-4 py-2.5 border-t border-[var(--line)] flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[.1em] muted"><span>{t('machines.firmware')} {s.firmware ?? '—'}</span><span>{t('machines.nozzle')} {s.nozzle.diameter ?? '—'} mm</span><span>{t('machines.updated')} {new Date(s.updatedAt).toLocaleTimeString(LOCALE_TAG[locale])}</span></footer>
       {send && <SendDialog r={r} runs={runs} jobs={jobs} open={send} onClose={() => setSend(false)} />}
     </section>
   );

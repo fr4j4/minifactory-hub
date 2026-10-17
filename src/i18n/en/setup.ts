@@ -3,6 +3,7 @@ import type { es } from '../es';
 
 export const setup: Shape<typeof es['setup']> = {
   meta: 'Initial setup',
+  progress: 'Progress',
   eyebrow: 'First start',
   title: "Let's set up your shop",
   intro: 'It takes a few minutes. Essentials first; the rest can wait in the getting-started checklist.',

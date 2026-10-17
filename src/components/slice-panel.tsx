@@ -130,7 +130,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
             <div><div className="label">{t('common.suggestedPrice')}</div><div className="text-xl font-semibold tabular" data-testid="res-price">{money(bd.suggestedTotal)}</div><div className="text-xs muted">{copies > 1 ? `${money(bd.suggestedUnit)} c/u` : t('slicer.accordingToCurrentRates')}</div></div>
           </div>
           {run.filament.length > 1 && <ul className="text-sm">{run.filament.map((f, i) => <li key={i}>{t('slicer.filamentN', { n: i + 1 })}: <b>{grams(f.g)}</b> · {num(f.mm / 1000, 2)} m</li>)}</ul>}
-          <p className="text-xs muted">{t('slicer.sourceLabel')} <b>{t('slicer.serverSlicer')}</b> · OrcaSlicer {run.engineVersion} · {run.cached ? t('slicer.resultFromCache') : t('slicer.slicedInS', { seconds: num((run.durationMs ?? 0) / 1000, 1) })} · {run.plates ?? 1} placa(s){copies > 1 ? t('slicer.copiesOnTheSamePlate', { copies }) : ''}</p>
+          <p className="text-xs muted">{t('slicer.sourceLabel')} <b>{t('slicer.serverSlicer')}</b> · OrcaSlicer {run.engineVersion} · {run.cached ? t('slicer.resultFromCache') : t('slicer.slicedInS', { seconds: num((run.durationMs ?? 0) / 1000, 1) })} · {t('slicer.plates', { count: run.plates ?? 1 })}{copies > 1 ? t('slicer.copiesOnTheSamePlate', { copies }) : ''}</p>
           <p className="text-xs muted">{t('slicer.profiles2')} {Object.values(run.profileVersions ?? {}).map(([n, v]) => `${n} v${v}`).join(' · ')}</p>
           <div className="flex flex-wrap gap-2">
             {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode`} data-testid="dl-gcode"><Icon name="download" className="h-4 w-4" />{t('slicer.gCode')}</a>}

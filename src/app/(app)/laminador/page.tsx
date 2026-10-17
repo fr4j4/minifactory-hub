@@ -12,7 +12,7 @@ import { Comparator } from '@/components/comparator';
 import { getCalcContext } from '@/lib/context';
 import { orcaAvailable, rowNozzle } from '@/lib/slicer/catalog';
 import { engineVersion } from '@/lib/slicer/run';
-import { dmyHm, dur, grams } from '@/lib/format';
+import { dmyHm, dur, grams, num } from '@/lib/format';
 import { getT } from '@/i18n/server';
 
 export async function generateMetadata() { return { title: (await getT())('meta.slicer') }; }
@@ -49,16 +49,16 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
           </nav>
           {nozzlesInUse.length > 1 && <nav className="flex flex-wrap items-center gap-1.5" aria-label={t('nozzle.filterByNozzle')} data-testid="nozzle-filter">
             <span className="text-sm muted mr-1">{t('nozzle.filterLabel')}</span>
-            {[['', t('nozzle.all')], ...nozzlesInUse.map((n) => [n, t('nozzle.mm', { n: n.replace('.', ',') })])].map(([n, l]) => <Link key={n} href={n ? `/laminador?nozzle=${n}` : '/laminador'} aria-current={(nozzleFilter ?? '') === n ? 'true' : undefined} className={`num min-h-[36px] px-3 rounded-xl border text-sm inline-flex items-center ${(nozzleFilter ?? '') === n ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</Link>)}
+            {[['', t('nozzle.all')], ...nozzlesInUse.map((n) => [n, t('nozzle.mm', { n: num(+n, 2) })])].map(([n, l]) => <Link key={n} href={n ? `/laminador?nozzle=${n}` : '/laminador'} aria-current={(nozzleFilter ?? '') === n ? 'true' : undefined} className={`num min-h-[36px] px-3 rounded-xl border text-sm inline-flex items-center ${(nozzleFilter ?? '') === n ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{l}</Link>)}
           </nav>}
           {(['machine', 'process', 'filament'] as const).map((tt) => (
             <Card key={tt} title={t(TYPE_EXPLAIN[tt].title)} pad={false} actions={can(user, 'laminador', 'C') ? <span className="flex flex-wrap gap-2">{tt === 'filament' && <CustomFilamentButton small label={t('slicer.customFilament')} />}<NewProfileButton type={tt} machines={machineProfiles} /></span> : undefined}>
               <p className="px-4 pb-2 text-xs muted max-w-3xl">{t(TYPE_EXPLAIN[tt].what)}</p>
-              {shown(tt).length === 0 ? <Empty title={nozzleFilter && tt !== 'filament' ? t('nozzle.noProfilesForNozzle', { n: nozzleFilter.replace('.', ',') }) : t('slicer.noProfiles')} hint={tt === 'process' ? t('nozzle.emptyTemplateHint') : t('slicer.createOneFromAnOrcaslicer')} /> : (
+              {shown(tt).length === 0 ? <Empty title={nozzleFilter && tt !== 'filament' ? t('nozzle.noProfilesForNozzle', { n: num(+nozzleFilter, 2) }) : t('slicer.noProfiles')} hint={tt === 'process' ? t('nozzle.emptyTemplateHint') : t('slicer.createOneFromAnOrcaslicer')} /> : (
                 <Table><thead><tr><th className="th">{t('common.name')}</th>{tt !== 'filament' && <th className="th">{t('nozzle.colNozzle')}</th>}<th className="th">{t('slicer.factoryBase')}</th><th className="th">{t('slicer.changes')}</th><th className="th">{t('slicer.version')}</th><th className="th">{t('slicer.usedIn')}</th><th className="th" /></tr></thead>
                   <tbody>{shown(tt).map((p) => (
                     <tr key={p.id}><td className="td font-medium"><Link className="hover:underline" href={`/laminador/perfiles/${p.id}`}>{p.name}</Link> {p.simulated && <Badge tone="violet">{t('slicer.simulated')}</Badge>} {p.imported && <Badge>{t('slicer.imported')}</Badge>}</td>
-                      {tt !== 'filament' && <td className="td tabular">{nz.get(p.id) ? t('nozzle.mm', { n: nz.get(p.id)!.replace('.', ',') }) : <span className="muted">—</span>}</td>}
+                      {tt !== 'filament' && <td className="td tabular">{nz.get(p.id) ? t('nozzle.mm', { n: num(+nz.get(p.id)!, 2) }) : <span className="muted">—</span>}</td>}
                       <td className="td text-xs muted">{p.vendor} · {p.baseName}</td><td className="td tabular">{Object.keys(p.changes ?? {}).length === 0 ? <span className="muted">{t('nozzle.factoryTag')}</span> : Object.keys(p.changes ?? {}).length}</td><td className="td tabular">v{p.version}</td>
                       <td className="td text-xs">{usedBy(p.id, tt).length ? usedBy(p.id, tt).map((u, i) => <span key={u.href + u.label}>{i > 0 && ', '}<Link className="underline" href={u.href}>{u.label}</Link></span>) : <span className="muted">—</span>}</td>
                       <td className="td text-right whitespace-nowrap">{can(user, 'laminador', 'C') && <ProfileRowActions id={p.id} name={p.name} canDelete={can(user, 'laminador', 'X')} />}</td></tr>

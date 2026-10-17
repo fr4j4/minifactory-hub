@@ -1,5 +1,6 @@
 export const setup = {
   meta: 'Configuración inicial',
+  progress: 'Progreso',
   eyebrow: 'Primer arranque',
   title: 'Configuremos tu taller',
   intro: 'Son unos minutos. Lo esencial primero; lo demás puedes hacerlo después desde la lista de puesta en marcha.',

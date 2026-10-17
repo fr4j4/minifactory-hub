@@ -3,6 +3,10 @@ import type { es } from '../es';
 
 export const quotes: Shape<typeof es['quotes']> = {
   viewKanban: 'Board',
+  vsSuggested: '{pct}% vs suggested',
+  bdMargin: '+ margin {pct}%',
+  bdUrgency: '+ rush {pct}%',
+  bdVolume: '{pct}% volume',
   kanbanEmpty: 'No quotes in this status.',
   followUpTitle: 'Follow up: {number}',
   followUpBody: 'Sent {days} days ago, no answer · {customer}',
