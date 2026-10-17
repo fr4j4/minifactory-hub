@@ -54,7 +54,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       <AutoRefresh active={processing} />
       {meta.status === 'error' && <div className="rounded-lg box-danger p-3 text-sm text-red-800 dark:text-red-200 mb-4" role="alert">{t('files.theFileCouldNotBe')} {meta.error}</div>}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4" aria-label={t('files.fileSections')}>
-        {tabs.map(([k, l]) => <Link key={k} href={`/archivos/${id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined} className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] flex items-center ${tab === k ? 'border-brand-600 text-brand-700 dark:text-brand-300 font-medium' : 'border-transparent muted'}`}>{l}</Link>)}
+        {tabs.map(([k, l]) => <Link key={k} href={`/archivos/${id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined} className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] flex items-center ${tab === k ? 'border-[var(--accent)] text-[var(--accent-ink)] font-medium' : 'border-transparent muted'}`}>{l}</Link>)}
       </nav>
 
       {tab === 'visor' && (

@@ -30,7 +30,7 @@ export function usePrinter(id: string, initial?: LiveRow | null) { const f = use
 export function usePrinterByMachine(machineId: string, initial?: LiveRow | null) { const f = usePrinters(); return Object.values(f.rows).find((r) => r.machineId === machineId) ?? initial ?? null; }
 
 const TONE: Record<string, string> = {
-  RUNNING: 'text-[var(--accent-ink)] bg-brand-50 border-brand-200 dark:bg-brand-950/60 dark:border-brand-900', PREPARE: 'text-[var(--accent-ink)] bg-brand-50 border-brand-200 dark:bg-brand-950/60 dark:border-brand-900',
+  RUNNING: 'text-[var(--accent-ink)] bg-[var(--accent-soft)] border-[var(--accent-line)]', PREPARE: 'text-[var(--accent-ink)] bg-[var(--accent-soft)] border-[var(--accent-line)]',
   PAUSE: 'text-amber-900 bg-amber-50 border-amber-200 dark:text-amber-200 dark:bg-amber-950/50 dark:border-amber-900', FINISH: 'text-emerald-800 bg-emerald-50 border-emerald-200 dark:text-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-900',
   FAILED: 'text-red-800 bg-red-50 border-red-200 dark:text-red-200 dark:bg-red-950/50 dark:border-red-900', IDLE: 'text-slate-700 bg-slate-100/70 border-slate-200 dark:text-slate-200 dark:bg-slate-800/60 dark:border-slate-700',
   OFFLINE: 'text-slate-600 bg-transparent border-dashed border-slate-300 dark:text-slate-400 dark:border-slate-600',
@@ -114,7 +114,7 @@ function TrayCard({ t: tt, linkId, spools, machineId, canAssign }: { t: Tray; li
   const assigned = spools.find((s) => s.machineId === machineId && s.slot === label);
   const matches = useMemo(() => tt.empty ? [] : spools.filter((s) => s.type.toUpperCase() === (tt.type ?? '').toUpperCase()).sort((a, b) => (tt.color ? hexDist(a.hex, tt.color) - hexDist(b.hex, tt.color) : 0)), [spools, tt]);
   return (
-    <li className={cn('rounded-2xl border p-3 flex gap-3 items-start transition-colors', tt.active ? 'border-[var(--accent)] bg-brand-50/40 dark:bg-brand-950/30' : 'border-[var(--line)]')} data-testid="ams-tray">
+    <li className={cn('rounded-2xl border p-3 flex gap-3 items-start transition-colors', tt.active ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]')} data-testid="ams-tray">
       <span className="text-slate-500 shrink-0"><SpoolGlyph color={tt.empty ? null : tt.color} remain={tt.remain} active={tt.active} /></span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2"><span className="eyebrow !text-[10px]">{label}</span>{tt.active && <span className="font-mono text-[10px] uppercase tracking-[.1em] text-[var(--accent-ink)]">{t('machines.inUse')}</span>}</div>

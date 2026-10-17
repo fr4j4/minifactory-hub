@@ -196,7 +196,7 @@ export function CustomFilamentButton({ label: labelProp, materialId, type: type0
           </div>
           <p className="text-xs muted">{t('slicer.base')} <b>{base ? pretty(base, t) : '…'}</b></p>
           {groups.map((g) => <fieldset key={g}><legend className="eyebrow mb-2">{t(g)}</legend><div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            {FIELDS.filter((f) => f.group === g).map((f) => <label key={f.key} className="block"><span className="label">{t(f.label)}{f.unit ? ` (${f.unit})` : ''}</span><input className={cn('input num', vals[f.key] && 'ring-2 ring-brand-500/40')} inputMode="decimal" value={vals[f.key] ?? ''} placeholder={defs[f.key] ?? ''} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} data-testid={`cf-${f.key}`} /></label>)}
+            {FIELDS.filter((f) => f.group === g).map((f) => <label key={f.key} className="block"><span className="label">{t(f.label)}{f.unit ? ` (${f.unit})` : ''}</span><input className={cn('input num', vals[f.key] && 'ring-2 ring-[var(--accent-line)]')} inputMode="decimal" value={vals[f.key] ?? ''} placeholder={defs[f.key] ?? ''} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} data-testid={`cf-${f.key}`} /></label>)}
           </div></fieldset>)}
           {!materialId && <div className="rounded-2xl border border-[var(--line)] p-3 space-y-3">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={inv} onChange={(e) => setInv(e.target.checked)} data-testid="cf-inventory" /> {t('slicer.alsoAddItToThe')}</label>

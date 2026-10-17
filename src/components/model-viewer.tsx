@@ -193,7 +193,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
 
   return (
     <div className={cn('card overflow-hidden', className)}>
-      <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
+      <div className="relative bg-slate-100 dark:bg-[var(--bg)]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
         <div ref={host} className="absolute inset-0" data-testid="viewer-host"><div data-dim-labels className="pointer-events-none absolute inset-0 overflow-hidden" /></div>
         {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingModel')}</div>}
         {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-danger" role="alert">{err}</div>}

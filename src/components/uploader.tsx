@@ -96,7 +96,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
     <div className={className}>
       {dupDialog}
       <div data-testid={testId} onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={(e) => { e.preventDefault(); setDrag(false); go([...e.dataTransfer.files]); }}
-        className={cn('rounded-xl border-2 border-dashed text-center transition-colors', compact ? 'p-3' : 'p-6', drag ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30' : 'border-slate-300 dark:border-slate-600')}>
+        className={cn('rounded-xl border-2 border-dashed text-center transition-colors', compact ? 'p-3' : 'p-6', drag ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-slate-300 dark:border-slate-600')}>
         <p className="text-sm font-medium">{label ?? t('files.dropFilesHere')}</p>
         {hint && <p className="text-xs muted mt-0.5">{hint}</p>}
         <button type="button" className="btn-ghost btn-sm mt-2" onClick={() => input.current?.click()}>{capture ? t('files.takeAPhotoOrChoose') : t('files.chooseFiles')}</button>
@@ -106,7 +106,7 @@ export function Uploader({ intent, accept, multiple = true, label, hint, onDone,
         <ul className="mt-2 space-y-1.5" aria-live="polite">
           {items.map((it, i) => (
             <li key={i} className="text-xs"><div className="flex justify-between gap-2"><span className="truncate min-w-0">{it.name}</span><span className={cn(it.state === 'err' && 'text-danger')}>{it.state === 'ok' ? t('files.done') : it.state === 'err' ? it.msg : `${Math.round(it.p * 100)}%`}</span></div>
-              <div className="h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className={cn('h-full', it.state === 'err' ? 'bg-red-500' : 'bg-brand-600')} style={{ width: `${it.p * 100}%` }} /></div></li>
+              <div className="h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className={cn('h-full', it.state === 'err' ? 'bg-red-500' : 'bg-[var(--accent)]')} style={{ width: `${it.p * 100}%` }} /></div></li>
           ))}
         </ul>
       )}

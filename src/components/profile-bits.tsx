@@ -227,7 +227,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
                 {params.filter((x) => x.group === g).map((x) => (
                   <label key={x.key} className="block"><span className="label">{t(x.label)}{x.unit ? ` (${x.unit})` : ''}</span>
                     {x.kind === 'select' ? <select className="input" value={vals[x.key]} disabled={!canEdit} onChange={(e) => set(x.key, e.target.value)} data-testid={`param-${x.key}`}><option value="">{t('files.factory')} {String(base[x.key] ?? '…')}</option>{x.options!.map((o) => <option key={o}>{o}</option>)}</select>
-                      : <input className={cn('input', vals[x.key] !== '' && 'ring-2 ring-brand-500/40')} inputMode={x.kind === 'number' ? 'decimal' : undefined} value={vals[x.key]} disabled={!canEdit} placeholder={t('files.factoryValue', { value: String(base[x.key] ?? '…') })} onChange={(e) => set(x.key, e.target.value)} data-testid={`param-${x.key}`} />}
+                      : <input className={cn('input', vals[x.key] !== '' && 'ring-2 ring-[var(--accent-line)]')} inputMode={x.kind === 'number' ? 'decimal' : undefined} value={vals[x.key]} disabled={!canEdit} placeholder={t('files.factoryValue', { value: String(base[x.key] ?? '…') })} onChange={(e) => set(x.key, e.target.value)} data-testid={`param-${x.key}`} />}
                     {x.help && <span className="text-xs muted">{t(x.help)}</span>}
                   </label>
                 ))}
