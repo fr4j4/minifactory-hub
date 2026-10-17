@@ -4,7 +4,7 @@ import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { seal } from '@/lib/secret';
 import { getSettingsRaw, saveSettings } from '@/lib/settings';
-import { assertAiUrl, getAiConfig, type AiConfig } from '@/lib/ai/config';
+import { assertAiUrl, getAiConfig, sameAiTarget, type AiConfig } from '@/lib/ai/config';
 import { pingAi } from '@/lib/ai';
 import { clearPromptLogs } from '@/lib/ai/run';
 import { FEATURE_KEYS, type AiSettings } from '@/lib/ai/types';
@@ -52,6 +52,7 @@ export async function saveAiSettingsAction(raw: AiSettingsInput) {
     let apiKeySealed = cur.apiKeySealed;
     if (i.clearKey) apiKeySealed = '';
     if (i.apiKey) apiKeySealed = seal(i.apiKey);
+    else if (i.provider !== 'none' && !sameAiTarget(cur, i.provider, i.baseUrl)) apiKeySealed = ''; // otro destino sin clave nueva: no se le entrega la guardada
     const { apiKey: _k, clearKey: _c, ...rest } = i;
     const ai: AiSettings = { ...cur, ...rest, apiKeySealed, features: { ...rest.features }, roles: { ...rest.roles } };
     // Se reemplaza el bloque completo (no mezcla) para que desactivar una función tenga efecto.
@@ -67,10 +68,11 @@ export async function testAiConnectionAction(raw: AiSettingsInput) {
     await requirePerm('config', 'E');
     const i = parse(raw); const saved = await getAiConfig();
     const cfg: AiConfig = {
-      ...saved, ...i, apiKey: i.apiKey || saved.apiKey,
+      ...saved, ...i,
       provider: i.provider === 'none' ? saved.provider : i.provider,
       configured: false, enabled: true,
     } as AiConfig;
+    cfg.apiKey = i.apiKey || (sameAiTarget(saved, cfg.provider, cfg.baseUrl) ? saved.apiKey : '');
     cfg.configured = cfg.provider === 'mock' || (cfg.provider === 'anthropic' && !!cfg.apiKey) || (cfg.provider === 'openai-compat' && !!cfg.baseUrl);
     return pingAi(cfg, await getT());
   });
@@ -91,7 +93,7 @@ export async function listAiModelsAction(raw: Pick<AiSettingsInput, 'provider' |
     await requirePerm('config', 'E');
     if (raw.provider === 'none') throw new LocalizedError('ai.err.notConfigured');
     const saved = await getAiConfig();
-    const models = await listModels({ provider: raw.provider, baseUrl: raw.baseUrl.trim(), apiKey: raw.apiKey?.trim() || saved.apiKey, localOnly: raw.localOnly || saved.localOnly });
+    const models = await listModels({ provider: raw.provider, baseUrl: raw.baseUrl.trim(), apiKey: raw.apiKey?.trim() || (sameAiTarget(saved, raw.provider, raw.baseUrl) ? saved.apiKey : ''), localOnly: raw.localOnly || saved.localOnly });
     return { models, suggested: suggestModels(models) };
   });
 }

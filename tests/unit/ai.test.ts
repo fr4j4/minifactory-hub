@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRedactor } from '@/lib/ai/redact';
 import { costOf, estimateTokens } from '@/lib/ai/budget';
-import { assertAiUrl, isLocalHost } from '@/lib/ai/config';
+import { assertAiUrl, isLocalHost, sameAiTarget } from '@/lib/ai/config';
 import { extractJson } from '@/lib/ai/run';
 import { can } from '@/lib/perm';
 import { DEFAULT_SETTINGS } from '@/lib/settings';
@@ -74,5 +74,14 @@ describe('IA: valores por defecto', () => {
     expect(can({ role: 'operador' }, 'ia', 'X')).toBe(false);
     expect(can({ role: 'ventas' }, 'ia', 'C')).toBe(true);
     expect(can({ role: 'ventas', permOverrides: { ia: '' } }, 'ia', 'C')).toBe(false);
+  });
+});
+
+describe('sameAiTarget', () => {
+  it('la clave guardada solo sirve para el mismo proveedor y URL', () => {
+    const saved = { provider: 'openai-compat', baseUrl: 'https://api.openai.com/v1' };
+    expect(sameAiTarget(saved, 'openai-compat', ' https://api.openai.com/v1/ ')).toBe(true);
+    expect(sameAiTarget(saved, 'openai-compat', 'https://evil.example/v1')).toBe(false);
+    expect(sameAiTarget(saved, 'anthropic', 'https://api.openai.com/v1')).toBe(false);
   });
 });

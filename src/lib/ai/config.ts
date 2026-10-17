@@ -67,3 +67,9 @@ export function publicAiSettings(st: AiSettings) {
   return { ...rest, hasKey: !!apiKeySealed, keyLast4: last4, envKey: !!env('AI_API_KEY'), forcedOff: env('AI_FORCE_DISABLED') === '1' };
 }
 export type PublicAiSettings = ReturnType<typeof publicAiSettings>;
+
+/** La clave guardada solo viaja al proveedor y la URL con que se guardó: si el formulario apunta a otro destino, quien la quiera debe escribirla. */
+export function sameAiTarget(saved: { provider: string; baseUrl?: string | null }, provider: string, baseUrl?: string | null) {
+  const norm = (u?: string | null) => (u ?? '').trim().replace(/\/+$/, '').toLowerCase();
+  return provider === saved.provider && norm(baseUrl) === norm(saved.baseUrl);
+}
