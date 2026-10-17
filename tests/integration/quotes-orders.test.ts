@@ -10,7 +10,7 @@ import { createT } from '@/i18n/translate';
 import { seedDemo } from '@/lib/seed';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
 import { getSettings, saveSettings } from '@/lib/settings';
-import { cancelJob, createJob, finishJob, moveJob, startJob } from '@/lib/services/production';
+import { cancelJob, createJob, finishJob, startJob } from '@/lib/services/production';
 import { loadQuote, newQuoteVersion, previewRecalc, rejectQuote, saveQuote, sendQuote } from '@/lib/services/quotes';
 
 let admin: any; let ventas: any; let db: Awaited<ReturnType<typeof getDb>>; let pla: any; let a1: any; let ender: any;
@@ -29,19 +29,11 @@ beforeAll(async () => {
 });
 
 describe('cola de impresión', () => {
-  it('mover un trabajo deja posiciones enteras 1..n en la máquina destino', async () => {
-    const a = await createJob({ kind: 'prueba', title: 'A', estG: 5, estH: 0.5, machineId: ender.id });
-    const b = await createJob({ kind: 'prueba', title: 'B', estG: 5, estH: 0.5, machineId: ender.id });
-    await moveJob(b, ender.id, 1, admin.id);
-    const rows = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, ender.id), inArray(s.printJobs.status, ['en_cola', 'pausado', 'imprimiendo']))).orderBy(asc(s.printJobs.position));
-    expect(rows.map((r) => r.position)).toEqual(rows.map((_, i) => i + 1));
-    expect(rows.findIndex((r) => r.id === b)).toBeLessThan(rows.findIndex((r) => r.id === a));
-  });
-  it('un trabajo para una máquina simulada se asigna a una máquina real', async () => {
+  it('un trabajo para una máquina simulada queda sin asignar en la cola global', async () => {
     const sim = (await db.select().from(s.machines).where(eq(s.machines.simulated, true)))[0];
     expect(sim).toBeTruthy();
     const j = await createJob({ kind: 'prueba', title: 'Sim', estG: 5, estH: 0.5, machineId: sim.id });
-    expect((await job(j)).machineId).not.toBe(sim.id);
+    expect((await job(j)).machineId).toBeNull();
   });
   it('cerrar dos veces un trabajo no consume material dos veces; uno en cola no se cierra', async () => {
     const queued = await createJob({ kind: 'prueba', title: 'Q', estG: 5, estH: 0.5, materialId: pla.id, machineId: ender.id });

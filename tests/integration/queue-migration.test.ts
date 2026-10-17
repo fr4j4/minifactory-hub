@@ -17,8 +17,9 @@ function legacyFolder() {
   const src = path.join(process.cwd(), 'drizzle'); const dst = fs.mkdtempSync(path.join(os.tmpdir(), 'mf-mig-'));
   fs.cpSync(src, dst, { recursive: true });
   const jp = path.join(dst, 'meta', '_journal.json'); const j = JSON.parse(fs.readFileSync(jp, 'utf8'));
-  j.entries = j.entries.filter((e: any) => e.tag !== '0021_cola_global'); fs.writeFileSync(jp, JSON.stringify(j));
-  fs.rmSync(path.join(dst, '0021_cola_global.sql'));
+  // la base antigua llega hasta 0020: se quitan 0021_cola_global y las migraciones posteriores
+  const later = j.entries.filter((e: any) => e.idx >= 21); j.entries = j.entries.filter((e: any) => e.idx < 21); fs.writeFileSync(jp, JSON.stringify(j));
+  for (const e of later) fs.rmSync(path.join(dst, `${e.tag}.sql`));
   return dst;
 }
 
@@ -50,7 +51,7 @@ describe('migración 0021: cola global', () => {
     // los cerrados y los borrados no se tocan
     expect(pos.T).toBe(1); expect(pos.D).toBe(7);
     // nada más cambió: ni máquina, ni estado, ni títulos, ni fechas; `dims` queda en NULL
-    const strip = (r: any) => { const { position, dims, ...rest } = r; return rest; };
+    const strip = (r: any) => { const { position, dims, qty_good, ...rest } = r; return rest; }; // qty_good llega con 0022
     expect(after.map(strip)).toEqual(before.map(strip));
     expect(after.every((r: any) => r.dims === null)).toBe(true);
     // idempotente: reaplicar la sentencia de datos deja exactamente lo mismo
