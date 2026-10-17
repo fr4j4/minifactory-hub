@@ -33,4 +33,9 @@ describe('documento de cliente del presupuesto', () => {
     expect(d.items.find((i) => i.id === 'a')!.unitPrice).toBeNull();
     expect(d.tax.label).toContain(`${DEFAULT_SETTINGS.rates.taxPct}%`);
   });
+  it('enviado: usa los datos del taller y condiciones congelados', () => {
+    const snapshot = { shop: { ...DEFAULT_SETTINGS.shop, name: 'Taller Antiguo' }, terms: 'Condiciones de antes' };
+    const d = doc({ docTemplate: { snapshot } });
+    expect(d.shop.name).toBe('Taller Antiguo'); expect(d.terms).toBe('Condiciones de antes');
+  });
 });

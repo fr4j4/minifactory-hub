@@ -4,6 +4,13 @@ import type { QuoteDocData } from '@/components/quote-document';
 import type { TFn } from '@/i18n/translate';
 import { dur } from '../format';
 
+/** Lo que se congela al enviar, junto a la plantilla: datos del taller y condiciones tal como los recibió el cliente. */
+export interface DocSnapshot { shop: Omit<QuoteDocData['shop'], 'logoUrl'>; terms: string }
+export const docSnapshot = (st: AppSettings): DocSnapshot => ({
+  shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor },
+  terms: st.templates.terms,
+});
+
 /** % de IVA con que se calculó el presupuesto (el de Configuración puede haber cambiado después). */
 export function quoteTaxPct(q: { total: number; taxAmount: number }, st: AppSettings): number {
   const net = q.total - q.taxAmount;
@@ -14,6 +21,8 @@ export function quoteTaxPct(q: { total: number; taxAmount: number }, st: AppSett
 export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote>>>, st: AppSettings, t: TFn): QuoteDocData {
   const { quote: q, items, models, links } = d;
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; finalTotal: number }>;
+  // enviado: datos del taller congelados al enviar; borrador (o enviado antes de existir la copia): los vigentes
+  const snap = ((q.docTemplate as any)?.snapshot ?? docSnapshot(st)) as DocSnapshot;
   const docItems = items.map((it) => {
     const unit = it.finalUnit ?? it.suggestedUnit; const total = lt.find((x) => x.id === it.id)?.finalTotal ?? unit * it.qty;
     const lineTotal = it.optional ? unit * it.qty : total; const qty = Math.max(1, it.qty);
@@ -28,11 +37,11 @@ export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote
   const subtotal = docItems.filter((i) => !i.optional).reduce((a, i) => a + i.total, 0) + shipping;
   const net = q.total - q.taxAmount; const pct = quoteTaxPct(q, st);
   return {
-    shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor, logoUrl: st.shop.logoKey ? '/api/branding/logo' : null },
+    shop: { ...snap.shop, logoUrl: st.shop.logoKey ? '/api/branding/logo' : null },
     quote: { number: q.number, version: q.version, createdAt: q.createdAt, validUntil: q.validUntil, customerName: q.customerName, customerPhone: q.customerPhone, title: q.title, discount: Math.min(q.discount, subtotal), shipping, total: q.total, taxAmount: q.taxAmount, notes: q.notes },
     items: docItems,
     links: links.filter((l) => l.showInPdf).map((l) => ({ id: l.id, title: l.title, url: l.url })),
     tax: q.applyTax ? { label: t('quotes.plusVat', { pct }), showRow: true, netAmount: net } : { label: t('quotes.noVat'), showRow: false, netAmount: null },
-    terms: st.templates.terms,
+    terms: snap.terms,
   };
 }

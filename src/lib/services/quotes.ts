@@ -9,6 +9,7 @@ import { normalizeUrl } from '../links';
 import { getT } from '@/i18n/server';
 import { normalizeTemplate } from '../documents';
 import { addDays, ymd } from '../format';
+import { docSnapshot } from './quote-doc';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -210,8 +211,9 @@ export async function loadQuote(id: string) {
 /** Marca el presupuesto como enviado: congela precios y costos (cambiar tarifas ya no lo altera). */
 export async function sendQuote(id: string, userId: string) {
   const db = await getDb();
-  // al enviar se congela la plantilla del documento (lo que ve el cliente no cambia aunque el taller edite su plantilla después)
-  const docTemplate = normalizeTemplate((await getSettings()).documents.quote) as unknown as Record<string, unknown>;
+  // al enviar se congela la plantilla del documento y los datos del taller (lo que ve el cliente no cambia aunque el taller edite su plantilla o sus datos después)
+  const st = await getSettings();
+  const docTemplate = { ...normalizeTemplate(st.documents.quote), snapshot: docSnapshot(st) } as unknown as Record<string, unknown>;
   const [sent] = await db.update(s.quotes).set({ status: 'enviado', frozen: true, docTemplate, updatedAt: new Date() }).where(and(eq(s.quotes.id, id), eq(s.quotes.status, 'borrador'))).returning({ id: s.quotes.id });
   // solo se anota si cambió: la fecha de envío que usan los avisos de seguimiento no se corre con un clic repetido
   if (sent) await audit('quote', id, 'estado', { to: 'enviado' }, userId);
