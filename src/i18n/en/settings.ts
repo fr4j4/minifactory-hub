@@ -75,6 +75,7 @@ export const settings: Shape<typeof es['settings']> = {
   opens: 'Opens',
   closes: 'Closes',
   workingDays: 'Working days',
+  weekdayInitials: 'Su,Mo,Tu,We,Th,Fr,Sa',
   holidaysYyyyMmDdComma: 'Holidays (YYYY-MM-DD, comma-separated)',
   quotesThatAreSentOr: 'Quotes that are sent or approved are frozen: changing a rate never alters documents that were already issued.',
   energyKwh: 'Energy ($/kWh)',

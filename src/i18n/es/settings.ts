@@ -72,6 +72,7 @@ export const settings = {
   opens: 'Abre',
   closes: 'Cierra',
   workingDays: 'Días de trabajo',
+  weekdayInitials: 'D,L,M,X,J,V,S',
   holidaysYyyyMmDdComma: 'Feriados (AAAA-MM-DD, separados por coma)',
   quotesThatAreSentOr: 'Los presupuestos enviados o aprobados quedan congelados: cambiar una tarifa nunca altera documentos ya emitidos.',
   energyKwh: 'Energía ($/kWh)',
