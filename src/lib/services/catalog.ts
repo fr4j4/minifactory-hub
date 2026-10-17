@@ -7,6 +7,7 @@ import { ymd } from '../format';
 import { canSellBelowCost, canSetFinalPrice, type PermUser } from '../perm';
 import { LocalizedError } from '@/i18n/errors';
 import { getT } from '@/i18n/server';
+type Db = Awaited<ReturnType<typeof getDb>>;
 
 type User = PermUser & { id: string };
 
@@ -106,7 +107,7 @@ export async function createSale(i: QuickSaleInput, user: User) {
     if (v.stock - v.reserved < it.qty) shortages.push(t('catalog.shortageUnits', { sku: v.sku, n: it.qty - (v.stock - v.reserved) }));
     return { v, it, unit, list };
   });
-  const commission = i.commissionOverride ?? (ch ? Math.round(subtotal * (ch.commissionPct / 100) + ch.commissionFixed) : 0);
+  const commission = i.commissionOverride ?? (ch ? Math.round(subtotal * (ch.commissionPct / 100) + (subtotal > 0 ? ch.commissionFixed : 0)) : 0);
   const shipping = i.shipping ?? ch?.avgShipping ?? 0;
   const number = await nextNumber('sale');
   const isMarket = ch?.kind === 'marketplace';
@@ -140,13 +141,13 @@ export async function setSaleStatus(saleId: string, status: 'por_despachar' | 'd
   const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, saleId));
   if (!sale) throw new Error(t('catalog.saleNotFound'));
   if (sale.status === 'anulada') throw new Error(t('catalog.theSaleIsAlreadyVoided'));
-  // anular es condicionado: dos anulaciones simultáneas no reingresan el stock dos veces
+  // el cambio de estado reclama la venta (status <> 'anulada'): dos anulaciones simultáneas no devuelven el stock dos veces
+  const claim = (db: Db) => db.update(s.sales).set({ status, tracking: o.tracking ?? sale.tracking, notes: status === 'anulada' ? `${sale.notes ?? ''}\n${t('sales.voidedPrefix')} ${o.reason}`.trim() : sale.notes }).where(and(eq(s.sales.id, saleId), ne(s.sales.status, 'anulada'))).returning({ id: s.sales.id });
   if (status === 'anulada') {
     if (!o.reason) throw new Error(t('catalog.enterTheReasonForVoiding'));
-    const [claimed] = await db.update(s.sales).set({ status }).where(and(eq(s.sales.id, saleId), ne(s.sales.status, 'anulada'))).returning({ id: s.sales.id });
-    if (!claimed) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
     const items = await db.select().from(s.saleItems).where(eq(s.saleItems.saleId, saleId));
     await db.transaction(async (tx) => {
+      if (!(await claim(tx as any)).length) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
       for (const it of items) {
         if (o.returnToStock !== false) {
           const [v] = await tx.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.qty}`, updatedAt: new Date() }).where(eq(s.productVariants.id, it.variantId)).returning({ id: s.productVariants.id });
@@ -157,7 +158,6 @@ export async function setSaleStatus(saleId: string, status: 'por_despachar' | 'd
       await tx.update(s.payments).set({ deletedAt: new Date() }).where(and(eq(s.payments.saleId, saleId), isNull(s.payments.deletedAt)));
       await recomputePaid(tx as any, { orderId: null, saleId });
     });
-  }
-  await db.update(s.sales).set({ status, tracking: o.tracking ?? sale.tracking, notes: status === 'anulada' ? `${sale.notes ?? ''}\n${(await getT())('sales.voidedPrefix')} ${o.reason}`.trim() : sale.notes }).where(eq(s.sales.id, saleId));
+  } else if (!(await claim(db)).length) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
   await audit('sale', saleId, 'estado', { from: sale.status, to: status }, user.id);
 }
