@@ -21,6 +21,8 @@ export interface ItemInput {
   postMinutes?: number; postSupplies?: number; prepMinutes?: number; shipping?: number;
   finalUnit?: number | null; sliceRunId?: string | null; variantId?: string | null;
   models?: ModelRef[]; links?: LinkInput[];
+  /** costos y precio sugerido ya congelados (línea que viene de un presupuesto aprobado): no se recalculan */
+  frozen?: { breakdown: CostBreakdown; suggestedUnit: number; costTotal: number };
 }
 export interface QuoteInput {
   id?: string; customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null;
@@ -208,13 +210,18 @@ export async function sendQuote(id: string, userId: string) {
   const db = await getDb();
   // al enviar se congela la plantilla del documento (lo que ve el cliente no cambia aunque el taller edite su plantilla después)
   const docTemplate = normalizeTemplate((await getSettings()).documents.quote) as unknown as Record<string, unknown>;
-  await db.update(s.quotes).set({ status: 'enviado', frozen: true, docTemplate, updatedAt: new Date() }).where(and(eq(s.quotes.id, id), eq(s.quotes.status, 'borrador')));
-  await audit('quote', id, 'estado', { to: 'enviado' }, userId);
+  const [sent] = await db.update(s.quotes).set({ status: 'enviado', frozen: true, docTemplate, updatedAt: new Date() }).where(and(eq(s.quotes.id, id), eq(s.quotes.status, 'borrador'))).returning({ id: s.quotes.id });
+  // solo se anota si cambió: la fecha de envío que usan los avisos de seguimiento no se corre con un clic repetido
+  if (sent) await audit('quote', id, 'estado', { to: 'enviado' }, userId);
 }
 
 export async function rejectQuote(id: string, reason: string, userId: string) {
+  const t = await getT();
   const db = await getDb();
-  await db.update(s.quotes).set({ status: 'rechazado', notes: sql`coalesce(${s.quotes.notes},'') || ${'\n' + (await getT())('quotes.rejectedPrefix') + ' ' + reason}`, frozen: true, updatedAt: new Date() }).where(eq(s.quotes.id, id));
+  // solo un presupuesto enviado o vencido se rechaza (uno aprobado tiene pedido)
+  const [done] = await db.update(s.quotes).set({ status: 'rechazado', notes: sql`coalesce(${s.quotes.notes},'') || ${'\n' + t('quotes.rejectedPrefix') + ' ' + reason}`, frozen: true, updatedAt: new Date() })
+    .where(and(eq(s.quotes.id, id), inArray(s.quotes.status, ['enviado', 'vencido']))).returning({ id: s.quotes.id });
+  if (!done) throw new Error(t('quotes.quoteStatusChanged'));
   await audit('quote', id, 'estado', { to: 'rechazado', reason }, userId);
 }
 

@@ -106,6 +106,7 @@ export const orders = {
   initialDeposit: 'Abono inicial',
   quoteNotFound: 'Presupuesto no encontrado',
   theQuoteIsAlreadyApproved: 'El presupuesto ya está aprobado',
+  otherVersionHasOrder: 'Otra versión de este presupuesto ya tiene el pedido {number}. Cancélalo antes de aprobar esta versión.',
   thisQuoteIsNoLonger: 'Este presupuesto ya no está vigente',
   orderNotFound: 'Pedido no encontrado',
   theOrderIsAlreadyClosed: 'El pedido ya está cerrado',

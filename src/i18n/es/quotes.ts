@@ -114,6 +114,7 @@ export const quotes = {
   theQuoteHasAlreadyBeen: 'El presupuesto ya fue enviado o aprobado: crea una nueva versión para modificarlo',
   theFinalPriceIsBelow2: 'El precio final queda bajo el costo. Vender bajo el costo requiere la autorización del Administrador.',
   enterTheReasonForThe: 'Indica el motivo del precio: queda bajo el costo.',
+  quoteStatusChanged: 'El presupuesto cambió de estado. Recarga la página.',
   finalTotalBelowShipping: 'El total fijado no puede ser menor que el envío.',
   quoteNotFound: 'Presupuesto no encontrado',
   markedAsSentPricesAnd2: 'Marcado como enviado: precios y costos quedan congelados',

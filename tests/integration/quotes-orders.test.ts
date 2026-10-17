@@ -3,9 +3,10 @@ import fs from 'node:fs';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
-import { cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
+import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
+import { getSettings, saveSettings } from '@/lib/settings';
 import { cancelJob, createJob, finishJob, moveJob, startJob } from '@/lib/services/production';
-import { loadQuote, newQuoteVersion, previewRecalc, saveQuote, sendQuote } from '@/lib/services/quotes';
+import { loadQuote, newQuoteVersion, previewRecalc, rejectQuote, saveQuote, sendQuote } from '@/lib/services/quotes';
 
 let admin: any; let ventas: any; let db: Awaited<ReturnType<typeof getDb>>; let pla: any; let a1: any; let ender: any;
 const U = (u: any) => ({ id: u.id, role: u.role, permOverrides: {} });
@@ -117,5 +118,33 @@ describe('guardar presupuestos', () => {
   });
   it('un total fijado menor que el envío se rechaza', async () => {
     await expect(saveQuote({ finalTotal: 3000, items: [line({ shipping: 5000 })] }, admin)).rejects.toThrow(/envío/);
+  });
+});
+
+describe('aprobar presupuestos', () => {
+  const ap = { by: 'Cliente', channel: 'whatsapp' };
+  it('dos aprobaciones simultáneas crean un solo pedido', async () => {
+    const id = await saveQuote({ items: [line()] }, admin); await sendQuote(id, admin.id);
+    const r = await Promise.allSettled([approveQuote(id, ap, admin), approveQuote(id, ap, admin)]);
+    expect(r.filter((x) => x.status === 'fulfilled').length).toBe(1);
+    expect((await db.select().from(s.orders).where(eq(s.orders.quoteId, id))).length).toBe(1);
+    await expect(rejectQuote(id, 'tarde', admin.id)).rejects.toThrow();
+  });
+  it('una versión nueva de un presupuesto con pedido vigente no crea otro pedido', async () => {
+    const id = await saveQuote({ items: [line()] }, admin); await sendQuote(id, admin.id);
+    const oid = await approveQuote(id, ap, admin);
+    const v2 = await newQuoteVersion(id, admin);
+    await expect(approveQuote(v2, ap, admin)).rejects.toThrow(/Otra versión/);
+    await cancelOrder(oid, 'cambio', admin);
+    expect(await approveQuote(v2, ap, admin)).toBeTruthy();
+  });
+  it('el pedido usa los costos congelados del presupuesto aunque las tarifas suban', async () => {
+    const id = await saveQuote({ items: [line({ gramsTotal: 200, hoursTotal: 10 })] }, ventas); await sendQuote(id, admin.id);
+    const q = (await loadQuote(id))!.quote; const st = await getSettings();
+    await saveSettings({ rates: { ...st.rates, kwh: st.rates.kwh * 50, laborHour: st.rates.laborHour * 50 } });
+    try {
+      const oid = await approveQuote(id, ap, ventas);
+      expect((await order(oid)).costEstimated).toBe(q.costTotal);
+    } finally { await saveSettings({ rates: st.rates }); }
   });
 });

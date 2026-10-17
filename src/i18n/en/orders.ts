@@ -109,6 +109,7 @@ export const orders: Shape<typeof es['orders']> = {
   initialDeposit: 'Initial deposit',
   quoteNotFound: 'Quote not found',
   theQuoteIsAlreadyApproved: 'The quote is already approved',
+  otherVersionHasOrder: 'Another version of this quote already has order {number}. Cancel it before approving this version.',
   thisQuoteIsNoLonger: 'This quote is no longer valid',
   orderNotFound: 'Order not found',
   theOrderIsAlreadyClosed: 'The order is already closed',

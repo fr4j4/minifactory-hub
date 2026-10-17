@@ -5,6 +5,7 @@ import { calcQuote, roundPrice } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import type { ModelBrief } from '@/actions/quotes';
 import { saveQuoteAction } from '@/actions/quotes';
+import { draftFlush } from './quote-actions';
 import type { LinkRow } from '@/actions/links';
 import { computeItem, LineEditor, newItem, uid, type ItemState } from './line-editor';
 import { CustomerPicker, SourceSelect, type CustomerOpt } from './customer-picker';
@@ -71,6 +72,12 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
     try { return await run; } finally { if (inflight.current === run) inflight.current = null; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // «El cliente aceptó» en la cabecera: primero se guarda lo pendiente, para aprobar exactamente lo que se ve
+  const live = useRef({ dirty, total: calc.total }); live.current = { dirty, total: calc.total };
+  useEffect(() => {
+    draftFlush.current = async () => ((live.current.dirty || inflight.current) && !(await save(false)) ? null : live.current.total);
+    return () => { draftFlush.current = null; };
+  }, [save]);
   // guardado automático de borradores
   useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (qRef.current.items.length) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);

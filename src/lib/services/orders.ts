@@ -1,7 +1,7 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
-import { getSettings, nextNumber } from '../settings';
+import { nextNumber } from '../settings';
 import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
@@ -31,13 +31,15 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
   const priced = [] as Array<{ it: ItemInput; p: Awaited<ReturnType<typeof priceItem>>; finalUnit: number }>;
   const lines: QuoteLine[] = [];
   for (const it of input.items) {
-    const p = await priceItem(it, ctx, adj);
+    const p = it.frozen ? { ...it.frozen, frozenCost: it.frozen.costTotal - (it.shipping ?? 0) } : await priceItem(it, ctx, adj);
     const finalUnit = it.finalUnit != null ? Math.round(it.finalUnit) : p.suggestedUnit;
     priced.push({ it, p, finalUnit });
     lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.costTotal - (it.shipping ?? 0), shipping: it.shipping });
   }
   const tt = calcQuote(lines, rt, { discount });
-  if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
+  // las líneas congeladas ya pasaron este control al guardar el presupuesto
+  const fresh = input.items.some((i) => !i.frozen);
+  if (fresh && (tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
   const number = await nextNumber('order');
   const hasProduct = input.items.some((i) => i.variantId), hasCustom = input.items.some((i) => !i.variantId);
   const [order] = await db.insert(s.orders).values({
@@ -89,7 +91,14 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
   if (q.status === 'aprobado') throw new Error(t('orders.theQuoteIsAlreadyApproved'));
   if (['rechazado', 'reemplazado'].includes(q.status)) throw new Error(t('orders.thisQuoteIsNoLonger'));
   const db = await getDb();
-  const st = await getSettings();
+  // otra versión ya aprobada con su pedido vigente: aprobar esta crearía un segundo pedido del mismo presupuesto
+  const [twin] = await db.select({ number: s.orders.number }).from(s.orders).innerJoin(s.quotes, eq(s.quotes.id, s.orders.quoteId))
+    .where(and(eq(s.quotes.rootId, q.rootId ?? q.id), ne(s.quotes.id, q.id), notInArray(s.orders.status, ['cancelado', 'entregado']), isNull(s.orders.deletedAt))).limit(1);
+  if (twin) throw new Error(t('orders.otherVersionHasOrder', { number: twin.number }));
+  // se toma el presupuesto con un update condicionado: dos aprobaciones simultáneas no crean dos pedidos
+  const [claimed] = await db.update(s.quotes).set({ status: 'aprobado', frozen: true, approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(s.quotes.id, quoteId), inArray(s.quotes.status, ['borrador', 'enviado', 'vencido']))).returning({ id: s.quotes.id });
+  if (!claimed) throw new Error(t('orders.theQuoteIsAlreadyApproved'));
   // precio final por línea: si se fijó el total, se reparte
   const totals = (q.calc as any)?.lines as Array<{ id: string; finalTotal: number }> | undefined;
   const itemInputs: ItemInput[] = items.filter((i) => !i.optional).map((it) => {
@@ -97,18 +106,25 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
     const unit = lt ? Math.round(lt.finalTotal / Math.max(1, it.qty)) : it.finalUnit ?? it.suggestedUnit;
     return {
       ...(it as any), finalUnit: unit, id: undefined,
+      frozen: { breakdown: it.costBreakdown as any, suggestedUnit: it.suggestedUnit, costTotal: ((it.costBreakdown as any)?.cost ?? 0) + (it.shipping ?? 0) },
       models: models.filter((m) => m.qm.quoteItemId === it.id).map((m) => ({ modelFileId: m.qm.modelFileId, fileVersionId: m.qm.fileVersionId, qty: m.qm.qty })),
       links: links.filter((l) => l.ownerType === 'quote_item' && l.ownerId === it.id).map((l) => ({ ...l })),
     };
   });
   const depositMin = (q.customerId ? (await db.select().from(s.customers).where(eq(s.customers.id, q.customerId)))[0]?.depositPct : null) ?? null;
-  const orderId = await createOrder({
-    customerId: q.customerId, customerName: q.customerName, customerPhone: q.customerPhone, source: q.source, title: q.title, quoteId: q.id, discount: q.discount,
-    notes: q.notes, items: itemInputs, links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })), deposit: o.deposit, dueDate: o.dueDate ?? null,
-    approvedBy: o.by, approvedChannel: o.channel,
-  }, user);
+  let orderId: string;
+  try {
+    orderId = await createOrder({
+      customerId: q.customerId, customerName: q.customerName, customerPhone: q.customerPhone, source: q.source, title: q.title, quoteId: q.id, discount: q.discount,
+      notes: q.notes, items: itemInputs, links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })), deposit: o.deposit, dueDate: o.dueDate ?? null,
+      approvedBy: o.by, approvedChannel: o.channel,
+    }, user);
+  } catch (e) {
+    // sin pedido, el presupuesto vuelve a como estaba
+    await db.update(s.quotes).set({ status: q.status, frozen: q.frozen, approvedBy: q.approvedBy, approvedChannel: q.approvedChannel, approvedAt: q.approvedAt }).where(eq(s.quotes.id, quoteId));
+    throw e;
+  }
   await db.update(s.orders).set({ total: q.total, taxAmount: q.taxAmount }).where(eq(s.orders.id, orderId));
-  await db.update(s.quotes).set({ status: 'aprobado', frozen: true, approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() }).where(eq(s.quotes.id, quoteId));
   await audit('quote', quoteId, 'estado', { to: 'aprobado', by: o.by, channel: o.channel, orderId }, user.id);
   return orderId;
 }
