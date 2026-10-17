@@ -3,7 +3,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { buildGcodePreview, parse3mfSliceMeta, parseDuration, parseGcodeMeta } from '@/lib/gcode';
 import { parse3MF, parseOBJ, parsePLY, parseSTL } from '@/lib/mesh/parse';
 import { analyze, decimate, fitsIn, renderThumbnail, toPreviewBin, weld } from '@/lib/mesh/ops';
-import { parseCsv } from '@/lib/csv';
+import { csvCell, parseCsv } from '@/lib/csv';
 import { fillTemplate, waLink } from '@/lib/messages';
 import { can, canSeeCosts, DEFAULT_MATRIX } from '@/lib/perm';
 import { normalizeUrl, fetchLinkPreview, siteLabel } from '@/lib/links';
@@ -72,6 +72,10 @@ describe('lectura de G-code y 3MF laminados', () => {
 });
 
 describe('utilidades', () => {
+  it('csvCell neutraliza fórmulas en texto y deja los números', () => {
+    expect(csvCell('=HYPERLINK("http://x")')).toBe(`"'=HYPERLINK(""http://x"")"`);
+    expect(csvCell('@SUM(A1)')).toBe("'@SUM(A1)"); expect(csvCell(-5)).toBe('-5'); expect(csvCell('Ana')).toBe('Ana');
+  });
   it('CSV con comillas y punto y coma', () => { expect(parseCsv('nombre;telefono\n"Pérez, Juan";123\nAna;456')).toEqual([['nombre', 'telefono'], ['Pérez, Juan', '123'], ['Ana', '456']]); });
   it('plantillas y WhatsApp', () => { expect(fillTemplate('Hola {cliente}, {total}', { cliente: 'Ana', total: '$1.000' })).toBe('Hola Ana, $1.000'); expect(waLink('+56 9 1234 5678', 'hola mundo')).toBe('https://wa.me/56912345678?text=hola%20mundo'); });
   it('permisos: el operador no ve márgenes ni tarifas', () => {

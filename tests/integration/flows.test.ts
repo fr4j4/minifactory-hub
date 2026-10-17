@@ -12,7 +12,7 @@ import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/servi
 import { materialStock, weighSpool, shoppingList } from '@/lib/services/inventory';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
 import { orcaAvailable } from '@/lib/slicer/catalog';
-import { reportData, REPORTS } from '@/lib/reports';
+import { reportAllowed, reportData, REPORTS } from '@/lib/reports';
 import { dashboardData } from '@/lib/stats';
 
 let admin: any, ventas: any, op: any; let db: Awaited<ReturnType<typeof getDb>>;
@@ -158,9 +158,18 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
 });
 
 describe('reportes y dashboard', () => {
-  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, { from: new Date(Date.now() - 120 * 86400_000), to: new Date() }, true); expect(d.columns.length).toBeGreaterThan(2); } });
+  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, { from: new Date(Date.now() - 120 * 86400_000), to: new Date() }, admin); expect(d.columns.length).toBeGreaterThan(2); } });
   it('el dashboard calcula indicadores y alertas', async () => { const d = await dashboardData(); expect(d.ind.revenue).toBeGreaterThan(0); expect(d.val.total).toBeGreaterThan(0); expect(d.lowMaterials.length + d.lowItems.length + d.maint.length).toBeGreaterThan(0); });
-  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true); const mine = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true, ventas.id); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, admin); const mine = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, ventas); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+  it('Ventas ve solo sus presupuestos; sin costos no hay reportes de costos', async () => {
+    const r = { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }; const n = (d: any) => d.rows[1].n; // fila «enviados»
+    const [mine, all] = [await reportData('embudo', r, ventas), await reportData('embudo', r, admin)];
+    const qs = await db.select().from(s.quotes).where(eq(s.quotes.createdBy, ventas.id));
+    expect(n(mine)).toBe(qs.filter((q) => ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status) && q.createdAt >= r.from).length); expect(n(mine)).toBeLessThanOrEqual(n(all));
+    const opR = { ...op, permOverrides: { reportes: 'V' } };
+    expect(reportAllowed(opR, 'estimado_real')).toBe(false); expect(reportAllowed(opR, 'embudo')).toBe(true);
+    await expect(reportData('estimado_real', r, opR)).rejects.toThrow();
+  });
 });
 
 describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
