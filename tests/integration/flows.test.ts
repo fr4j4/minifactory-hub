@@ -153,7 +153,7 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
   it('venta rápida: precio a mano bajo el costo solo para el Administrador; nunca negativo', async () => {
     const items = (unitPrice: number) => ({ items: [{ variantId: variantIds[0], qty: 1, unitPrice }] });
     await expect(createSale(items(1), ventas)).rejects.toThrow(/bajo el costo/);
-    await expect(createSale(items(-10), admin)).rejects.toThrow(/inválido/);
+    await expect(createSale(items(-10), admin)).rejects.toThrow(/negativo/);
   });
   it('pedido manual: la cantidad se normaliza y un precio final negativo se rechaza', async () => {
     await expect(createOrder({ items: [line({ finalUnit: -1 })] }, admin)).rejects.toThrow(/inválido/);

@@ -97,7 +97,6 @@ export async function createSale(i: QuickSaleInput, user: User) {
   const rows = i.items.map((it) => {
     const v = byId.get(it.variantId); if (!v) throw new Error(t('catalog.variantNotFound'));
     const list = (ch && v.priceByChannel?.[ch.id]) || v.price;
-    it.qty = Math.max(1, Math.floor(it.qty || 1)); // una cantidad negativa sumaría stock
     // precio a mano: solo quien fija precios finales; bajo el costo, solo el Administrador (como en presupuestos y pedidos)
     const own = it.unitPrice != null && canSetFinalPrice(user);
     const unit = own ? Math.round(it.unitPrice!) : list;
