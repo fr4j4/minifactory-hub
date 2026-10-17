@@ -2,7 +2,8 @@ import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { nextNumber } from '../settings';
-import { addPayment } from './orders';
+import { addPayment, recomputePaid } from './orders';
+import { ymd } from '../format';
 import { canSellBelowCost, canSetFinalPrice, type PermUser } from '../perm';
 import { LocalizedError } from '@/i18n/errors';
 import { getT } from '@/i18n/server';
@@ -25,35 +26,35 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
   const db = await getDb();
   const attributes = i.mode === 'variantes' ? (i.attributes ?? []).filter((a) => a.name && a.values.length) : [];
   const vals = { name: i.name, category: i.category ?? null, description: i.description ?? null, mode: i.mode, status: i.status ?? 'activo', modelFileId: i.modelFileId ?? null, tags: i.tags ?? [], attributes, updatedAt: new Date() };
-  // producto y variantes en una transacción: si una variante falla no queda un producto sin variantes
-  const id = await db.transaction(async (db) => {
-  let id = i.id;
-  if (id) await db.update(s.products).set(vals).where(eq(s.products.id, id));
-  else { const [p] = await db.insert(s.products).values({ workspaceId: WORKSPACE_ID, createdBy: user.id, ...vals }).returning({ id: s.products.id }); id = p.id; }
-  const existing = await db.select().from(s.productVariants).where(and(eq(s.productVariants.productId, id!), isNull(s.productVariants.deletedAt)));
-  const combos = i.mode === 'variantes' ? cartesian(attributes) : [{}];
-  const key = (a: Record<string, string>) => JSON.stringify(Object.entries(a).sort());
-  const prefix = slug(i.name);
-  let n = existing.length;
-  for (const c of combos) {
-    if (existing.some((e) => key(e.attrs ?? {}) === key(c))) continue;
-    n++;
-    const suffix = Object.values(c).map((v) => slug(v).slice(0, 3)).join('-');
-    const base = `${prefix}${suffix ? '-' + suffix : ''}`;
-    // el SKU se prueba hasta encontrar uno libre (el primer sufijo también puede estar tomado)
-    let sku = base; let k = n;
-    while ((await db.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1)).length) sku = `${base}-${k++}`;
-    await db.insert(s.productVariants).values({
-      workspaceId: WORKSPACE_ID, productId: id!, sku, attrs: c, price: i.price ?? 0, materialId: i.materialId ?? null, weightG: i.weightG ?? 0, printH: i.printH ?? 0,
-      minStock: i.minStock ?? 0, location: i.location ?? null, createdBy: user.id,
-    });
-  }
-  // variantes que ya no existen en la grilla se desactivan (nunca se borran si tienen movimientos)
-  for (const e of existing) if (!combos.some((c) => key(c) === key(e.attrs ?? {}))) await db.update(s.productVariants).set({ active: false }).where(eq(s.productVariants.id, e.id));
-  return id!;
+  // todo o nada: si falla una variante no queda un producto a medias. Dentro solo se usa `tx` (PGlite se bloquea si se consulta `db` a la vez).
+  const id = await db.transaction(async (tx) => {
+    let id = i.id;
+    if (id) await tx.update(s.products).set(vals).where(eq(s.products.id, id));
+    else { const [p] = await tx.insert(s.products).values({ workspaceId: WORKSPACE_ID, createdBy: user.id, ...vals }).returning({ id: s.products.id }); id = p.id; }
+    const existing = await tx.select().from(s.productVariants).where(and(eq(s.productVariants.productId, id), isNull(s.productVariants.deletedAt)));
+    const combos = i.mode === 'variantes' ? cartesian(attributes) : [{}];
+    const key = (a: Record<string, string>) => JSON.stringify(Object.entries(a).sort());
+    const prefix = slug(i.name);
+    for (const c of combos) {
+      const old = existing.find((e) => key(e.attrs ?? {}) === key(c));
+      // un valor que se quitó y se vuelve a agregar reactiva su variante (conserva stock y movimientos)
+      if (old) { if (!old.active) await tx.update(s.productVariants).set({ active: true, updatedAt: new Date() }).where(eq(s.productVariants.id, old.id)); continue; }
+      const suffix = Object.values(c).map((v) => slug(v).slice(0, 3)).join('-');
+      const base = `${prefix}${suffix ? '-' + suffix : ''}`;
+      let sku = base;
+      // slug() corta a 8 letras: "Maceta Grande" y "Maceta Gato" chocan; se prueba -1, -2… hasta encontrar uno libre
+      for (let k = 1; (await tx.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1)).length; k++) sku = `${base}-${k}`;
+      await tx.insert(s.productVariants).values({
+        workspaceId: WORKSPACE_ID, productId: id, sku, attrs: c, price: i.price ?? 0, materialId: i.materialId ?? null, weightG: i.weightG ?? 0, printH: i.printH ?? 0,
+        minStock: i.minStock ?? 0, location: i.location ?? null, createdBy: user.id,
+      });
+    }
+    // variantes que ya no existen en la grilla se desactivan (nunca se borran si tienen movimientos)
+    for (const e of existing) if (e.active && !combos.some((c) => key(c) === key(e.attrs ?? {}))) await tx.update(s.productVariants).set({ active: false }).where(eq(s.productVariants.id, e.id));
+    return id;
   });
-  await audit('product', id!, i.id ? 'editar' : 'crear', { name: i.name, mode: i.mode }, user.id);
-  return id!;
+  await audit('product', id, i.id ? 'editar' : 'crear', { name: i.name, mode: i.mode }, user.id);
+  return id;
 }
 
 export async function adjustStock(o: { variantId: string; kind: 'ajuste' | 'merma' | 'muestra' | 'uso_interno' | 'devolucion'; qty: number; reason?: string; returnToStock?: boolean }, user: User) {
@@ -85,6 +86,9 @@ export interface QuickSaleInput {
 export async function createSale(i: QuickSaleInput, user: User) {
   const t = await getT();
   const db = await getDb();
+  // cantidades enteras ≥ 1, precios ≥ 0 y cada variante una sola vez (dos filas iguales descontarían de la misma foto del stock)
+  if (i.items.some((it) => !Number.isInteger(it.qty) || it.qty < 1 || (it.unitPrice != null && !(it.unitPrice >= 0)))) throw new Error(t('catalog.invalidSaleQuantity'));
+  if (new Set(i.items.map((it) => it.variantId)).size !== i.items.length) throw new Error(t('catalog.duplicateSaleItem'));
   const [ch] = i.channelId ? await db.select().from(s.salesChannels).where(eq(s.salesChannels.id, i.channelId)) : [];
   const vs = await db.select().from(s.productVariants).where(inArray(s.productVariants.id, i.items.map((x) => x.variantId)));
   const byId = new Map(vs.map((v) => [v.id, v]));
@@ -99,25 +103,32 @@ export async function createSale(i: QuickSaleInput, user: User) {
     if (!(unit >= 0)) throw new LocalizedError('edit.invalid');
     if (own && unit < v.avgCost && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
     subtotal += unit * it.qty; cost += v.avgCost * it.qty;
-    if (v.stock - v.reserved < it.qty) shortages.push(`${v.sku}: faltan ${it.qty - (v.stock - v.reserved)} u.`);
+    if (v.stock - v.reserved < it.qty) shortages.push(t('catalog.shortageUnits', { sku: v.sku, n: it.qty - (v.stock - v.reserved) }));
     return { v, it, unit, list };
   });
   const commission = i.commissionOverride ?? (ch ? Math.round(subtotal * (ch.commissionPct / 100) + ch.commissionFixed) : 0);
   const shipping = i.shipping ?? ch?.avgShipping ?? 0;
   const number = await nextNumber('sale');
   const isMarket = ch?.kind === 'marketplace';
-  const [sale] = await db.insert(s.sales).values({
-    workspaceId: WORKSPACE_ID, number, channelId: i.channelId ?? null, customerId: i.customerId ?? null, customerName: i.customerName ?? null,
-    date: i.date ?? new Date().toISOString().slice(0, 10), subtotal, commission, shipping, total: subtotal, costTotal: cost, netMargin: subtotal - commission - shipping - cost,
-    status: i.status ?? (isMarket ? 'por_despachar' : 'entregada'), externalOrder: i.externalOrder ?? null, shipBy: i.shipBy ?? null, notes: i.notes ?? null, createdBy: user.id,
-  }).returning();
-  for (const { v, it, unit, list } of rows) {
-    await db.insert(s.saleItems).values({ workspaceId: WORKSPACE_ID, saleId: sale.id, variantId: v.id, description: it.description ?? null, qty: it.qty, listPrice: list, unitPrice: unit, frozenCost: v.avgCost });
-    const [{ stock }] = await db.update(s.productVariants).set({ stock: sql`greatest(0, ${s.productVariants.stock} - ${it.qty})`, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id)).returning({ stock: s.productVariants.stock });
-    await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -it.qty, unitCost: v.avgCost, saleId: sale.id, reason: t('catalog.sale', { number }), createdBy: user.id });
-    if (stock <= v.minStock) await notify('stock_bajo', t('catalog.lowProductStock', { sku: v.sku }), t('catalog.unitsLeftMinimumSuggestionProduc', { stock, min: v.minStock }), '/catalogo');
-  }
-  if (i.paid !== false) await addPayment({ saleId: sale.id, amount: subtotal, method: i.method ?? (isMarket ? 'marketplace' : 'efectivo'), note: t('catalog.salePayment') }, user);
+  // todo o nada: la venta, sus líneas y el stock. Dentro de la transacción solo se usa `tx` (PGlite se bloquea si se consulta `db` a la vez).
+  const { sale, left } = await db.transaction(async (tx) => {
+    const [sale] = await tx.insert(s.sales).values({
+      workspaceId: WORKSPACE_ID, number, channelId: i.channelId ?? null, customerId: i.customerId ?? null, customerName: i.customerName ?? null,
+      date: i.date ?? ymd(), subtotal, commission, shipping, total: subtotal, costTotal: cost, netMargin: subtotal - commission - shipping - cost,
+      status: i.status ?? (isMarket ? 'por_despachar' : 'entregada'), externalOrder: i.externalOrder ?? null, shipBy: i.shipBy ?? null, notes: i.notes ?? null, createdBy: user.id,
+    }).returning();
+    const left: Array<{ v: (typeof rows)[number]['v']; stock: number }> = [];
+    for (const { v, it, unit, list } of rows) {
+      await tx.insert(s.saleItems).values({ workspaceId: WORKSPACE_ID, saleId: sale.id, variantId: v.id, description: it.description ?? null, qty: it.qty, listPrice: list, unitPrice: unit, frozenCost: v.avgCost });
+      // sin piso en 0: el stock siempre es la suma de sus movimientos (si se vende de más queda negativo y la anulación lo devuelve exacto)
+      const [u] = await tx.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} - ${it.qty}`, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id)).returning({ stock: s.productVariants.stock });
+      await tx.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -it.qty, unitCost: v.avgCost, saleId: sale.id, reason: t('catalog.sale', { number }), createdBy: user.id });
+      left.push({ v, stock: u.stock });
+    }
+    return { sale, left };
+  });
+  for (const { v, stock } of left) if (stock <= v.minStock) await notify('stock_bajo', t('catalog.lowProductStock', { sku: v.sku }), t('catalog.unitsLeftMinimumSuggestionProduc', { stock, min: v.minStock }), '/catalogo');
+  if (i.paid !== false && subtotal > 0) await addPayment({ saleId: sale.id, amount: subtotal, method: i.method ?? (isMarket ? 'marketplace' : 'efectivo'), note: t('catalog.salePayment') }, user);
   if (isMarket) await notify('marketplace', t('catalog.saleReadyToShip', { number }), `${ch!.name}${i.externalOrder ? ' · ' + i.externalOrder : ''}`, '/ventas');
   await audit('sale', sale.id, 'crear', { number, subtotal, commission, net: sale.netMargin, shortages }, user.id);
   return { id: sale.id, number, subtotal, commission, shipping, netMargin: sale.netMargin, shortages };
@@ -135,14 +146,17 @@ export async function setSaleStatus(saleId: string, status: 'por_despachar' | 'd
     const [claimed] = await db.update(s.sales).set({ status }).where(and(eq(s.sales.id, saleId), ne(s.sales.status, 'anulada'))).returning({ id: s.sales.id });
     if (!claimed) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
     const items = await db.select().from(s.saleItems).where(eq(s.saleItems.saleId, saleId));
-    for (const it of items) {
-      const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
-      if (!v) continue;
-      if (o.returnToStock !== false) {
-        await db.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.qty}` }).where(eq(s.productVariants.id, v.id));
-        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'devolucion', qty: it.qty, unitCost: it.frozenCost, saleId, reason: t('catalog.voidLabel', { sale: sale.number, reason: o.reason }), createdBy: user.id });
-      } else await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, saleId, reason: t('catalog.voidWithoutRestock', { sale: sale.number, reason: o.reason }), createdBy: user.id });
-    }
+    await db.transaction(async (tx) => {
+      for (const it of items) {
+        if (o.returnToStock !== false) {
+          const [v] = await tx.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.qty}`, updatedAt: new Date() }).where(eq(s.productVariants.id, it.variantId)).returning({ id: s.productVariants.id });
+          if (v) await tx.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: it.variantId, kind: 'devolucion', qty: it.qty, unitCost: it.frozenCost, saleId, reason: t('catalog.voidLabel', { sale: sale.number, reason: o.reason }), createdBy: user.id });
+        } else await tx.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: it.variantId, kind: 'merma', qty: 0, saleId, reason: t('catalog.voidWithoutRestock', { sale: sale.number, reason: o.reason }), createdBy: user.id });
+      }
+      // la venta anulada no deja dinero cobrado: sus pagos se dan de baja y se recalcula lo pagado
+      await tx.update(s.payments).set({ deletedAt: new Date() }).where(and(eq(s.payments.saleId, saleId), isNull(s.payments.deletedAt)));
+      await recomputePaid(tx as any, { orderId: null, saleId });
+    });
   }
   await db.update(s.sales).set({ status, tracking: o.tracking ?? sale.tracking, notes: status === 'anulada' ? `${sale.notes ?? ''}\n${(await getT())('sales.voidedPrefix')} ${o.reason}`.trim() : sale.notes }).where(eq(s.sales.id, saleId));
   await audit('sale', saleId, 'estado', { from: sale.status, to: status }, user.id);

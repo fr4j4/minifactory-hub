@@ -12,6 +12,7 @@ export const inventory = {
   lineSaved: 'Línea actualizada',
   enterTheTypeAndColor: 'Indica tipo y color',
   invalidWeight: 'Peso inválido',
+  invalidSpoolStatus: 'Estado de bobina no válido',
   discarded: 'Descartada',
   theItemNeedsAName: 'El ítem necesita un nombre',
   spoolDoesNotExist: 'No existe la bobina {code}',

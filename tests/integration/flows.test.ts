@@ -164,6 +164,34 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await expect(adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4 }, admin)).rejects.toThrow(/motivo/); await adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4, reason: 'Conteo' }, admin);
     await expect(adjustStock({ variantId: variantIds[1], kind: 'merma', qty: 10, reason: 'x' }, admin)).rejects.toThrow(/negativo/);
   });
+  it('vender de más deja el stock negativo (igual a sus movimientos) y anular devuelve lo exacto y da de baja el pago', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: before + 3 }] }, ventas);
+    expect(await stockOf()).toBe(-3); expect(r.shortages.length).toBe(1);
+    const ledger = async () => (await db.select().from(s.stockMovements).where(eq(s.stockMovements.variantId, vid))).reduce((a, m) => a + m.qty, 0);
+    expect(await ledger()).toBe(await stockOf());
+    await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Error' });
+    expect(await stockOf()).toBe(before); expect(await ledger()).toBe(before);
+    const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, r.id)); expect(sale.paid).toBe(0);
+    expect((await db.select().from(s.payments).where(and(eq(s.payments.saleId, r.id), isNull(s.payments.deletedAt)))).length).toBe(0);
+  });
+  it('la venta rechaza cantidades no enteras o repetidas sin dejar una venta a medias', async () => {
+    const n = (await db.select().from(s.sales)).length;
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1.5 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 0 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1 }, { variantId: variantIds[2], qty: 1 }] }, ventas)).rejects.toThrow(/dos veces/);
+    expect((await db.select().from(s.sales)).length).toBe(n);
+  });
+  it('SKU repetido: busca el siguiente libre; un valor que vuelve reactiva su variante', async () => {
+    const skus: string[] = [];
+    for (let k = 0; k < 3; k++) { const id = await saveProduct({ name: 'Llavero', mode: 'simple', price: 1000 }, admin); skus.push((await db.select().from(s.productVariants).where(eq(s.productVariants.productId, id)))[0].sku); }
+    expect(new Set(skus).size).toBe(3);
+    const attrs = (values: string[]) => [{ name: 'Color', values }];
+    const pid = await saveProduct({ name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    const vs = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, pid)); expect(vs.length).toBe(2); expect(vs.every((v) => v.active)).toBe(true);
+  });
 });
 
 describe('reportes y dashboard', () => {
