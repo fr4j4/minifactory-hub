@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, ilike, inArray, isNull, or } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
@@ -16,12 +16,19 @@ import { Icon } from '@/components/shell';
 
 export async function generateMetadata() { return { title: (await getT())('meta.inventory') }; }
 
-export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+const SPOOL_LIMIT = 300;
+export default async function InventoryPage({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string }> }) {
   const t = await getT();
-  const user = await pagePerm('inventario', 'V'); const { tab = 'materiales' } = await searchParams; const db = await getDb(); const costs = canSeeCosts(user); const edit = can(user, 'inventario', 'E');
+  const user = await pagePerm('inventario', 'V'); const { tab = 'materiales', q = '' } = await searchParams; const db = await getDb(); const costs = canSeeCosts(user); const edit = can(user, 'inventario', 'E');
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)).orderBy(asc(s.materials.type), asc(s.materials.colorName));
   const linkMap = await (await import('@/lib/slicer/links')).defaultLinkMap(db);
-  const stock = await materialStock(db); const spools = await db.select().from(s.spools).where(isNull(s.spools.deletedAt)).orderBy(asc(s.spools.code));
+  // ponytail: el catálogo de materiales se carga entero (lo usan stock, edición masiva y reemplazo); la búsqueda filtra en memoria.
+  const needle = q.trim().toLowerCase();
+  const shownMats = needle ? mats.filter((m) => [m.type, m.colorName, m.manufacturer, m.line].some((v) => v?.toLowerCase().includes(needle))) : mats;
+  const stock = await materialStock(db);
+  const spools = tab === 'bobinas' ? await db.select().from(s.spools).where(and(isNull(s.spools.deletedAt), needle ? or(ilike(s.spools.code, `%${q.trim()}%`), shownMats.length ? inArray(s.spools.materialId, shownMats.map((m) => m.id)) : undefined) : undefined)).orderBy(asc(s.spools.code)).limit(SPOOL_LIMIT) : [];
+  const search = (ph: string) => <form className="flex gap-2 mb-4" role="search"><input type="hidden" name="tab" value={tab} /><input name="q" defaultValue={q} className="input sm:max-w-sm" placeholder={ph} aria-label={ph} /><button className="btn-ghost">{t('common.search')}</button></form>;
+  const noMatch = <Card><Empty title={t('common.noMatches')} action={<Link className="btn-ghost" href={tab === 'bobinas' ? '/inventario?tab=bobinas' : '/inventario'}>{t('common.clearFilters')}</Link>} /></Card>;
   const profs = (await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'filament'), isNull(s.slicerProfiles.deletedAt)))).map((p) => ({ id: p.id, name: p.name }));
   const machines = await db.select().from(s.machines);
   const sup = await listSuppliers(db);
@@ -35,13 +42,16 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       <PageHeader title={t('inventory.inventory')} subtitle={t('inventory.perIndividualSpoolOrBottle')} actions={<>{can(user, 'inventario', 'V') && <Link className="btn-ghost" href="/inventario/escanear"><Icon name="qr" className="h-4 w-4" />{t('inventory.scanQr2')}</Link>}{can(user, 'inventario', 'C') && <><Link className="btn-ghost" href="/inventario/alta-rapida" data-testid="bulk-open">{t('inventory.bulkOpen')}</Link><MaterialForm profiles={profs} trigger={<button className="btn-ghost" data-testid="new-material">{t('inventory.material')}</button>} /><AddSpoolButton suppliers={sup.map((x) => ({ id: x.id, name: x.name }))} materials={mats.map((m) => ({ id: m.id, label: `${m.type} ${m.colorName}${m.manufacturer ? ' · ' + m.manufacturer : ''}`, costPerKg: m.costPerKg }))} /></>}</>} />
       <Tabs current={tab} tabs={[{ key: 'materiales', label: t('inventory.tabMaterials'), href: '/inventario', count: low || undefined }, { key: 'bobinas', label: t('inventory.tabSpools'), href: '/inventario?tab=bobinas' }, { key: 'otros', label: t('inventory.tabOther'), href: '/inventario?tab=otros' }, { key: 'compras', label: t('inventory.tabShopping'), href: '/inventario?tab=compras' }, { key: 'movimientos', label: t('inventory.tabMovements'), href: '/inventario?tab=movimientos' }]} />
       {tab === 'materiales' && mats.length > 0 && can(user, 'inventario', 'E') && <LineBulkEdit showCost={costs} profiles={profs} lines={await (await import('@/lib/services/lines')).listLines(db)} />}
-      {tab === 'materiales' && (mats.length === 0 ? <Card><Empty title={t('inventory.noMaterials')} hint={t('inventory.createTheMaterialCatalogType')} /></Card> : (
+      {tab === 'materiales' && mats.length > 0 && search(t('inventory.searchMaterials'))}
+      {tab === 'materiales' && (mats.length === 0 ? <Card><Empty title={t('inventory.noMaterials')} hint={t('inventory.createTheMaterialCatalogType')} /></Card> : shownMats.length === 0 ? noMatch : (
         <Card pad={false}><Table><thead><tr><th className="th">{t('common.material')}</th><th className="th">{t('inventory.physicalStock')}</th><th className="th text-right">{t('inventory.reserved')}</th><th className="th text-right">{t('inventory.available')}</th><th className="th text-right">{t('inventory.minimum')}</th><th className="th text-right">{t('inventory.spools')}</th>{costs && <th className="th text-right">{t('inventory.costKg')}</th>}<th className="th" /></tr></thead>
-          <tbody>{mats.map((m) => { const st = stock.find((x) => x.materialId === m.id)!; return (
+          <tbody>{shownMats.map((m) => { const st = stock.find((x) => x.materialId === m.id)!; return (
             <tr key={m.id} data-testid="material-row"><td className="td"><div className="font-medium"><Swatch hex={m.hex} /> {m.type} {m.colorName}</div><div className="text-xs muted">{m.manufacturer} {m.line} {m.tech === 'resina' && `· ${t('inventory.resinLower')}`}</div></td>
               <td className="td min-w-[140px]"><div className="tabular text-sm mb-1">{grams(st.physicalG)}</div><Meter value={st.physicalG} max={Math.max(m.stockMinG * 3, st.physicalG)} tone={st.low ? 'bad' : 'ok'} /></td><td className="td text-right tabular muted">{grams(st.reservedG)}</td><td className={`td text-right tabular font-medium ${st.low ? 'text-danger' : ''}`}>{grams(st.availableG)}{st.low && <Badge tone="red" className="ml-1">{t('inventory.low')}</Badge>}</td><td className="td text-right tabular muted">{grams(m.stockMinG)}</td><td className="td text-right tabular">{st.spools}</td>{costs && <td className="td text-right tabular">{money(costMap.get(m.id))}</td>}
               <td className="td text-right">{edit && <span className="whitespace-nowrap"><MaterialForm m={{ ...m, filamentProfileId: linkMap.get(m.id) ?? null }} profiles={profs} trigger={<button className="btn-ghost btn-sm">{t('common.edit')}</button>} />{can(user, 'inventario', 'X') && <> <RemoveButton kind="material" id={m.id} name={`${m.type} ${m.colorName}`} replaceOptions={mats.map((x) => ({ id: x.id, label: `${x.type} ${x.colorName}` }))} /></>}</span>}</td></tr>); })}</tbody></Table></Card>))}
-      {tab === 'bobinas' && (
+      {tab === 'bobinas' && search(t('inventory.searchSpools'))}
+      {tab === 'bobinas' && spools.length === SPOOL_LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: SPOOL_LIMIT })}</p>}
+      {tab === 'bobinas' && (needle && spools.length === 0 ? noMatch :
         <Card pad={false} actions={<Link className="btn-ghost btn-sm" href="/inventario/etiquetas"><Icon name="tag" className="h-4 w-4" />{t('inventory.printQrLabels')}</Link>}><Table><thead><tr><th className="th">{t('inventory.code')}</th><th className="th">{t('common.material')}</th><th className="th">{t('inventory.remainingWeight')}</th><th className="th">{t('common.location')}</th><th className="th">{t('common.status')}</th></tr></thead>
           <tbody>{spools.map((x) => { const m = mats.find((q) => q.id === x.materialId)!; return <tr key={x.id} data-testid="spool-row"><td className="td font-medium tabular"><Link className="hover:underline" href={`/inventario/bobinas/${x.id}`}>{x.code}</Link></td><td className="td"><Swatch hex={m.hex} /> {m.type} {m.colorName}</td><td className="td min-w-[160px]"><div className="tabular text-sm">{grams(x.remainingG)} <span className="muted">/ {grams(x.initialG)}</span></div><Meter value={x.remainingG} max={x.initialG} tone={x.remainingG < x.initialG * 0.15 ? 'bad' : 'ok'} /></td><td className="td text-xs">{x.location}</td><td className="td"><StatusBadge status={x.status} /></td></tr>; })}</tbody></Table></Card>)}
       {tab === 'otros' && (

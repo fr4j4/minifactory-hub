@@ -136,6 +136,8 @@ export const inventory = {
     transferencia: 'Traslado',
     descarte: 'Descarte',
   },
+  searchMaterials: 'Buscar por tipo, color, marca o línea',
+  searchSpools: 'Buscar por código o material',
   tabMaterials: 'Materiales',
   tabSpools: 'Bobinas y botellas',
   tabOther: 'Repuestos e insumos',

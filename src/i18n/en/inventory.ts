@@ -139,6 +139,8 @@ export const inventory: Shape<typeof es['inventory']> = {
     transferencia: 'Transfer',
     descarte: 'Disposal',
   },
+  searchMaterials: 'Search by type, color, brand or line',
+  searchSpools: 'Search by code or material',
   tabMaterials: 'Materials',
   tabSpools: 'Spools & bottles',
   tabOther: 'Spare parts & supplies',
