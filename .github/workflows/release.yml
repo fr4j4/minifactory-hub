@@ -1,0 +1,101 @@
+# Empaquetado para Windows y Linux. Ver docs/empaquetado-releases.md.
+# - Tag v* (p. ej. v1.2.0): arma, prueba y publica un GitHub Release con los instaladores y SHA256SUMS.
+# - Ejecución manual (workflow_dispatch): arma y prueba igual, pero solo deja los archivos como artifacts del run.
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        # Imágenes fijas: el .deb y el instalador no cambian solos cuando GitHub mueve los alias *-latest.
+        os: [windows-2025, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22.23.3
+      - name: Versión
+        run: |
+          pkg="$(node -p "require('./package.json').version")"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            v="${GITHUB_REF_NAME#v}"
+            # v1.2.0 y v1.2.0-rc.1 exigen "version": "1.2.0" en package.json
+            if [ "${v%%-*}" != "$pkg" ]; then echo "::error::El tag $GITHUB_REF_NAME no coincide con package.json ($pkg)"; exit 1; fi
+          else v="$pkg-dev.${GITHUB_RUN_NUMBER}"; fi
+          echo "MF_VERSION=$v" >> "$GITHUB_ENV"
+      - run: npm ci
+      - name: Armar paquete portable (deja PKG_DIR en GITHUB_ENV)
+        run: node packaging/build.mjs
+        env:
+          MF_STANDALONE: '1'
+      - name: Prueba de humo
+        run: node packaging/smoke.mjs "$PKG_DIR"
+      - name: Probar el .deb como servicio systemd
+        if: runner.os == 'Linux'
+        run: bash packaging/linux/check-service.sh
+      - name: Instalador de Windows (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; if ($LASTEXITCODE) { exit 1 } }
+          & $iscc /Q "/DAppVersion=$env:MF_VERSION" "/DSourceDir=$env:PKG_DIR" "/DOutputDir=$PWD\dist" packaging\windows\minifactory-hub.iss
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Probar instalación y desinstalación
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = (Get-ChildItem dist\*-setup.exe).FullName
+          Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CURRENTUSER' -Wait
+          $dir = "$env:LOCALAPPDATA\Programs\MiniFactory Hub"
+          if (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\MiniFactory Hub\MiniFactory Hub.lnk")) { throw 'Falta el acceso directo del menú Inicio' }
+          node packaging/smoke.mjs $dir
+          if ($LASTEXITCODE) { exit 1 }
+          Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES' -Wait
+          Start-Sleep -Seconds 5
+          if (Test-Path "$dir\app") { throw 'El desinstalador no borró la aplicación' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: minifactory-hub-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*-setup.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: out
+          merge-multiple: true
+      - name: SHA256SUMS
+        run: cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS && ls -la
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SHA256SUMS
+          path: out/SHA256SUMS
+      - name: Publicar GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: out/*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

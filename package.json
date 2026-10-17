@@ -56,6 +56,7 @@
     "aedes": "^1.2.0",
     "autoprefixer": "^10.6.1",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "0.28.2",
     "postcss": "^8.5.30",
     "selfsigned": "^5.5.0",
     "tailwindcss": "^3.4.19",

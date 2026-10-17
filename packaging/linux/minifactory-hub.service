@@ -1,0 +1,23 @@
+# Servicio systemd de MiniFactory Hub. El paquete .deb lo instala solo; con el .tar.gz copie este archivo a
+# /etc/systemd/system/, ajuste User y las rutas, y ejecute: sudo systemctl daemon-reload && sudo systemctl enable --now minifactory-hub
+[Unit]
+Description=MiniFactory Hub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=minifactory
+Group=minifactory
+Environment=MF_DATA_DIR=/var/lib/minifactory-hub
+ExecStart=/opt/minifactory-hub/bin/minifactory-hub start
+Restart=on-failure
+RestartSec=5
+# Aislamiento: el sistema queda de solo lectura salvo la carpeta de datos (OrcaSlicer va en <datos>/orca o /opt/orcaslicer).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/var/lib/minifactory-hub
+
+[Install]
+WantedBy=multi-user.target

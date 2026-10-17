@@ -6,6 +6,23 @@ Fuera de alcance por decisión: relación con proveedores e interacción directa
 
 ---
 
+## Instalación desde releases (sin Docker)
+
+La forma más rápida: descargas un instalador y listo. No necesitas Docker, Git ni la terminal.
+
+1. Entra a la página **Releases** del proyecto en GitHub y abre la versión más reciente.
+2. Descarga el archivo de tu sistema:
+   - **Windows 10/11:** `minifactory-hub-…-win-x64-setup.exe`. Ábrelo y sigue los pasos. Si Windows muestra «Windows protegió su PC», pulsa **Más información → Ejecutar de todas formas**.
+   - **Ubuntu/Debian:** `minifactory-hub_…_amd64.deb`. Instálalo con `sudo apt install ./minifactory-hub_…_amd64.deb`.
+3. Abre **MiniFactory Hub** desde el menú Inicio (Windows). En Linux queda funcionando sola. El navegador abre <http://localhost:3000>.
+4. La primera vez te lleva al **asistente de bienvenida**. El código de un solo uso aparece en la ventana negra de MiniFactory Hub (Windows) o con `journalctl -u minifactory-hub` (Linux).
+
+En Windows, **cerrar la ventana negra apaga la aplicación**. Tus datos se guardan aparte y se conservan al actualizar o desinstalar.
+
+Diferencia con Docker: estos paquetes **no traen el laminador OrcaSlicer**; la aplicación funciona sin él y puedes instalarlo después. Detalles (actualizar, respaldos, OrcaSlicer, otros formatos): [docs/empaquetado-releases.md](docs/empaquetado-releases.md).
+
+---
+
 ## Instalación con Docker (recomendado)
 
 Esta guía es para personas sin experiencia técnica: copia y pega los comandos tal como aparecen. Tiempo estimado: **20–40 minutos**, casi todo esperando descargas.
