@@ -24,12 +24,12 @@ export function PhotoGrid({ photos, stages, canEdit }: { photos: PhotoView[]; st
           <input className="input !w-48 !min-h-[34px]" placeholder={t('gallery.collectionName')} value={col} onChange={(e) => setCol(e.target.value)} aria-label={t('gallery.collectionName2')} />
           <button className="btn-ghost btn-sm" disabled={!col.trim()} onClick={() => run(() => createCollectionAction(col, sel), { ok: t('gallery.addedToTheCollection2'), onOk: () => { setSel([]); setCol(''); } })}>{t('gallery.addToCollection')}</button>
           <button className="btn-ghost btn-sm ml-auto" onClick={() => setSel([])}>{t('gallery.clear')}</button></div>)}
-      <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2" data-testid="photo-grid">
+      <ul className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2 ${sel.length ? 'selecting' : ''}`} data-testid="photo-grid">
         {photos.map((p) => (
           <li key={p.id} className="relative group">
             <button className="block w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800" onClick={() => setOpen(p)} aria-label={t('gallery.openPhoto', { stage: p.stageLabel })} data-testid="photo-tile">{p.kind === 'video' ? <div className="w-full h-full grid place-items-center"><Icon name="video" className="h-8 w-8 muted" /></div> : <img src={p.thumb} alt={p.caption ?? p.stageLabel} className="w-full h-full object-cover" loading="lazy" />}</button>
             <span className="absolute left-1.5 top-1.5 flex gap-1">{p.featured && <span className="badge bg-amber-400 text-black border-transparent"><Icon name="star" className="h-3 w-3 fill-current" /><span className="sr-only">{t('gallery.featuredOne')}</span></span>}{p.internalOnly && <span className="badge bg-slate-900/80 text-white border-transparent">{t('gallery.internal')}</span>}</span>
-            <label className="absolute right-1.5 top-1.5 bg-white/90 dark:bg-slate-900/80 rounded p-1"><input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={t('gallery.selectPhoto')} /></label>
+            <label className="tile-check absolute right-1.5 top-1.5 bg-white/90 dark:bg-slate-900/80 rounded p-1"><input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={t('gallery.selectPhoto')} /></label>
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[11px] p-1.5 rounded-b-lg">{p.stageLabel}</div>
           </li>))}
       </ul>
