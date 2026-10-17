@@ -84,7 +84,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
           <Mark className="h-9 w-9 shrink-0" />
           <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">{t('nav.tagline')}</span></span>
         </Link>
-        <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-3 [scrollbar-width:thin]">
+        <nav className="flex-1 overflow-y-auto px-3 pb-3 space-y-4 [scrollbar-width:thin]">
           {sections.map((s) => (
             <div key={s.t}>
               <div className={cn('hidden px-3 pb-1.5 pt-1 font-mono text-[10px] uppercase tracking-[.16em] text-white/55', full && 'xl:block')}>{s.t}</div>
@@ -92,7 +92,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
               <div className="space-y-0.5">
                 {s.items.map((n) => { const on = active(n.href); return (
                   <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} title={n.label}
-                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
+                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[36px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
                     {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_rgba(255,91,31,.55)]" aria-hidden />}
                     <Icon name={n.icon} className={cn('h-[18px] w-[18px] shrink-0 transition-colors', on ? 'text-[var(--accent)]' : 'text-white/60 group-hover:text-white')} />
                     <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span><LinkPending className="right-2 top-2" />
