@@ -64,8 +64,9 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
   }, []);
   const active = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
-  // 4 casillas + el botón central caben en grid-cols-5 (con una más, la barra se parte en dos filas y tapa los botones fijos); inventario queda en «Más»
-  const bottom = ['/', '/pedidos', '/cola'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[];
+  // 2 enlaces + botón central + 1 enlace + «Más» = las 5 columnas; con uno más la barra se partía en dos filas
+  // Inventario entra solo si el permiso quita uno de los tres primeros, así no queda una columna vacía
+  const bottom = (['/', '/pedidos', '/cola', '/inventario'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[]).slice(0, 3);
   const quick = [
     { href: '/pedidos/nuevo', label: t('shell.quickNewOrder'), icon: 'orders' }, { href: '/ventas/nueva', label: t('shell.quickQuickSale'), icon: 'cart' },
     { href: '/presupuestos/nuevo', label: t('shell.quickNewQuote'), icon: 'quote' }, { href: '/calculadora', label: t('shell.quickCalculator'), icon: 'calc' },
@@ -92,8 +93,8 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
               <div className="space-y-0.5">
                 {s.items.map((n) => { const on = active(n.href); return (
                   <Link key={n.href} href={n.href} aria-current={on ? 'page' : undefined} title={n.label}
-                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[36px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
-                    {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_rgba(255,91,31,.55)]" aria-hidden />}
+                    className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] xl:min-h-[36px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
+                    {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_color-mix(in_srgb,var(--accent)_55%,transparent)]" aria-hidden />}
                     <Icon name={n.icon} className={cn('h-[18px] w-[18px] shrink-0 transition-colors', on ? 'text-[var(--accent)]' : 'text-white/60 group-hover:text-white')} />
                     <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span><LinkPending className="right-2 top-2" />
                   </Link>); })}

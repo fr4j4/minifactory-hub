@@ -45,7 +45,7 @@ export function PrinterStateBadge({ r }: { r: LiveRow }) {
 export function SpoolGlyph({ color, remain, active, size = 44 }: { color: string | null; remain: number | null; active?: boolean; size?: number }) {
   const r = 18, c = 2 * Math.PI * r, p = remain == null ? 1 : Math.max(0, Math.min(100, remain)) / 100;
   return (
-    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className={cn(active && 'drop-shadow-[0_0_6px_rgba(255,91,31,.6)]')}>
+    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden className={cn(active && 'drop-shadow-[0_0_6px_color-mix(in_srgb,var(--accent)_60%,transparent)]')}>
       <circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" strokeOpacity=".15" strokeWidth="1.5" />
       <circle cx="24" cy="24" r={r} fill="none" stroke={color ?? 'transparent'} strokeOpacity=".22" strokeWidth="7" />
       {color && <circle cx="24" cy="24" r={r} fill="none" stroke={color} strokeWidth="7" strokeDasharray={`${c * p} ${c}`} transform="rotate(-90 24 24)" strokeLinecap="butt" strokeDashoffset={remain == null ? 0 : 0} style={remain == null ? { strokeDasharray: '3 3' } : undefined} />}
