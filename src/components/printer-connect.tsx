@@ -11,6 +11,7 @@ import { PrinterPill, PrinterStateBadge, usePrinter } from './printer-live';
 import { CloudSection, type CloudAccountRow } from './printer-cloud';
 import { useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
+import { Icon } from '@/components/shell';
 
 interface Found { serial: string; ip: string; model: string | null; modelName: string | null; name: string | null; connect: string | null; signal: string | null; firmware: string | null; linked: boolean }
 export interface LinkedRow { id: string; machineId: string; machineName: string; serial: string; host: string | null; mode: string; model: string | null; name: string | null; enabled: boolean; syncQueue: boolean; fingerprint: string | null; lastError: string | null; live: LiveRow | null }
@@ -71,7 +72,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
   return (
     <li className="card p-4 flex flex-col gap-3" data-testid="linked-printer">
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0"><Link href={`/maquinas/${l.machineId}`} className="font-display text-lg font-semibold tracking-tight hover:text-[var(--accent-ink)]">{l.machineName}</Link><div className="font-mono text-[11px] muted mt-0.5">{r?.modelName ? t('machines.bambuLab', { model: r.modelName }) : l.model} · {l.serial} · {l.mode === 'cloud' ? t('machines.bambuCloud') : l.host}</div>{l.mode === 'cloud' && <span className="inline-block mt-1.5 font-mono text-[10px] uppercase tracking-[.1em] rounded-full border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 px-2 py-0.5" data-testid="mode-cloud">{t('machines.cloudReadOnly')}</span>}</div>
+        <div className="min-w-0"><Link href={`/maquinas/${l.machineId}`} className="font-display text-lg font-semibold tracking-tight hover:text-[var(--accent-ink)]">{l.machineName}</Link><div className="font-mono text-[11px] muted mt-0.5">{r?.modelName ? t('machines.bambuLab', { model: r.modelName }) : l.model} · {l.serial} · {l.mode === 'cloud' ? t('machines.bambuCloud') : l.host}</div>{l.mode === 'cloud' && <span className="inline-block mt-1.5 font-mono text-[10px] uppercase tracking-[.1em] rounded-full border border-sky-300 dark:border-sky-800 text-sky-800 dark:text-sky-300 px-2 py-0.5" data-testid="mode-cloud"><Icon name="cloud" className="inline h-3 w-3 mr-1 -mt-px" />{t('machines.cloudReadOnly')}</span>}</div>
         {r ? <PrinterStateBadge r={r} /> : <span className="badge">{l.enabled ? t('machines.connecting') : t('machines.disabled')}</span>}
       </div>
       {r && <PrinterPill machineId={l.machineId} initial={r} />}

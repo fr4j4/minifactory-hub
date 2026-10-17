@@ -133,7 +133,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   {!dis && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       <select className="input sm:!w-72" value={pick} onChange={(e) => { setPick(e.target.value); addModel(e.target.value); }} aria-label={t('calculator.addAModelFromThe')} data-testid="model-pick"><option value="">{t('calculator.addAModelFromThe2')}</option>{library.filter((m) => !it.models.some((x) => x.modelFileId === m.id)).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.format.toUpperCase()})</option>)}</select>
-                      <button type="button" className="btn-ghost" onClick={() => setShowUp((v) => !v)}>{t('calculator.uploadANewFile')}</button>
+                      <button type="button" className="btn-ghost" onClick={() => setShowUp((v) => !v)}><Icon name="upload" className="h-4 w-4" />{t('calculator.uploadANewFile')}</button>
                     </div>
                   )}
                   {showUp && <Uploader className="mt-2" compact intent={{ intent: 'model', sync: true }} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode" label={t('calculator.dropTheCustomerSFile')} onDone={(r) => { r.forEach((x) => x.ok && addModel(x.data.modelFileId)); setShowUp(false); }} />}

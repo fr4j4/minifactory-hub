@@ -57,7 +57,7 @@ export const settings: Shape<typeof es['settings']> = {
   fullBackupAndExport: 'Full backup and export',
   downloadAllDataAsJson: 'Download all data as JSON (one table per file) and all files (models, G-code and photos) in a ZIP. Store it outside the server.',
   onlyTheAdministratorCanExport: 'Only the administrator can export.',
-  fullBackupDataFiles: '⬇ Full backup (data + files)',
+  fullBackupDataFiles: 'Full backup (data + files)',
   dataOnly: 'Data only',
   inProductionAlsoScheduleA: 'In production, also schedule a daily backup of the database (pg_dump) and the files directory with 30-day retention: see the README.',
   myProfileAlerts: 'My profile & alerts',

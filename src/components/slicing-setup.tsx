@@ -76,7 +76,7 @@ function MaterialRow({ m, options, profiles }: { m: SetupData['materials'][numbe
     <li className="py-2.5 flex flex-wrap items-center gap-3" data-testid="setup-material">
       <span className="h-5 w-5 rounded-full border border-black/15 shrink-0" style={{ background: m.hex }} aria-hidden />
       <div className="min-w-[160px] flex-1"><div className="text-sm font-medium" data-testid="setup-material-label">{m.label}</div><div className="text-xs muted">{m.filamentProfile ? <>{t('slicer.profile')} <b>{m.filamentProfile.name}</b></> : t('slicer.noFilamentProfileThisMaterial')}</div>
-        {m.mismatch && <div className="text-xs text-red-700 dark:text-red-400 mt-0.5" role="alert" data-testid="setup-material-mismatch">{t('slicer.profileMismatch', { profile: m.profileType, material: m.type })}</div>}</div>
+        {m.mismatch && <div className="text-xs text-red-700 dark:text-red-400 mt-0.5" role="alert" data-testid="setup-material-mismatch"><Icon name="alert" className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{t('slicer.profileMismatch', { profile: m.profileType, material: m.type })}</div>}</div>
       <select className="input !w-auto min-w-[240px] max-w-full" value={val} onChange={(e) => setVal(e.target.value)} aria-label={t('slicer.filamentProfileFor', { material: m.label })} data-testid="setup-material-select">
         <option value="">{t('slicer.chooseProfile')}</option>
         {profiles.length > 0 && <optgroup label={t('slicer.myProfiles')}>{profiles.map((p) => <option key={p.id} value={`p:${p.id}`}>{p.name}</option>)}</optgroup>}

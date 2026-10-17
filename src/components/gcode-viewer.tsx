@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { cn } from '@/lib/format';
 import { useT } from '@/i18n/client';
+import { Icon } from '@/components/shell';
 
 const TYPE_LABEL = ['viewer.perimeters', 'viewer.infill', 'viewer.surfaces', 'viewer.supports', 'viewer.other', 'viewer.travel'] as const;
 const TYPE_COLOR = [0xff5b1f, 0xb4ab9c, 0x2bb673, 0x3d8bfd, 0x8b8780, 0xc084fc];
@@ -120,7 +121,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
       {data && (
         <div className="p-3 border-t border-slate-200 dark:border-slate-700 space-y-3">
           <div className="flex items-center gap-3">
-            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? t('viewer.pauseAnimation') : t('viewer.playAnimation')} data-testid="gcode-play">{playing ? t('viewer.pauseShort') : t('viewer.playShort')}</button>
+            <button className="btn-ghost btn-sm" onClick={() => { if (layer >= n - 1) setLayer(0); setPlaying((p) => !p); }} aria-label={playing ? t('viewer.pauseAnimation') : t('viewer.playAnimation')} data-testid="gcode-play"><Icon name={playing ? 'pause' : 'play'} className="h-4 w-4" />{playing ? t('viewer.pauseShort') : t('viewer.playShort')}</button>
             <input type="range" min={0} max={n - 1} value={layer} onChange={(e) => { setPlaying(false); setLayer(+e.target.value); }} className="flex-1" aria-label={t('viewer.layer')} data-testid="gcode-layer-slider" />
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">

@@ -14,6 +14,7 @@ import { SliceErrorHelp } from './slice-error-help';
 import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
 import { NozzleMismatch, ProcessOptions } from './process-options';
+import { Icon } from '@/components/shell';
 
 export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; progress?: { pct: number; message: string } | null; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
 
@@ -114,7 +115,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={orient} onChange={(e) => { setOrient(e.target.checked); void setAutoOrientAction(fileId, e.target.checked); }} data-testid="slice-orient" />{t('slicer.autoOrient')}<span className="muted text-xs">{t('slicer.autoOrientHint')}</span></label>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>
-        {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && fil && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
+        {(ai?.advisor || ai?.diagnose) && canSlice && machine?.machineProfileId && fil && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} disabled={busy} data-testid="advisor-open"><Icon name="sparkles" className="h-4 w-4" />{t('advisor.open')}</button>}
         {run?.status === 'done' && <button className="btn-ghost" onClick={() => go(true)} disabled={busy}>{t('slicer.sliceAgainBypassCache')}</button>}
         <span className="text-xs muted">{t('slicer.engineOrcaslicerTheSameFile')}</span>
       </div>
@@ -132,10 +133,10 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           <p className="text-xs muted">{t('slicer.sourceLabel')} <b>{t('slicer.serverSlicer')}</b> · OrcaSlicer {run.engineVersion} · {run.cached ? t('slicer.resultFromCache') : t('slicer.slicedInS', { seconds: num((run.durationMs ?? 0) / 1000, 1) })} · {run.plates ?? 1} placa(s){copies > 1 ? t('slicer.copiesOnTheSamePlate', { copies }) : ''}</p>
           <p className="text-xs muted">{t('slicer.profiles2')} {Object.values(run.profileVersions ?? {}).map(([n, v]) => `${n} v${v}`).join(' · ')}</p>
           <div className="flex flex-wrap gap-2">
-            {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode`} data-testid="dl-gcode">{t('slicer.gCode')}</a>}
+            {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode`} data-testid="dl-gcode"><Icon name="download" className="h-4 w-4" />{t('slicer.gCode')}</a>}
             {run.status === 'done' && <button className="btn-ghost btn-sm" onClick={async () => { const r = await enqueueFromRunAction(run.id, machine?.id ?? null, materialId || null); if (r.ok) toast.push(t('slicer.queued'), 'ok'); else toast.push(r.error, 'err'); }} data-testid="enqueue-run">{t('slicer.addToQueue')}</button>}
-            {run.has3mf && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/threemf`}>{t('slicer.sliced3mf')}</a>}
-            {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => setShowLayers((v) => !v)} data-testid="show-layers">{showLayers ? t('slicer.hideLayers') : t('slicer.viewGCodeLayers')}</button>}
+            {run.has3mf && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/threemf`}><Icon name="download" className="h-4 w-4" />{t('slicer.sliced3mf')}</a>}
+            {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => setShowLayers((v) => !v)} data-testid="show-layers"><Icon name="eye" className="h-4 w-4" />{showLayers ? t('slicer.hideLayers') : t('slicer.viewGCodeLayers')}</button>}
             <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${run.id}&machine=${machineId}&material=${materialId}&copies=${copies}`} data-testid="use-in-quote">{t('slicer.useInAQuote')}</Link>
           </div>
         </div>

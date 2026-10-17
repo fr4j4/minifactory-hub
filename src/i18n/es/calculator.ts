@@ -24,7 +24,7 @@ export const calculator = {
   remove: 'Quitar {m}',
   addAModelFromThe: 'Agregar modelo de la biblioteca',
   addAModelFromThe2: '+ Agregar modelo de la biblioteca…',
-  uploadANewFile: '⬆ Subir archivo nuevo',
+  uploadANewFile: 'Subir archivo nuevo',
   dropTheCustomerSFile: 'Suelta el archivo del cliente',
   processProfile: 'Perfil de proceso',
   howTimeAndGramsAre: 'Cómo se obtienen el tiempo y los gramos',

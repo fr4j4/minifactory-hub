@@ -200,7 +200,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
               {(['frente', 'arriba', 'lado', 'iso'] as const).map((v) => <button key={v} className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view(v)} data-testid={`view-${v}`}>{{ frente: t('viewer.front'), arriba: t('viewer.top'), lado: t('viewer.side'), iso: t('viewer.isometric') }[v]}</button>)}
               <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">{t('viewer.fitToView')}</button>
             </div>
-            {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge">{cur.ok ? t('viewer.fitsIn', { m: cur.m.name }) : t('viewer.doesNotFitIn', { m: cur.m.name })}</div>}
+            {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge"><Icon name={cur.ok ? 'check' : 'x'} className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{cur.ok ? t('viewer.fitsIn', { m: cur.m.name }) : t('viewer.doesNotFitIn', { m: cur.m.name })}</div>}
             {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? t('viewer.chooseTheSecondPoint') : <>{t('viewer.distance')} <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
             {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.simplifiedMesh', { shown: (info.tris / 1000).toFixed(0), total: (info.orig / 1000).toFixed(0) })}</div>}
           </>
@@ -231,7 +231,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
             <div>
               <div className="label">{t('viewer.machineBuildVolume')}</div>
               <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label={t('viewer.machineToCheckFit')} data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
-              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}><Icon name={f.ok ? 'check' : 'x'} className="inline h-3 w-3 mr-0.5 -mt-px" /> {f.m.name}</li>)}</ul>}
+              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}><Icon name={f.ok ? 'check' : 'x'} className="inline h-3 w-3 mr-0.5 -mt-px" /> <span aria-hidden>{f.m.name}</span><span className="sr-only">{f.ok ? t('viewer.fitsIn', { m: f.m.name }) : t('viewer.doesNotFitIn', { m: f.m.name })}</span></li>)}</ul>}
             </div>
             <div>
               <div className="label">{t('viewer.dimensions')}</div>
@@ -256,7 +256,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
             </div>
             <div className="flex flex-col gap-1.5">
               <div className="label">{t('viewer.capture')}</div>
-              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture">{t('viewer.captureViewerImage')}</button>
+              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture"><Icon name="camera" className="h-4 w-4" />{t('viewer.captureViewerImage')}</button>
               <span className="text-xs muted">{t('viewer.itIsDownloadedAsA')}</span>
             </div>
           </div>

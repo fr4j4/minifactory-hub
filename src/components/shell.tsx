@@ -1,5 +1,5 @@
 'use client';
-import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Copy, FileText, House, Image, Layers, ListOrdered, Menu, Package, Pencil, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Star, Users, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Cloud, Copy, Download, Eye, FileText, House, Image, Layers, Lightbulb, Link2, ListOrdered, Menu, Moon, Package, Pause, Pencil, Play, Plus, Printer, QrCode, Radio, Search, Settings, ShoppingBag, Sparkles, ShoppingCart, Square, Star, Tag, TriangleAlert, Upload, Users, Video, X, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -16,6 +16,7 @@ const ICONS = {
   image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
   x: X, pencil: Pencil, check: Check, star: Star, copy: Copy, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
   'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight,
+  play: Play, pause: Pause, stop: Square, download: Download, upload: Upload, eye: Eye, light: Lightbulb, radio: Radio, cloud: Cloud, alert: TriangleAlert, moon: Moon, tag: Tag, video: Video, link: Link2, sparkles: Sparkles,
 } satisfies Record<string, LucideIcon>;
 export type IconName = keyof typeof ICONS;
 export function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {

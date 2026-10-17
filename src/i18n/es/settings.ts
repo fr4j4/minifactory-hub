@@ -54,7 +54,7 @@ export const settings = {
   fullBackupAndExport: 'Respaldo y exportación completa',
   downloadAllDataAsJson: 'Descarga todos los datos en JSON (una tabla por archivo) y todos los archivos (modelos, G-code y fotos) en un ZIP. Guárdalo fuera del servidor.',
   onlyTheAdministratorCanExport: 'Solo el administrador puede exportar.',
-  fullBackupDataFiles: '⬇ Respaldo completo (datos + archivos)',
+  fullBackupDataFiles: 'Respaldo completo (datos + archivos)',
   dataOnly: 'Solo datos',
   inProductionAlsoScheduleA: 'En producción, programa además un respaldo diario de la base (pg_dump) y del directorio de archivos con retención de 30 días: ver README.',
   myProfileAlerts: 'Mi perfil y avisos',

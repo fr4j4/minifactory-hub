@@ -8,6 +8,7 @@ import type { DlgInput } from './printer-connect';
 import { useLocale, useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
 import { LOCALE_TAG } from '@/i18n/config';
+import { Icon } from '@/components/shell';
 
 export interface CloudAccountRow { id: string; email: string; region: string; status: string; displayName: string | null; expiresAt: string | null; lastError: string | null; online: boolean }
 interface Dev { serial: string; name: string; online: boolean; printStatus: string | null; model: string | null; modelName: string | null; hasLanCode: boolean; linked: string | null }
@@ -74,7 +75,7 @@ function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: C
             <span className={cn('h-2 w-2 rounded-full shrink-0', d.online ? 'bg-emerald-500' : 'bg-slate-400')} aria-hidden />
             <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{d.name}</div><div className="font-mono text-[11px] muted">Bambu Lab {d.modelName ?? d.model ?? '?'} · {d.serial} · {d.online ? (PRINT_STATUS.has(d.printStatus ?? '') ? t(`machines.printStatus.${d.printStatus}` as 'machines.printStatus.IDLE') : d.printStatus ?? t('machines.online')) : t('machines.offline')}{lan ? t('machines.onYourNetwork', { lan: lan.ip }) : ''}</div></div>
             {d.linked ? <span className="text-xs muted">{t('machines.alreadyLinked', { via: d.linked === 'cloud' ? t('machines.viaCloud') : 'LAN' })}</span> : canCreate && <div className="flex flex-wrap gap-1.5">
-              <button className="btn-ghost btn-sm" disabled={pending} onClick={() => { setMachineId(''); setAdd(d); }} data-testid="cloud-add">{t('machines.addViaCloud')}</button>
+              <button className="btn-ghost btn-sm" disabled={pending} onClick={() => { setMachineId(''); setAdd(d); }} data-testid="cloud-add"><Icon name="cloud" className="h-4 w-4" />{t('machines.addViaCloud')}</button>
               {d.hasLanCode && <button className="btn-primary btn-sm" onClick={() => openLan({ serial: d.serial, name: d.name, model: d.model, modelName: d.modelName, ip: lan?.ip, cloudAccountId: a.id })} data-testid="cloud-lan">{t('machines.connectViaLan')}</button>}
             </div>}
           </li>); })}</ul>)}

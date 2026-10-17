@@ -95,7 +95,7 @@ test.describe('Conector Bambu Lab', () => {
     await page.waitForURL(/\/maquinas\/[0-9a-f-]{36}$/, { timeout: 30_000 });
         // la P1S de demostración imprime en bucle: se espera a que esté imprimiendo para detenerla
     await expect(panel.getByTestId('printer-state')).toHaveText('Imprimiendo', { timeout: 30_000 });
-    await panel.getByRole('button', { name: '■ Detener' }).click(); await page.getByRole('button', { name: 'Confirmar' }).click();
+    await panel.getByRole('button', { name: 'Detener' }).click(); await page.getByRole('button', { name: 'Confirmar' }).click();
     await expect(panel.getByTestId('printer-state')).toHaveText('Falló', { timeout: 10_000 });
     await panel.getByTestId('send-open').click(); await page.getByTestId('send-confirm').click();
     await expect(page.getByText(/se laminó para «Bambu Lab A1» y la impresora es «Bambu Lab P1S»/)).toBeVisible({ timeout: 20_000 });

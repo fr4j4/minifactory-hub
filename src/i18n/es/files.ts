@@ -43,7 +43,7 @@ export const files = {
   versions: 'Versiones ({versions})',
   linksReferences: 'Vínculos y referencias',
   license: '· licencia',
-  download: '⬇ Descargar',
+  download: 'Descargar',
   theFileCouldNotBe: 'No se pudo analizar el archivo:',
   fileSections: 'Secciones del archivo',
   toolpathsFromTheGCode: 'Trayectorias del G-code incluido en el 3MF',

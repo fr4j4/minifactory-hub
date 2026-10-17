@@ -72,7 +72,7 @@ export const quotes: Shape<typeof es['quotes']> = {
   optionalNotIncludedInThe: 'Optional (not included in the total):',
   references: 'References',
   terms: 'Terms.',
-  pdf: '⬇ PDF',
+  pdf: 'PDF',
   copyMessage: 'Copy message',
   whatsapp: 'WhatsApp',
   markAsSent: 'Mark as sent',

@@ -46,7 +46,7 @@ export const files: Shape<typeof es['files']> = {
   versions: 'Versions ({versions})',
   linksReferences: 'Links & references',
   license: '· license',
-  download: '⬇ Download',
+  download: 'Download',
   theFileCouldNotBe: 'The file could not be analyzed:',
   fileSections: 'File sections',
   toolpathsFromTheGCode: 'Toolpaths from the G-code included in the 3MF',

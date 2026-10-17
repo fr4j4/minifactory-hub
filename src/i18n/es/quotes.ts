@@ -69,7 +69,7 @@ export const quotes = {
   optionalNotIncludedInThe: 'Opcionales (no incluidos en el total):',
   references: 'Referencias',
   terms: 'Condiciones.',
-  pdf: '⬇ PDF',
+  pdf: 'PDF',
   copyMessage: 'Copiar mensaje',
   whatsapp: 'WhatsApp',
   markAsSent: 'Marcar como enviado',

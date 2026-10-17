@@ -16,6 +16,7 @@ import { ParamPanel, type Ov } from './param-panel';
 import { Explore } from './explore';
 import { AdvisorPanel } from '../advisor-panel';
 import { extendSchema, type ParamDef, type ParamType } from '@/lib/slicer/schema';
+import { Icon } from '@/components/shell';
 
 const EMPTY: Ov = { machine: {}, process: {}, filament: {} };
 const DEBOUNCE_MS = 700;
@@ -135,8 +136,8 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
           : <div className={stale ? 'opacity-60' : ''}><GcodeViewer src={`/api/runs/${shown.id}/preview`} /></div>) : <div className="card grid place-items-center text-sm muted" style={{ height: 320 }} role="status">{busy ? t('studio.slicing') : t('studio.noResult')}</div>}
         <div className="flex flex-wrap gap-2">
           {shown?.status === 'done' && <Link className="btn-primary" href={`/presupuestos/nuevo?file=${fileId}&run=${shown.id}&machine=${machine?.id ?? ''}&material=${materialId}&copies=${copies}`} data-testid="studio-use-in-quote">{t('slicer.useInAQuote')}</Link>}
-          {shown?.status === 'done' && <a className="btn-ghost" href={`/api/runs/${shown.id}/gcode`}>{t('slicer.gCode')}</a>}
-          {ai && (ai.advisor || ai.diagnose) && canSlice && setup?.machineProfileId && filId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} data-testid="advisor-open">✦ {t('advisor.open')}</button>}
+          {shown?.status === 'done' && <a className="btn-ghost" href={`/api/runs/${shown.id}/gcode`}><Icon name="download" className="h-4 w-4" />{t('slicer.gCode')}</a>}
+          {ai && (ai.advisor || ai.diagnose) && canSlice && setup?.machineProfileId && filId && processId && <button className="btn-ghost" onClick={() => setAdvisorOpen(true)} data-testid="advisor-open"><Icon name="sparkles" className="h-4 w-4" />{t('advisor.open')}</button>}
           {setup?.machineProfileId && canSlice && <button className="btn-ghost" onClick={() => setExploring(true)} data-testid="studio-explore">{t('studio.explore')}</button>}
         </div>
       </div>

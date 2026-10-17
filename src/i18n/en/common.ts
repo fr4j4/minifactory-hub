@@ -85,7 +85,7 @@ export const common: Shape<typeof es['common']> = {
   register: 'Register',
   back: 'Back',
   method: 'Method',
-  print: '🖨 Print',
+  print: 'Print',
   bambuLab: 'Bambu Lab',
   loading: 'Loading…',
   errorTitle: 'Something went wrong',

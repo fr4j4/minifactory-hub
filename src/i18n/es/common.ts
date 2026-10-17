@@ -82,7 +82,7 @@ export const common = {
   register: 'Registrar',
   back: 'Volver',
   method: 'Método',
-  print: '🖨 Imprimir',
+  print: 'Imprimir',
   bambuLab: 'Bambu Lab',
   loading: 'Cargando…',
   errorTitle: 'Algo salió mal',

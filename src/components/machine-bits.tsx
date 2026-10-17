@@ -11,6 +11,7 @@ import { machineHourly } from '@/lib/pricing';
 import { money } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
+import { Icon } from '@/components/shell';
 
 export function MachineForm({ m, profiles, kwh, materialTypes }: { m?: any; materialTypes?: string[]; profiles: Array<{ id: string; name: string; type: string; nozzle: string | null }>; kwh: number }) {
   const t = useT();
@@ -59,7 +60,7 @@ export function PlanTools({ machineId, items, plans }: { machineId: string; item
 }
 function DonePlanButtons({ plans, onPick }: { plans: Array<{ id: string; task: string; due: boolean }>; onPick: (id: string) => void }) {
   const t = useT();
-  return <div className="w-full mt-2 flex flex-wrap gap-2">{plans.map((p) => <button key={p.id} className={`btn-sm ${p.due ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onPick(p.id)} data-testid={`maint-done-${p.task}`}>{p.due ? '⚠ ' : ''}{t('machines.doneTask', { task: p.task })}</button>)}</div>;
+  return <div className="w-full mt-2 flex flex-wrap gap-2">{plans.map((p) => <button key={p.id} className={`btn-sm ${p.due ? 'btn-primary' : 'btn-ghost'}`} onClick={() => onPick(p.id)} data-testid={`maint-done-${p.task}`}>{p.due && <Icon name="alert" className="h-3.5 w-3.5" />}{t('machines.doneTask', { task: p.task })}</button>)}</div>;
 }
 
 export function IncidentForm({ machineId }: { machineId: string }) {

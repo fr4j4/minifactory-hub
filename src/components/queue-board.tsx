@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, GripVertical, Pause, Play, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, GripVertical, Moon, Pause, Play, X } from 'lucide-react';
 import { assignJobAction, cancelJobAction, createTestJobAction, finishJobAction, pauseJobAction, reorderJobAction, resumeJobAction, startJobAction } from '@/actions/production';
 import { Modal, useAction } from './client';
 import { Badge, StatusBadge, Swatch } from './ui';
@@ -82,7 +82,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
                 : j.suggestedMachineId ? <><span className="muted">{t('queue.suggested', { machine: machineOf(j.suggestedMachineId)?.name ?? '' })}</span>{canEdit && <button className="underline" disabled={pending} onClick={() => assign(j.id, j.suggestedMachineId)}>{t('queue.assignSuggested')}</button>}</>
                 : <span className="muted">{t('queue.unassigned')}</span>}
             </div>
-            {j.plannedEnd && <div className={cn('text-xs mt-1', overnight(j) ? 'text-warn font-medium' : 'muted')}>{overnight(j) ? t('queue.willFinishOutsideWorkingHours') : t('queue.ends')} {dmyHm(j.plannedEnd)}</div>}
+            {j.plannedEnd && <div className={cn('text-xs mt-1', overnight(j) ? 'text-warn font-medium' : 'muted')}>{overnight(j) ? <><Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />{t('queue.willFinishOutsideWorkingHours')}</> : t('queue.ends')} {dmyHm(j.plannedEnd)}</div>}
           </div>
         </div>
         {canEdit && (
@@ -138,9 +138,9 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             <div key={m.id} className="flex items-center border-t border-slate-100 dark:border-slate-800 h-14"><div className="w-32 shrink-0 text-sm font-medium pr-2 truncate">{m.name}</div>
               <div className="relative flex-1 h-10 rounded bg-slate-50 dark:bg-slate-900/50">
                 <div className="absolute inset-y-0 w-px bg-red-500 z-10" style={{ left: `${pos(now)}%` }} title={t('queue.now')} />
-                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate text-white', j.status === 'imprimiendo' ? 'bg-violet-600' : 'bg-brand-600', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-white/80 opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on ? '🌙 ' : ''}{j.number} {j.title}</div>; })}
+                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate text-white', j.status === 'imprimiendo' ? 'bg-violet-600' : 'bg-brand-600', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-white/80 opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on && <Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}{j.number} {j.title}</div>; })}
               </div></div>))}
-          <p className="text-xs muted mt-3">{t('queue.eachBarRunsFromThe')} {t('queue.projectedBar')}</p>
+          <p className="text-xs muted mt-3">{t('queue.eachBarRunsFromThe')} <Moon className="inline h-3.5 w-3.5 -mt-0.5" aria-hidden /> {t('queue.overnightLegend')} {t('queue.projectedBar')}</p>
         </div></div>
       )}
       {finish && <FinishModal job={finish} materials={materials} spools={spools} onClose={() => setFinish(null)} />}

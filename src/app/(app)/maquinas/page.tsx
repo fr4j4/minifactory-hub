@@ -10,6 +10,7 @@ import { PrinterPill } from '@/components/printer-live';
 import { liveByMachine } from '@/lib/bambu/manager';
 import { getT } from '@/i18n/server';
 import { DeleteMachineButton } from '@/components/machine-bits';
+import { Icon } from '@/components/shell';
 
 export async function generateMetadata() { return { title: (await getT())('meta.machines') }; }
 export default async function MachinesPage() {
@@ -18,7 +19,7 @@ export default async function MachinesPage() {
   const ms = await db.select().from(s.machines).where(isNull(s.machines.deletedAt)).orderBy(asc(s.machines.name)); const due = await maintenanceDue(); const live = liveByMachine();
   return (
     <>
-      <PageHeader title={t('machines.machinesMaintenance')} subtitle={t('machines.specificationsHourlyCostsLiveSta')} actions={<><Link href="/maquinas/conectores" className="btn-ghost" data-testid="connectors">{t('machines.connectPrinters2')}</Link>{can(user, 'maquinas', 'C') && <Link href="/maquinas/nueva" className="btn-primary" data-testid="new-machine">{t('machines.newMachine2')}</Link>}</>} />
+      <PageHeader title={t('machines.machinesMaintenance')} subtitle={t('machines.specificationsHourlyCostsLiveSta')} actions={<><Link href="/maquinas/conectores" className="btn-ghost" data-testid="connectors"><Icon name="radio" className="h-4 w-4" />{t('machines.connectPrinters2')}</Link>{can(user, 'maquinas', 'C') && <Link href="/maquinas/nueva" className="btn-primary" data-testid="new-machine">{t('machines.newMachine2')}</Link>}</>} />
       {ms.length === 0 ? <Card><Empty title={t('machines.noMachines')} hint={t('machines.registerYourPrintersToCalculate')} /></Card> : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="machine-grid">{ms.map((m) => { const done = m.jobsOk + m.jobsFailed; const d = due.filter((x) => x.machineId === m.id); return (
           <div key={m.id} className="card p-4 hover:border-brand-500 relative group">

@@ -5,6 +5,7 @@ import { addSpoolAction, findSpoolByCodeAction, moveItemAction, saveItemAction, 
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
 import { DateInput } from '@/components/date-input';
+import { Icon } from '@/components/shell';
 
 export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Array<{ id: string; name: string }>; trigger: React.ReactNode }) {
   const t = useT();
@@ -109,7 +110,7 @@ export function QrScanner() {
   };
   return (
     <div className="space-y-4 max-w-md">
-      <div className="card overflow-hidden"><video ref={video} className={cam === 'on' ? 'w-full aspect-square object-cover bg-black' : 'hidden'} playsInline muted aria-label={t('inventory.cameraForScanningQrCodes')} />{cam !== 'on' && <div className="p-6 text-center"><button className="btn-primary" onClick={start} data-testid="start-scan">{t('inventory.turnOnCameraAndScan')}</button>{cam === 'unsupported' && <p className="text-xs muted mt-2">{t('inventory.thisBrowserCannotReadQr')}</p>}</div>}</div>
+      <div className="card overflow-hidden"><video ref={video} className={cam === 'on' ? 'w-full aspect-square object-cover bg-black' : 'hidden'} playsInline muted aria-label={t('inventory.cameraForScanningQrCodes')} />{cam !== 'on' && <div className="p-6 text-center"><button className="btn-primary" onClick={start} data-testid="start-scan"><Icon name="camera" className="h-4 w-4" />{t('inventory.turnOnCameraAndScan')}</button>{cam === 'unsupported' && <p className="text-xs muted mt-2">{t('inventory.thisBrowserCannotReadQr')}</p>}</div>}</div>
       <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); go(code); }}><input className="input" value={code} onChange={(e) => setCode(e.target.value)} placeholder={t('inventory.spoolCodeEGB')} aria-label={t('inventory.spoolCode')} data-testid="scan-code" /><button className="btn-ghost shrink-0" disabled={!code.trim() || busy}>{t('inventory.open')}</button></form>
     </div>
   );
