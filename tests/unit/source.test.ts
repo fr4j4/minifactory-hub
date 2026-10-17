@@ -18,7 +18,8 @@ describe('origen del modelo (N3)', () => {
     expect(normalizeLicense(undefined)).toEqual({ code: 'desconocida', commercial: 'desconocido' });
   });
   it('anti-SSRF: bloquea direcciones privadas, también tras una redirección', async () => {
-    for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.0.5', '172.20.0.1', '169.254.169.254', '::1', 'fd00::1']) expect(isPrivateIp(ip)).toBe(true);
+    for (const ip of ['127.0.0.1', '10.1.2.3', '192.168.0.5', '172.20.0.1', '169.254.169.254', '::1', 'fd00::1', '::ffff:172.16.0.1', '::ffff:7f00:1', '::ffff:a9fe:a9fe', '224.0.0.1']) expect(isPrivateIp(ip)).toBe(true);
+    expect(isPrivateIp('::ffff:808:808')).toBe(false); // 8.8.8.8 mapeada
     expect(isPrivateIp('8.8.8.8')).toBe(false);
     await expect(safeGet('http://localhost/x', { resolve: async () => ['127.0.0.1'] })).rejects.toThrow('no permitida');
     await expect(safeGet('file:///etc/passwd')).rejects.toThrow();

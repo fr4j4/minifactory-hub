@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { pagePerm } from '@/lib/auth';
-import { canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Table, Tabs, Empty } from '@/components/ui';
-import { reportData, REPORTS, type Col } from '@/lib/reports';
+import { reportAllowed, reportData, REPORTS, type Col } from '@/lib/reports';
 import { dmy, dur, money, num, pct } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { DateInput } from '@/components/date-input';
@@ -12,10 +11,10 @@ const cell = (v: any, c: Col) => v == null || v === '' ? '—' : c.fmt === 'mone
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ r?: string; from?: string; to?: string }> }) {
   const t = await getT();
-  const user = await pagePerm('reportes', 'V'); const sp = await searchParams; const kind = REPORTS[sp.r ?? ''] ? sp.r! : 'ventas'; const costs = canSeeCosts(user);
+  const user = await pagePerm('reportes', 'V'); const sp = await searchParams;
   const to = sp.to ? new Date(sp.to + 'T23:59:59') : new Date(); const from = sp.from ? new Date(sp.from) : new Date(Date.now() - 90 * 86400_000);
-  const list = Object.entries(REPORTS).filter(([, v]) => costs || !v.costs);
-  const d = await reportData(kind, { from, to }, costs, user.role === 'ventas' ? user.id : undefined);
+  const list = Object.entries(REPORTS).filter(([k]) => reportAllowed(user, k)); const kind = reportAllowed(user, sp.r ?? '') ? sp.r! : list[0][0];
+  const d = await reportData(kind, { from, to }, user);
   const q = `from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`;
   const moneyCol = d.columns.find((c) => c.fmt === 'money' && ['revenue', 'amount', 'final', 'net'].includes(c.key)); const max = moneyCol ? Math.max(1, ...d.rows.map((r) => Math.abs(r[moneyCol.key] ?? 0))) : 0;
   return (

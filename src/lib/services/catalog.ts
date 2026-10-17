@@ -3,7 +3,8 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { nextNumber } from '../settings';
 import { addPayment } from './orders';
-import type { PermUser } from '../perm';
+import { canSellBelowCost, canSetFinalPrice, type PermUser } from '../perm';
+import { LocalizedError } from '@/i18n/errors';
 import { getT } from '@/i18n/server';
 
 type User = PermUser & { id: string };
@@ -86,7 +87,12 @@ export async function createSale(i: QuickSaleInput, user: User) {
   const rows = i.items.map((it) => {
     const v = byId.get(it.variantId); if (!v) throw new Error(t('catalog.variantNotFound'));
     const list = (ch && v.priceByChannel?.[ch.id]) || v.price;
-    const unit = it.unitPrice != null ? Math.round(it.unitPrice) : list;
+    it.qty = Math.max(1, Math.floor(it.qty || 1)); // una cantidad negativa sumaría stock
+    // precio a mano: solo quien fija precios finales; bajo el costo, solo el Administrador (como en presupuestos y pedidos)
+    const own = it.unitPrice != null && canSetFinalPrice(user);
+    const unit = own ? Math.round(it.unitPrice!) : list;
+    if (!(unit >= 0)) throw new LocalizedError('edit.invalid');
+    if (own && unit < v.avgCost && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
     subtotal += unit * it.qty; cost += v.avgCost * it.qty;
     if (v.stock - v.reserved < it.qty) shortages.push(`${v.sku}: faltan ${it.qty - (v.stock - v.reserved)} u.`);
     return { v, it, unit, list };

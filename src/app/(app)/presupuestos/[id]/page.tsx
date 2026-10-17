@@ -33,7 +33,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   const { quote: q, items, models, links, customer } = data; const db = await getDb(); const st = await getSettings();
   const editable = q.status === 'borrador' && can(user, 'presupuestos', 'E');
   if (editable) {
-    const { ctx, customers, models: lib, variants } = await loadEditorData();
+    const { ctx, customers, models: lib, variants } = await loadEditorData(user);
     const initial: QuoteState = {
       id: q.id, customerId: q.customerId, customerName: q.customerName ?? '', customerPhone: q.customerPhone ?? '', source: q.source ?? '', title: q.title ?? '', urgency: q.urgency, discount: q.discount, applyTax: q.applyTax, finalTotal: q.finalTotal, priceReason: q.priceReason ?? '', notes: q.notes ?? '', validUntil: q.validUntil ?? '',
       links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ id: l.id, url: l.url, title: l.title, kind: l.kind, note: l.note, imageUrl: l.imageUrl, showInPdf: l.showInPdf })),

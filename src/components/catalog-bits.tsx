@@ -40,7 +40,7 @@ export function ProductForm({ p, materials, models }: { p?: { id: string; name: 
   );
 }
 
-export function VariantRow({ v, label, avgCost, channels, canEdit, materials }: { v: { id: string; sku: string; stock: number; reserved: number; minStock: number; price: number; avgCost: number; location: string | null; weightG: number; printH: number; active: boolean; priceByChannel: Record<string, number> }; label: string; avgCost: number; channels: Array<{ id: string; name: string }>; canEdit: boolean; materials: Mat[] }) {
+export function VariantRow({ v, label, avgCost, channels, canEdit, materials }: { v: { id: string; sku: string; stock: number; reserved: number; minStock: number; price: number; location: string | null; weightG: number; printH: number; active: boolean; priceByChannel: Record<string, number> }; label: string; avgCost: number; channels: Array<{ id: string; name: string }>; canEdit: boolean; materials: Mat[] }) {
   const t = useT();
   const { run, pending } = useAction(); const [adj, setAdj] = useState(false); const [prod, setProd] = useState(false); const [edit, setEdit] = useState(false);
   const [kind, setKind] = useState<'ajuste' | 'merma' | 'muestra' | 'uso_interno' | 'devolucion'>('ajuste'); const [qty, setQty] = useState(v.stock); const [reason, setReason] = useState(''); const [ret, setRet] = useState(true); const [pq, setPq] = useState(Math.max(1, v.minStock * 2 - v.stock));

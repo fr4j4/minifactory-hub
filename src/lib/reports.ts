@@ -5,6 +5,7 @@ import { stockValue } from './stats';
 import { getT } from '@/i18n/server';
 import { tOr, type MessageKey } from '@/i18n/translate';
 import { netOfGross } from './pricing';
+import { canSeeCosts, type PermUser } from './perm';
 
 export interface Col { key: string; label: string; fmt?: 'money' | 'num' | 'pct' | 'text' | 'date' | 'h' | 'kg' }
 export interface ReportData { title: string; question: string; columns: Col[]; rows: Array<Record<string, any>>; summary?: Array<{ label: string; value: string }> }
@@ -21,10 +22,16 @@ export const REPORTS: Record<string, { title: MessageKey; question: MessageKey; 
   catalogo: { title: 'reports.kind.catalogo.title', question: 'reports.kind.catalogo.question' },
 };
 
+/** Reportes que el usuario puede ver: los de costos solo con canSeeCosts. Lo usan la página y la exportación. */
+export const reportAllowed = (user: PermUser, kind: string) => !!REPORTS[kind] && (canSeeCosts(user) || !REPORTS[kind].costs);
+
 const mon = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-export async function reportData(kind: string, r: { from: Date; to: Date }, costs: boolean, onlyUser?: string): Promise<ReportData> {
+/** El rol Ventas ve solo lo suyo (pedidos, ventas y presupuestos que creó); la decisión vive aquí para que página y exportación no diverjan. */
+export async function reportData(kind: string, r: { from: Date; to: Date }, user: PermUser & { id: string }): Promise<ReportData> {
   const t = await getT();
+  if (!reportAllowed(user, kind)) throw new Error(t('reports.unknownReport'));
+  const costs = canSeeCosts(user); const onlyUser = user.role === 'ventas' ? user.id : undefined;
   const db = await getDb(); const st = await getSettings(); const meta = REPORTS[kind];
   const netOf = (g: number, tax = 0) => netOfGross(g, st.rates, tax);
   const oc = [gte(s.orders.createdAt, r.from), lte(s.orders.createdAt, r.to), ne(s.orders.status, 'cancelado'), isNull(s.orders.deletedAt)]; if (onlyUser) oc.push(eq(s.orders.createdBy, onlyUser));
@@ -63,7 +70,7 @@ export async function reportData(kind: string, r: { from: Date; to: Date }, cost
     return { ...base, columns: [{ key: 'material', label: t('common.material') }, { key: 'kg', label: t('reports.kgConsumed'), fmt: 'kg' }, { key: 'fail', label: t('reports.kgInFailures'), fmt: 'kg' }, { key: 'failPct', label: t('reports.failPct'), fmt: 'pct' }], rows };
   }
   if (kind === 'embudo') {
-    const qs = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lte(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt)));
+    const qs = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lte(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt), onlyUser ? eq(s.quotes.createdBy, onlyUser) : undefined));
     const cnt = (st_: string[]) => qs.filter((q) => st_.includes(q.status));
     const sent = cnt(['enviado', 'aprobado', 'rechazado', 'vencido']);
     const rows = [[t('reports.drafts'), cnt(['borrador'])], [t('reports.sentTotal'), sent], [t('reports.approved'), cnt(['aprobado'])], [t('reports.rejected'), cnt(['rechazado'])], [t('reports.expiredWithoutAReply'), cnt(['vencido'])]].map(([l, a]) => ({ stage: l as string, n: (a as any[]).length, amount: (a as any[]).reduce((x: number, q: any) => x + q.total, 0), rate: sent.length ? ((a as any[]).length / sent.length) * 100 : null }));
@@ -92,16 +99,19 @@ export async function reportData(kind: string, r: { from: Date; to: Date }, cost
     return { ...base, columns: [{ key: 'channel', label: t('reports.channelSource') }, { key: 'n', label: t('common.sales'), fmt: 'num' }, { key: 'revenue', label: t('reports.amount'), fmt: 'money' }, { key: 'commission', label: t('reports.commissions'), fmt: 'money' }, { key: 'shipping', label: t('reports.shipping'), fmt: 'money' }, { key: 'net', label: t('common.netMargin'), fmt: 'money' }], rows };
   }
   if (kind === 'precio_final') {
-    const qs = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lte(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['enviado', 'aprobado', 'rechazado', 'vencido'])));
+    const qs = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lte(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['enviado', 'aprobado', 'rechazado', 'vencido']), onlyUser ? eq(s.quotes.createdBy, onlyUser) : undefined));
     const rows = qs.map((q) => ({ number: `${q.number} v${q.version}`, customer: q.customerName, suggested: q.suggestedTotal, final: q.total, diff: q.total - q.suggestedTotal, diffPct: q.suggestedTotal ? ((q.total - q.suggestedTotal) / q.suggestedTotal) * 100 : null, status: q.status, margin: (q.calc as any)?.totals?.marginPct ?? null }));
     return { ...base, columns: [{ key: 'number', label: t('common.quote') }, { key: 'customer', label: t('common.customer') }, { key: 'suggested', label: t('common.suggested'), fmt: 'money' }, { key: 'final', label: t('reports.final'), fmt: 'money' }, { key: 'diff', label: t('reports.difference'), fmt: 'money' }, { key: 'diffPct', label: '%', fmt: 'pct' }, { key: 'margin', label: t('reports.margin'), fmt: 'pct' }, { key: 'status', label: t('common.status') }], rows };
   }
   if (kind === 'catalogo') {
     const vs = await db.select({ v: s.productVariants, p: s.products }).from(s.productVariants).innerJoin(s.products, eq(s.products.id, s.productVariants.productId)).where(isNull(s.productVariants.deletedAt));
-    const items = await db.select({ i: s.saleItems, d: s.sales.date, st: s.sales.status }).from(s.saleItems).innerJoin(s.sales, eq(s.sales.id, s.saleItems.saleId)).where(and(gte(s.sales.createdAt, r.from), lte(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada')));
+    const items = await db.select({ i: s.saleItems, d: s.sales.date, st: s.sales.status }).from(s.saleItems).innerJoin(s.sales, eq(s.sales.id, s.saleItems.saleId)).where(and(gte(s.sales.createdAt, r.from), lte(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada'), onlyUser ? eq(s.sales.createdBy, onlyUser) : undefined));
     const rows = vs.map(({ v, p }) => { const it = items.filter((x) => x.i.variantId === v.id); const units = it.reduce((a, x) => a + x.i.qty, 0); const rev = it.reduce((a, x) => a + x.i.qty * x.i.unitPrice, 0); const cost = it.reduce((a, x) => a + x.i.qty * x.i.frozenCost, 0); return { product: `${p.name} ${Object.values(v.attrs ?? {}).join(' ')}`.trim(), sku: v.sku, units, revenue: rev, margin: rev - cost, marginPct: rev ? ((rev - cost) / rev) * 100 : null, stock: v.stock, value: v.stock * v.avgCost, idle: units === 0 && v.stock > 0 ? t('reports.noMovement') : '' }; }).sort((a, b) => b.revenue - a.revenue);
+    // sin canSeeCosts no salen margen ni valor del stock (costo promedio)
+    const cols: Col[] = [{ key: 'product', label: t('reports.productVariant') }, { key: 'sku', label: 'SKU' }, { key: 'units', label: t('reports.unitsSold'), fmt: 'num' }, { key: 'revenue', label: t('common.sales'), fmt: 'money' }, { key: 'margin', label: t('common.margin'), fmt: 'money' }, { key: 'marginPct', label: t('reports.margin'), fmt: 'pct' }, { key: 'stock', label: t('common.stock'), fmt: 'num' }, { key: 'value', label: t('common.stockValue'), fmt: 'money' }, { key: 'idle', label: t('reports.alert') }];
+    if (!costs) return { ...base, columns: cols.filter((c) => !['margin', 'marginPct', 'value'].includes(c.key)), rows: rows.map(({ margin: _m, marginPct: _p, value: _v, ...x }) => x) };
     const val = await stockValue();
-    return { ...base, columns: [{ key: 'product', label: t('reports.productVariant') }, { key: 'sku', label: 'SKU' }, { key: 'units', label: t('reports.unitsSold'), fmt: 'num' }, { key: 'revenue', label: t('common.sales'), fmt: 'money' }, { key: 'margin', label: t('common.margin'), fmt: 'money' }, { key: 'marginPct', label: t('reports.margin'), fmt: 'pct' }, { key: 'stock', label: t('common.stock'), fmt: 'num' }, { key: 'value', label: t('common.stockValue'), fmt: 'money' }, { key: 'idle', label: t('reports.alert') }], rows, summary: [{ label: t('reports.totalStockValue'), value: String(val.total) }] };
+    return { ...base, columns: cols, rows, summary: [{ label: t('reports.totalStockValue'), value: String(val.total) }] };
   }
   throw new Error(t('reports.unknownReport'));
 }

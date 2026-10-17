@@ -8,6 +8,7 @@ import { normalizeUrl } from '../links';
 import { createJob } from './production';
 import { loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
 import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 type User = PermUser & { id: string };
@@ -21,6 +22,9 @@ export interface OrderInput {
 /** Registro manual de un pedido (WhatsApp, Instagram, marketplace, feria…), con o sin presupuesto previo. Mixto: líneas a medida + productos de stock. */
 export async function createOrder(input: OrderInput, user: User): Promise<string> {
   const t = await getT();
+  // entrada no confiable (acción del servidor): mismas reglas que saveQuote
+  for (const it of input.items) { it.qty = Math.max(1, Math.floor(it.qty || 1)); if (it.finalUnit != null && !(it.finalUnit >= 0)) throw new LocalizedError('edit.invalid'); }
+  const discount = Math.max(0, Math.round(input.discount ?? 0));
   const ctx = await pricingContext();
   const db = ctx.db; const rt = ctx.settings.rates;
   let adj = 0;
@@ -36,7 +40,7 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
     priced.push({ it, p, finalUnit });
     lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.costTotal - (it.shipping ?? 0), shipping: it.shipping });
   }
-  const tt = calcQuote(lines, rt, { discount: input.discount ?? 0 });
+  const tt = calcQuote(lines, rt, { discount });
   if ((tt.belowCost || tt.lines.some((l) => l.belowCost)) && !canSellBelowCost(user)) throw new Error(t('orders.theFinalPriceIsBelow'));
   const number = await nextNumber('order');
   const hasProduct = input.items.some((i) => i.variantId), hasCustom = input.items.some((i) => !i.variantId);

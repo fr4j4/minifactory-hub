@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 /** El asistente necesita una base SIN cuentas: se levanta una segunda instancia en otro puerto con datos propios. */
 const PORT = 3290; const DIR = path.resolve('data/e2e-setup');
 let srv: ChildProcess; let token = '';
-const env = { ...process.env, PGLITE_DIR: path.join(DIR, 'pgdata'), STORAGE_DIR: path.join(DIR, 'storage'), DATA_DIR: DIR, SESSION_SECRET: 'e2e', ADMIN_PASSWORD: '' };
+const env = { ...process.env, PGLITE_DIR: path.join(DIR, 'pgdata'), STORAGE_DIR: path.join(DIR, 'storage'), DATA_DIR: DIR, SESSION_SECRET: 'e2e-secreto-de-pruebas-de-32-caracteres', ADMIN_PASSWORD: '' };
 delete (env as any).ADMIN_EMAIL;
 
 test.beforeAll(async () => {

@@ -5,7 +5,8 @@ import { startCloudSim, type CloudSim } from '../../scripts/bambu-cloud-sim';
 import { cloudDevices, cloudTasks, cloudUsername, isAllowedCoverUrl, loginPassword, loginWithCode, loginWithTfa, tokenExpiry } from '@/lib/bambu/cloud';
 import { CloudSession } from '@/lib/bambu/cloud-mqtt';
 
-const B = 24000; let p1s: SimHandle; let a1: SimHandle; let cloud: CloudSim;
+// bambu.test.ts usa 23000–24990 (su A1 escucha MQTT en 24883): esta base no se cruza con esos puertos
+const B = 26000; let p1s: SimHandle; let a1: SimHandle; let cloud: CloudSim;
 beforeAll(async () => {
   p1s = await startSim({ serial: '01P00A391800123', name: 'P1S Nube', model: 'C12', accessCode: '12345678', mqttPort: B + 883, ssdpTargets: [], trays: [{ type: 'PLA', color: '#E8432E', brand: 'PLA Basic', remain: 62 }, null, null, null], printing: { file: 'pieza.3mf', totalLayers: 100, minutes: 60, progress: 40 } });
   a1 = await startSim({ serial: '03900A3B2200456', name: 'A1 Nube', model: 'N2S', accessCode: '87654321', mqttPort: B + 1883, ssdpTargets: [] });

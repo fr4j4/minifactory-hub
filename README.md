@@ -64,7 +64,7 @@ cd $HOME\Downloads\minifactory-hub
 Solo hace falta una llave secreta; no necesitas definir una contraseña de administrador todavía (el siguiente paso explica por qué):
 
 ```powershell
-$clave = -join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $clave = -join ($b | ForEach-Object { $_.ToString('x2') })
 Set-Content -Path .env -Value "SESSION_SECRET=$clave"
 ```
 
@@ -194,6 +194,17 @@ docker compose up -d --build
 
 (En Windows, con los dos `-f` ya indicados.) Tus datos se conservan.
 
+**Si la aplicación no arranca tras actualizar** y `docker compose logs app` dice «SESSION_SECRET falta, es corto…»: la llave de `.env` tiene menos de 32 caracteres (el comando de PowerShell anterior generaba 16) o es el valor de ejemplo.
+
+1. Copia el valor actual de `SESSION_SECRET` (si no había, usa `dev-secret-cambiar-en-produccion`).
+2. En `.env`, agrega `SESSION_SECRET_PREVIOUS=<ese valor>`.
+3. Cambia `SESSION_SECRET` por una llave nueva (paso A3 o B3).
+4. Ejecuta `docker compose up -d`.
+5. Vuelve a guardar los códigos de acceso de las impresoras, la cuenta de Bambu Cloud y la clave de IA. Así quedan sellados con la llave nueva.
+6. Quita `SESSION_SECRET_PREVIOUS` de `.env`.
+
+Sin el paso 2, los códigos y claves guardados con la llave anterior ya no se pueden leer: hay que escribirlos de nuevo.
+
 **Respaldar tus datos:** tus pedidos, modelos y fotos viven en volúmenes de Docker, **no** en la carpeta del proyecto. Respalda con regularidad desde la propia aplicación: **Configuración → Respaldo** descarga un archivo ZIP. Guárdalo en un disco externo o en la nube.
 
 > ⚠️ **No uses** `docker compose down -v`: la opción `-v` **borra todos tus datos** (base de datos y archivos). Para apagar usa siempre `stop`.
@@ -219,6 +230,7 @@ Está apagada por defecto. Si quieres usarla, se activa dentro de la aplicación
 | «Cannot connect to the Docker daemon» | Docker no está encendido: abre Docker Desktop (Windows) o ejecuta `sudo systemctl start docker` (Linux). |
 | `permission denied` al usar docker en Linux | Falta el paso `usermod` o cerrar sesión; como alternativa temporal, antepón `sudo`. |
 | Error «defina SESSION_SECRET» | No existe el archivo `.env` o estás en otra carpeta. Repite el paso A3/B3 dentro de `minifactory-hub`. |
+| «SESSION_SECRET falta, es corto (mínimo 32 caracteres) o es el valor de ejemplo» | La llave de `.env` no sirve. Sigue «Si la aplicación no arranca tras actualizar» en *Uso diario*. |
 | `http://localhost:3000` no carga | Espera 1–2 minutos tras iniciar y revisa `docker compose ps`; si dice «Exited», mira `docker compose logs --tail 100 app`. |
 | No aparece el asistente `/bienvenida`, va directo a `/login` | Ya existe una cuenta de administrador (de una instalación anterior). Entra con esas credenciales, o si es un reinicio limpio revisa que no hayas definido `ADMIN_PASSWORD` en `.env`. |
 | El puerto 3000 ya está en uso (Windows) | Cierra el programa que lo usa, o cambia `"3000:3000"` por `"3001:3000"` en `docker-compose.windows.yml` y abre `localhost:3001`. |

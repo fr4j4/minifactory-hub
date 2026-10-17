@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createRedactor } from '@/lib/ai/redact';
 import { costOf, estimateTokens } from '@/lib/ai/budget';
-import { assertAiUrl, isLocalHost } from '@/lib/ai/config';
+import { aiKeyFor, assertAiUrl, isLocalHost, sameAiTarget } from '@/lib/ai/config';
+import { DEFAULT_AI } from '@/lib/ai/types';
+import { seal } from '@/lib/secret';
 import { extractJson } from '@/lib/ai/run';
 import { can } from '@/lib/perm';
 import { DEFAULT_SETTINGS } from '@/lib/settings';
@@ -74,5 +76,29 @@ describe('IA: valores por defecto', () => {
     expect(can({ role: 'operador' }, 'ia', 'X')).toBe(false);
     expect(can({ role: 'ventas' }, 'ia', 'C')).toBe(true);
     expect(can({ role: 'ventas', permOverrides: { ia: '' } }, 'ia', 'C')).toBe(false);
+  });
+});
+
+describe('sameAiTarget', () => {
+  it('la clave guardada solo sirve para el mismo proveedor y URL', () => {
+    const saved = { provider: 'openai-compat', baseUrl: 'https://api.openai.com/v1' };
+    expect(sameAiTarget(saved, 'openai-compat', ' https://api.openai.com/v1/ ')).toBe(true);
+    expect(sameAiTarget(saved, 'openai-compat', 'https://evil.example/v1')).toBe(false);
+    expect(sameAiTarget(saved, 'anthropic', 'https://api.openai.com/v1')).toBe(false);
+  });
+});
+
+describe('aiKeyFor', () => {
+  it('la clave de entorno solo viaja al destino de entorno', () => {
+    vi.stubEnv('AI_API_KEY', 'sk-ENV'); vi.stubEnv('AI_PROVIDER', 'anthropic'); vi.stubEnv('AI_BASE_URL', '');
+    expect(aiKeyFor(DEFAULT_AI, 'anthropic', '')).toBe('sk-ENV');
+    expect(aiKeyFor(DEFAULT_AI, 'anthropic', 'https://evil.example')).toBe('');
+    expect(aiKeyFor(DEFAULT_AI, 'openai-compat', '')).toBe('');
+    vi.unstubAllEnvs();
+  });
+  it('la clave guardada sigue a su destino aunque luego se elija "none"', () => {
+    const st = { ...DEFAULT_AI, provider: 'none' as const, apiKeySealed: seal('sk-SEALED'), keyTarget: { provider: 'anthropic', baseUrl: '' } };
+    expect(aiKeyFor(st, 'anthropic', '')).toBe('sk-SEALED');
+    expect(aiKeyFor(st, 'anthropic', 'https://evil.example')).toBe('');
   });
 });

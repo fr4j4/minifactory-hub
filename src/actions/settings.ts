@@ -6,6 +6,7 @@ import { audit } from '@/lib/audit';
 import { getSettings, saveSettings, type AppSettings } from '@/lib/settings';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 export async function saveSettingsAction(patch: Partial<AppSettings>) {
   return safe(async () => {
@@ -21,6 +22,9 @@ export async function saveUserAction(i: { id?: string; name: string; email: stri
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('config', i.id ? 'E' : 'C'); const db = await getDb();
+    // roles y permisos los gestiona solo un administrador: con config E un no-admin podría hacerse admin a sí mismo
+    if (u.role !== 'admin') throw new Error(t('auth.noPermission', { mod: 'config', action: i.id ? 'E' : 'C' }));
+    if (!(['admin', 'operador', 'ventas'] as string[]).includes(i.role)) throw new LocalizedError('edit.invalid');
     if (!i.name.trim() || !i.email.trim()) throw new Error(t('settings.nameAndEmailAreRequired'));
     if (!i.id && (!i.password || i.password.length < 8)) throw new Error(t('settings.thePasswordMustBeAt'));
     if (i.password && i.password.length < 8) throw new Error(t('settings.thePasswordMustBeAt'));
@@ -41,7 +45,12 @@ export async function saveProfileAction(i: { notifPrefs: Record<string, boolean>
 }
 
 export async function savePriceListAction(i: { id?: string; name: string; adjustPct: number }) {
-  return safe(async () => { const u = await requirePerm('config', 'E'); const db = await getDb(); if (i.id) await db.update(s.priceLists).set({ name: i.name, adjustPct: i.adjustPct }).where(eq(s.priceLists.id, i.id)); else await db.insert(s.priceLists).values({ workspaceId: WORKSPACE_ID, name: i.name, adjustPct: i.adjustPct, createdBy: u.id }); }, ['/configuracion']);
+  return safe(async () => {
+    const u = await requirePerm('config', 'E'); const db = await getDb();
+    if (!i.name?.trim()) throw new LocalizedError('edit.required');
+    if (!Number.isFinite(i.adjustPct) || i.adjustPct <= -100) throw new LocalizedError('edit.invalid'); // -100 % o menos deja precios en cero o negativos
+    if (i.id) await db.update(s.priceLists).set({ name: i.name.trim(), adjustPct: i.adjustPct }).where(eq(s.priceLists.id, i.id)); else await db.insert(s.priceLists).values({ workspaceId: WORKSPACE_ID, name: i.name.trim(), adjustPct: i.adjustPct, createdBy: u.id });
+  }, ['/configuracion']);
 }
 export async function markNotificationsReadAction(ids?: string[]) {
   return safe(async () => { await requireUser(); const db = await getDb(); const { inArray } = await import('drizzle-orm'); if (ids?.length) await db.update(s.notifications).set({ read: true }).where(inArray(s.notifications.id, ids)); else await db.update(s.notifications).set({ read: true }).where(eq(s.notifications.read, false)); }, ['/notificaciones', '/']);

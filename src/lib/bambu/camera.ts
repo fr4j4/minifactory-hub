@@ -3,8 +3,9 @@ import { spawn } from 'node:child_process';
 import type { CameraKind } from './models';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { certChangedError, checkPin } from './pin';
 
-export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number }
+export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number; fingerprint?: string | null }
 
 /** Paquete de autenticación de la cámara P1/A1: 4 enteros LE (0x40, 0x3000, 0, 0) + usuario y código en 32 bytes cada uno. */
 export function cameraAuthPacket(accessCode: string) {
@@ -25,7 +26,8 @@ export async function* jpegTlsFrames(o: CamOpts, signal?: AbortSignal): AsyncGen
   let buf = Buffer.alloc(0);
   const finish = (e: Error | true) => { done = e; wake?.(); };
   signal?.addEventListener('abort', () => { sock.destroy(); finish(true); });
-  sock.on('secureConnect', () => sock.write(cameraAuthPacket(o.accessCode)));
+  // el código de acceso sale solo si el certificado es el de la impresora (huella fijada en la primera conexión MQTT)
+  sock.on('secureConnect', () => { if (!checkPin(sock, o.fingerprint).ok) { sock.destroy(); finish(certChangedError()); return; } sock.write(cameraAuthPacket(o.accessCode)); });
   sock.on('timeout', () => { sock.destroy(); finish(Object.assign(new Error(t('machines.theCameraDidNotRespond')), { code: 'cam_timeout' })); });
   sock.on('error', (e) => finish(e));
   sock.on('close', () => finish(true));
@@ -61,9 +63,23 @@ export async function* splitMjpeg(src: AsyncIterable<Buffer>): AsyncGenerator<Bu
   }
 }
 
+/**
+ * ffmpeg no revisa la huella: antes de darle el código se abre un TLS de prueba al mismo puerto y se compara.
+ * ponytail: son dos conexiones; un intermediario que reenvíe la prueba a la impresora real y capture la de ffmpeg no se detecta. Cerrarlo pide un proxy TLS local fijado.
+ */
+function probePin(o: CamOpts, timeoutMsg: string) {
+  return new Promise<void>((res, rej) => {
+    const sock = tls.connect({ host: o.host, port: o.port ?? 322, rejectUnauthorized: false, timeout: 10_000 });
+    sock.once('secureConnect', () => { const ok = checkPin(sock, o.fingerprint).ok; sock.destroy(); if (ok) res(); else rej(certChangedError()); });
+    sock.once('timeout', () => { sock.destroy(); rej(Object.assign(new Error(timeoutMsg), { code: 'cam_timeout' })); });
+    sock.once('error', rej);
+  });
+}
+
 /** Cuadros de la cámara X1/H2 (RTSPS, puerto 322) convertidos a MJPEG con ffmpeg. */
 export async function* rtspsFrames(o: CamOpts, signal?: AbortSignal, fps = 2): AsyncGenerator<Buffer> {
   const t = await getT();
+  await probePin(o, t('machines.theCameraDidNotRespond'));
   const url = `rtsps://bblp:${encodeURIComponent(o.accessCode)}@${o.host}:${o.port ?? 322}/streaming/live/1`;
   const ff = spawn(process.env.FFMPEG_BIN || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-timeout', '10000000', '-i', url, '-an', '-vf', `fps=${fps}`, '-q:v', '6', '-f', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
   let err = ''; ff.stderr.on('data', (d) => { err = (err + d).slice(-400); });

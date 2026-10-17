@@ -187,7 +187,7 @@ class CamHub {
     const ac = new AbortController(); this.ac = ac; this.error = null;
     try {
       if (L.mode === 'cloud') throw new LocalizedError('connector.cloudNoCamera');
-      for await (const f of cameraFrames({ host: L.host ?? '', accessCode: unseal(L.accessCodeEnc), kind: md?.camera ?? 'jpeg-tls', port: L.cameraPort ?? undefined }, ac.signal)) {
+      for await (const f of cameraFrames({ host: L.host ?? '', accessCode: unseal(L.accessCodeEnc), kind: md?.camera ?? 'jpeg-tls', port: L.cameraPort ?? undefined, fingerprint: L.fingerprint }, ac.signal)) {
         this.last = { at: Date.now(), jpg: f }; for (const cb of this.subs) cb(f);
       }
     } catch (err) { this.error = (err as Error).message; for (const cb of this.subs) cb(Buffer.alloc(0)); }

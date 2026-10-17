@@ -13,10 +13,14 @@ RUN npm ci
 COPY . .
 RUN npm run build
 # Chromium genera los PDF; si no se instala el contenedor no arranca sin avisar: la salud del sistema (Configuración) lo informa.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 RUN npx playwright install chromium --with-deps
 # OrcaSlicer (laminador del servidor). Se extrae el AppImage; no necesita FUSE ni pantalla.
 RUN bash scripts/install-orca.sh || echo "OrcaSlicer no se pudo instalar: el laminador del servidor quedará deshabilitado"
 ENV NODE_ENV=production STORAGE_DIR=/data/storage DATA_DIR=/data PGLITE_DIR=/data/pgdata
+# Usuario sin privilegios: Next.js, OrcaSlicer (lee 3MF/STEP subidos) y Chromium no corren como root
+RUN useradd -m app && mkdir -p /data && chown -R app:app /data /app/.next
 VOLUME /data
 EXPOSE 3000
+ENTRYPOINT ["sh", "/app/scripts/docker-entrypoint.sh"]
 CMD ["sh", "-c", "npx tsx scripts/seed.ts --bootstrap-only && npx next start -p 3000"]

@@ -10,7 +10,7 @@ export async function generateMetadata() { return { title: (await getT())('meta.
 export default async function NewOrder({ searchParams }: { searchParams: Promise<{ cliente?: string }> }) {
   const t = await getT();
   const user = await pagePerm('pedidos', 'C'); const sp = await searchParams;
-  const { ctx, customers, models, variants } = await loadEditorData();
+  const { ctx, customers, models, variants } = await loadEditorData(user);
   return (<><PageHeader back={{ href: '/pedidos', label: t('nav.orders') }} title={t('common.registerOrder')} subtitle={t('orders.whatCameInThroughWhatsapp')} />
     <OrderForm ctx={ctx} customers={customers} models={models} variants={variants} showCosts={canSeeCosts(user)} canPrice={canSetFinalPrice(user)} initialCustomer={sp.cliente} /></>);
 }

@@ -4,8 +4,9 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { bulkUpdateLine, createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
-import { safe } from './common';
+import { checkNum, safe } from './common';
 import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
 
 export interface MaterialInput { id?: string; tech: string; manufacturer?: string; line?: string; type: string; colorName: string; hex: string; diameter?: number | null; density: number; costPerKg: number; stockMinG: number; tempNozzle?: string; tempBed?: string; supplierText?: string; filamentProfileId?: string | null }
 export async function saveMaterialAction(i: MaterialInput) {
@@ -13,6 +14,7 @@ export async function saveMaterialAction(i: MaterialInput) {
   return safe(async () => {
     const u = await requirePerm('inventario', i.id ? 'E' : 'C'); const db = await getDb();
     if (!i.type.trim() || !i.colorName.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
+    checkNum(i.density, 0.01); checkNum(i.costPerKg); checkNum(i.stockMinG); // densidad 0 deja el costo del material en 0
     const v = { tech: i.tech, manufacturer: i.manufacturer || null, line: i.line || null, type: i.type, colorName: i.colorName, hex: i.hex, diameter: i.diameter ?? null, density: i.density, costPerKg: Math.round(i.costPerKg), stockMinG: Math.round(i.stockMinG), tempNozzle: i.tempNozzle || null, tempBed: i.tempBed || null, supplierText: i.supplierText || null, updatedAt: new Date() };
     const link = async (id: string) => { const L = await import('@/lib/slicer/links'); if (i.filamentProfileId === undefined) return; if (i.filamentProfileId) await L.setMaterialProfile(id, i.filamentProfileId, null, db, u.id); else await L.clearMaterialProfile(id, db); };
     if (i.id) { await db.update(s.materials).set(v).where(eq(s.materials.id, i.id)); await link(i.id); await (await import('@/lib/services/lines')).syncMaterialLine(i.id, db); await audit('material', i.id, 'editar', { costPerKg: v.costPerKg }, u.id); return i.id; }
@@ -29,7 +31,11 @@ export async function updateSpoolAction(id: string, p: { location?: string | nul
   return safe(async () => {
     const u = await requirePerm('inventario', 'E'); const db = await getDb();
     const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, id)); if (!sp) throw new Error(t('common.spoolNotFound'));
-    const patch: Record<string, any> = { ...p, updatedAt: new Date() };
+    // solo los campos editables (antes se copiaba el objeto del cliente entero: podía tocar remainingG, unitCost o deletedAt)
+    const patch: Record<string, any> = { updatedAt: new Date() };
+    for (const k of ['location', 'machineId', 'slot', 'status', 'lastDriedAt', 'tareG'] as const) if (p[k] !== undefined) patch[k] = p[k];
+    if (p.status !== undefined && !['nueva', 'abierta', 'en_uso', 'agotada', 'descartada'].includes(p.status)) throw new LocalizedError('edit.invalid');
+    if (p.tareG !== undefined) checkNum(p.tareG);
     if (p.machineId) { patch.status = sp.status === 'agotada' ? sp.status : 'en_uso'; const [m] = await db.select().from(s.machines).where(eq(s.machines.id, p.machineId)); patch.location = t('inventory.loadedIn', { machine: m?.name ?? '' }) + (p.slot ? ' · ' + p.slot : ''); }
     if (p.machineId === null) { patch.machineId = null; }
     await db.update(s.spools).set(patch).where(eq(s.spools.id, id));
@@ -42,6 +48,7 @@ export async function saveItemAction(i: { id?: string; category: string; sku?: s
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('inventario', i.id ? 'E' : 'C'); const db = await getDb(); if (!i.name.trim()) throw new Error(t('inventory.theItemNeedsAName'));
+    checkNum(i.minStock); checkNum(i.unitCost); if (!i.id) checkNum(i.stock);
     const v = { category: i.category, sku: i.sku || null, name: i.name, unit: i.unit, minStock: i.minStock, unitCost: Math.round(i.unitCost), supplierText: i.supplierText || null, location: i.location || null, updatedAt: new Date() };
     if (i.id) { await db.update(s.inventoryItems).set(v).where(eq(s.inventoryItems.id, i.id)); return i.id; }
     const [r] = await db.insert(s.inventoryItems).values({ workspaceId: WORKSPACE_ID, stock: i.stock, createdBy: u.id, ...v }).returning({ id: s.inventoryItems.id }); return r.id;

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { eq, and, gt } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { can, type Action, type Module, type Role } from './perm';
+import { sessionSecret } from './config';
 import { getT } from '@/i18n/server';
 
 const COOKIE = 'mf_session';
@@ -32,11 +33,32 @@ export function loginThrottled(key: string) {
   return a.n >= 8;
 }
 export function loginFailed(key: string) {
+  const now = Date.now();
+  for (const [k, v] of attempts) if (now - v.first > 15 * 60_000) attempts.delete(k); // poda: el mapa no crece sin límite
   const a = attempts.get(key);
   if (!a || Date.now() - a.first > 15 * 60_000) attempts.set(key, { n: 1, first: Date.now() });
   else a.n++;
 }
 export function loginOk(key: string) { attempts.delete(key); }
+/*
+ * Navegador de confianza: donde ya se inició sesión con ese correo queda una cookie firmada y su contador de intentos es otro.
+ * Así quien prueba claves desde otro equipo no bloquea al dueño de la cuenta (no hay IP de confianza: x-forwarded-for lo pone el cliente).
+ */
+const DEV_COOKIE = 'mf_dev';
+const deviceTag = (email: string) => crypto.createHmac('sha256', sessionSecret()).update(`login-device:${email}`).digest('base64url');
+export function loginKeyFor(email: string, deviceCookie?: string) {
+  const a = Buffer.from(deviceCookie ?? ''), b = Buffer.from(deviceTag(email));
+  return a.length === b.length && crypto.timingSafeEqual(a, b) ? `login|${email}|dev` : `login|${email}`;
+}
+export async function loginKey(email: string) { return loginKeyFor(email, (await cookies()).get(DEV_COOKIE)?.value); }
+export async function rememberDevice(email: string) {
+  (await cookies()).set(DEV_COOKIE, deviceTag(email), { httpOnly: true, sameSite: 'lax', secure: process.env.COOKIE_SECURE === '1', path: '/', maxAge: 60 * 60 * 24 * 365 });
+}
+/** Destino tras iniciar sesión: solo rutas internas («/x», no «//host», «/\\host» ni caracteres de control que el navegador descarta). */
+export function safeNextPath(next: unknown) {
+  const n = String(next ?? '');
+  return /^\/(?![\/\\])[^\x00-\x1f]*$/.test(n) ? n : '/';
+}
 
 export async function createSession(userId: string) {
   const db = await getDb();

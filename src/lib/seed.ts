@@ -158,7 +158,7 @@ export async function seedDemo(opts: { users?: boolean } = {}) {
   const [plPub, plRev, plEmp] = await db.select().from(s.priceLists).orderBy(s.priceLists.createdAt);
   const C = await db.insert(s.customers).values([
     { workspaceId: WORKSPACE_ID, name: 'Constanza Rojas', type: 'particular', phone: '+56 9 8123 4567', email: 'constanza@example.cl', photoConsent: 'yes', tags: ['maker'], priceListId: plPub?.id },
-    { workspaceId: WORKSPACE_ID, name: 'Taller Mecánico Los Aromos SpA', type: 'empresa', phone: '+56 2 2345 6789', taxId: '76.123.456-7', email: 'compras@losaromos.cl', photoConsent: 'no_brand', tags: ['empresa', 'repuestos'], priceListId: plEmp?.id, depositPct: 50 },
+    { workspaceId: WORKSPACE_ID, name: 'Taller Mecánico Los Aromos SpA', type: 'empresa', phone: '+56 2 2345 6789', taxId: '76.123.456-0', email: 'compras@losaromos.cl', photoConsent: 'no_brand', tags: ['empresa', 'repuestos'], priceListId: plEmp?.id, depositPct: 50 },
     { workspaceId: WORKSPACE_ID, name: 'FabLab Universidad Austral', type: 'empresa', phone: '+56 63 222 0000', email: 'fablab@uach.example', photoConsent: 'yes', tags: ['universidad'], priceListId: plEmp?.id },
     { workspaceId: WORKSPACE_ID, name: 'Tienda Geek Chile', type: 'revendedor', phone: '+56 9 7000 1111', email: 'ventas@tiendageek.example', photoConsent: 'yes', tags: ['revendedor'], priceListId: plRev?.id },
     { workspaceId: WORKSPACE_ID, name: 'Andrea Valdés', type: 'particular', phone: '+56 9 6555 2222', photoConsent: 'no', priceListId: plPub?.id },
