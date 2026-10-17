@@ -79,7 +79,7 @@ body {
   .input:focus-visible, .input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--glow); }
   .input[aria-invalid="true"] { border-color: rgb(220 38 38); }
   .label { @apply block text-[11px] font-medium uppercase tracking-[.08em] text-[var(--muted)] mb-1.5; font-family: var(--font-geist-mono), ui-monospace, monospace; }
-  .badge { @apply inline-flex items-center gap-1.5 rounded-md px-1.5 py-[3px] text-[12px] leading-4 font-medium border border-transparent whitespace-nowrap; }
+  .badge { @apply inline-flex items-center gap-1.5 rounded-md px-1.5 py-[3px] text-[12px] leading-4 font-medium border border-[var(--line)] whitespace-nowrap; }
   .badge-led::before { content: ''; @apply h-1.5 w-1.5 rounded-full shrink-0; background: currentColor; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent); }
   .th { @apply text-left text-[11px] font-medium uppercase tracking-[.08em] text-slate-600 dark:text-slate-400 px-3 py-2.5 border-b border-[var(--line)]; font-family: var(--font-geist-mono), ui-monospace, monospace; }
   .td { @apply px-3 py-2 text-sm align-middle; border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
@@ -99,11 +99,10 @@ body {
 @media (min-width: 768px) { .td .btn-sm { min-height: 30px; } }
 /* foco visible único para todo lo interactivo (en los paneles toma el color del texto del panel) */
 :where(a, button, summary, [tabindex="0"], [role="tab"]):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-/* barras de filtros: 2 columnas en teléfonos, fila desde sm */
+/* barras de filtros con varios controles: 2 columnas en teléfonos, fila desde sm (las de buscar + botón quedan en fila) */
 @media (max-width: 639px) {
-  form[role="search"] { display: grid; grid-template-columns: 1fr 1fr; }
-  form[role="search"] > :first-child { grid-column: 1 / -1; }
-  form[role="search"] > button:last-child:nth-child(even) { grid-column: 1 / -1; }
+  form[role="search"].flex-wrap { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  form[role="search"].flex-wrap > :first-child, form[role="search"].flex-wrap > button:last-child { grid-column: 1 / -1; }
 }
 /* casillas de selección en galerías: aparecen al pasar el cursor; en táctil siempre visibles */
 @media (hover: hover) and (pointer: fine) {

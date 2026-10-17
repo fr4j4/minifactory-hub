@@ -10,7 +10,7 @@ export const TONES: Record<string, string> = {
   violet: 'bg-[var(--accent-soft)] text-[var(--accent-ink)]',
 };
 export function Badge({ tone = 'gray', children, className }: { tone?: keyof typeof TONES; children: ReactNode; className?: string }) {
-  return <span className={cn('badge', TONES[tone], className)}>{children}</span>;
+  return <span className={cn('badge border-transparent', TONES[tone], className)}>{children}</span>;
 }
 export const statusTone = (st: string): keyof typeof TONES => ({
   recibido: 'blue', en_produccion: 'violet', post_proceso: 'amber', listo: 'green', entregado: 'gray', cancelado: 'red',
