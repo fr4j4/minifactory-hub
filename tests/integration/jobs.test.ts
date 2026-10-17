@@ -59,3 +59,18 @@ describe('cancelar un laminado', () => {
     expect(await cancelRun(r.id)).toBe('noop');
   });
 });
+
+describe('limpieza de laminados viejos', () => {
+  it('borra corridas viejas sin uso y sus archivos, pero conserva un archivo que otra corrida comparte', async () => {
+    const { gcSliceOutputs } = await import('@/lib/slicer/queue'); const st = await import('@/lib/storage');
+    const [v] = await db.select().from(s.fileVersions).limit(1); const old = new Date(Date.now() - 40 * 86400_000);
+    const own = await st.putBuffer(st.newKey('gcode', 'gcode'), Buffer.from('G1')); const shared = await st.putBuffer(st.newKey('gcode', '3mf'), Buffer.from('PK'));
+    const run = (o: any) => db.insert(s.sliceRuns).values({ workspaceId: v.workspaceId, fileVersionId: v.id, status: 'done', ...o }).returning().then((r) => r[0]);
+    const a = await run({ createdAt: old, gcodeKey: own, threemfKey: shared, result: { gcodeKeys: [own] } });
+    const b = await run({ gcodeKey: own + '-x', threemfKey: shared }); // acierto de caché reciente: comparte el 3MF
+    expect(await gcSliceOutputs(30)).toBeGreaterThanOrEqual(1);
+    expect((await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, a.id))).length).toBe(0);
+    expect((await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, b.id))).length).toBe(1);
+    expect(await st.exists(own)).toBe(false); expect(await st.exists(shared)).toBe(true);
+  });
+});

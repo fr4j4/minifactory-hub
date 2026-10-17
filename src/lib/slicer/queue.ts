@@ -1,10 +1,10 @@
 import { runsQueues } from '../worker-mode';
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
-import { and, eq, inArray, asc, desc, sql } from 'drizzle-orm';
+import { and, eq, inArray, asc, desc, isNotNull, lt, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { config } from '../config';
-import { absPath, newKey, putFile } from '../storage';
+import { absPath, newKey, putFile, remove } from '../storage';
 import { buildCliProfile } from './catalog';
 import { resolveFilament } from './resolve';
 import { cleanup, engineVersion, runOrca } from './run';
@@ -170,6 +170,30 @@ export function ensureWorker() {
   const tt = setInterval(() => { tick().catch(() => {}); }, 800);
   tt.unref?.();
   g.__sliceWorker.timer = tt;
+  // limpieza diaria de G-code/3MF viejos (la primera, un minuto después de arrancar)
+  setTimeout(() => { void gcSliceOutputs().catch(() => {}); setInterval(() => { void gcSliceOutputs().catch(() => {}); }, 86400_000).unref?.(); }, 60_000).unref?.();
+}
+
+const keysOf = (r: { gcodeKey: string | null; threemfKey: string | null; result: any }) => [r.gcodeKey, r.threemfKey, ...((r.result?.gcodeKeys as string[] | undefined) ?? [])].filter((k): k is string => !!k);
+
+/** Borra los laminados terminados de más de `days` días que nada usa (línea de presupuesto o pedido, trabajo de cola, envío a impresora) y sus archivos.
+ *  Un archivo que otra corrida comparte (los aciertos de caché copian las claves) se conserva.
+ *  ponytail: lee todas las corridas con archivos en memoria; paginar si llegan a ser cientos de miles. */
+export async function gcSliceOutputs(days = 30) {
+  const db = await getDb();
+  const old = await db.select({ id: s.sliceRuns.id }).from(s.sliceRuns).where(and(eq(s.sliceRuns.status, 'done'), lt(s.sliceRuns.createdAt, new Date(Date.now() - days * 86400_000))));
+  if (!old.length) return 0;
+  const used = new Set<string>();
+  for (const tb of [s.quoteItems, s.orderItems, s.printJobs]) for (const r of await db.select({ id: tb.sliceRunId }).from(tb).where(isNotNull(tb.sliceRunId))) used.add(r.id!);
+  for (const r of await db.select({ c: s.activityLog.changes }).from(s.activityLog).where(eq(s.activityLog.action, 'enviar_impresion'))) if ((r.c as any)?.runId) used.add((r.c as any).runId);
+  const gone = new Set(old.map((r) => r.id).filter((id) => !used.has(id)));
+  if (!gone.size) return 0;
+  const withFiles = await db.select({ id: s.sliceRuns.id, gcodeKey: s.sliceRuns.gcodeKey, threemfKey: s.sliceRuns.threemfKey, result: s.sliceRuns.result }).from(s.sliceRuns).where(isNotNull(s.sliceRuns.gcodeKey));
+  const keep = new Set(withFiles.filter((r) => !gone.has(r.id)).flatMap(keysOf));
+  const ids = [...gone];
+  await db.delete(s.sliceRuns).where(inArray(s.sliceRuns.id, ids));
+  for (const r of withFiles) if (gone.has(r.id)) for (const k of keysOf(r)) if (!keep.has(k)) await remove(k).catch(() => {});
+  return ids.length;
 }
 
 export async function waitForRuns(ids: string[], timeoutMs = 120_000) {
