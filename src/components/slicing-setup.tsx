@@ -59,7 +59,7 @@ function MachineRow({ m, options }: { m: SetupData['machines'][number]; options:
         <div data-testid="setup-nozzles"><span className="label">{t('nozzle.nozzleSetLabel')}</span>
           <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('nozzle.nozzleSetLabel')}>{m.variants.map((v) => { const on = v.base === base; const done = m.setups.some((x) => x.nozzle === v.nozzle); return (
             <button key={v.nozzle} type="button" role="radio" aria-checked={on} onClick={() => { setBase(v.base); setPick(false); }} data-testid={`setup-nozzle-${v.nozzle}`}
-              className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: v.nozzle.replace('.', ',') })}{done ? ' ✓' : ''}</button>); })}</div>
+              className={cn('num min-h-[36px] px-3 rounded-xl border text-sm', on ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent dark:bg-slate-700' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')}>{t('nozzle.mm', { n: v.nozzle.replace('.', ',') })}{done && <><Icon name="check" className="inline h-3.5 w-3.5 ml-1 -mt-0.5" /><span className="sr-only"> ({t('nozzle.nozzleReady')})</span></>}</button>); })}</div>
           <p className="text-xs muted mt-1">{t('nozzle.setupNozzleHelp')}</p>
         </div>)}
       <p className="text-xs muted">{t('slicer.theQualitiesAreTheOrcaslicer')}</p>

@@ -1,5 +1,5 @@
 'use client';
-import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Copy, FileText, House, Image, Layers, ListOrdered, Menu, Package, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Star, Users, X, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Copy, FileText, House, Image, Layers, ListOrdered, Menu, Package, Pencil, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Star, Users, X, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -14,7 +14,7 @@ export interface NavItem { href: string; label: string; icon: IconName; group: '
 const ICONS = {
   home: House, orders: ClipboardList, quote: FileText, calc: Calculator, users: Users, cube: Box, slice: Layers, box: Package, bag: ShoppingBag, cart: ShoppingCart, printer: Printer, queue: ListOrdered,
   image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
-  x: X, check: Check, star: Star, copy: Copy, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
+  x: X, pencil: Pencil, check: Check, star: Star, copy: Copy, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
   'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight,
 } satisfies Record<string, LucideIcon>;
 export type IconName = keyof typeof ICONS;

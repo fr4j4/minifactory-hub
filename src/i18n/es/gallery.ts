@@ -21,6 +21,7 @@ export const gallery = {
   collection: 'Colección',
   allCollections: 'Todas las colecciones',
   featured: '★ Destacadas',
+  featuredOne: 'Destacada',
   noPhotosMatchTheseFilters: 'No hay fotos con estos filtros',
   takePhotosFromAnOrder: 'Toma fotos desde un pedido o un trabajo, o súbelas aquí.',
   takePhotos: 'Tomar fotos',

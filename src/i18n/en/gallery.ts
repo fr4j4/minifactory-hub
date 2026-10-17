@@ -24,6 +24,7 @@ export const gallery: Shape<typeof es['gallery']> = {
   collection: 'Collection',
   allCollections: 'All collections',
   featured: '★ Featured',
+  featuredOne: 'Featured',
   noPhotosMatchTheseFilters: 'No photos match these filters',
   takePhotosFromAnOrder: 'Take photos from an order or a job, or upload them here.',
   takePhotos: 'Take photos',

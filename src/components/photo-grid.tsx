@@ -28,7 +28,7 @@ export function PhotoGrid({ photos, stages, canEdit }: { photos: PhotoView[]; st
         {photos.map((p) => (
           <li key={p.id} className="relative group">
             <button className="block w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800" onClick={() => setOpen(p)} aria-label={t('gallery.openPhoto', { stage: p.stageLabel })} data-testid="photo-tile">{p.kind === 'video' ? <div className="w-full h-full grid place-items-center text-3xl">🎬</div> : <img src={p.thumb} alt={p.caption ?? p.stageLabel} className="w-full h-full object-cover" loading="lazy" />}</button>
-            <span className="absolute left-1.5 top-1.5 flex gap-1">{p.featured && <span className="badge bg-amber-400 text-black border-transparent"><Icon name="star" className="h-3 w-3 fill-current" /></span>}{p.internalOnly && <span className="badge bg-slate-900/80 text-white border-transparent">{t('gallery.internal')}</span>}</span>
+            <span className="absolute left-1.5 top-1.5 flex gap-1">{p.featured && <span className="badge bg-amber-400 text-black border-transparent"><Icon name="star" className="h-3 w-3 fill-current" /><span className="sr-only">{t('gallery.featuredOne')}</span></span>}{p.internalOnly && <span className="badge bg-slate-900/80 text-white border-transparent">{t('gallery.internal')}</span>}</span>
             <label className="absolute right-1.5 top-1.5 bg-white/90 dark:bg-slate-900/80 rounded p-1"><input type="checkbox" checked={sel.includes(p.id)} onChange={() => toggle(p.id)} aria-label={t('gallery.selectPhoto')} /></label>
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[11px] p-1.5 rounded-b-lg">{p.stageLabel}</div>
           </li>))}
