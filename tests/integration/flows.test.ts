@@ -7,7 +7,7 @@ import { seedDemo } from '@/lib/seed';
 import { getSettings, saveSettings } from '@/lib/settings';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus, addPayment } from '@/lib/services/orders';
 import { loadQuote, newQuoteVersion, saveQuote, sendQuote } from '@/lib/services/quotes';
-import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance } from '@/lib/services/production';
+import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance, completeMaintenance } from '@/lib/services/production';
 import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/services/catalog';
 import { materialStock, weighSpool, shoppingList, createSpool, consumeFromSpool } from '@/lib/services/inventory';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
@@ -113,6 +113,15 @@ describe('aprobación manual → pedido → producción → inventario', () => {
     const [m] = await db.select().from(s.machines).where(eq(s.machines.id, ender.id)); await db.update(s.machines).set({ hoursTotal: 250 }).where(eq(s.machines.id, ender.id));
     const due = await maintenanceDue(); expect(due.some((d) => d.machineId === ender.id)).toBe(true); await checkMaintenance(ender.id);
     expect((await db.select().from(s.notifications).where(eq(s.notifications.kind, 'mantenimiento'))).length).toBeGreaterThan(0);
+  });
+  it('mantenimiento hecho: su aviso queda leído y el ciclo siguiente vuelve a avisar', async () => {
+    const unread = () => db.select().from(s.notifications).where(and(eq(s.notifications.kind, 'mantenimiento'), eq(s.notifications.read, false)));
+    const before = (await unread()).length; expect(before).toBeGreaterThan(0);
+    const plans = (await maintenanceDue()).filter((d) => d.machineId === ender.id);
+    for (const p of plans) await completeMaintenance({ planId: p.planId, userId: admin.id });
+    expect((await unread()).length).toBeLessThan(before);
+    await db.update(s.machines).set({ hoursTotal: 2000 }).where(eq(s.machines.id, ender.id)); await checkMaintenance(ender.id);
+    expect((await unread()).length).toBeGreaterThanOrEqual(before);
   });
 });
 
