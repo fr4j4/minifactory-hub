@@ -1,6 +1,5 @@
 'use server';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
 import { z } from 'zod';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { createSession, hashPassword, loginFailed, loginOk, loginThrottled, requireUser } from '@/lib/auth';
@@ -10,13 +9,14 @@ import { checkSetupToken, completeSetup, hasUsers, markStep, SETUP_STEPS, type S
 import { getT } from '@/i18n/server';
 
 type R = { error?: string; ok?: boolean };
-const ipKey = async () => `setup|${(await headers()).get('x-forwarded-for') ?? 'local'}`;
+// clave fija: el token es único por instalación y x-forwarded-for lo controla el cliente
+const SETUP_KEY = 'setup';
 
 /** Paso 0: verifica el token impreso en el registro del servidor. */
 export async function checkTokenAction(token: string): Promise<R> {
   const t = await getT();
   if (await hasUsers()) return { error: t('setup.alreadyDone') };
-  const key = await ipKey();
+  const key = SETUP_KEY;
   if (loginThrottled(key)) return { error: t('auth.throttled') };
   if (!(await checkSetupToken(token))) { loginFailed(key); return { error: t('setup.badToken') }; }
   loginOk(key);
@@ -32,7 +32,7 @@ const Account = z.object({
 export async function createAccountAction(input: unknown): Promise<R> {
   const t = await getT();
   if (await hasUsers()) return { error: t('setup.alreadyDone') };
-  const key = await ipKey();
+  const key = SETUP_KEY;
   if (loginThrottled(key)) return { error: t('auth.throttled') };
   const p = Account.safeParse(input);
   if (!p.success) return { error: p.error.issues[0]?.path[0] === 'password' ? t('setup.weakPassword') : t('setup.invalidData') };

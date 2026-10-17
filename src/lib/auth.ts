@@ -32,11 +32,18 @@ export function loginThrottled(key: string) {
   return a.n >= 8;
 }
 export function loginFailed(key: string) {
+  const now = Date.now();
+  for (const [k, v] of attempts) if (now - v.first > 15 * 60_000) attempts.delete(k); // poda: el mapa no crece sin límite
   const a = attempts.get(key);
   if (!a || Date.now() - a.first > 15 * 60_000) attempts.set(key, { n: 1, first: Date.now() });
   else a.n++;
 }
 export function loginOk(key: string) { attempts.delete(key); }
+/** Destino tras iniciar sesión: solo rutas internas («/x», no «//host», «/\\host» ni caracteres de control que el navegador descarta). */
+export function safeNextPath(next: unknown) {
+  const n = String(next ?? '');
+  return /^\/(?![\/\\])[^\x00-\x1f]*$/.test(n) ? n : '/';
+}
 
 export async function createSession(userId: string) {
   const db = await getDb();
