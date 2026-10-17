@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { errorText } from '@/i18n/errors';
 import { createSpool } from '@/lib/services/inventory';
@@ -76,6 +76,7 @@ describe('estados del pedido', () => {
     await expect(setOrderStatus(oid, 'listo', admin)).rejects.toThrow();
     const [j] = await planProduction(oid, admin); await startJob(j, { userId: admin.id }); await finishJob(j, { result: 'exito', userId: admin.id });
     await setOrderStatus(oid, 'listo', admin);
+    expect((await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid))).map((i) => i.status)).toEqual(['listo']); // las líneas siguen al pedido
     await expect(setOrderStatus(oid, 'post_proceso', admin)).rejects.toThrow();
   });
   it('planificar dos veces a la vez no duplica los trabajos', async () => {

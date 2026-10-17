@@ -225,7 +225,7 @@ export async function recomputeOrderStatus(orderId: string) {
   }
 }
 
-export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' | 'post_proceso' | 'en_produccion' | 'recibido', user: User, o: { tracking?: string; shipMethod?: string } = {}) {
+export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' | 'post_proceso', user: User, o: { tracking?: string; shipMethod?: string } = {}) {
   const t = await getT();
   const db = await getDb();
   const [ord] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
@@ -244,6 +244,8 @@ export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' 
   // transición condicionada antes de mover stock: una entrega repetida (doble clic, otra pestaña) no descuenta dos veces
   const [claimed] = await db.update(s.orders).set(patch).where(and(eq(s.orders.id, orderId), eq(s.orders.status, ord.status))).returning({ id: s.orders.id });
   if (!claimed) throw new Error(t('orders.orderStatusChanged'));
+  // las líneas impresas acompañan al pedido: «Listo» no deja líneas en post-proceso
+  if (to === 'listo') await db.update(s.orderItems).set({ status: 'listo' }).where(and(eq(s.orderItems.orderId, orderId), eq(s.orderItems.status, 'post_proceso')));
   if (to === 'entregado') {
     // las unidades reservadas de stock salen definitivamente
     const items = await db.select().from(s.orderItems).where(and(eq(s.orderItems.orderId, orderId), sql`${s.orderItems.variantId} is not null`));
