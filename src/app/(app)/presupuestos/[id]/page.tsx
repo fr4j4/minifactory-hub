@@ -21,7 +21,7 @@ import { tOr } from '@/i18n/translate';
 import { RemoveButton } from '@/components/remove-button';
 import { LineDetailLink } from '@/components/line-detail';
 import { QuoteDocument } from '@/components/quote-document';
-import { buildQuoteDoc } from '@/lib/services/quote-doc';
+import { buildQuoteDoc, docT, quoteTaxPct } from '@/lib/services/quote-doc';
 import { diffQuotes } from '@/lib/quote-diff';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quote') }; }
@@ -66,6 +66,8 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   const msg = fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName, numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) });
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; suggestedTotal: number; finalTotal: number; cost: number; marginPct: number | null }>;
   const tot = (q.calc as any)?.totals ?? {};
+  // como calcQuote: el subtotal incluye el despacho y el descuento no supera el subtotal (igual que el documento de cliente)
+  const shipping = items.filter((i) => !i.optional).reduce((a, i) => a + i.shipping, 0); const discount = Math.min(q.discount, tot.subtotal ?? q.discount);
   return (
     <>
       <PageHeader back={{ href: '/presupuestos', label: t('nav.quotes') }} title={<span>{q.number} <span className="muted text-base">v{q.version}</span> <StatusBadge status={q.status} /></span>}
@@ -87,16 +89,17 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
                   <td className="td text-right tabular font-medium">{money((it.finalUnit ?? it.suggestedUnit) * it.qty)}</td>{costs && <td className="td text-right tabular">{l?.marginPct != null ? pct(l.marginPct, 0) : '—'}</td>}</tr>); })}</tbody></Table>
           </Card>
           <Card title={t('common.referenceLinks')}><LinksEditor value={links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l }))} persist={{ ownerType: 'quote', ownerId: q.id, revalidate: `/presupuestos/${q.id}` }} readOnly={!can(user, 'presupuestos', 'E')} /></Card>
-          <details className="card" data-testid="client-view"><summary className="px-4 py-3 cursor-pointer font-medium text-sm">{t('quotes.clientView')}</summary><div className="border-t border-[var(--line)] overflow-auto"><QuoteDocument data={buildQuoteDoc(data, st, t)} template={(q.docTemplate as any) ?? st.documents.quote} t={t} /></div></details>
+          <details className="card" data-testid="client-view"><summary className="px-4 py-3 cursor-pointer font-medium text-sm">{t('quotes.clientView')}</summary><div className="border-t border-[var(--line)] overflow-auto"><QuoteDocument data={buildQuoteDoc(data, st, docT(q, t))} template={(q.docTemplate as any) ?? st.documents.quote} t={docT(q, t)} /></div></details>
           {q.notes && <Card title={t('common.notes')}><p className="text-sm whitespace-pre-wrap">{q.notes}</p></Card>}
         </div>
         <div className="space-y-4">
           <Card title={t('quotes.totals')}>
             <dl className="text-sm space-y-1.5 tabular">
               {costs && <div className="flex justify-between"><dt className="muted">{t('common.suggestedPrice')}</dt><dd>{money(q.suggestedTotal)}</dd></div>}
+              {shipping > 0 && <div className="flex justify-between"><dt className="muted">{t('common.shipping')}</dt><dd>{money(shipping)}</dd></div>}
               <div className="flex justify-between"><dt className="muted">{t('quotes.subtotal')}</dt><dd>{money(tot.subtotal ?? q.total)}</dd></div>
-              {q.discount > 0 && <div className="flex justify-between"><dt className="muted">{t('common.discount')}</dt><dd>−{money(q.discount)}</dd></div>}
-              <div className="flex justify-between"><dt className="muted">{q.applyTax ? t('quotes.plusVat', { pct: st.rates.taxPct }) : t('quotes.noVat')}</dt><dd>{money(q.taxAmount)}</dd></div>
+              {discount > 0 && <div className="flex justify-between"><dt className="muted">{t('common.discount')}</dt><dd>−{money(discount)}</dd></div>}
+              <div className="flex justify-between"><dt className="muted">{q.applyTax ? t('quotes.plusVat', { pct: quoteTaxPct(q, st) }) : t('quotes.noVat')}</dt><dd>{money(q.taxAmount)}</dd></div>
               <div className="flex justify-between text-lg font-bold border-t border-slate-200 dark:border-slate-700 pt-2"><dt>{t('common.total')}</dt><dd data-testid="view-total">{money(q.total)}</dd></div>
               {costs && <><div className="flex justify-between"><dt className="muted">{t('common.cost')}</dt><dd>{money(q.costTotal)}</dd></div><div className="flex justify-between"><dt className="muted">{t('common.margin')}</dt><dd>{tot.marginPct != null ? pct(tot.marginPct, 0) : '—'}</dd></div>{q.suggestedTotal > 0 && <div className="flex justify-between"><dt className="muted">{t('quotes.finalVsSuggested')}</dt><dd>{num(((q.total - q.suggestedTotal) / q.suggestedTotal) * 100, 1)}%</dd></div>}</>}
             </dl>

@@ -1,12 +1,13 @@
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
-import { nextNumber } from '../settings';
+import { getSettings, nextNumber } from '../settings';
 import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { cancelJob, createJob } from './production';
 import { customerPriceAdj, loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
+import { freezeDoc } from './quote-doc';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 import { ymd } from '../format';
@@ -134,6 +135,8 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
     };
   });
   const frozen = kept.map((it) => ({ breakdown: it.costBreakdown as any, suggestedUnit: it.suggestedUnit, costTotal: ((it.costBreakdown as any)?.cost ?? 0) + (it.shipping ?? 0) }));
+  // aprobar un borrador directo congela plantilla y datos del taller igual que enviar (fuera de la transacción: en PGlite una consulta fuera de `tx` quedaría esperando)
+  const docTemplate = q.docTemplate ? null : await freezeDoc(await getSettings());
   const orderId = await createOrder({
     customerId: q.customerId, customerName: q.customerName, customerPhone: q.customerPhone, source: q.source, title: q.title, quoteId: q.id, discount: q.discount,
     notes: q.notes, items: itemInputs, links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l })), deposit: o.deposit, dueDate: o.dueDate ?? null,
@@ -142,7 +145,7 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
     frozen, totals: { total: q.total, taxAmount: q.taxAmount },
     // el presupuesto se toma con un update condicionado en la misma transacción: dos aprobaciones simultáneas no crean dos pedidos
     claim: async (tx) => {
-      const [claimed] = await tx.update(s.quotes).set({ status: 'aprobado', frozen: true, approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() })
+      const [claimed] = await tx.update(s.quotes).set({ status: 'aprobado', frozen: true, ...(docTemplate ? { docTemplate } : {}), approvedBy: o.by, approvedChannel: o.channel, approvedAt: new Date(), updatedAt: new Date() })
         .where(and(eq(s.quotes.id, quoteId), inArray(s.quotes.status, ['borrador', 'enviado', 'vencido']), sql`date_trunc('milliseconds', ${s.quotes.updatedAt}) = ${q.updatedAt}`)).returning({ id: s.quotes.id });
       if (claimed) return;
       // sin cambio de estado: un guardado (otra pestaña) lo modificó después de leerlo; no se aprueba con líneas viejas
