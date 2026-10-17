@@ -74,6 +74,8 @@ describe('aprobación manual → pedido → producción → inventario', () => {
     const q = await saveQuote({ customerName: 'Ana', customerPhone: '+56911111111', source: 'whatsapp', items: [line({ description: 'Carcasa', qty: 3, gramsTotal: 90, hoursTotal: 4.5, finalUnit: 12000 })] }, admin);
     const oid = await approveQuote(q, { by: 'Ana', channel: 'whatsapp', deposit: { amount: 10000, method: 'transferencia' } }, admin);
     const [o] = await db.select().from(s.orders).where(eq(s.orders.id, oid)); const [qq] = await db.select().from(s.quotes).where(eq(s.quotes.id, q));
+    // aprobado directo desde borrador: también congela plantilla, datos del taller e idioma
+    expect((qq.docTemplate as any)?.snapshot?.lang).toBe('es');
     expect(qq.status).toBe('aprobado'); expect(o.total).toBe(qq.total); expect(o.paid).toBe(10000); expect(o.status).toBe('recibido'); expect(o.approvedBy).toBe('Ana');
     const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid)); expect(items[0].finalUnit).toBe(12000);
     const jobIds = await planProduction(oid, admin); expect(jobIds.length).toBe(1);

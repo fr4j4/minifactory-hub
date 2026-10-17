@@ -21,7 +21,7 @@ import { tOr } from '@/i18n/translate';
 import { RemoveButton } from '@/components/remove-button';
 import { LineDetailLink } from '@/components/line-detail';
 import { QuoteDocument } from '@/components/quote-document';
-import { buildQuoteDoc, quoteTaxPct } from '@/lib/services/quote-doc';
+import { buildQuoteDoc, docT, quoteTaxPct } from '@/lib/services/quote-doc';
 import { diffQuotes } from '@/lib/quote-diff';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quote') }; }
@@ -87,7 +87,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
                   <td className="td text-right tabular font-medium">{money((it.finalUnit ?? it.suggestedUnit) * it.qty)}</td>{costs && <td className="td text-right tabular">{l?.marginPct != null ? pct(l.marginPct, 0) : '—'}</td>}</tr>); })}</tbody></Table>
           </Card>
           <Card title={t('common.referenceLinks')}><LinksEditor value={links.filter((l) => l.ownerType === 'quote').map((l) => ({ ...l }))} persist={{ ownerType: 'quote', ownerId: q.id, revalidate: `/presupuestos/${q.id}` }} readOnly={!can(user, 'presupuestos', 'E')} /></Card>
-          <details className="card" data-testid="client-view"><summary className="px-4 py-3 cursor-pointer font-medium text-sm">{t('quotes.clientView')}</summary><div className="border-t border-[var(--line)] overflow-auto"><QuoteDocument data={buildQuoteDoc(data, st, t)} template={(q.docTemplate as any) ?? st.documents.quote} t={t} /></div></details>
+          <details className="card" data-testid="client-view"><summary className="px-4 py-3 cursor-pointer font-medium text-sm">{t('quotes.clientView')}</summary><div className="border-t border-[var(--line)] overflow-auto"><QuoteDocument data={buildQuoteDoc(data, st, docT(q, t))} template={(q.docTemplate as any) ?? st.documents.quote} t={docT(q, t)} /></div></details>
           {q.notes && <Card title={t('common.notes')}><p className="text-sm whitespace-pre-wrap">{q.notes}</p></Card>}
         </div>
         <div className="space-y-4">

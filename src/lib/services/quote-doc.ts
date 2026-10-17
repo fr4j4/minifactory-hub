@@ -1,18 +1,34 @@
 import type { loadQuote } from './quotes';
 import type { AppSettings } from '../settings';
 import type { QuoteDocData } from '@/components/quote-document';
-import type { TFn } from '@/i18n/translate';
+import { createT, type TFn } from '@/i18n/translate';
+import { getLocale } from '@/i18n/server';
+import { isLocale, type Locale } from '@/i18n/config';
 import { dur } from '../format';
+import { normalizeTemplate } from '../documents';
 
-/** Lo que se congela al enviar, junto a la plantilla: datos del taller y condiciones tal como los recibió el cliente. */
-export interface DocSnapshot { shop: Omit<QuoteDocData['shop'], 'logoUrl'>; terms: string }
+/** Lo que se congela al enviar, junto a la plantilla: datos del taller (con su logo), condiciones e idioma, tal como los recibió el cliente. */
+export interface DocSnapshot { shop: Omit<QuoteDocData['shop'], 'logoUrl'> & { logoKey?: string }; terms: string; lang?: Locale }
 export const docSnapshot = (st: AppSettings): DocSnapshot => ({
-  shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor },
+  shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor, logoKey: st.shop.logoKey },
   terms: st.templates.terms,
 });
 
+/** Plantilla + copia de los datos del taller e idioma de quien envía/aprueba: se guarda en quotes.docTemplate y ya no cambia. */
+export async function freezeDoc(st: AppSettings): Promise<Record<string, unknown>> {
+  return { ...normalizeTemplate(st.documents.quote), snapshot: { ...docSnapshot(st), lang: await getLocale() } };
+}
+
+/** Traductor del documento: un presupuesto congelado sale en el idioma con que se envió; si no, en el de quien lo mira. */
+export function docT(q: { docTemplate: unknown }, t: TFn): TFn {
+  const lang = (q.docTemplate as any)?.snapshot?.lang;
+  return isLocale(lang) ? createT(lang) : t;
+}
+
 /** % de IVA con que se calculó el presupuesto (el de Configuración puede haber cambiado después). */
-export function quoteTaxPct(q: { total: number; taxAmount: number }, st: AppSettings): number {
+export function quoteTaxPct(q: { total: number; taxAmount: number; calc?: unknown }, st: AppSettings): number {
+  // guardado al calcular; los presupuestos antiguos lo deducen del propio IVA
+  const saved = (q.calc as any)?.totals?.taxPct; if (typeof saved === 'number') return saved;
   const net = q.total - q.taxAmount;
   return net > 0 && Math.round((net * st.rates.taxPct) / 100) !== q.taxAmount ? Math.round((q.taxAmount / net) * 100) : st.rates.taxPct;
 }
@@ -36,8 +52,9 @@ export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote
   const active = items.filter((i) => !i.optional); const shipping = active.reduce((a, i) => a + i.shipping, 0);
   const subtotal = docItems.filter((i) => !i.optional).reduce((a, i) => a + i.total, 0) + shipping;
   const net = q.total - q.taxAmount; const pct = quoteTaxPct(q, st);
+  const { logoKey, ...shop } = snap.shop;
   return {
-    shop: { ...snap.shop, logoUrl: st.shop.logoKey ? '/api/branding/logo' : null },
+    shop: { ...shop, logoUrl: logoKey ? `/api/branding/logo?k=${encodeURIComponent(logoKey)}` : null },
     quote: { number: q.number, version: q.version, createdAt: q.createdAt, validUntil: q.validUntil, customerName: q.customerName, customerPhone: q.customerPhone, title: q.title, discount: Math.min(q.discount, subtotal), shipping, total: q.total, taxAmount: q.taxAmount, notes: q.notes },
     items: docItems,
     links: links.filter((l) => l.showInPdf).map((l) => ({ id: l.id, title: l.title, url: l.url })),
