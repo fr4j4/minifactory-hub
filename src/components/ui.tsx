@@ -51,9 +51,9 @@ export function Field({ label, children, hint, className }: { label: string; chi
   return <label className={cn('block', className)}><span className="label">{label}</span>{children}{hint && <span className="text-xs muted mt-1 block">{hint}</span>}</label>;
 }
 
-/** `label` nombra la región desplazable para lectores de pantalla; sin él no se declara región. */
-export function Table({ children, className, label }: { children: ReactNode; className?: string; label?: string }) {
-  return <div className={cn('overflow-x-auto', className)} tabIndex={0} role={label ? 'region' : undefined} aria-label={label}><table className="w-full border-collapse">{children}</table></div>;
+/** tabIndex permite desplazar con el teclado una tabla más ancha que la pantalla. */
+export function Table({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={cn('overflow-x-auto', className)} tabIndex={0}><table className="w-full border-collapse">{children}</table></div>;
 }
 
 export function Swatch({ hex, className }: { hex: string; className?: string }) { return <span className={cn('inline-block h-3.5 w-3.5 rounded-full border border-black/20 align-[-2px]', className)} style={{ background: hex }} aria-hidden />; }
