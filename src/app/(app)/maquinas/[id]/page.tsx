@@ -64,7 +64,7 @@ export default async function MachinePage({ params }: { params: Promise<{ id: st
             <span><span className="muted">{t('machines.slicingNozzle')}:</span> {activeNozzle ? `${activeNozzle} mm` : '—'}</span>
             <span className="muted">{t('machines.slicingRecent', { n: recentRuns.length })}</span>
           </div>
-          {recentRuns.length > 0 && <ul className="mt-2 text-xs space-y-1">{recentRuns.map((r) => <li key={r.id} className="flex justify-between gap-3"><span className="truncate">{r.label ?? '—'}</span><span className="tabular muted shrink-0">{dur(r.timeS)} · {grams((r.filament ?? []).reduce((a, f) => a + f.g, 0))}</span></li>)}</ul>}
+          {recentRuns.length > 0 && <ul className="mt-2 text-xs space-y-1">{recentRuns.map((r) => <li key={r.id} className="flex justify-between gap-3"><span className="truncate min-w-0">{r.label ?? '—'}</span><span className="tabular muted shrink-0">{dur(r.timeS)} · {grams((r.filament ?? []).reduce((a, f) => a + f.g, 0))}</span></li>)}</ul>}
         </Card>
       )}
       {printer && <div className="mb-4">{printer}</div>}

@@ -113,7 +113,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
         {canCreate && <button className="btn-ghost ml-auto" onClick={() => setNewJob(true)} data-testid="new-job">{t('queue.testJob')}</button>}
       </div>
       {view === 'tablero' ? (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start" data-testid="board" tabIndex={0}>
+        <div className="grid gap-4 grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start" data-testid="board" tabIndex={0}>
           <section className="rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5" aria-label={t('queue.waitingQueue')}>
             <header className="px-1 pb-2 flex items-center justify-between"><h3 className="font-semibold text-sm">{t('queue.waitingQueue')}</h3><span className="text-xs muted tabular">{queued.length}</span></header>
             {dragged?.machineId && dropZone('unassign', t('queue.dropToUnassign'), (id) => assign(id, null))}
@@ -127,7 +127,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
                   <header className="px-1 pb-2"><div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{mm.name}{mm.tech !== 'FDM' && <Badge tone="violet" className="ml-1.5">{t('queue.resin')}</Badge>}</h3><StatusBadge status={mm.status} /></div><div className="mt-1 empty:hidden"><PrinterPill machineId={mm.id} /></div></header>
                   {over === `m:${mm.id}` && drag && <div className="text-xs text-center py-1 font-medium">{t('queue.dropToAssign', { machine: mm.name })}</div>}
                   <ul className="space-y-2">{running.map((j) => renderRunning(j))}{running.length === 0 && <li className="text-xs muted px-1">{t('queue.machineFree')}</li>}</ul>
-                  {next.length > 0 && <div className="mt-2 px-1"><div className="text-[11px] uppercase tracking-wide muted mb-1">{t('queue.nextOnMachine')}</div><ol className="text-xs space-y-0.5">{next.map((j) => <li key={j.id} className="flex justify-between gap-2"><span className="truncate"><span className="tabular muted">#{queued.indexOf(j) + 1}</span> {j.title}</span><span className="tabular muted shrink-0">{dmyHm(j.plannedEnd)}</span></li>)}</ol></div>}
+                  {next.length > 0 && <div className="mt-2 px-1"><div className="text-[11px] uppercase tracking-wide muted mb-1">{t('queue.nextOnMachine')}</div><ol className="text-xs space-y-0.5">{next.map((j) => <li key={j.id} className="flex justify-between gap-2"><span className="truncate min-w-0"><span className="tabular muted">#{queued.indexOf(j) + 1}</span> {j.title}</span><span className="tabular muted shrink-0">{dmyHm(j.plannedEnd)}</span></li>)}</ol></div>}
                 </section>); })}
           </div>
         </div>

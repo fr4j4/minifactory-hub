@@ -114,7 +114,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
           </Card>
           <div className="space-y-4">
             <Card title={t('files.previousSlicesOfThisVersion')}>
-              {slicedRuns.length === 0 ? <p className="text-sm muted">{t('files.itHasNotBeenSliced')}</p> : <ul className="space-y-2 text-sm">{slicedRuns.map((r) => <li key={r.id} className="flex items-center justify-between gap-2"><span className="truncate">{r.label ?? t('files.slice')}</span><span className="tabular shrink-0">{r.status === 'done' ? `${dur(r.timeS)} · ${grams((r.filament ?? []).reduce((x, y) => x + y.g, 0))}` : <StatusBadge status={r.status} />}</span></li>)}</ul>}
+              {slicedRuns.length === 0 ? <p className="text-sm muted">{t('files.itHasNotBeenSliced')}</p> : <ul className="space-y-2 text-sm">{slicedRuns.map((r) => <li key={r.id} className="flex items-center justify-between gap-2"><span className="truncate min-w-0">{r.label ?? t('files.slice')}</span><span className="tabular shrink-0">{r.status === 'done' ? `${dur(r.timeS)} · ${grams((r.filament ?? []).reduce((x, y) => x + y.g, 0))}` : <StatusBadge status={r.status} />}</span></li>)}</ul>}
             </Card>
             <Card title={t('files.doesItFitMyMachines')}><p className="text-sm muted">{t('files.useThe3dViewerTab')} {a ? `${num(a.dimX, 1)}×${num(a.dimY, 1)}×${num(a.dimZ, 1)} mm.` : t('files.noAnalysisYet')}</p></Card>
           </div>
