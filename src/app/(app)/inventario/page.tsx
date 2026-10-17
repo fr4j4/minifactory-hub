@@ -5,7 +5,7 @@ import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, Table, Tabs, Badge, Meter, Swatch, StatusBadge, Empty } from '@/components/ui';
 import { AddSpoolButton, ItemDialog, ItemMove, MaterialForm } from '@/components/inventory-bits';
-import { listSuppliers, materialStock, shoppingList, materialCostPerKg } from '@/lib/services/inventory';
+import { listSuppliers, materialStock, shoppingList, weightedCostPerKg } from '@/lib/services/inventory';
 import { CopyButton } from '@/components/client';
 import { dmyHm, grams, money, num } from '@/lib/format';
 import { getT } from '@/i18n/server';
@@ -27,7 +27,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const items = tab === 'otros' ? await db.select().from(s.inventoryItems).where(isNull(s.inventoryItems.deletedAt)).orderBy(asc(s.inventoryItems.category), asc(s.inventoryItems.name)) : [];
   const moves = tab === 'movimientos' ? await db.select({ m: s.inventoryMovements, code: s.spools.code, item: s.inventoryItems.name }).from(s.inventoryMovements).leftJoin(s.spools, eq(s.spools.id, s.inventoryMovements.spoolId)).leftJoin(s.inventoryItems, eq(s.inventoryItems.id, s.inventoryMovements.itemId)).orderBy(desc(s.inventoryMovements.createdAt)).limit(80) : [];
   const shop = tab === 'compras' ? await shoppingList() : [];
-  const costMap = new Map<string, number>(); if (costs) for (const m of mats) costMap.set(m.id, await materialCostPerKg(m.id, db));
+  const costMap = new Map<string, number>(); if (costs) for (const m of mats) costMap.set(m.id, weightedCostPerKg(m, spools));
   const low = stock.filter((x) => x.low).length;
   return (
     <>

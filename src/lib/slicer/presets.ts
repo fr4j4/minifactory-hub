@@ -11,7 +11,7 @@ export async function ensurePresets(db?: Db): Promise<number> {
   let n = 0;
   for (const [i, p] of BUILTIN_PRESETS.entries()) {
     if (have.has(p.key)) continue;
-    await db.insert(s.qualityPresets).values({ workspaceId: WORKSPACE_ID, key: p.key, builtin: true, layerFactor: p.f, wallMm: p.wall, wallNozzles: p.wallNozzles ?? null, topMm: p.top, bottomMm: p.bottom, infill: p.infill, sortOrder: i });
+    await db.insert(s.qualityPresets).values({ workspaceId: WORKSPACE_ID, key: p.key, builtin: true, layerFactor: p.f, wallMm: p.wall, wallNozzles: p.wallNozzles ?? null, topMm: p.top, bottomMm: p.bottom, infill: p.infill, sortOrder: i }).onConflictDoNothing(); // dos primeras peticiones a la vez no chocan
     n++;
   }
   return n;

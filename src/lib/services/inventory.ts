@@ -13,9 +13,17 @@ export async function materialCostPerKg(materialId: string, db?: Db): Promise<nu
   db = db ?? (await getDb());
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId));
   if (!m) return 0;
-  const sp = await db.select().from(s.spools).where(and(eq(s.spools.materialId, materialId), isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));
+  const sp = await db.select().from(s.spools).where(and(eq(s.spools.materialId, materialId), isNull(s.spools.deletedAt)));
+  return weightedCostPerKg(m, sp);
+}
+
+/** Promedio ponderado por peso restante de las bobinas vivas del material (sin consultas: sirve para listas ya cargadas). */
+export function weightedCostPerKg(m: { id: string; costPerKg: number }, spools: Array<{ materialId: string; status: string; deletedAt: Date | null; remainingG: number; unitCost: number | null }>): number {
   let w = 0, acc = 0;
-  for (const x of sp) { const c = x.unitCost ?? m.costPerKg; const g = Math.max(x.remainingG, 1); w += g; acc += c * g; }
+  for (const x of spools) {
+    if (x.materialId !== m.id || x.deletedAt || !['nueva', 'abierta', 'en_uso'].includes(x.status)) continue;
+    const c = x.unitCost ?? m.costPerKg; const g = Math.max(x.remainingG, 1); w += g; acc += c * g;
+  }
   return w > 0 ? Math.round(acc / w) : m.costPerKg;
 }
 

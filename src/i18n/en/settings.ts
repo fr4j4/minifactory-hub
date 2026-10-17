@@ -157,6 +157,7 @@ export const settings: Shape<typeof es['settings']> = {
   templatesNote: 'Messages are copied or opened in WhatsApp: nothing is sent automatically.',
   numberingExample: 'E.g.',
   numberingExample2: 'generates P-2026-0001 and restarts every year.',
+  numberingNeedsYear: 'Each numbering must include {YYYY} and {NNNN}: the counter restarts every year, so without the year numbers would repeat.',
   channelKind: {
     directo: 'Direct',
     marketplace: 'Marketplace',
