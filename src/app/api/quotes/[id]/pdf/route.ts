@@ -22,7 +22,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id)); if (!q) return NextResponse.json({ error: t('common.doesNotExist') }, { status: 404 });
   const headers = { 'content-type': 'application/pdf', 'content-disposition': `attachment; filename="${q.number}-v${q.version}.pdf"` };
   if (q.status !== 'borrador' && q.pdfKey && (await exists(q.pdfKey))) return new Response(new Uint8Array(await getBuffer(q.pdfKey)), { headers });
-  const origin = new URL(req.url).origin; const sess = (await cookies()).get('mf_session')?.value ?? '';
+  // origen interno fijo: req.url sale del encabezado Host, que controla el cliente (SSRF y PDF guardado alterado)
+  const origin = process.env.INTERNAL_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`; const sess = (await cookies()).get('mf_session')?.value ?? '';
   try {
     const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, { name: 'mf_session', value: sess });
     if (q.status !== 'borrador') { const key = newKey('pdf', 'pdf'); await putBuffer(key, pdf); await db.update(s.quotes).set({ pdfKey: key }).where(eq(s.quotes.id, id)); }
@@ -30,6 +31,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   } catch (e) {
     console.error('PDF: no se pudo generar con Chromium', e);
     // Fallo explícito: se entrega la versión imprimible, pero avisando que el PDF no se pudo generar
-    return NextResponse.redirect(`${origin}/imprimir/presupuesto/${id}?sinpdf=1`);
+    return NextResponse.redirect(new URL(`/imprimir/presupuesto/${id}?sinpdf=1`, req.url));
   }
 }
