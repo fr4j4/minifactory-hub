@@ -1,6 +1,7 @@
 import { isFailCode, normalizeFailCause } from '../production/fail-causes';
+import { techFits } from '../production/tech';
 import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
-import { getDb, s, WORKSPACE_ID } from '@/db';
+import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
 import { getSettings, nextNumber } from '../settings';
 import { fitsIn } from '../mesh/ops';
@@ -47,14 +48,17 @@ export async function suggestMachine(o: { materialId?: string | null; dims?: [nu
  * Reordenar y (des)asignar son operaciones independientes. */
 const LIVE_STATUSES = ['en_cola', 'imprimiendo', 'pausado'] as const;
 const isLive = () => and(inArray(s.printJobs.status, [...LIVE_STATUSES]), isNull(s.printJobs.deletedAt));
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Q = Db | Tx;
 
 export async function createJob(spec: JobSpec): Promise<string> {
   const db = await getDb();
   let machineId = spec.machineId ?? null;
-  // una máquina eliminada o simulada no está en el tablero: el trabajo queda sin asignar y la cola le sugiere una
-  if (machineId) { const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m || m.deletedAt || m.simulated) machineId = null; }
+  // una máquina eliminada, simulada o que no usa la tecnología del material: el trabajo queda sin asignar y la cola le sugiere una
+  if (machineId) {
+    const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId));
+    const [mat] = spec.materialId ? await db.select({ tech: s.materials.tech }).from(s.materials).where(eq(s.materials.id, spec.materialId)) : [];
+    if (!m || m.deletedAt || m.simulated || !techFits(mat?.tech, m.tech)) machineId = null;
+  }
   const number = await nextNumber('job');
   const [mx] = await db.select({ n: sql<number>`coalesce(max(${s.printJobs.position}),0)` }).from(s.printJobs).where(isLive());
   const [job] = await db.insert(s.printJobs).values({
@@ -83,6 +87,7 @@ export async function projectQueue(db?: Q): Promise<Map<string, PlannedJob>> {
   const spools = await q.select({ machineId: s.spools.machineId, materialId: s.spools.materialId }).from(s.spools).where(and(isNull(s.spools.deletedAt), gt(s.spools.remainingG, 0)));
   const loaded = new Set(spools.filter((x) => x.machineId).map((x) => `${x.machineId}|${x.materialId}`));
   const candidates = machines.filter((m) => m.status !== 'fuera_de_servicio' && !m.simulated);
+  const matTech = new Map((await q.select({ id: s.materials.id, tech: s.materials.tech }).from(s.materials)).map((x) => [x.id, x.tech]));
   const rank = (st: string) => (st === 'imprimiendo' ? 0 : st === 'pausado' ? 1 : 2);
   const jobs = (await q.select().from(s.printJobs).where(isLive())).sort((a, b) => rank(a.status) - rank(b.status) || a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
   const free = new Map<string, number>();
@@ -102,6 +107,7 @@ export async function projectQueue(db?: Q): Promise<Map<string, PlannedJob>> {
       let best: { id: string; score: number } | null = null;
       for (const m of candidates) {
         if (j.dims && !fitsIn(j.dims, [m.volX, m.volY, m.volZ])) continue;
+        if (j.materialId && !techFits(matTech.get(j.materialId), m.tech)) continue;
         const score = ((free.get(m.id) ?? now) - now) / 3600_000 - (j.materialId && loaded.has(`${m.id}|${j.materialId}`) ? 3 : 0) + (m.status === 'mantenimiento' ? 24 : 0);
         if (!best || score < best.score) best = { id: m.id, score };
       }
@@ -156,8 +162,10 @@ export async function assignJob(jobId: string, machineId: string | null, userId?
   if (j.status === 'imprimiendo' || j.status === 'pausado') throw new Error(t('queue.aJobInProgressCannot'));
   if (j.status !== 'en_cola') throw new Error(t('queue.theJobIsAlreadyClosed'));
   if (machineId) {
-    const [m] = await db.select({ id: s.machines.id }).from(s.machines).where(and(eq(s.machines.id, machineId), isNull(s.machines.deletedAt)));
+    const [m] = await db.select({ id: s.machines.id, tech: s.machines.tech }).from(s.machines).where(and(eq(s.machines.id, machineId), isNull(s.machines.deletedAt)));
     if (!m) throw new LocalizedError('machines.machineNotFound');
+    const [mat] = j.materialId ? await db.select({ tech: s.materials.tech }).from(s.materials).where(eq(s.materials.id, j.materialId)) : [];
+    if (!techFits(mat?.tech, m.tech)) throw new LocalizedError('queue.machineTechMismatch');
   }
   if ((j.machineId ?? null) === machineId) return;
   await db.update(s.printJobs).set({ machineId, updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
@@ -179,8 +187,9 @@ async function idleMachineFor(db: Q, j: { materialId: string | null; dims: [numb
   const printing = new Set((await db.select({ id: s.printJobs.machineId }).from(s.printJobs).where(and(eq(s.printJobs.status, 'imprimiendo'), isNull(s.printJobs.deletedAt)))).map((r) => r.id));
   const spools = j.materialId ? await db.select({ machineId: s.spools.machineId }).from(s.spools).where(and(eq(s.spools.materialId, j.materialId), isNull(s.spools.deletedAt), gt(s.spools.remainingG, 0))) : [];
   const loaded = new Set(spools.map((x) => x.machineId));
+  const [mat] = j.materialId ? await db.select({ tech: s.materials.tech }).from(s.materials).where(eq(s.materials.id, j.materialId)) : [];
   const rank = (m: { id: string; status: string }) => (loaded.has(m.id) ? 0 : 1) + (m.status === 'mantenimiento' ? 2 : 0);
-  return machines.filter((m) => !printing.has(m.id) && (!j.dims || fitsIn(j.dims, [m.volX, m.volY, m.volZ]))).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))[0]?.id;
+  return machines.filter((m) => !printing.has(m.id) && techFits(mat?.tech, m.tech) && (!j.dims || fitsIn(j.dims, [m.volX, m.volY, m.volZ]))).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))[0]?.id;
 }
 
 export async function startJob(jobId: string, o: { machineId?: string; spoolId?: string; userId?: string | null } = {}) {
@@ -367,7 +376,7 @@ async function settleOrderLines(oiIds: string[]) {
   const db = await getDb();
   for (const id of oiIds) {
     const jobs = await db.select({ status: s.printJobs.status }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId)).where(and(eq(s.jobItems.orderItemId, id), isNull(s.printJobs.deletedAt)));
-    if (jobs.some((x) => ['en_cola', 'imprimiendo', 'pausado'].includes(x.status))) continue;
+    if (jobs.some((x) => (LIVE_STATUSES as readonly string[]).includes(x.status))) continue;
     await db.update(s.orderItems).set({ status: jobs.some((x) => x.status === 'terminado') ? 'post_proceso' : 'pendiente' }).where(eq(s.orderItems.id, id));
   }
 }

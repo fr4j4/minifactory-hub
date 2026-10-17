@@ -8,13 +8,14 @@ import { Badge, StatusBadge, Swatch } from './ui';
 import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
 import { FAIL_CAUSES } from '@/lib/production/fail-causes';
+import { techFits } from '@/lib/production/tech';
 import type { MessageKey } from '@/i18n/translate';
 import { useT } from '@/i18n/client';
 import { tOr } from '@/i18n/translate';
 
 export interface QJob { id: string; number: string; title: string; kind: string; status: string; machineId: string | null; suggestedMachineId: string | null; materialId: string | null; spoolId: string | null; estG: number; estH: number; realG: number | null; plannedStart: string | null; plannedEnd: string | null; realStart: string | null; qty: number; orderId: string | null; orderNumber: string | null; reprint: boolean; position: number; customer: string | null }
 export interface QMachine { id: string; name: string; status: string; tech: string }
-export interface QMaterial { id: string; label: string; hex: string }
+export interface QMaterial { id: string; label: string; hex: string; tech: string }
 export interface QSpool { id: string; code: string; materialId: string; remainingG: number }
 
 const iconBtn = 'btn-ghost btn-sm !px-1.5';
@@ -87,7 +88,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
         {canEdit && (
           <div className="flex flex-wrap items-center gap-1.5 mt-2">
             <button className="btn-primary btn-sm" disabled={pending || blocked} title={blocked ? t('queue.machineBusy') : undefined} onClick={() => run(() => startJobAction(j.id, j.machineId ? { machineId: j.machineId } : {}), { ok: t('queue.jobStarted2') })} data-testid="job-start"><Play className="h-3.5 w-3.5" aria-hidden /> {t('queue.start')}</button>
-            <select className="input !min-h-[32px] !py-0.5 !w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.assignTo', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => assign(j.id, e.target.value || null)}><option value="">{t('queue.unassigned')}</option>{machines.map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>
+            <select className="input !min-h-[32px] !py-0.5 !w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.assignTo', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => assign(j.id, e.target.value || null)}><option value="">{t('queue.unassigned')}</option>{machines.filter((mm) => mm.id === j.machineId || techFits(matOf(j.materialId)?.tech, mm.tech)).map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>
             <span className="ml-auto inline-flex gap-0.5">
               <button className={iconBtn} disabled={pending || i === 0} aria-label={t('queue.moveUp', { job: j.number })} onClick={() => reorder(j.id, queued[i - 1].id)}><ChevronUp className="h-4 w-4" aria-hidden /></button>
               <button className={iconBtn} disabled={pending || i === queued.length - 1} aria-label={t('queue.moveDown', { job: j.number })} onClick={() => reorder(j.id, queued[i + 2]?.id ?? null)}><ChevronDown className="h-4 w-4" aria-hidden /></button>

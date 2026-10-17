@@ -69,6 +69,7 @@ export const queue = {
   requeuedFrom: 'Relanzado desde {job}',
   requeue: 'Relanzar',
   jobRequeued: 'Trabajo relanzado: está de nuevo en la cola',
+  machineTechMismatch: 'La máquina no usa la tecnología del material del trabajo (FDM o resina)',
   assignAMachineBeforeStarting: 'Asigna una máquina antes de iniciar',
   theMachineIsAlreadyPrinting: 'La máquina ya está imprimiendo otro trabajo',
   theJobIsAlreadyClosed: 'El trabajo ya está cerrado',

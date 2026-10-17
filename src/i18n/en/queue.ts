@@ -72,6 +72,7 @@ export const queue: Shape<typeof es['queue']> = {
   requeuedFrom: 'Requeued from {job}',
   requeue: 'Requeue',
   jobRequeued: 'Job requeued: it is back in the queue',
+  machineTechMismatch: "The machine does not use the job's material technology (FDM or resin)",
   assignAMachineBeforeStarting: 'Assign a machine before starting',
   theMachineIsAlreadyPrinting: 'The machine is already printing another job',
   theJobIsAlreadyClosed: 'The job is already closed',
