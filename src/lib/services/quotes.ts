@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
-import { getDb, s, WORKSPACE_ID } from '@/db';
+import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
 import { getSettings, nextNumber } from '../settings';
 import { calcLine, calcQuote, roundPrice, type CostBreakdown, type MachineCost, type QuoteLine } from '../pricing';
@@ -10,7 +10,6 @@ import { getT } from '@/i18n/server';
 import { normalizeTemplate } from '../documents';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
-type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 export interface LinkInput { id?: string; url: string; title?: string | null; kind?: string; note?: string | null; imageUrl?: string | null; showInPdf?: boolean }
 export interface ModelRef { modelFileId: string; fileVersionId?: string | null; qty?: number }

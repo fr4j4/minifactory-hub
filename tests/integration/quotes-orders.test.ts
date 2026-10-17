@@ -3,6 +3,9 @@ import fs from 'node:fs';
 import { and, asc, eq, inArray } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { errorText } from '@/i18n/errors';
+import { createSpool } from '@/lib/services/inventory';
+import { removeRecord } from '@/lib/services/removal';
+import { restoreRecord } from '@/lib/services/archive';
 import { createT } from '@/i18n/translate';
 import { seedDemo } from '@/lib/seed';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
@@ -156,5 +159,18 @@ describe('errores de la base', () => {
     await db.insert(s.tagDefs).values({ workspaceId: WORKSPACE_ID, name: 'repetida' });
     const e = await db.insert(s.tagDefs).values({ workspaceId: WORKSPACE_ID, name: 'repetida' }).then(() => null, (x) => x);
     expect(errorText(e, createT('es'))).toBe('Ya existe uno con ese nombre.');
+  });
+});
+
+describe('eliminar y restaurar', () => {
+  it('restaurar un material no revive una bobina eliminada antes', async () => {
+    const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, type: 'PLA', colorName: 'Prueba restaurar' }).returning();
+    const a = await createSpool({ materialId: m.id, initialG: 1000 }); const b = await createSpool({ materialId: m.id, initialG: 1000 });
+    await removeRecord('spool', a.id, admin.id);
+    await db.update(s.spools).set({ remainingG: 0, status: 'agotada' }).where(eq(s.spools.id, b.id));
+    await removeRecord('material', m.id, admin.id); await restoreRecord('material', m.id, admin.id);
+    const [ra] = await db.select().from(s.spools).where(eq(s.spools.id, a.id)); const [rb] = await db.select().from(s.spools).where(eq(s.spools.id, b.id));
+    expect(ra.deletedAt).not.toBeNull(); expect(ra.code.split('~').length).toBe(2);
+    expect(rb.deletedAt).toBeNull(); expect(rb.code).toBe(b.code);
   });
 });

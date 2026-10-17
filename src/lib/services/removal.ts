@@ -153,17 +153,18 @@ export async function removeRecord(kind: RemovableKind, id: string, userId?: str
   if (name == null) throw new LocalizedError('remove.notFound');
   const info = await removalInfo(kind, id, userId);
   if (!info.canDelete) throw new LocalizedError(info.block!.key, info.block!.params);
-  const db = await getDb(); const now = new Date(); const tag = stamp();
-  switch (kind) {
+  const now = new Date(); const tag = stamp();
+  // varias escrituras: todas o ninguna
+  await (await getDb()).transaction(async (db) => { switch (kind) {
     case 'material': {
-      await db.update(s.spools).set({ deletedAt: now }).where(eq(s.spools.materialId, id));
-      await db.update(s.spools).set({ code: sql`${s.spools.code} || ${'~' + tag}` }).where(eq(s.spools.materialId, id));
+      // solo las bobinas vivas: una eliminada antes conserva su fecha y su código (restaurar el material no la revive)
+      await db.update(s.spools).set({ deletedAt: now, code: sql`${s.spools.code} || ${'~' + tag}` }).where(and(eq(s.spools.materialId, id), isNull(s.spools.deletedAt)));
       await db.update(s.materials).set({ deletedAt: now }).where(eq(s.materials.id, id)); break;
     }
     case 'spool': await db.update(s.spools).set({ deletedAt: now, code: sql`${s.spools.code} || ${'~' + tag}` }).where(eq(s.spools.id, id)); break;
     case 'item': await db.update(s.inventoryItems).set({ deletedAt: now }).where(eq(s.inventoryItems.id, id)); break;
     case 'product': {
-      await db.update(s.productVariants).set({ deletedAt: now, active: false, sku: sql`${s.productVariants.sku} || ${'~' + tag}` }).where(eq(s.productVariants.productId, id));
+      await db.update(s.productVariants).set({ deletedAt: now, active: false, sku: sql`${s.productVariants.sku} || ${'~' + tag}` }).where(and(eq(s.productVariants.productId, id), isNull(s.productVariants.deletedAt)));
       await db.update(s.products).set({ deletedAt: now }).where(eq(s.products.id, id)); break;
     }
     case 'variant': await db.update(s.productVariants).set({ deletedAt: now, active: false, sku: sql`${s.productVariants.sku} || ${'~' + tag}` }).where(eq(s.productVariants.id, id)); break;
@@ -186,6 +187,6 @@ export async function removeRecord(kind: RemovableKind, id: string, userId?: str
       await db.update(s.payments).set({ deletedAt: now }).where(eq(s.payments.id, id));
       await recomputePaid(db, { orderId: p.orderId, saleId: p.saleId }); break;
     }
-  }
+  } });
   await audit(kind, id, 'eliminar', { name }, userId);
 }

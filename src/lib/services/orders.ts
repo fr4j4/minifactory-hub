@@ -1,5 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
-import { getDb, s, WORKSPACE_ID } from '@/db';
+import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
 import { nextNumber } from '../settings';
 import { calcQuote, type QuoteLine } from '../pricing';
@@ -277,7 +277,7 @@ export function paymentStatus(total: number, paid: number): 'pendiente' | 'parci
 
 
 /** Recalcula lo pagado de un pedido o venta a partir de sus pagos vigentes. */
-export async function recomputePaid(db: Db, p: { orderId: string | null; saleId: string | null }) {
+export async function recomputePaid(db: Db | Tx, p: { orderId: string | null; saleId: string | null }) {
   if (p.orderId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.orderId, p.orderId), isNull(s.payments.deletedAt))); await db.update(s.orders).set({ paid: Number(r.t), updatedAt: new Date() }).where(eq(s.orders.id, p.orderId)); }
   if (p.saleId) { const [r] = await db.select({ t: sql<number>`coalesce(sum(${s.payments.amount}),0)` }).from(s.payments).where(and(eq(s.payments.saleId, p.saleId), isNull(s.payments.deletedAt))); await db.update(s.sales).set({ paid: Number(r.t) }).where(eq(s.sales.id, p.saleId)); }
 }

@@ -25,6 +25,8 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
   const db = await getDb();
   const attributes = i.mode === 'variantes' ? (i.attributes ?? []).filter((a) => a.name && a.values.length) : [];
   const vals = { name: i.name, category: i.category ?? null, description: i.description ?? null, mode: i.mode, status: i.status ?? 'activo', modelFileId: i.modelFileId ?? null, tags: i.tags ?? [], attributes, updatedAt: new Date() };
+  // producto y variantes en una transacción: si una variante falla no queda un producto sin variantes
+  const id = await db.transaction(async (db) => {
   let id = i.id;
   if (id) await db.update(s.products).set(vals).where(eq(s.products.id, id));
   else { const [p] = await db.insert(s.products).values({ workspaceId: WORKSPACE_ID, createdBy: user.id, ...vals }).returning({ id: s.products.id }); id = p.id; }
@@ -37,9 +39,10 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
     if (existing.some((e) => key(e.attrs ?? {}) === key(c))) continue;
     n++;
     const suffix = Object.values(c).map((v) => slug(v).slice(0, 3)).join('-');
-    let sku = `${prefix}${suffix ? '-' + suffix : ''}`;
-    const [dup] = await db.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1);
-    if (dup) sku = `${sku}-${n}`;
+    const base = `${prefix}${suffix ? '-' + suffix : ''}`;
+    // el SKU se prueba hasta encontrar uno libre (el primer sufijo también puede estar tomado)
+    let sku = base; let k = n;
+    while ((await db.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1)).length) sku = `${base}-${k++}`;
     await db.insert(s.productVariants).values({
       workspaceId: WORKSPACE_ID, productId: id!, sku, attrs: c, price: i.price ?? 0, materialId: i.materialId ?? null, weightG: i.weightG ?? 0, printH: i.printH ?? 0,
       minStock: i.minStock ?? 0, location: i.location ?? null, createdBy: user.id,
@@ -47,6 +50,8 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
   }
   // variantes que ya no existen en la grilla se desactivan (nunca se borran si tienen movimientos)
   for (const e of existing) if (!combos.some((c) => key(c) === key(e.attrs ?? {}))) await db.update(s.productVariants).set({ active: false }).where(eq(s.productVariants.id, e.id));
+  return id!;
+  });
   await audit('product', id!, i.id ? 'editar' : 'crear', { name: i.name, mode: i.mode }, user.id);
   return id!;
 }
