@@ -14,7 +14,6 @@ export default {
       colors: {
         brand: { 50: '#fff4ed', 100: '#ffe4d2', 200: '#ffc6a4', 300: '#ff9e6c', 400: '#ff7a3d', 500: '#ff5b1f', 600: '#c13d0b', 700: '#9c310a', 800: '#7a280c', 900: '#5c1f0b', 950: '#2e0f05' },
         slate: { 50: '#f8f7f4', 100: '#efede8', 200: '#e3e0d8', 300: '#cfcabf', 400: '#a29c90', 500: '#7c776d', 600: '#5b564e', 700: '#46423c', 800: '#2b2a27', 900: '#1d1c1a', 950: '#121211' },
-        accent: 'var(--accent)',
         nozzle: '#ff5b1f',
         paper: '#f3f1ec',
         graphite: '#141413',

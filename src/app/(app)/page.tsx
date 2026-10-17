@@ -52,7 +52,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
       {sp.sin_permiso && <div role="alert" className="rounded-xl box-warn p-3 text-sm mb-4">{t('home.noAccess', { module: sp.sin_permiso })}</div>}
 
       {/* taller en vivo: cada máquina como una placa con su pieza creciendo capa a capa */}
-      <section aria-label={t('home.liveWorkshop')} className="relative overflow-hidden rounded-3xl bg-[var(--panel)] text-[var(--panel-ink)] p-4 md:p-5 mb-5 ring-1 ring-black/5 dark:ring-white/[.07]">
+      <section aria-label={t('home.liveWorkshop')} className="relative overflow-hidden rounded-3xl on-panel bg-[var(--panel)] text-[var(--panel-ink)] p-4 md:p-5 mb-5 ring-1 ring-black/5 dark:ring-white/[.07]">
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-[.5]" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.2px)', backgroundSize: '18px 18px' }} />
         <div aria-hidden className="pointer-events-none absolute -top-24 -right-16 h-64 w-64 rounded-full bg-[var(--accent)] opacity-20 blur-3xl" />
         <div className="relative flex items-center justify-between mb-4"><h2 className="font-mono text-[11px] uppercase tracking-[.16em] text-white/70 flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulseDot" aria-hidden />{t('home.liveWorkshop')}</h2><Link href="/cola" className="text-xs text-white/75 hover:text-white underline-offset-4 hover:underline">{t('home.viewTheQueue')}</Link></div>

@@ -80,7 +80,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
   return (
     <div className="min-h-screen md:flex">
       {/* panel de control: riel con íconos en tablet, completo en escritorio */}
-      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
+      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-transparent dark:border-white/[.06] on-panel bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
         <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0" aria-label="MiniFactory">
           <Mark className="h-9 w-9 shrink-0" />
           <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">{t('nav.tagline')}</span></span>
@@ -141,7 +141,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
         <main id="contenido" className="flex-1 p-3 sm:p-4 md:p-7 pb-28 md:pb-10 max-w-[1500px] w-full mx-auto"><div ref={pageRef} className="page-enter">{children}</div></main>
       </div>
       {/* barra inferior móvil: panel oscuro con botón de acción central */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[var(--panel)] text-[var(--panel-ink)] grid grid-cols-5 safe-bottom no-print rounded-t-2xl shadow-[0_-8px_24px_-12px_rgba(0,0,0,.35)]" aria-label={t('nav.mobile')}>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 on-panel bg-[var(--panel)] text-[var(--panel-ink)] grid grid-cols-5 safe-bottom no-print rounded-t-2xl shadow-[0_-8px_24px_-12px_rgba(0,0,0,.35)]" aria-label={t('nav.mobile')}>
         {bottom.slice(0, 2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}
         <div className="grid place-items-center"><button onClick={() => setPlus((p) => !p)} aria-label={t('shell.quickActions')} aria-expanded={plus} className={cn('h-14 w-14 -mt-6 rounded-2xl bg-[var(--accent)] text-[var(--on-accent)] grid place-items-center shadow-[0_2px_0_var(--accent-shadow),0_10px_24px_-6px_var(--accent)] transition-transform', plus && 'rotate-45')}><Icon name="plus" className="h-6 w-6" /></button></div>
         {bottom.slice(2).map((n) => <BottomLink key={n.href} n={n} on={active(n.href)} />)}

@@ -110,7 +110,7 @@ export function ConnectorsBoard({ linked, machines, accounts, canCreate, canEdit
   };
   return (
     <div className="space-y-6">
-      {canCreate && <section className="relative overflow-hidden rounded-3xl bg-[var(--panel)] text-[var(--panel-ink)] p-5 md:p-6 ring-1 ring-black/5 dark:ring-white/[.07]">
+      {canCreate && <section className="relative overflow-hidden rounded-3xl on-panel bg-[var(--panel)] text-[var(--panel-ink)] p-5 md:p-6 ring-1 ring-black/5 dark:ring-white/[.07]">
         <div aria-hidden className="pointer-events-none absolute inset-0 opacity-50" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,.07) 1px, transparent 1.2px)', backgroundSize: '18px 18px' }} />
         <div className="relative flex flex-wrap items-center gap-4">
           <div className="relative h-14 w-14 shrink-0" aria-hidden>{[0, 1, 2].map((i) => <span key={i} className={cn('absolute inset-0 rounded-full border border-[var(--accent)]', scanning ? 'animate-ping' : 'opacity-30')} style={{ animationDelay: `${i * 0.45}s`, animationDuration: '1.6s', transform: `scale(${0.45 + i * 0.27})` }} />)}<span className="absolute inset-[38%] rounded-full bg-[var(--accent)]" /></div>

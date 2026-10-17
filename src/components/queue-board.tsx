@@ -55,7 +55,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
       <li key={j.id} className={cn('rounded-lg border bg-[var(--card)] p-2.5 text-sm', j.status === 'imprimiendo' ? 'border-[var(--accent-line)]' : 'border-slate-200 dark:border-slate-700')} data-testid="job-card">
         <div className="flex items-start justify-between gap-2"><div className="font-medium leading-snug">{j.title}</div><StatusBadge status={j.status} /></div>
         {meta(j)}
-        {j.status === 'imprimiendo' && <div className="mt-2"><Meter value={p} max={100} /><div className="text-xs muted mt-0.5">{Math.round(p)}% · {t('queue.endsAt', { date: dmyHm(j.plannedEnd) })}</div></div>}
+        {j.status === 'imprimiendo' && <div className="mt-2"><Meter value={p} max={100} decorative /><div className="text-xs muted mt-0.5">{Math.round(p)}% · {t('queue.endsAt', { date: dmyHm(j.plannedEnd) })}</div></div>}
         {canEdit && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {j.status === 'imprimiendo' && <><button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => pauseJobAction(j.id))}><Pause className="h-3.5 w-3.5" aria-hidden /> {t('queue.pause')}</button><button className="btn-primary btn-sm" onClick={() => setFinish(j)} data-testid="job-finish">{t('queue.finish')}</button></>}
@@ -78,7 +78,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             <div className="flex items-start justify-between gap-2"><div className="font-medium leading-snug">{j.title}</div><StatusBadge status={j.status} /></div>
             {meta(j)}
             <div className="text-xs mt-1.5 flex flex-wrap items-center gap-1.5">
-              {j.machineId ? <Badge tone="violet">{machineOf(j.machineId)?.name}</Badge>
+              {j.machineId ? <Badge>{machineOf(j.machineId)?.name}</Badge>
                 : j.suggestedMachineId ? <><span className="muted">{t('queue.suggested', { machine: machineOf(j.suggestedMachineId)?.name ?? '' })}</span>{canEdit && <button className="underline" disabled={pending} onClick={() => assign(j.id, j.suggestedMachineId)}>{t('queue.assignSuggested')}</button>}</>
                 : <span className="muted">{t('queue.unassigned')}</span>}
             </div>
@@ -124,7 +124,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             {machines.map((mm) => { const running = live.filter((j) => j.machineId === mm.id && j.status !== 'en_cola'); const next = queued.filter((j) => j.machineId === mm.id);
               return (
                 <section key={mm.id} className={cn('rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5', drag && 'ring-2 ring-[var(--accent-line)]', over === `m:${mm.id}` && '!ring-[var(--accent)] bg-[var(--accent-soft)]')} onDragOver={allowDrop(`m:${mm.id}`)} onDrop={dropOn((id) => assign(id, mm.id))} aria-label={mm.name}>
-                  <header className="px-1 pb-2"><div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{mm.name}{mm.tech !== 'FDM' && <Badge tone="violet" className="ml-1.5">{t('queue.resin')}</Badge>}</h3><StatusBadge status={mm.status} /></div><div className="mt-1 empty:hidden"><PrinterPill machineId={mm.id} /></div></header>
+                  <header className="px-1 pb-2"><div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{mm.name}{mm.tech !== 'FDM' && <Badge className="ml-1.5">{t('queue.resin')}</Badge>}</h3><StatusBadge status={mm.status} /></div><div className="mt-1 empty:hidden"><PrinterPill machineId={mm.id} /></div></header>
                   {over === `m:${mm.id}` && drag && <div className="text-xs text-center py-1 font-medium">{t('queue.dropToAssign', { machine: mm.name })}</div>}
                   <ul className="space-y-2">{running.map((j) => renderRunning(j))}{running.length === 0 && <li className="text-xs muted px-1">{t('queue.machineFree')}</li>}</ul>
                   {next.length > 0 && <div className="mt-2 px-1"><div className="text-[11px] uppercase tracking-wide muted mb-1">{t('queue.nextOnMachine')}</div><ol className="text-xs space-y-0.5">{next.map((j) => <li key={j.id} className="flex justify-between gap-2"><span className="truncate min-w-0"><span className="tabular muted">#{queued.indexOf(j) + 1}</span> {j.title}</span><span className="tabular muted shrink-0">{dmyHm(j.plannedEnd)}</span></li>)}</ol></div>}
@@ -138,7 +138,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             <div key={m.id} className="flex items-center border-t border-slate-100 dark:border-slate-800 h-14"><div className="w-32 shrink-0 text-sm font-medium pr-2 truncate">{m.name}</div>
               <div className="relative flex-1 h-10 rounded bg-slate-50 dark:bg-slate-900/50">
                 <div className="absolute inset-y-0 w-px bg-red-500 z-10" style={{ left: `${pos(now)}%` }} title={t('queue.now')} />
-                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate', j.status === 'imprimiendo' ? 'bg-[var(--accent)] text-[var(--on-accent)]' : 'bg-[var(--panel)] text-[var(--panel-ink)]', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-white/80 opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on && <Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}{j.number} {j.title}</div>; })}
+                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate', j.status === 'imprimiendo' ? 'bg-[var(--accent)] text-[var(--on-accent)]' : 'bg-[var(--ink)] text-[var(--bg)]', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-[var(--card)] opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on && <Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}{j.number} {j.title}</div>; })}
               </div></div>))}
           <p className="text-xs muted mt-3">{t('queue.eachBarRunsFromThe')} <Moon className="inline h-3.5 w-3.5 -mt-0.5" aria-hidden /> {t('queue.overnightLegend')} {t('queue.projectedBar')}</p>
         </div></div>

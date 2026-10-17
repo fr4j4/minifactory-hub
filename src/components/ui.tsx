@@ -13,8 +13,8 @@ export function PageHeader({ title, subtitle, actions, back, eyebrow }: { title:
       {!back && eyebrow && <div className="eyebrow mb-2 flex items-center gap-2"><span className="h-px w-6 bg-[var(--accent)]" aria-hidden />{eyebrow}</div>}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0"><h1 className="h1 md:truncate pb-0.5">{title}</h1>{subtitle && <p className="muted text-[13px] md:text-sm mt-1.5 max-w-2xl max-md:line-clamp-2">{subtitle}</p>}</div>
-        {/* en móvil: una fila que se desplaza, con la acción principal primero */}
-        {actions && <div className="flex items-center gap-2 max-md:w-[calc(100%+1.5rem)] max-md:flex-nowrap max-md:overflow-x-auto max-md:-mx-3 max-md:px-3 [scrollbar-width:none] md:flex-wrap max-md:[&>*]:shrink-0 max-md:[&>.btn-primary]:order-first">{actions}</div>}
+        {/* en móvil: una fila que se desplaza de borde a borde (el sangrado iguala el margen de <main>: p-3, sm:p-4) */}
+        {actions && <div className="flex items-center gap-2 max-sm:w-[calc(100%+1.5rem)] max-sm:-mx-3 max-sm:px-3 sm:max-md:w-[calc(100%+2rem)] sm:max-md:-mx-4 sm:max-md:px-4 max-md:flex-nowrap max-md:overflow-x-auto [scrollbar-width:none] md:flex-wrap max-md:[&>*]:shrink-0">{actions}</div>}
       </div>
     </div>
   );
@@ -42,11 +42,11 @@ export function Empty({ title, hint, action }: { title: string; hint?: string; a
 
 export function Stat({ label, value, sub, tone, meter }: { label: string; value: ReactNode; sub?: ReactNode; tone?: 'good' | 'bad' | 'warn'; meter?: { value: number; max: number } }) {
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-3 md:p-3.5">
+    <div className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-3 md:p-3.5 min-w-0 [container-type:inline-size]">
       <div className="eyebrow !text-[10px] !tracking-[.12em] leading-tight min-h-[2lh] md:min-h-0">{label}</div>
-      <div className={cn('num text-[1.3rem] md:text-[1.55rem] leading-tight font-medium mt-1.5', tone === 'bad' && 'text-danger', tone === 'good' && 'text-ok', tone === 'warn' && 'text-amber-600 dark:text-amber-400')}>{value}</div>
+      <div className={cn('num text-[clamp(1.05rem,12.5cqi,1.55rem)] leading-tight font-medium mt-1.5 !whitespace-normal [overflow-wrap:anywhere]', tone === 'bad' && 'text-danger', tone === 'good' && 'text-ok', tone === 'warn' && 'text-amber-600 dark:text-amber-400')}>{value}</div>
       {sub && <div className="text-xs muted mt-0.5">{sub}</div>}
-      {meter && <div className="mt-2"><Meter value={meter.value} max={meter.max} /></div>}
+      {meter && <div className="mt-2"><Meter value={meter.value} max={meter.max} decorative /></div>}
     </div>
   );
 }

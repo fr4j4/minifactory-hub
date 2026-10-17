@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 
 export const TONES: Record<string, string> = {
   gray: 'bg-slate-100/70 text-slate-700 dark:bg-slate-800/60 dark:text-slate-200',
-  blue: 'bg-sky-100/80 text-sky-800 dark:bg-sky-950/50 dark:text-sky-200',
+  blue: 'tone-info', // azul cielo; verde azulado en paletas de acento azul (globals.css) para no confundirse con «en curso»
   green: 'bg-emerald-100/80 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200',
   amber: 'bg-amber-100/80 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200',
   red: 'bg-red-100/80 text-red-800 dark:bg-red-950/50 dark:text-red-200',

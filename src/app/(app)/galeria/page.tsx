@@ -35,7 +35,7 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader title={t('gallery.gallery')} subtitle={t('gallery.everyPhotoIsLinkedTo')} />
       {can(user, 'galeria', 'C') && <Card className="mb-4" title={t('gallery.uploadPhotosAndVideos')}><div className="grid md:grid-cols-2 gap-4"><PhotoCapture intent={{}} /><Uploader compact intent={{ intent: 'photo' }} accept="image/*,video/mp4,video/webm" label={t('gallery.orDropPhotosAndVideos')} hint={t('gallery.theyAreConvertedToWebp')} /></div></Card>}
-      <form className="flex flex-wrap gap-2 mb-4" role="search">
+      <form className="filter-bar flex flex-wrap gap-2 mb-4" role="search">
         <select name="stage" defaultValue={sp.stage ?? ''} className="input sm:!w-48" aria-label={t('common.stage')}><option value="">{t('gallery.allStages')}</option>{STAGE_KEYS.map((k) => <option key={k} value={k}>{t(`gallery.stage.${k}`)}</option>)}</select>
         <input name="tag" defaultValue={sp.tag} list="tags" className="input sm:!w-48" placeholder={t('gallery.tagEGPetg')} aria-label={t('common.tag')} /><datalist id="tags">{allTags.map((tt) => <option key={tt} value={tt} />)}</datalist>
         <select name="months" defaultValue={sp.months ?? ''} className="input sm:!w-44" aria-label={t('gallery.period')}><option value="">{t('gallery.allTime')}</option><option value="1">{t('gallery.lastMonth')}</option><option value="3">{t('gallery.last3Months')}</option><option value="6">{t('gallery.last6Months')}</option></select>

@@ -95,7 +95,7 @@ export function SlicingSetup({ data, canEdit }: { data: SetupData; canEdit: bool
   const ready = data.machines.length > 0 && data.done.machines === data.machines.length;
   return (
     <div className="space-y-5">
-      <section className={cn('rounded-3xl p-5 md:p-6 ring-1', ready ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-900' : 'bg-[var(--panel)] text-[var(--panel-ink)] ring-black/5 dark:ring-white/[.07]')} data-testid="setup-summary">
+      <section className={cn('rounded-3xl p-5 md:p-6 ring-1', ready ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-900' : 'on-panel bg-[var(--panel)] text-[var(--panel-ink)] ring-black/5 dark:ring-white/[.07]')} data-testid="setup-summary">
         <h2 className="font-display text-xl font-semibold tracking-tight">{ready ? t('slicer.readyToSlice') : t('slicer.whatIsNeededToSlice')}</h2>
         <p className={cn('text-sm mt-1.5 max-w-3xl', ready ? 'text-emerald-900 dark:text-emerald-200' : 'text-white/75')}>
           {t('slicer.introSameProfiles')} <b>{t('slicer.whichPrinterEachMachineIs')}</b>, <b>{t('slicer.whichQualityToUseBy')}</b> {t('slicer.andWord')} <b>{t('slicer.whichFilamentEachMaterialIs')}</b> {t('slicer.introFromInventory')}</p>

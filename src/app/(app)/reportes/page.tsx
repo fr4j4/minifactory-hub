@@ -30,7 +30,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
       <Card title={d.title} actions={<span className="text-xs muted">{d.question}</span>} pad={false}>
         {d.rows.length === 0 ? <Empty title={t('reports.noDataInThisPeriod')} hint={t('reports.widenTheDateRange')} /> : (
           <Table><thead><tr>{d.columns.map((c) => <th key={c.key} className={`th ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right' : ''}`}>{c.label}</th>)}{moneyCol && <th className="th w-48" />}</tr></thead>
-            <tbody data-testid="report-rows">{d.rows.map((r, i) => <tr key={i}>{d.columns.map((c) => <td key={c.key} className={`td ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right tabular' : c.fmt === 'date' || c.key === 'month' ? 'tabular' : ''}`}>{cell(r[c.key], c)}</td>)}{moneyCol && <td className="td"><Meter value={Math.abs(r[moneyCol.key] ?? 0)} max={max} /></td>}</tr>)}</tbody></Table>)}
+            <tbody data-testid="report-rows">{d.rows.map((r, i) => <tr key={i}>{d.columns.map((c) => <td key={c.key} className={`td ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right tabular' : c.fmt === 'date' || c.key === 'month' ? 'tabular' : ''}`}>{cell(r[c.key], c)}</td>)}{moneyCol && <td className="td"><Meter value={Math.abs(r[moneyCol.key] ?? 0)} max={max} decorative /></td>}</tr>)}</tbody></Table>)}
       </Card>
       <script dangerouslySetInnerHTML={{ __html: "document.querySelectorAll('[data-print]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();window.print()}))" }} />
     </>

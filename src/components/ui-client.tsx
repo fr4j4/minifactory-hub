@@ -21,8 +21,14 @@ export function LinkPending({ className }: { className?: string }) {
 
 export function Tabs({ tabs, current }: { tabs: Array<{ href: string; label: string; key: string; count?: number; group?: string }>; current: string }) {
   const t = useT(); const navRef = useRef<HTMLElement>(null);
-  // la pestaña activa queda a la vista dentro de la fila desplazable
-  useEffect(() => { const n = navRef.current; if (!n) return; n.dataset.overflow = String(n.scrollWidth > n.clientWidth); n.querySelector('[aria-current]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [current]);
+  // la pestaña activa queda a la vista dentro de la fila desplazable (solo desplaza el nav, nunca la página)
+  useEffect(() => {
+    const n = navRef.current; if (!n) return;
+    const a = n.querySelector<HTMLElement>('[aria-current]');
+    if (a) { const x = a.offsetLeft - n.offsetLeft; if (x < n.scrollLeft || x + a.offsetWidth > n.scrollLeft + n.clientWidth) n.scrollLeft = x - 24; }
+    const sync = () => { n.dataset.overflow = String(n.scrollWidth > n.clientWidth + 1); };
+    const ro = new ResizeObserver(sync); ro.observe(n); return () => ro.disconnect();
+  }, [current]);
   const link = (tab: (typeof tabs)[number]) => (
     <Link key={tab.key} href={tab.href} aria-current={tab.key === current ? 'page' : undefined}
       className={cn('relative px-3.5 py-2 text-sm whitespace-nowrap rounded-xl min-h-[44px] md:min-h-[36px] flex shrink-0 snap-start items-center gap-1.5 transition-colors duration-[120ms]', tab.key === current ? 'bg-[var(--panel)] text-[var(--panel-ink)] font-medium dark:bg-[var(--raised)] dark:text-[var(--ink)] dark:shadow-[inset_0_-2px_0_var(--accent)]' : 'muted hover:bg-[var(--hover)]')}>
@@ -44,16 +50,17 @@ export function Tabs({ tabs, current }: { tabs: Array<{ href: string; label: str
     );
   }
   return (
-    <nav ref={navRef} className="tabs-scroll flex flex-nowrap gap-1 mb-5 p-1 rounded-2xl border border-[var(--line)] bg-[var(--card)] w-fit max-w-full overflow-x-auto snap-x [scrollbar-width:none]" aria-label={t('common.sections')}>
+    <nav ref={navRef} className="tabs-scroll flex flex-nowrap md:flex-wrap gap-1 mb-5 p-1 rounded-2xl border border-[var(--line)] bg-[var(--card)] w-fit max-w-full max-md:overflow-x-auto max-md:snap-x [scrollbar-width:none]" aria-label={t('common.sections')}>
       {tabs.map(link)}
     </nav>
   );
 }
 
-export function Meter({ value, max, tone }: { value: number; max: number; tone?: 'ok' | 'warn' | 'bad' }) {
+/** decorative: la cifra ya está escrita al lado, así que la barra no se anuncia. */
+export function Meter({ value, max, tone, decorative }: { value: number; max: number; tone?: 'ok' | 'warn' | 'bad'; decorative?: boolean }) {
   const t = useT();
   const p = Math.max(0, Math.min(100, max > 0 ? (value / max) * 100 : 0));
   // barra de capas: segmentos como capas impresas sobre un riel tenue
-  return <div className="relative h-2.5 rounded-[3px] overflow-hidden text-slate-200 dark:text-slate-800" role="progressbar" aria-label={t('common.level')} aria-valuenow={Math.round(p)} aria-valuemin={0} aria-valuemax={100}><div className="absolute inset-0 layers" /><div className={cn('absolute inset-y-0 left-0 layers transition-[width] duration-300 ease-[var(--ease-out)]', tone === 'bad' ? 'text-red-500' : tone === 'warn' ? 'text-amber-500' : 'text-[var(--accent)]')} style={{ width: `${p}%` }} /></div>;
+  return <div className="relative h-2.5 rounded-[3px] overflow-hidden text-slate-200 dark:text-slate-800" {...(decorative ? { 'aria-hidden': true } : { role: 'progressbar', 'aria-label': t('common.level'), 'aria-valuenow': Math.round(p), 'aria-valuemin': 0, 'aria-valuemax': 100 })}><div className="absolute inset-0 layers" /><div className={cn('absolute inset-y-0 left-0 layers transition-[width] duration-300 ease-[var(--ease-out)]', tone === 'bad' ? 'text-red-500' : tone === 'warn' ? 'text-amber-500' : 'text-[var(--accent)]')} style={{ width: `${p}%` }} /></div>;
 }
 

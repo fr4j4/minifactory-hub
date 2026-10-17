@@ -34,7 +34,7 @@ export function ProfilesGuide({ open }: { open?: boolean }) {
             </div>
           ))}
         </div>
-        <div className="rounded-2xl bg-[var(--panel)] text-[var(--panel-ink)] p-4 space-y-1.5">
+        <div className="rounded-2xl on-panel bg-[var(--panel)] text-[var(--panel-ink)] p-4 space-y-1.5">
           <h3 className="font-semibold">{t('nozzle.guideExampleTitle')}</h3>
           <ul className="list-disc pl-5 text-white/85 space-y-0.5">
             <li>{t('nozzle.guideEx1')}</li>

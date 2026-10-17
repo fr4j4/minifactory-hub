@@ -36,7 +36,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       const wa = fillTemplate(st.templates.whatsappQuote, { cliente: q.customerName ?? '', numero: q.number, total: money(q.total), vigencia: dmy(q.validUntil) });
       return (
         <li key={q.id} className="card p-3 flex items-center gap-3 flex-wrap sm:flex-nowrap">
-          <Link href={`/presupuestos/${q.id}`} className="flex items-center gap-3 min-w-0 flex-1 min-h-[56px]">
+          <Link href={`/presupuestos/${q.id}`} className="flex items-center gap-3 min-w-0 flex-1 max-sm:basis-full min-h-[56px]">
             <div className="flex -space-x-3 shrink-0 w-14" aria-hidden>{ids.length ? ids.map((id) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={id} src={`/api/files/v/${id}/thumb`} alt="" className="h-10 w-10 rounded-lg object-cover border-2 border-[var(--card)] bg-[var(--bg)]" />) : <span className="h-10 w-10 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex flex-col justify-center items-center gap-[3px] px-2">{[50, 70, 90].map((w) => <span key={w} className="block h-[3px] rounded-full bg-[var(--muted)] opacity-30" style={{ width: `${w}%` }} />)}</span>}</div>
             <div className="min-w-0"><div className="font-medium truncate">{q.number}{q.version > 1 && <span className="muted"> v{q.version}</span>} <span className="muted font-normal">· {q.customerName ?? t('common.noCustomer')}</span></div><div className="text-xs muted truncate">{q.title ?? '—'}</div></div>
           </Link>
@@ -80,7 +80,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
         <Stat label={t('quotes.kpiApprovedMonth')} value={money(board.approvedMonth)} tone="good" />
       </div>
       <Tabs current={sp.st ?? ''} tabs={[{ key: '', href: qs(''), label: t('quotes.active'), count: active }, ...STATUSES.map((k) => ({ key: k, href: qs(k), label: t(`status.${k}` as 'status.borrador'), count: board.counts[k] ?? 0 }))]} />
-      <form className="flex flex-wrap gap-2 mb-4" role="search"><input name="q" defaultValue={sp.q} className="input sm:max-w-xs" placeholder={t('quotes.searchByNumberCustomerOr')} aria-label={t('quotes.searchQuotes')} />{sp.st && <input type="hidden" name="st" value={sp.st} />}<button className="btn-ghost">{t('common.filter')}</button></form>
+      <form className="filter-bar flex flex-wrap gap-2 mb-4" role="search"><input name="q" defaultValue={sp.q} className="input sm:max-w-xs" placeholder={t('quotes.searchByNumberCustomerOr')} aria-label={t('quotes.searchQuotes')} />{sp.st && <input type="hidden" name="st" value={sp.st} />}<button className="btn-ghost">{t('common.filter')}</button></form>
       {rows.length === LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: LIMIT })}</p>}
       {rows.length === 0 ? (sp.q || sp.st ? <Card><Empty title={t('common.noMatches')} action={<Link className="btn-ghost" href="/presupuestos">{t('common.clearFilters')}</Link>} /></Card> : <Card><Empty title={t('quotes.thereAreNoQuotes')} hint={t('quotes.createTheFirstOneUpload')} action={<Link className="btn-primary" href="/presupuestos/nuevo">{t('common.newQuote')}</Link>} /></Card>) : <QuoteViews list={list} table={table} kanban={kanban} />}
     </>

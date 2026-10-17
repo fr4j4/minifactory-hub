@@ -14,7 +14,7 @@ export function LineBulkEdit({ lines, showCost, profiles }: { lines: LineRow[]; 
   const title = (l: Pick<LineRow, 'manufacturer' | 'name'> | null) => [l?.manufacturer, l?.name].filter(Boolean).join(' ');
   return (
     <div data-testid="material-lines" className="mb-3">
-      <ul className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-md:-mx-3 max-md:px-3 [scrollbar-width:none] [&>li]:shrink-0">{lines.map((l) => (
+      <ul className="flex flex-wrap gap-2 max-md:flex-nowrap max-md:overflow-x-auto max-sm:-mx-3 max-sm:px-3 sm:max-md:-mx-4 sm:max-md:px-4 [scrollbar-width:none] [&>li]:shrink-0">{lines.map((l) => (
         <li key={l.id}><button className="btn-ghost btn-sm whitespace-nowrap" onClick={() => open(l)} data-testid="line-edit">{title(l)} <span className="muted">· {t('inventory.lineColors', { count: l.count, n: l.count })}</span></button></li>
       ))}</ul>
       <Modal open={!!sel} onClose={() => setSel(null)} title={t('inventory.lineEditTitle', { name: title(sel) })}>

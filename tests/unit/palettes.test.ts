@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { contrast, hexToRgb } from '@/lib/brand';
+import { contrast, hexToRgb, mix } from '@/lib/brand';
 import { bootScript, PALETTE_IDS, paletteCss, tokens } from '@/lib/palettes';
 
 const c = (a: string, b: string) => contrast(hexToRgb(a)!, hexToRgb(b)!);
@@ -10,6 +10,9 @@ describe('paletas de la interfaz (N9b)', () => {
       expect(c(t['--ink'], t['--bg'])).toBeGreaterThanOrEqual(7); expect(c(t['--ink'], t['--card'])).toBeGreaterThanOrEqual(7);
       expect(c(t['--muted'], t['--bg'])).toBeGreaterThanOrEqual(4.5); expect(c(t['--muted'], t['--card'])).toBeGreaterThanOrEqual(4.5);
       expect(c(t['--accent-ink'], t['--card'])).toBeGreaterThanOrEqual(4.5);
+      // insignias «en curso»: tinta del acento sobre --accent-soft (11 % del acento sobre la tarjeta)
+      const soft = mix(hexToRgb(t['--card'])!, hexToRgb(t['--accent'])!, 0.11).map(Math.round) as [number, number, number];
+      expect(contrast(hexToRgb(t['--accent-ink'])!, soft)).toBeGreaterThanOrEqual(4.5);
       expect(c(t['--on-accent'], t['--accent'])).toBeGreaterThanOrEqual(4.5);
       expect(c(t['--panel-ink'], t['--panel'])).toBeGreaterThanOrEqual(7);
     });

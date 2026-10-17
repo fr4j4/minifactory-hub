@@ -39,7 +39,7 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
     <>
       <PageHeader title={t('files.n3dFiles')} subtitle={t('files.modelLibraryWithVersionsAutomati')} />
       {can(user, 'archivos', 'C') && <Card className="mb-4"><Uploader intent={{ intent: 'model' }} accept=".zip,.stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode,.gco,.bgcode,.png,.jpg,.jpeg,.webp,.pdf" label={t('files.dropYourModelsHereStl')} hint={t('files.upTo500MbPer')} testId="model-uploader" /></Card>}
-      <form className="flex flex-wrap gap-2 mb-4" role="search">
+      <form className="filter-bar flex flex-wrap gap-2 mb-4" role="search">
         <input name="q" defaultValue={sp.q} placeholder={t('files.searchByNameTagSource')} className="input sm:max-w-xs" aria-label={t('files.searchFiles')} />
         <select name="tag" defaultValue={sp.tag ?? ''} className="input sm:!w-44" aria-label={t('common.tag')}><option value="">{t('files.allTags')}</option>{tags.map((tt) => <option key={tt}>{tt}</option>)}</select>
         {folders.length > 0 && <select name="folder" defaultValue={sp.folder ?? ''} className="input sm:!w-44" aria-label={t('files.folder')}><option value="">{t('files.allFolders')}</option>{folders.map((tt) => <option key={tt}>{tt}</option>)}</select>}
