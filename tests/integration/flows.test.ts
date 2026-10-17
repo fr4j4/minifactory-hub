@@ -9,7 +9,7 @@ import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus,
 import { loadQuote, newQuoteVersion, saveQuote, sendQuote } from '@/lib/services/quotes';
 import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance } from '@/lib/services/production';
 import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/services/catalog';
-import { materialStock, weighSpool, shoppingList } from '@/lib/services/inventory';
+import { materialStock, weighSpool, shoppingList, createSpool, consumeFromSpool } from '@/lib/services/inventory';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
 import { orcaAvailable } from '@/lib/slicer/catalog';
 import { reportAllowed, reportData, reportRange, REPORTS } from '@/lib/reports';
@@ -191,6 +191,17 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Azul']) }, admin);
     await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
     const vs = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, pid)); expect(vs.length).toBe(2); expect(vs.every((v) => v.active)).toBe(true);
+  });
+});
+
+describe('inventario: consumo de filamento', () => {
+  it('un consumo mayor a lo que queda agota la bobina y los movimientos suman todo lo gastado', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 100, tareG: 0, unitCost: 15000, userId: admin.id });
+    const r = await consumeFromSpool({ spoolId: sp.id, grams: 300, kind: 'consumo', userId: admin.id });
+    expect(r).toMatchObject({ before: 100, after: 0, depleted: true });
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.status).toBe('agotada');
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.reduce((a, m) => a + m.qty, 0)).toBe(-300);
   });
 });
 

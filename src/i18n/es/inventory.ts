@@ -13,6 +13,7 @@ export const inventory = {
   enterTheTypeAndColor: 'Indica tipo y color',
   invalidWeight: 'Peso inválido',
   invalidSpoolStatus: 'Estado de bobina no válido',
+  consumedBeyondSpool: 'Consumo mayor a lo que quedaba en la bobina: {g} g sin descontar (conviene pesarla)',
   discarded: 'Descartada',
   theItemNeedsAName: 'El ítem necesita un nombre',
   spoolDoesNotExist: 'No existe la bobina {code}',

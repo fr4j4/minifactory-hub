@@ -16,6 +16,7 @@ export const inventory: Shape<typeof es['inventory']> = {
   enterTheTypeAndColor: 'Enter the type and color',
   invalidWeight: 'Invalid weight',
   invalidSpoolStatus: 'Invalid spool status',
+  consumedBeyondSpool: 'Used more than the spool had left: {g} g not deducted (weigh the spool)',
   discarded: 'Discarded',
   theItemNeedsAName: 'The item needs a name',
   spoolDoesNotExist: 'Spool {code} does not exist',

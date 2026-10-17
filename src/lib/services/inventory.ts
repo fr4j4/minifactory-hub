@@ -90,11 +90,13 @@ export async function consumeFromSpool(o: { spoolId: string; grams: number; kind
   db = db ?? (await getDb());
   const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId));
   if (!sp) return null;
-  // descuento en SQL: dos consumos simultáneos de la misma bobina no se pisan
-  const after = sql`greatest(0, ${s.spools.remainingG} - ${o.grams})`;
-  const [{ remainingG: left }] = await db.update(s.spools).set({ remainingG: after, status: sql`case when ${after} <= 0 then 'agotada' when ${s.spools.status} = 'nueva' then 'abierta' else ${s.spools.status} end`, updatedAt: new Date() })
-    .where(eq(s.spools.id, o.spoolId)).returning({ remainingG: s.spools.remainingG });
-  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, qty: -Math.min(o.grams, sp.remainingG), unitCost: sp.unitCost, jobId: o.jobId ?? null, note: o.note ?? null, createdBy: o.userId ?? null });
+  // descuento en SQL (no se pisa con otro consumo simultáneo); la bobina no baja de 0
+  const [u] = await db.update(s.spools).set({ remainingG: sql`greatest(0, ${s.spools.remainingG} - ${o.grams})`, status: sql`case when ${s.spools.remainingG} - ${o.grams} <= 0 then 'agotada' when ${s.spools.status} = 'nueva' then 'abierta' else ${s.spools.status} end`, updatedAt: new Date() }).where(eq(s.spools.id, o.spoolId)).returning({ left: s.spools.remainingG });
+  const left = u.left, taken = sp.remainingG - left;
+  const mv = { workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, unitCost: sp.unitCost, jobId: o.jobId ?? null, createdBy: o.userId ?? null };
+  await db.insert(s.inventoryMovements).values({ ...mv, qty: -taken, note: o.note ?? null });
+  // lo que excede a la bobina también queda registrado: así los movimientos suman lo que gastó el trabajo (el pesaje corrige después)
+  if (o.grams > taken) await db.insert(s.inventoryMovements).values({ ...mv, qty: -(o.grams - taken), note: (await getT())('inventory.consumedBeyondSpool', { g: Math.round(o.grams - taken) }) });
   await checkLowStock(sp.materialId);
   return { before: sp.remainingG, after: left, depleted: left <= 0 };
 }
