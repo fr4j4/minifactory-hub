@@ -36,6 +36,7 @@
   ],
   "exclude": [
     "node_modules",
+    "dist",
     "tests/e2e/**",
     "drizzle",
     "playwright.config.ts",

@@ -8,3 +8,4 @@ docs/reporte/media
 .env*
 !.env.example
 .git
+dist
