@@ -87,7 +87,9 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   }, [save]);
   useEffect(() => () => { if (created.current && live.current.dirty && idRef.current) handoff.set(idRef.current, qRef.current); }, []);
   // guardado automático de borradores
-  useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (qRef.current.items.length) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
+  // un presupuesto nuevo con solo líneas vacías no se guarda: abrir el formulario y salir no deja un borrador ni gasta un número
+  const worthSaving = (x: QuoteState) => x.items.length > 0 && (!!idRef.current || x.items.some((i) => i.description.trim() || i.gramsTotal > 0 || i.variantId || i.models.length || i.finalUnit != null));
+  useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (worthSaving(qRef.current)) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);
 
   const addItem = () => set({ items: [...q.items.map((i) => ({ ...i, open: false })), newItem(ctx)] });
