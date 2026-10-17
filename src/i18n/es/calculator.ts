@@ -46,7 +46,7 @@ export const calculator = {
   preparationMin: 'Preparación (min)',
   postProcessingMinUnit: 'Post-proceso (min/u)',
   suppliesUnit: 'Insumos ($/u)',
-  shipping: 'Envío ($)',
+  shipping: 'Despacho ($)',
   itemReferencesAndOptions: 'Referencias y opciones del ítem',
   setKitOptional: 'Conjunto / kit (opcional)',
   eGCosplayKit: 'Ej. Kit de cosplay',

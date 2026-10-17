@@ -3,7 +3,7 @@ import type { TFn } from '@/i18n/translate';
 import { dmy, money } from '@/lib/format';
 import { DOC_FONTS, fillVars, isCustomId, normalizeTemplate, type DocTemplate } from '@/lib/documents';
 
-export interface QuoteDocItem { id: string; description: string; groupName?: string | null; qty: number; /** null cuando total/qty no es entero: así nunca se imprime cant. × precio ≠ total */ unitPrice: number | null; total: number; optional: boolean; leadTime?: string | null; models: Array<{ name: string; thumbUrl?: string | null }> }
+export interface QuoteDocItem { id: string; description: string; groupName?: string | null; qty: number; /** null cuando total/qty no es entero: se imprime «≈ unitario redondeado», nunca un cant. × precio ≠ total que parezca exacto */ unitPrice: number | null; total: number; optional: boolean; leadTime?: string | null; models: Array<{ name: string; thumbUrl?: string | null }> }
 export interface QuoteDocData {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; brandColor: string; logoUrl?: string | null };
   quote: { number: string; version: number; createdAt: Date | string; validUntil: Date | string | null; customerName: string | null; customerPhone: string | null; title: string | null; discount: number; /** despacho de las líneas incluidas: suma al neto aunque no figure en ninguna línea */ shipping: number; total: number; taxAmount: number; notes: string | null };
@@ -33,7 +33,7 @@ export function QuoteDocument({ data, template, t }: { data: QuoteDocData; templ
       <tbody>{items.map((it) => (
         <tr key={it.id}><td style={td}>{tpl.theme.showThumbs && it.models.slice(0, 2).map((m, i) => m.thumbUrl ? /* eslint-disable-next-line @next/next/no-img-element */ <img key={i} alt="" src={m.thumbUrl} style={{ width: 54, height: 40, objectFit: 'cover', borderRadius: 4, marginRight: 6, verticalAlign: 'middle' }} /> : null)}<b>{it.description || t('quotes.n3dPrintedPart')}</b>{it.groupName && <span style={muted}> · {it.groupName}</span>}
           <div style={muted}>{[tpl.options.showModelNames && it.models.map((m) => m.name).join(', '), tpl.options.showLeadTime && it.leadTime].filter(Boolean).join(' · ')}</div></td>
-          <td style={{ ...td, ...r }}>{it.qty}</td><td style={{ ...td, ...r }}>{it.unitPrice != null ? money(it.unitPrice) : ''}</td><td style={{ ...td, ...r }}>{money(it.total)}</td></tr>))}</tbody></table>
+          <td style={{ ...td, ...r }}>{it.qty}</td><td style={{ ...td, ...r }}>{it.unitPrice != null ? money(it.unitPrice) : <span style={muted}>≈ {money(Math.round(it.total / Math.max(1, it.qty)))}</span>}</td><td style={{ ...td, ...r }}>{money(it.total)}</td></tr>))}</tbody></table>
       {sec('items').text && <div style={{ ...muted, marginTop: 6, whiteSpace: 'pre-wrap' }}>{fillVars(sec('items').text, vars)}</div>}</div>,
     optionals: optionals.length ? <div key="optionals" data-section="optionals" style={{ ...muted, marginTop: 8 }}>{title('optionals', t('quotes.optionalNotIncludedInThe'))} {optionals.map((i) => `${i.description} ${money(i.total)}`).join(' · ')}</div> : null,
     totals: <table key="totals" data-section="totals" style={{ width: 260, marginLeft: 'auto', marginTop: 12, borderCollapse: 'collapse' }}><tbody>

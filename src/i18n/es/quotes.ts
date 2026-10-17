@@ -158,7 +158,7 @@ export const quotes = {
   cQuality: 'Calidad',
   cEngine: 'Motor de laminado',
   cFile: 'Archivo',
-  cShipping: 'Envío',
+  cShipping: 'Despacho',
   cBreakdown: 'Desglose de costos',
   clientView: 'Vista cliente (idéntica al PDF)',
   approveSummary: 'Se creará un pedido por {total} · anticipo {deposit} · saldo {balance}.',
