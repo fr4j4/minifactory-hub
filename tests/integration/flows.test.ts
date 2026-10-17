@@ -342,6 +342,8 @@ describe('documento de cliente congelado al enviar (N7)', () => {
     await saveSettings({ documents: { quote: { footer: 'OTRO PIE' } } });
     const [after] = await dbx.select().from(s.quotes).where(eq(s.quotes.id, qq.id));
     expect((after.docTemplate as any).footer).toBe('Gracias por confiar en nosotros');
+    // también los datos del taller: el documento enviado no cambia si el taller edita su nombre después
+    expect((after.docTemplate as any).snapshot.shop.name).toBe((await (await import('@/lib/settings')).getSettings()).shop.name);
   });
 });
 
