@@ -21,14 +21,18 @@ function touch() {
   g.__pdfIdle.unref?.();
 }
 
-export async function renderPdf(url: string, cookie: { name: string; value: string }): Promise<Buffer> {
+/** `footer`: HTML del pie de cada página (Chromium rellena .pageNumber y .totalPages). */
+export async function renderPdf(url: string, cookies: Array<{ name: string; value: string }>, footer?: string): Promise<Buffer> {
   const browser = await getBrowser();
   const ctx = await browser.newContext();
   try {
-    await ctx.addCookies([{ name: cookie.name, value: cookie.value, url: new URL(url).origin }]);
+    await ctx.addCookies(cookies.map((c) => ({ name: c.name, value: c.value, url: new URL(url).origin })));
     const page = await ctx.newPage();
     const res = await page.goto(url, { waitUntil: 'networkidle' });
     if (!res?.ok()) throw new Error(`PDF: la página respondió ${res?.status()}`);
-    return await page.pdf({ format: 'A4', printBackground: true, margin: { top: '12mm', bottom: '12mm', left: '8mm', right: '8mm' } });
+    return await page.pdf({
+      format: 'A4', printBackground: true, margin: { top: '12mm', bottom: footer ? '16mm' : '12mm', left: '8mm', right: '8mm' },
+      ...(footer ? { displayHeaderFooter: true, headerTemplate: '<span></span>', footerTemplate: footer } : {}),
+    });
   } finally { await ctx.close().catch(() => {}); touch(); }
 }

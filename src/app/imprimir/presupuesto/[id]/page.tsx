@@ -20,7 +20,7 @@ export default async function PrintQuote({ params, searchParams }: { params: Pro
   return (
     <div className="print-doc">
       {sp.sinpdf && <div role="alert" className="no-print" style={{ background: '#fef3c7', border: '1px solid #f59e0b', padding: '8px 12px', marginBottom: 12, borderRadius: 6 }}>{t('quotes.pdfUnavailable')}</div>}
-      <style>{`*{box-sizing:border-box}body{background:#fff!important}ul{margin:4px 0}`}</style>
+      <style>{`*{box-sizing:border-box}body{background:#fff!important}ul{margin:4px 0}tr,[data-section]:not([data-section=items]){break-inside:avoid}`}</style>
       <QuoteDocument data={buildQuoteDoc(d, st, t)} template={template} t={t} />
     </div>
   );

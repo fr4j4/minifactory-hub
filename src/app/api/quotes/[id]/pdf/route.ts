@@ -5,6 +5,7 @@ import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { getT } from '@/i18n/server';
+import { LOCALE_COOKIE } from '@/i18n/config';
 import { renderPdf } from '@/lib/pdf';
 import { exists, getBuffer, newKey, putBuffer } from '@/lib/storage';
 
@@ -24,8 +25,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (q.status !== 'borrador' && q.pdfKey && (await exists(q.pdfKey))) return new Response(new Uint8Array(await getBuffer(q.pdfKey)), { headers });
   // origen interno fijo: req.url sale del encabezado Host, que controla el cliente (SSRF y PDF guardado alterado)
   const origin = process.env.INTERNAL_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`; const sess = (await cookies()).get('mf_session')?.value ?? '';
+  // mf_lang: el PDF sale en el mismo idioma que la vista previa de quien lo pide
+  const lang = (await cookies()).get(LOCALE_COOKIE)?.value;
+  // pie en cada página: número del presupuesto y página X/Y
+  const num = `${q.number}${q.version > 1 ? ` (v${q.version})` : ''}`.replace(/[<>&"]/g, '');
+  const footer = `<div style="font-size:8px;color:#64748b;width:100%;padding:0 8mm;display:flex;justify-content:space-between"><span>${num}</span><span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>`;
   try {
-    const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, { name: 'mf_session', value: sess });
+    const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, [{ name: 'mf_session', value: sess }, ...(lang ? [{ name: LOCALE_COOKIE, value: lang }] : [])], footer);
     if (q.status !== 'borrador') { const key = newKey('pdf', 'pdf'); await putBuffer(key, pdf); await db.update(s.quotes).set({ pdfKey: key }).where(eq(s.quotes.id, id)); }
     return new Response(new Uint8Array(pdf), { headers });
   } catch (e) {
