@@ -41,7 +41,11 @@ export function isPrivateIp(ip: string): boolean {
     const [a, b] = ip.split('.').map(Number);
     return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
   }
-  const v = ip.toLowerCase(); return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('::ffff:127.') || v.startsWith('::ffff:10.') || v.startsWith('::ffff:192.168.');
+  const v = ip.toLowerCase();
+  // IPv4 mapeada (::ffff:10.0.0.1 o, como la normaliza URL, ::ffff:a00:1): se evalúa como IPv4
+  const m = v.match(/^::ffff:(?:(\d+\.\d+\.\d+\.\d+)|([0-9a-f]{1,4}):([0-9a-f]{1,4}))$/);
+  if (m) return isPrivateIp(m[1] ?? [parseInt(m[2], 16) >> 8, parseInt(m[2], 16) & 255, parseInt(m[3], 16) >> 8, parseInt(m[3], 16) & 255].join('.'));
+  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
 }
 export type Fetcher = (url: string, init?: { headers?: Record<string, string>; signal?: AbortSignal; redirect?: 'manual' }) => Promise<{ status: number; headers: { get(k: string): string | null }; text(): Promise<string> }>;
 /** GET a una URL pública: solo http(s), sin IP privadas (también tras redirecciones), con tope de tiempo y de tamaño. */
