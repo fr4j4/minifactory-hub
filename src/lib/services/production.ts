@@ -261,11 +261,11 @@ export async function finishJob(jobId: string, o: FinishInput) {
       if (v && qtyGood > 0) {
         const newStock = v.stock + qtyGood;
         const avg = newStock > 0 ? Math.round((v.stock * v.avgCost + qtyGood * unitCost) / newStock) : v.avgCost;
-        await db.update(s.productVariants).set({ stock: newStock, avgCost: avg, updatedAt: now }).where(eq(s.productVariants.id, v.id));
+        await db.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${qtyGood}`, avgCost: avg, updatedAt: now }).where(eq(s.productVariants.id, v.id));
         await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'produccion', qty: qtyGood, unitCost, productionOrderId: po.id, reason: t('queue.job', { job: j.number }), createdBy: o.userId ?? null });
       }
       if (v && j.qty - qtyGood > 0) await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, reason: t('queue.failureNote', { n: j.qty - qtyGood, job: j.number }) + (o.failCause ? ': ' + o.failCause : ''), productionOrderId: po.id, createdBy: o.userId ?? null });
-      await db.update(s.productionOrders).set({ qtyGood: po.qtyGood + qtyGood, qtyFailed: po.qtyFailed + (j.qty - qtyGood), status: o.reprint !== false && failed ? 'en_cola' : 'terminada', updatedAt: now }).where(eq(s.productionOrders.id, po.id));
+      await db.update(s.productionOrders).set({ qtyGood: sql`${s.productionOrders.qtyGood} + ${qtyGood}`, qtyFailed: sql`${s.productionOrders.qtyFailed} + ${j.qty - qtyGood}`, status: o.reprint !== false && failed ? 'en_cola' : 'terminada', updatedAt: now }).where(eq(s.productionOrders.id, po.id));
     }
   }
   // líneas del pedido
