@@ -13,7 +13,7 @@ Pasos:
 2. Buscar huérfanos con una consulta por relación, por ejemplo:
    `select count(*) from quote_items qi left join quotes q on q.id = qi.quote_id where q.id is null;`
    Relaciones: `quote_items.quote_id`, `quote_item_models.quote_item_id|order_item_id`, `order_items.order_id`, `job_items.job_id|order_item_id`, `print_jobs.order_id|machine_id|production_order_id`, `payments.order_id|sale_id`, `sale_items.sale_id|variant_id`, `stock_movements.variant_id`, `inventory_movements.spool_id|item_id`, `file_versions.model_file_id`, `spools.material_id`, `product_variants.product_id`.
-3. Limpiar o poner en null los huérfanos en una migración de datos (`0021_*`), antes de crear las claves.
+3. Limpiar o poner en null los huérfanos en una migración de datos (la siguiente libre, `0022_*`), antes de crear las claves.
 4. En `src/db/schema.ts`, agregar `.references(() => padre.id, { onDelete })`:
    - `cascade` para los hijos que se borran de verdad: `quote_items → quotes`, `quote_item_models → quote_items`, `job_items → print_jobs`, `sale_items → sales`.
    - `restrict` para el resto (todo lo demás usa borrado lógico, así que el padre nunca se borra).
@@ -33,12 +33,12 @@ Si un taller con USD o EUR pasa a ser un requisito:
 5. Migración de datos: multiplicar por 100 todas las columnas de dinero solo si la moneda del taller no es CLP. Lista de columnas: `grep -n "integer('.*\(price\|cost\|total\|amount\|paid\|discount\|shipping\|commission\)" src/db/schema.ts`.
 6. Volver a habilitar USD y EUR en el asistente.
 
-## 3. Transacciones pendientes · M
+## 3. Transacciones pendientes (data-integrity-2: parcial) · M
 
-Hechas: `saveQuote`, `removeRecord`, `saveProduct`, `connectPrinter`, `addCloudPrinter`. Las transiciones de estado ya son condicionadas, así que un doble envío no repite efectos.
+Hechas: `saveQuote`, `createOrder` + `approveQuote` (pedido, líneas, reservas, abono y la toma del presupuesto en una sola transacción; el número se pide antes), `removeRecord`, `saveProduct`, `connectPrinter`, `addCloudPrinter`. Las transiciones de estado ya son condicionadas, así que un doble envío no repite efectos.
 
 Faltan (necesitan pasar `tx` a varios ayudantes):
-1. `createOrder` + `approveQuote`: hoy `approveQuote` toma el presupuesto con un update condicionado y lo devuelve a su estado si `createOrder` falla. Para una transacción completa, `addPayment`, `recomputeOrderStatus` y `nextNumber` tienen que aceptar `tx`.
+1. `createSale` (`src/lib/services/catalog.ts`): venta, líneas, stock y pago en una transacción.
 2. `finishJob`: el cierre es condicionado (no repite consumo). Una falla a mitad de camino deja efectos parciales. `consumeFromSpool` ya acepta `db`; faltan `createJob`, `scheduleMachine` y `checkMaintenance`.
 3. `nextNumber(kind, tx)`: llama a `getSettings()` con `getDb()`. Con `tx` en PGlite se bloquea. Leer la plantilla antes y pasarla como argumento.
 4. `createAccountAction` y `seedDemo`: una sola transacción y volver a revisar `hasUsers()` dentro de ella.
@@ -46,6 +46,6 @@ Faltan (necesitan pasar `tx` a varios ayudantes):
 ## 4. Otros
 
 - `nextSpoolCode` usa `count(*) + 1`: dos altas simultáneas chocan en `spools_code_uq`. No se cambió a `nextNumber`, porque esa secuencia empieza en 1 y repetiría códigos existentes. Opción: reintentar el insert una vez ante el error 23505.
-- Índices únicos de número de documento: `(workspace_id, number)` en `orders`, `sales`, `print_jobs`, `production_orders` y `(workspace_id, number, version)` en `quotes`. Desde esta rama la numeración exige `{YYYY}`, así que no debería haber repetidos; revisarlo con una consulta antes de crear los índices.
+- Índices únicos de número de documento (data-integrity-14: parcial, solo se exige `{YYYY}`): `(workspace_id, number)` en `orders`, `sales`, `print_jobs`, `production_orders` y `(workspace_id, number, version)` en `quotes`. Desde esta rama la numeración exige `{YYYY}`, así que no debería haber repetidos; revisarlo con una consulta antes de crear los índices.
 - Aceptar líneas opcionales al aprobar (flow-quotes-orders-18): casillas en el modal de aprobación y recalcular el total con `calcQuote`.
 - «Nueva versión» sin recálculo (flow-quotes-orders-6): el borrador nuevo vuelve a calcular el precio sugerido con las tarifas de hoy, igual que cualquier borrador (el editor también lo calcula en vivo). Congelarlo solo en el servidor no sirve: el primer autoguardado lo pisaría. Decisión de producto pendiente: copiar los precios como precio final, o un modo «costos congelados» en el editor.
