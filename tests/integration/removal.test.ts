@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
-import { addPayment, cancelOrder, createOrder } from '@/lib/services/orders';
+import { addPayment, approveQuote, cancelOrder, createOrder } from '@/lib/services/orders';
 import { saveQuote, sendQuote } from '@/lib/services/quotes';
 import { adjustStock, saveProduct } from '@/lib/services/catalog';
 import { removalInfo, removeRecord } from '@/lib/services/removal';
@@ -46,6 +46,22 @@ describe('eliminar y archivar', () => {
     await sendQuote(q, admin.id); expect(await blockKey('quote', q)).toBe('remove.block.quoteSent');
     const d = await saveQuote({ customerName: 'Q2', items: [line()] }, u); await removeRecord('quote', d, admin.id);
     expect((await db.select().from(s.quotes).where(eq(s.quotes.id, d)))[0].deletedAt).not.toBeNull();
+  });
+
+  it('un presupuesto aprobado se bloquea mientras tenga pedidos; al eliminar el pedido queda libre y se puede eliminar (borrado lógico)', async () => {
+    const u = { id: admin.id, role: 'admin' as const, permOverrides: {} };
+    const q = await saveQuote({ customerName: 'Q aprobado', items: [line()] }, u); await sendQuote(q, admin.id);
+    const oid = await approveQuote(q, { by: 'Cliente', channel: 'whatsapp' }, u);
+    const num = (await db.select().from(s.orders).where(eq(s.orders.id, oid)))[0].number;
+    const info = await removalInfo('quote', q); expect(info.block?.key).toBe('remove.block.quoteHasOrders'); expect(info.block?.params).toMatchObject({ count: 1, orders: num });
+    await expect(removeRecord('quote', q, admin.id)).rejects.toThrow();
+    expect(await blockKey('order', oid)).toBe('remove.block.orderNotCancelled'); // el pedido solo se elimina cancelado
+    await cancelOrder(oid, 'datos mal ingresados', u as any);
+    expect(await blockKey('quote', q)).toBe('remove.block.quoteHasOrders'); // cancelado pero aún no eliminado: sigue vigente
+    await removeRecord('order', oid, admin.id);
+    expect((await removalInfo('quote', q)).canDelete).toBe(true);
+    await removeRecord('quote', q, admin.id);
+    const [row] = await db.select().from(s.quotes).where(eq(s.quotes.id, q)); expect(row.deletedAt).not.toBeNull(); expect(row.status).toBe('aprobado'); // se conserva el registro
   });
 
   it('productos y variantes: se bloquean con stock y se eliminan liberando el SKU', async () => {

@@ -91,7 +91,10 @@ export async function removalInfo(kind: RemovableKind, id: string, actorId?: str
     }
     case 'quote': {
       const [q] = await db.select().from(s.quotes).where(eq(s.quotes.id, id));
-      if (q?.status === 'aprobado') return blocked('remove.block.quoteApproved');
+      if (q?.status === 'aprobado') { // solo mientras tenga pedidos vigentes: al eliminar esos pedidos (borrado lógico) el presupuesto queda libre
+        const orders = await db.select({ number: s.orders.number }).from(s.orders).where(and(eq(s.orders.quoteId, id), isNull(s.orders.deletedAt))).orderBy(s.orders.number);
+        if (orders.length) return blocked('remove.block.quoteHasOrders', { count: orders.length, orders: orders.map((o) => o.number).join(', ') });
+      }
       if (q?.status === 'enviado') return blocked('remove.block.quoteSent');
       return ok;
     }
