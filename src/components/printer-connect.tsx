@@ -80,7 +80,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
       {(canEdit || canRemove) && <div className="flex flex-wrap gap-2 mt-auto">
         {canEdit && <button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => updatePrinterAction(l.id, { enabled: !l.enabled }), { ok: l.enabled ? t('machines.connectionPaused3') : t('machines.connectionEnabled2') })}>{l.enabled ? t('machines.pauseConnection') : t('machines.enable')}</button>}
         {canEdit && <button className="btn-ghost btn-sm" onClick={() => setEdit(true)}>{t('common.edit')}</button>}
-        {canRemove && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('machines.disconnectThisPrinterTheMachine')} onConfirm={() => run(() => removePrinterAction(l.id), { ok: t('machines.printerDisconnected2') })}>{t('machines.disconnect')}</ConfirmButton>}
+        {canRemove && <ConfirmButton disabled={pending} className="btn-ghost btn-sm text-danger" message={t('machines.disconnectThisPrinterTheMachine')} onConfirm={() => run(() => removePrinterAction(l.id), { ok: t('machines.printerDisconnected2') })}>{t('machines.disconnect')}</ConfirmButton>}
       </div>}
       {edit && <Modal open onClose={() => setEdit(false)} title={t('machines.edit', { name: l.machineName })}>
         <div className="space-y-3">
@@ -89,7 +89,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" defaultChecked={l.syncQueue} onChange={(e) => run(() => updatePrinterAction(l.id, { syncQueue: e.target.checked }), { ok: t('machines.saved2') })} /> {t('machines.syncWithTheQueueMachine')}</label>
           <p className="text-xs muted">{t('machines.certificate')} {l.fingerprint ? <span className="num break-all">{l.fingerprint.slice(0, 29)}…</span> : t('machines.willBePinnedOnThe')}</p>
           <div className="flex flex-wrap justify-end gap-2">
-            {l.fingerprint && <ConfirmButton className="btn-ghost" message={t('machines.forgetTheStoredCertificateAnd')} onConfirm={() => run(() => updatePrinterAction(l.id, { resetFingerprint: true }), { ok: t('machines.certificateForgotten2') })}>{t('machines.forgetCertificate')}</ConfirmButton>}
+            {l.fingerprint && <ConfirmButton disabled={pending} className="btn-ghost" message={t('machines.forgetTheStoredCertificateAnd')} onConfirm={() => run(() => updatePrinterAction(l.id, { resetFingerprint: true }), { ok: t('machines.certificateForgotten2') })}>{t('machines.forgetCertificate')}</ConfirmButton>}
             <button className="btn-primary" disabled={pending} onClick={() => run(() => updatePrinterAction(l.id, l.mode === 'cloud' ? {} : { host, ...(code ? { accessCode: code } : {}) }), { ok: t('machines.saved2'), onOk: () => setEdit(false) })}>{t('common.save')}</button>
           </div>
         </div>

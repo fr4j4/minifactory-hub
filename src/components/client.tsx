@@ -19,7 +19,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={{ push }}>
       {children}
       <div className="fixed z-[100] bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 w-[min(92vw,420px)] pointer-events-none" role="status" aria-live="polite">
-        {items.map((t) => <div key={t.id} className={cn('rounded-lg px-4 py-3 text-sm shadow-lg pointer-events-auto border', t.tone === 'err' ? 'bg-red-600 text-white border-red-700' : t.tone === 'info' ? 'bg-slate-800 text-white border-slate-700' : 'bg-emerald-600 text-white border-emerald-700')}>{t.msg}</div>)}
+        {items.map((t) => <div key={t.id} className={cn('animate-rise rounded-lg px-4 py-3 text-sm shadow-lg pointer-events-auto border', t.tone === 'err' ? 'bg-red-600 text-white border-red-700' : t.tone === 'info' ? 'bg-slate-800 text-white border-slate-700' : 'bg-emerald-600 text-white border-emerald-700')}>{t.msg}</div>)}
       </div>
     </ToastCtx.Provider>
   );

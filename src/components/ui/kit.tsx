@@ -17,9 +17,10 @@ export function ModalDialog({ open, onClose, title, children, wide, closeLabel }
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50" />
-        <div className="fixed inset-0 z-[91] flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none">
-          <Dialog.Content aria-describedby={undefined} onOpenAutoFocus={(e) => { const f = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('input,select,textarea'); if (f) { e.preventDefault(); f.focus(); } }} className={cn('pointer-events-auto bg-[var(--card)] w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700 focus:outline-none', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
+        <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/50 data-[state=open]:animate-fadeIn data-[state=closed]:animate-fadeOut" />
+        {/* Radix desmonta este contenedor al terminar su animación: con fadeOut al cerrar, el contenido alcanza a salir */}
+        <div className={cn('fixed inset-0 z-[91] flex items-end md:items-center justify-center p-0 md:p-4 pointer-events-none', !open && 'animate-fadeOut')}>
+          <Dialog.Content aria-describedby={undefined} onOpenAutoFocus={(e) => { const f = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('input,select,textarea'); if (f) { e.preventDefault(); f.focus(); } }} className={cn('pointer-events-auto bg-[var(--card)] data-[state=open]:animate-rise data-[state=closed]:animate-fadeOut w-full rounded-t-2xl md:rounded-2xl shadow-2xl max-h-[92vh] overflow-y-auto border border-slate-200 dark:border-slate-700 focus:outline-none', wide ? 'md:max-w-3xl' : 'md:max-w-lg')}>
             <div className="sticky top-0 bg-inherit flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 z-10">
               <Dialog.Title className="font-semibold">{title}</Dialog.Title>
               <Dialog.Close className="btn-ghost btn-sm !px-2.5" aria-label={closeLabel}><X className="h-4 w-4" /></Dialog.Close>

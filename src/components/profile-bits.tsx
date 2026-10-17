@@ -135,7 +135,7 @@ export function ProfileRowActions({ id, name, canDelete }: { id: string; name: s
             <button className="btn-ghost" disabled={pending || !copy.trim()} data-testid="dup-edit" onClick={() => run(() => duplicateProfileAction(id, copy), { ok: t('nozzle.copyCreated'), onOk: (nid) => { setOpen(false); router.push(`/laminador/perfiles/${nid}`); } })}>{t('nozzle.createAndEdit')}</button></div>
         </div>
       </Modal>
-      {canDelete && <ConfirmButton className="btn-ghost btn-sm text-danger" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
+      {canDelete && <ConfirmButton disabled={pending} className="btn-ghost btn-sm text-danger" message={t('nozzle.deleteConfirm', { name })} onConfirm={() => run(() => deleteProfileAction(id), { ok: t('files.profileDeleted2') })}>{t('common.deleteLabel')}</ConfirmButton>}
     </span>
   );
 }

@@ -67,7 +67,7 @@ function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: C
       <div className="flex flex-wrap gap-2">
         {active && canCreate && <button className="btn-ghost btn-sm" onClick={load} disabled={loading} data-testid="cloud-devices">{loading ? t('machines.loading') : devs ? t('machines.refreshPrinters') : t('machines.viewTheAccountSPrinters')}</button>}
         {!active && canCreate && <button className="btn-primary btn-sm" onClick={() => setRelogin(true)} data-testid="cloud-relogin">{t('machines.signInAgain')}</button>}
-        {active && canEdit && <ConfirmButton className="btn-ghost btn-sm" message={t('machines.theStoredTokenIsDeleted')} onConfirm={() => run(() => cloudLogoutAction(a.id), { ok: t('machines.sessionClosed3') })}>{t('machines.signOut')}</ConfirmButton>}
+        {active && canEdit && <ConfirmButton disabled={pending} className="btn-ghost btn-sm" message={t('machines.theStoredTokenIsDeleted')} onConfirm={() => run(() => cloudLogoutAction(a.id), { ok: t('machines.sessionClosed3') })}>{t('machines.signOut')}</ConfirmButton>}
       </div>
       {devs && (devs.length === 0 ? <p className="text-sm muted">{t('machines.theAccountHasNoLinked')}</p> :
         <ul className="divide-y divide-[var(--line)] -mx-1" data-testid="cloud-device-list">{devs.map((d) => { const lan = found?.find((f) => f.serial === d.serial); return (

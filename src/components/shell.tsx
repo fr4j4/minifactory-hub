@@ -8,6 +8,7 @@ import { logoutAction } from '@/actions/auth';
 import { useT } from '@/i18n/client';
 import { LocaleSwitcher } from './locale-switcher';
 import { ThemePicker } from './theme-picker';
+import { LinkPending } from './ui-client';
 
 export interface NavItem { href: string; label: string; icon: IconName; group: 'main' | 'more' }
 // sin respaldo: un nombre que no está aquí no compila (antes caía en Package y todo se veía como una caja)
@@ -75,7 +76,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
   return (
     <div className="min-h-screen md:flex">
       {/* panel de control: riel con íconos en tablet, completo en escritorio */}
-      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 transition-[width] duration-300 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
+      <aside className={cn('hidden md:flex flex-col sticky top-0 h-screen shrink-0 border-r border-transparent dark:border-white/[.06] bg-[var(--panel)] text-[var(--panel-ink)] no-print', full ? 'md:w-[72px] xl:w-[244px]' : 'md:w-[72px]')} aria-label={t('nav.main')}>
         <Link href="/" className="flex items-center gap-3 px-[18px] h-16 shrink-0" aria-label="MiniFactory">
           <Mark className="h-9 w-9 shrink-0" />
           <span className={cn('hidden leading-none', full && 'xl:block')}><span className="block font-display text-[17px] font-semibold tracking-tight">MiniFactory</span><span className="block font-mono text-[10px] uppercase tracking-[.16em] text-white/60 mt-1">{t('nav.tagline')}</span></span>
@@ -91,7 +92,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
                     className={cn('group relative flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] min-h-[40px] transition-colors', on ? 'bg-white/[.08] text-white font-medium' : 'text-white/75 hover:text-white hover:bg-white/[.05]')}>
                     {on && <span className="absolute -left-3 top-2 bottom-2 w-[3px] rounded-r-full bg-[var(--accent)] shadow-[0_0_12px_2px_rgba(255,91,31,.55)]" aria-hidden />}
                     <Icon name={n.icon} className={cn('h-[18px] w-[18px] shrink-0 transition-colors', on ? 'text-[var(--accent)]' : 'text-white/60 group-hover:text-white')} />
-                    <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span>
+                    <span className={cn('hidden truncate', full && 'xl:inline')}>{n.label}</span><LinkPending className="right-2 top-2" />
                   </Link>); })}
               </div>
             </div>
@@ -150,7 +151,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
 }
 
 function BottomLink({ n, on }: { n: NavItem; on: boolean }) {
-  return <Link href={n.href} aria-current={on ? 'page' : undefined} className={cn('relative flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px]', on ? 'text-white font-medium' : 'text-white/70')}>{on && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-[var(--accent)]" aria-hidden />}<Icon name={n.icon} className={cn('h-5 w-5', on && 'text-[var(--accent)]')} /><span>{n.label}</span></Link>;
+  return <Link href={n.href} aria-current={on ? 'page' : undefined} className={cn('relative flex flex-col items-center justify-center gap-1 py-1.5 min-h-[60px] text-[11px]', on ? 'text-white font-medium' : 'text-white/70')}>{on && <span className="absolute top-0 h-[3px] w-8 rounded-b-full bg-[var(--accent)]" aria-hidden />}<Icon name={n.icon} className={cn('h-5 w-5', on && 'text-[var(--accent)]')} /><span>{n.label}</span><LinkPending className="right-[calc(50%-18px)] top-2" /></Link>;
 }
 
 function Sheet({ children, title, onClose }: { children: React.ReactNode; title: string; onClose: () => void }) {

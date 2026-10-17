@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { cn } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Badge, statusTone } from './badge';
@@ -12,12 +12,18 @@ export function StatusBadge({ status }: { status: string }) {
   return <Badge tone={statusTone(status)} className={cn('badge-led', LIVE.has(status) && 'before:animate-pulseDot')}>{label}</Badge>;
 }
 
+/** Punto que late mientras carga la página de su enlace. Debe ir dentro del <Link>. */
+export function LinkPending({ className }: { className?: string }) {
+  const { pending } = useLinkStatus();
+  return <span aria-hidden className={cn('pointer-events-none absolute h-1.5 w-1.5 rounded-full bg-[var(--accent)] transition-opacity', pending ? 'opacity-100 animate-pulseDot' : 'opacity-0', className)} />;
+}
+
 export function Tabs({ tabs, current }: { tabs: Array<{ href: string; label: string; key: string; count?: number; group?: string }>; current: string }) {
   const t = useT();
   const link = (tab: (typeof tabs)[number]) => (
     <Link key={tab.key} href={tab.href} aria-current={tab.key === current ? 'page' : undefined}
-      className={cn('px-3.5 py-2 text-sm whitespace-nowrap rounded-xl min-h-[44px] md:min-h-[36px] flex items-center gap-1.5 transition-colors', tab.key === current ? 'bg-[var(--panel)] text-[var(--panel-ink)] font-medium dark:bg-slate-700' : 'muted hover:bg-slate-100 dark:hover:bg-slate-800')}>
-      {tab.label}{tab.count != null && <span className={cn('num text-[11px] rounded-full px-1.5 min-w-5 text-center', tab.key === current ? 'bg-[var(--accent)] text-[#17161a]' : 'bg-slate-200 dark:bg-slate-700')}>{tab.count}</span>}
+      className={cn('relative px-3.5 py-2 text-sm whitespace-nowrap rounded-xl min-h-[44px] md:min-h-[36px] flex items-center gap-1.5 transition-colors', tab.key === current ? 'bg-[var(--panel)] text-[var(--panel-ink)] font-medium dark:bg-slate-700' : 'muted hover:bg-slate-100 dark:hover:bg-slate-800')}>
+      {tab.label}{tab.count != null && <span className={cn('num text-[11px] rounded-full px-1.5 min-w-5 text-center', tab.key === current ? 'bg-[var(--accent)] text-[#17161a]' : 'bg-slate-200 dark:bg-slate-700')}>{tab.count}</span>}<LinkPending className="right-1 top-1" />
     </Link>
   );
   // con grupos: cada grupo lleva su rótulo y las pestañas siguen siendo un solo nav
