@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ChevronDown, ChevronUp, GripVertical, Moon, Pause, Play, X } from 'lucide-react';
 import { assignJobAction, cancelJobAction, createTestJobAction, finishJobAction, pauseJobAction, reorderJobAction, resumeJobAction, startJobAction } from '@/actions/production';
 import { Modal, useAction, useLinger } from './client';
-import { Badge, StatusBadge, Swatch } from './ui';
+import { Badge, Meter, StatusBadge, Swatch } from './ui';
 import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
 import { FAIL_CAUSES } from '@/lib/production/fail-causes';
@@ -18,7 +18,7 @@ export interface QMachine { id: string; name: string; status: string; tech: stri
 export interface QMaterial { id: string; label: string; hex: string; tech: string }
 export interface QSpool { id: string; code: string; materialId: string; remainingG: number }
 
-const iconBtn = 'btn-ghost btn-sm !px-1.5';
+const iconBtn = 'btn-quiet btn-sm !px-1.5';
 
 export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCreate, workStart, workEnd, nowIso }: { jobs: QJob[]; machines: QMachine[]; materials: QMaterial[]; spools: QSpool[]; canEdit: boolean; canCreate: boolean; workStart: number; workEnd: number; nowIso: string }) {
   const t = useT();
@@ -52,10 +52,10 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
   const renderRunning = (j: QJob) => {
     const el = j.realStart ? (now - new Date(j.realStart).getTime()) / 3600_000 : 0; const p = j.status === 'imprimiendo' && j.estH > 0 ? Math.min(99, (el / j.estH) * 100) : 0;
     return (
-      <li key={j.id} className={cn('rounded-lg border bg-[var(--card)] p-2.5 text-sm', j.status === 'imprimiendo' ? 'border-violet-400' : 'border-slate-200 dark:border-slate-700')} data-testid="job-card">
+      <li key={j.id} className={cn('rounded-lg border bg-[var(--card)] p-2.5 text-sm', j.status === 'imprimiendo' ? 'border-[var(--accent-line)]' : 'border-slate-200 dark:border-slate-700')} data-testid="job-card">
         <div className="flex items-start justify-between gap-2"><div className="font-medium leading-snug">{j.title}</div><StatusBadge status={j.status} /></div>
         {meta(j)}
-        {j.status === 'imprimiendo' && <div className="mt-2"><div className="h-1.5 rounded bg-slate-200 dark:bg-slate-700 overflow-hidden"><div className="h-full bg-violet-500" style={{ width: `${p}%` }} /></div><div className="text-xs muted mt-0.5">{Math.round(p)}% · {t('queue.endsAt', { date: dmyHm(j.plannedEnd) })}</div></div>}
+        {j.status === 'imprimiendo' && <div className="mt-2"><Meter value={p} max={100} /><div className="text-xs muted mt-0.5">{Math.round(p)}% · {t('queue.endsAt', { date: dmyHm(j.plannedEnd) })}</div></div>}
         {canEdit && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {j.status === 'imprimiendo' && <><button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => pauseJobAction(j.id))}><Pause className="h-3.5 w-3.5" aria-hidden /> {t('queue.pause')}</button><button className="btn-primary btn-sm" onClick={() => setFinish(j)} data-testid="job-finish">{t('queue.finish')}</button></>}
@@ -70,7 +70,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
     const blocked = busy(j.machineId); // asignado a una máquina que ya está imprimiendo; sin asignar siempre se puede iniciar (elige una libre)
     return (
       <li key={j.id} draggable={canEdit} onDragStart={() => setDrag(j.id)} onDragEnd={end} onDragOver={allowDrop(`j:${j.id}`)} onDrop={dropOn((id) => id !== j.id && reorder(id, j.id))}
-        className={cn('rounded-lg border bg-[var(--card)] p-2.5 text-sm', over === `j:${j.id}` && drag !== j.id ? 'border-brand-400 border-t-4' : 'border-slate-200 dark:border-slate-700', drag === j.id && 'opacity-50')} data-testid="job-card">
+        className={cn('rounded-lg border bg-[var(--card)] p-2.5 text-sm', over === `j:${j.id}` && drag !== j.id ? 'border-[var(--accent)] border-t-4' : 'border-slate-200 dark:border-slate-700', drag === j.id && 'opacity-50')} data-testid="job-card">
         <div className="flex items-start gap-2">
           {canEdit && <GripVertical className="h-4 w-4 mt-0.5 shrink-0 muted cursor-grab hidden sm:block" aria-hidden />}
           <span className="tabular text-xs muted mt-0.5 w-5 shrink-0">#{i + 1}</span>
@@ -86,10 +86,10 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
           </div>
         </div>
         {canEdit && (
-          <div className="flex flex-wrap items-center gap-1.5 mt-2">
-            <button className="btn-primary btn-sm" disabled={pending || blocked} title={blocked ? t('queue.machineBusy') : undefined} onClick={() => run(() => startJobAction(j.id, j.machineId ? { machineId: j.machineId } : {}), { ok: t('queue.jobStarted2') })} data-testid="job-start"><Play className="h-3.5 w-3.5" aria-hidden /> {t('queue.start')}</button>
-            <select className="input !min-h-[32px] !py-0.5 !w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.assignTo', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => assign(j.id, e.target.value || null)}><option value="">{t('queue.unassigned')}</option>{machines.filter((mm) => mm.id === j.machineId || techFits(matOf(j.materialId)?.tech, mm.tech)).map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>
-            <span className="ml-auto inline-flex gap-0.5">
+          <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 mt-2">
+            <button className="btn-ghost btn-sm shrink-0" disabled={pending || blocked} title={blocked ? t('queue.machineBusy') : undefined} onClick={() => run(() => startJobAction(j.id, j.machineId ? { machineId: j.machineId } : {}), { ok: t('queue.jobStarted2') })} data-testid="job-start"><Play className="h-3.5 w-3.5 text-[var(--accent-ink)]" aria-hidden /> {t('queue.start')}</button>
+            <select className="input !min-h-[32px] !py-0.5 max-sm:flex-1 sm:!w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.assignTo', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => assign(j.id, e.target.value || null)}><option value="">{t('queue.unassigned')}</option>{machines.filter((mm) => mm.id === j.machineId || techFits(matOf(j.materialId)?.tech, mm.tech)).map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>
+            <span className="ml-auto inline-flex shrink-0 gap-0.5">
               <button className={iconBtn} disabled={pending || i === 0} aria-label={t('queue.moveUp', { job: j.number })} onClick={() => reorder(j.id, queued[i - 1].id)}><ChevronUp className="h-4 w-4" aria-hidden /></button>
               <button className={iconBtn} disabled={pending || i === queued.length - 1} aria-label={t('queue.moveDown', { job: j.number })} onClick={() => reorder(j.id, queued[i + 2]?.id ?? null)}><ChevronDown className="h-4 w-4" aria-hidden /></button>
               <button className={cn(iconBtn, 'text-danger')} disabled={pending} onClick={() => run(() => cancelJobAction(j.id), { ok: t('queue.jobCancelled2') })} aria-label={t('queue.cancel', { job: j.number })}><X className="h-4 w-4" aria-hidden /></button>
@@ -100,7 +100,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
   };
 
   const dropZone = (key: string, label: string, onDrop: (id: string) => unknown) => drag ? (
-    <div className={cn('rounded-lg border-2 border-dashed p-3 text-center text-xs muted', over === key ? 'border-brand-400 bg-brand-400/10' : 'border-slate-300 dark:border-slate-600')} onDragOver={allowDrop(key)} onDrop={dropOn(onDrop)}>{label}</div>
+    <div className={cn('rounded-lg border-2 border-dashed p-3 text-center text-xs muted', over === key ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-slate-300 dark:border-slate-600')} onDragOver={allowDrop(key)} onDrop={dropOn(onDrop)}>{label}</div>
   ) : null;
 
   // Gantt: próximas 36 h
@@ -109,7 +109,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden" role="tablist">{(['tablero', 'gantt'] as const).map((v) => <button key={v} role="tab" aria-selected={view === v} className={cn('px-4 min-h-[44px] md:min-h-[36px] text-sm', view === v ? 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800')} onClick={() => setView(v)} data-testid={`view-${v}`}>{v === 'tablero' ? t('queue.board') : t('queue.calendarGantt')}</button>)}</div>
+        <div className="inline-flex rounded-lg border border-slate-300 dark:border-slate-600 overflow-hidden" role="tablist">{(['tablero', 'gantt'] as const).map((v) => <button key={v} role="tab" aria-selected={view === v} className={cn('px-4 min-h-[44px] md:min-h-[36px] text-sm', view === v ? 'bg-[var(--panel)] text-[var(--panel-ink)] dark:bg-[var(--raised)] dark:text-[var(--ink)] dark:shadow-[inset_0_-2px_0_var(--accent)]' : 'hover:bg-[var(--hover)]')} onClick={() => setView(v)} data-testid={`view-${v}`}>{v === 'tablero' ? t('queue.board') : t('queue.calendarGantt')}</button>)}</div>
         {canCreate && <button className="btn-ghost ml-auto" onClick={() => setNewJob(true)} data-testid="new-job">{t('queue.testJob')}</button>}
       </div>
       {view === 'tablero' ? (
@@ -123,7 +123,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
           <div className="space-y-3" aria-label={t('queue.machines')}>
             {machines.map((mm) => { const running = live.filter((j) => j.machineId === mm.id && j.status !== 'en_cola'); const next = queued.filter((j) => j.machineId === mm.id);
               return (
-                <section key={mm.id} className={cn('rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5', drag && 'ring-2 ring-brand-400/50', over === `m:${mm.id}` && '!ring-brand-400 bg-brand-400/10')} onDragOver={allowDrop(`m:${mm.id}`)} onDrop={dropOn((id) => assign(id, mm.id))} aria-label={mm.name}>
+                <section key={mm.id} className={cn('rounded-xl bg-slate-100/70 dark:bg-slate-900/50 p-2.5', drag && 'ring-2 ring-[var(--accent-line)]', over === `m:${mm.id}` && '!ring-[var(--accent)] bg-[var(--accent-soft)]')} onDragOver={allowDrop(`m:${mm.id}`)} onDrop={dropOn((id) => assign(id, mm.id))} aria-label={mm.name}>
                   <header className="px-1 pb-2"><div className="flex items-center justify-between"><h3 className="font-semibold text-sm">{mm.name}{mm.tech !== 'FDM' && <Badge tone="violet" className="ml-1.5">{t('queue.resin')}</Badge>}</h3><StatusBadge status={mm.status} /></div><div className="mt-1 empty:hidden"><PrinterPill machineId={mm.id} /></div></header>
                   {over === `m:${mm.id}` && drag && <div className="text-xs text-center py-1 font-medium">{t('queue.dropToAssign', { machine: mm.name })}</div>}
                   <ul className="space-y-2">{running.map((j) => renderRunning(j))}{running.length === 0 && <li className="text-xs muted px-1">{t('queue.machineFree')}</li>}</ul>
@@ -138,7 +138,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
             <div key={m.id} className="flex items-center border-t border-slate-100 dark:border-slate-800 h-14"><div className="w-32 shrink-0 text-sm font-medium pr-2 truncate">{m.name}</div>
               <div className="relative flex-1 h-10 rounded bg-slate-50 dark:bg-slate-900/50">
                 <div className="absolute inset-y-0 w-px bg-red-500 z-10" style={{ left: `${pos(now)}%` }} title={t('queue.now')} />
-                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate text-white', j.status === 'imprimiendo' ? 'bg-violet-600' : 'bg-brand-600', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-white/80 opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on && <Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}{j.number} {j.title}</div>; })}
+                {live.filter((j) => (j.machineId ?? j.suggestedMachineId) === m.id && j.plannedStart && j.plannedEnd).map((j) => { const l = pos(new Date(j.plannedStart!).getTime()); const r = pos(new Date(j.plannedEnd!).getTime()); const on = overnight(j); const proj = !j.machineId; return <div key={j.id} title={`${j.title} · ${dmyHm(j.plannedStart)} → ${dmyHm(j.plannedEnd)}${proj ? ` · ${t('queue.suggested', { machine: m.name })}` : ''}`} className={cn('absolute top-1 bottom-1 rounded px-1.5 text-[11px] leading-8 truncate', j.status === 'imprimiendo' ? 'bg-[var(--accent)] text-[var(--on-accent)]' : 'bg-[var(--panel)] text-[var(--panel-ink)]', on && 'ring-2 ring-amber-400', proj && 'border-2 border-dashed border-white/80 opacity-75')} style={{ left: `${l}%`, width: `${Math.max(1.5, r - l)}%` }}>{on && <Moon className="inline h-3.5 w-3.5 mr-1 -mt-0.5" aria-hidden />}{j.number} {j.title}</div>; })}
               </div></div>))}
           <p className="text-xs muted mt-3">{t('queue.eachBarRunsFromThe')} <Moon className="inline h-3.5 w-3.5 -mt-0.5" aria-hidden /> {t('queue.overnightLegend')} {t('queue.projectedBar')}</p>
         </div></div>
