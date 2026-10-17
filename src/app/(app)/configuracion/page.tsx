@@ -14,7 +14,8 @@ import { systemHealth } from '@/lib/health';
 import { reopenSetupAction } from '@/actions/setup';
 import { DocTemplateEditor } from '@/components/doc-template-editor';
 import { listSuppliers } from '@/lib/services/inventory';
-import { tOr } from '@/i18n/translate';
+import { tOr, type TFn } from '@/i18n/translate';
+import type { QuoteDocData } from '@/components/quote-document';
 import { RemoveButton } from '@/components/remove-button';
 import { can } from '@/lib/perm';
 import { RestoreButton } from '@/components/restore-button';
@@ -26,6 +27,16 @@ import { jobSummary } from '@/lib/jobs';
 import { AutoTagSetting } from '@/components/auto-tag-setting';
 import { REMOVAL_MODULE } from '@/lib/services/removal';
 
+/** Datos de ejemplo de la vista previa: muestran todas las secciones (opcional, enlace, nota, despacho, descuento, IVA) y los montos cuadran. */
+function docSample(st: Awaited<ReturnType<typeof getSettings>>, t: TFn): QuoteDocData {
+  const shipping = 3000, discount = 2000, net = 18000 + 20000 + shipping - discount, tax = Math.round((net * st.rates.taxPct) / 100);
+  return {
+    shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor },
+    quote: { number: 'P-2026-0001', version: 1, createdAt: new Date(), validUntil: new Date(Date.now() + st.quoteValidDays * 86400_000), customerName: t('documents.sampleCustomer'), customerPhone: '+56 9 1234 5678', title: null, discount, shipping, total: net + tax, taxAmount: tax, notes: t('documents.sampleNote') },
+    items: [{ id: 'a', description: t('documents.sampleItem'), qty: 1, unitPrice: 18000, total: 18000, optional: false, models: [{ name: 'soporte.stl' }], leadTime: t('quotes.approxPrintLeadTime', { time: '3:20 h' }) }, { id: 'b', description: t('documents.sampleItem2'), qty: 10, unitPrice: 2000, total: 20000, optional: false, models: [], leadTime: null }, { id: 'c', description: t('documents.sampleOptional'), qty: 1, unitPrice: 4500, total: 4500, optional: true, models: [], leadTime: null }],
+    links: [{ id: 'l', title: t('documents.sampleLink'), url: 'https://www.printables.com/' }], tax: { label: t('quotes.plusVat', { pct: st.rates.taxPct }), showRow: true, netAmount: net }, terms: st.templates.terms,
+  };
+}
 export async function generateMetadata() { return { title: (await getT())('meta.settings') }; }
 export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const t = await getT();
@@ -42,12 +53,7 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
       {tab === 'ia' && <><Card title={t('ai.title')}><AiSettingsForm st={publicAiSettings((await getSettingsRaw()).ai)} canClear={can(user, 'ia', 'X')} /></Card><Card title={t('ai.usageTitle')} className="mt-6"><AiUsagePanel usage={await aiUsage()} budget={st.ai.budget.monthlyUsd} /></Card></>}
       {tab === 'taller' && <Card><ShopForm st={st} /></Card>}
       {tab === 'tarifas' && <Card><RatesForm st={st} /></Card>}
-      {tab === 'documentos' && <DocTemplateEditor initial={st.documents.quote} hasLogo={!!st.shop.logoKey} sample={{
-        shop: { name: st.shop.name, legalName: st.shop.legalName, taxId: st.shop.taxId, address: st.shop.address, phone: st.shop.phone, email: st.shop.email, brandColor: st.shop.brandColor },
-        quote: { number: 'P-2026-0001', version: 1, createdAt: new Date(), validUntil: new Date(Date.now() + st.quoteValidDays * 86400_000), customerName: t('documents.sampleCustomer'), customerPhone: '+56 9 1234 5678', title: null, discount: 0, shipping: 0, total: 38000, taxAmount: 0, notes: null },
-        items: [{ id: 'a', description: t('documents.sampleItem'), qty: 1, unitPrice: 18000, total: 18000, optional: false, models: [{ name: 'soporte.stl' }], leadTime: null }, { id: 'b', description: t('documents.sampleItem2'), qty: 10, unitPrice: 2000, total: 20000, optional: false, models: [], leadTime: null }],
-        links: [], tax: { label: t('quotes.noVat'), showRow: false, netAmount: null }, terms: st.templates.terms,
-      }} />}
+      {tab === 'documentos' && <DocTemplateEditor initial={st.documents.quote} hasLogo={!!st.shop.logoKey} sample={docSample(st, t)} />}
       {tab === 'plantillas' && <Card><TemplatesForm st={st} /></Card>}
       {tab === 'usuarios' && <Card pad={false} actions={<UserDialog selfId={user.id} trigger={<button className="btn-primary btn-sm" data-testid="new-user">{t('settings.user')}</button>} />}><Table><thead><tr><th className="th">{t('common.name')}</th><th className="th">{t('settings.email')}</th><th className="th">{t('settings.role')}</th><th className="th">{t('common.status')}</th><th className="th" /></tr></thead><tbody>{users.map((u) => <tr key={u.id}><td className="td font-medium">{u.name}</td><td className="td">{u.email}</td><td className="td"><Badge>{t(`roles.${u.role as 'admin'}`)}</Badge></td><td className="td">{u.active ? <Badge tone="green">{t('settings.active')}</Badge> : <Badge tone="red">{t('settings.inactive')}</Badge>}</td><td className="td text-right"><UserDialog selfId={user.id} u={{ id: u.id, name: u.name, email: u.email, role: u.role, active: u.active, permOverrides: u.permOverrides ?? {} }} trigger={<button className="btn-ghost btn-sm">{t('common.edit')}</button>} />{can(user, 'config', 'X') && <> <RemoveButton kind="user" id={u.id} name={u.name} /></>}</td></tr>)}</tbody></Table></Card>}
       {tab === 'canales' && <Card pad={false} actions={<ChannelDialog trigger={<button className="btn-primary btn-sm" data-testid="new-channel">{t('settings.channel')}</button>} />}><Table><thead><tr><th className="th">{t('common.channel')}</th><th className="th">{t('common.typeLabel')}</th><th className="th text-right">{t('common.commission')}</th><th className="th text-right">{t('settings.fixed')}</th><th className="th text-right">{t('settings.avgShipping')}</th><th className="th" /></tr></thead><tbody>{ch.map((c) => <tr key={c.id}><td className="td font-medium">{c.name} {!c.active && <Badge>{t('settings.inactive')}</Badge>}</td><td className="td">{tOr(t, `settings.channelKind.${c.kind}`, c.kind)}</td><td className="td text-right tabular">{c.commissionPct}%</td><td className="td text-right tabular">{money(c.commissionFixed)}</td><td className="td text-right tabular">{money(c.avgShipping)}</td><td className="td text-right"><ChannelDialog c={c} trigger={<button className="btn-ghost btn-sm">{t('common.edit')}</button>} />{can(user, 'config', 'X') && <> <RemoveButton kind="channel" id={c.id} name={c.name} /></>}</td></tr>)}</tbody></Table></Card>}

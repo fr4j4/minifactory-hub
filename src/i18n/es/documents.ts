@@ -38,4 +38,7 @@ export const documents = {
   sampleCustomer: 'Cliente de ejemplo',
   sampleItem: 'Soporte de escritorio',
   sampleItem2: 'Llaveros personalizados',
+  sampleOptional: 'Caja de regalo',
+  sampleLink: 'Modelo de referencia',
+  sampleNote: 'Colores a confirmar con el cliente.',
 };

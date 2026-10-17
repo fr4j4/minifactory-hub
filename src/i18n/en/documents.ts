@@ -41,4 +41,7 @@ export const documents: Shape<typeof es['documents']> = {
   sampleCustomer: 'Sample customer',
   sampleItem: 'Desk organizer',
   sampleItem2: 'Custom keychains',
+  sampleOptional: 'Gift box',
+  sampleLink: 'Reference model',
+  sampleNote: 'Colors to be confirmed with the customer.',
 };
