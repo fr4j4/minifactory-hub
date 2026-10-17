@@ -128,16 +128,18 @@ export function storedStatus(l: Link): PrinterStatus { return l.lastStatus ? (l.
 
 /** Cambios de estado → máquina, cola y avisos. Solo actúa sobre transiciones (no al conectarse por primera vez). */
 async function onStatus(e: Entry, st: PrinterStatus) {
+  // antes del primer await: dos mensajes seguidos en una transición no deben ver ambos el estado anterior (avisos duplicados)
+  const now = Date.now(); const prev = e.prev; const cur = st.state; const L = e.link; const name = L.name ?? L.serial;
+  if (cur !== 'UNKNOWN' && cur !== 'OFFLINE') e.prev = cur;
+  const save = cur !== prev || now - e.lastDb > 15_000; if (save) e.lastDb = now;
   const t = await getT();
-  const db = await getDb(); const now = Date.now(); const prev = e.prev; const cur = st.state; const L = e.link; const name = L.name ?? L.serial;
-  if (cur !== prev || now - e.lastDb > 15_000) {
-    e.lastDb = now;
+  const db = await getDb();
+  if (save) {
     await db.update(s.printerLinks).set({ lastStatus: st as unknown as Record<string, any>, lastSeenAt: new Date(), lastError: null }).where(eq(s.printerLinks.id, L.id));
   }
   // avisos HMS nuevos
   for (const h of st.hms) if (!e.hmsSeen.has(h.code)) { e.hmsSeen.add(h.code); if (prev !== null) await notify('impresora', t('machines.hmsNotice', { name, code: h.code }), t('machines.severityCheckItOnThe', { severity: t(`machines.severity.${h.severity === 'común' ? 'comun' : h.severity}` as 'machines.severity.fatal') }), `/maquinas/${L.machineId}`); }
   if (cur === 'UNKNOWN' || cur === 'OFFLINE') return;
-  e.prev = cur;
   if (prev === null && L.syncQueue) {
     // primer estado tras conectar: alinear la máquina con lo que informa la impresora, sin avisos
     const want = cur === 'RUNNING' || cur === 'PREPARE' ? 'imprimiendo' : cur === 'PAUSE' ? 'pausada' : null;
