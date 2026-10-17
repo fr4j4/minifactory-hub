@@ -49,6 +49,8 @@ export interface AiSettings {
   preset: string;
   baseUrl: string;
   apiKeySealed: string;
+  /** Proveedor y URL con que se guardó la clave (sin él vale el proveedor y la URL actuales). */
+  keyTarget?: { provider: string; baseUrl: string };
   models: { fast: string; smart: string; vision: string };
   localOnly: boolean;
   features: Partial<Record<FeatureKey, boolean>>;

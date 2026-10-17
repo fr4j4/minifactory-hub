@@ -4,7 +4,7 @@ import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { seal } from '@/lib/secret';
 import { getSettingsRaw, saveSettings } from '@/lib/settings';
-import { assertAiUrl, getAiConfig, sameAiTarget, type AiConfig } from '@/lib/ai/config';
+import { aiKeyFor, assertAiUrl, getAiConfig, sameAiTarget, type AiConfig } from '@/lib/ai/config';
 import { pingAi } from '@/lib/ai';
 import { clearPromptLogs } from '@/lib/ai/run';
 import { FEATURE_KEYS, type AiSettings } from '@/lib/ai/types';
@@ -49,12 +49,13 @@ export async function saveAiSettingsAction(raw: AiSettingsInput) {
   return safe(async () => {
     const u = await requirePerm('config', 'E');
     const i = parse(raw); const cur = (await getSettingsRaw()).ai;
-    let apiKeySealed = cur.apiKeySealed;
+    let apiKeySealed = cur.apiKeySealed; let keyTarget = cur.keyTarget;
     if (i.clearKey) apiKeySealed = '';
-    if (i.apiKey) apiKeySealed = seal(i.apiKey);
-    else if (i.provider !== 'none' && !sameAiTarget(cur, i.provider, i.baseUrl)) apiKeySealed = ''; // otro destino sin clave nueva: no se le entrega la guardada
+    if (i.apiKey) { apiKeySealed = seal(i.apiKey); if (i.provider !== 'none') keyTarget = { provider: i.provider, baseUrl: i.baseUrl }; }
+    // otro destino sin clave nueva: no se le entrega la guardada ('none' no cambia el destino de la clave)
+    else if (i.provider !== 'none' && !sameAiTarget(cur.keyTarget ?? cur, i.provider, i.baseUrl)) apiKeySealed = '';
     const { apiKey: _k, clearKey: _c, ...rest } = i;
-    const ai: AiSettings = { ...cur, ...rest, apiKeySealed, features: { ...rest.features }, roles: { ...rest.roles } };
+    const ai: AiSettings = { ...cur, ...rest, apiKeySealed, keyTarget, features: { ...rest.features }, roles: { ...rest.roles } };
     // Se reemplaza el bloque completo (no mezcla) para que desactivar una función tenga efecto.
     await saveSettings({ ai });
     await audit('settings', null, 'ia', { enabled: ai.enabled, provider: ai.provider, localOnly: ai.localOnly, features: ai.features, keyChanged: !!(i.apiKey || i.clearKey), budget: ai.budget, privacy: ai.privacy }, u.id);
@@ -66,13 +67,13 @@ export async function saveAiSettingsAction(raw: AiSettingsInput) {
 export async function testAiConnectionAction(raw: AiSettingsInput) {
   return safe(async () => {
     await requirePerm('config', 'E');
-    const i = parse(raw); const saved = await getAiConfig();
+    const i = parse(raw); const saved = await getAiConfig(); const st = (await getSettingsRaw()).ai;
     const cfg: AiConfig = {
       ...saved, ...i,
       provider: i.provider === 'none' ? saved.provider : i.provider,
       configured: false, enabled: true,
     } as AiConfig;
-    cfg.apiKey = i.apiKey || (sameAiTarget(saved, cfg.provider, cfg.baseUrl) ? saved.apiKey : '');
+    cfg.apiKey = i.apiKey || aiKeyFor(st, cfg.provider, i.baseUrl);
     cfg.configured = cfg.provider === 'mock' || (cfg.provider === 'anthropic' && !!cfg.apiKey) || (cfg.provider === 'openai-compat' && !!cfg.baseUrl);
     return pingAi(cfg, await getT());
   });
@@ -92,8 +93,8 @@ export async function listAiModelsAction(raw: Pick<AiSettingsInput, 'provider' |
   return safe(async () => {
     await requirePerm('config', 'E');
     if (raw.provider === 'none') throw new LocalizedError('ai.err.notConfigured');
-    const saved = await getAiConfig();
-    const models = await listModels({ provider: raw.provider, baseUrl: raw.baseUrl.trim(), apiKey: raw.apiKey?.trim() || (sameAiTarget(saved, raw.provider, raw.baseUrl) ? saved.apiKey : ''), localOnly: raw.localOnly || saved.localOnly });
+    const saved = await getAiConfig(); const st = (await getSettingsRaw()).ai;
+    const models = await listModels({ provider: raw.provider, baseUrl: raw.baseUrl.trim(), apiKey: raw.apiKey?.trim() || aiKeyFor(st, raw.provider, raw.baseUrl), localOnly: raw.localOnly || saved.localOnly });
     return { models, suggested: suggestModels(models) };
   });
 }

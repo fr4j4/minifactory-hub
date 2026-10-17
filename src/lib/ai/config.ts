@@ -45,9 +45,7 @@ export async function getAiConfig(): Promise<AiConfig> {
   let provider = st.provider as AiConfig['provider'];
   const envProv = env('AI_PROVIDER');
   if (provider === 'none' && (envProv === 'anthropic' || envProv === 'openai-compat' || envProv === 'mock')) provider = envProv;
-  let apiKey = '';
-  if (st.apiKeySealed) { try { apiKey = unseal(st.apiKeySealed); } catch { apiKey = ''; } }
-  if (!apiKey) apiKey = env('AI_API_KEY');
+  const apiKey = aiKeyFor(st, provider, st.baseUrl);
   const baseUrl = st.baseUrl || env('AI_BASE_URL');
   const models = {
     fast: st.models.fast || env('AI_MODEL_FAST') || DEFAULT_AI.models.fast,
@@ -67,6 +65,17 @@ export function publicAiSettings(st: AiSettings) {
   return { ...rest, hasKey: !!apiKeySealed, keyLast4: last4, envKey: !!env('AI_API_KEY'), forcedOff: env('AI_FORCE_DISABLED') === '1' };
 }
 export type PublicAiSettings = ReturnType<typeof publicAiSettings>;
+
+/**
+ * Clave que puede viajar a (provider, baseUrl): la guardada solo al destino con que se guardó;
+ * la de entorno (AI_API_KEY) solo al destino de entorno (AI_PROVIDER si existe, y AI_BASE_URL o la URL por defecto).
+ */
+export function aiKeyFor(st: AiSettings, provider: string, baseUrl: string): string {
+  if (st.apiKeySealed && sameAiTarget(st.keyTarget ?? st, provider, baseUrl)) { try { return unseal(st.apiKeySealed); } catch { /* clave ilegible */ } }
+  const envProv = env('AI_PROVIDER');
+  if (envProv && envProv !== provider) return '';
+  return sameAiTarget({ provider, baseUrl: env('AI_BASE_URL') }, provider, baseUrl || env('AI_BASE_URL')) ? env('AI_API_KEY') : '';
+}
 
 /** La clave guardada solo viaja al proveedor y la URL con que se guardó: si el formulario apunta a otro destino, quien la quiera debe escribirla. */
 export function sameAiTarget(saved: { provider: string; baseUrl?: string | null }, provider: string, baseUrl?: string | null) {
