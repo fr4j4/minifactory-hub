@@ -18,7 +18,8 @@ export async function createOrderAction(input: OrderInput) {
     return createOrder(input, u);
   }, ['/pedidos']);
 }
-export async function planProductionAction(orderId: string) { return safe(async () => { const u = await requirePerm('pedidos', 'E'); return (await planProduction(orderId, u)).length; }, [`/pedidos/${orderId}`, '/cola']); }
+/** Sin `itemIds` lanza todas las líneas pendientes; con `itemIds`, solo esas (lanzamiento individual). */
+export async function planProductionAction(orderId: string, itemIds?: string[]) { return safe(async () => { const u = await requirePerm('pedidos', 'E'); return (await planProduction(orderId, u, itemIds)).length; }, [`/pedidos/${orderId}`, '/cola']); }
 export async function setOrderStatusAction(orderId: string, to: 'listo' | 'entregado' | 'post_proceso', o: { tracking?: string; shipMethod?: string } = {}) {
   return safe(async () => { const u = await requirePerm('pedidos', 'E'); await setOrderStatus(orderId, to, u, o); }, [`/pedidos/${orderId}`, '/pedidos', '/catalogo']);
 }

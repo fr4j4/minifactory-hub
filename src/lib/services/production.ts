@@ -1,5 +1,5 @@
 import { isFailCode, normalizeFailCause } from '../production/fail-causes';
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { getSettings, nextNumber } from '../settings';
@@ -41,51 +41,125 @@ export async function suggestMachine(o: { materialId?: string | null; dims?: [nu
   return { machineId: best.m.id, name: best.m.name, loaded: best.loaded, freeInH: best.free, reason: `${best.loaded ? t('queue.hasTheMaterialLoaded') : t('queue.materialToLoad')}; ${best.free < 0.1 ? t('queue.freeNow') : t('queue.freeInH', { hours: best.free.toFixed(1) })}` };
 }
 
+/* ───────── cola global ─────────
+ * Hay UNA sola cola: `print_jobs.position` es el orden global (1 = primero) de los trabajos vivos
+ * (en_cola / imprimiendo / pausado). `machine_id` es solo la asignación y puede ser NULL («sin asignar»).
+ * Reordenar y (des)asignar son operaciones independientes. */
+const LIVE_STATUSES = ['en_cola', 'imprimiendo', 'pausado'] as const;
+const isLive = () => and(inArray(s.printJobs.status, [...LIVE_STATUSES]), isNull(s.printJobs.deletedAt));
+type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
+type Q = Db | Tx;
+
 export async function createJob(spec: JobSpec): Promise<string> {
   const db = await getDb();
-  let machineId = spec.machineId ?? null;
-  if (!machineId) { const sug = await suggestMachine({ materialId: spec.materialId, dims: spec.dims, hours: spec.estH }, db); machineId = sug?.machineId ?? null; }
   const number = await nextNumber('job');
-  const [mx] = machineId ? await db.select({ n: sql<number>`coalesce(max(${s.printJobs.position}),0)` }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado']))) : [{ n: 0 }];
+  const [mx] = await db.select({ n: sql<number>`coalesce(max(${s.printJobs.position}),0)` }).from(s.printJobs).where(isLive());
   const [job] = await db.insert(s.printJobs).values({
-    workspaceId: WORKSPACE_ID, number, kind: spec.kind, title: spec.title, machineId, materialId: spec.materialId ?? null, position: Number(mx.n) + 1, qty: spec.qty ?? 1,
-    estG: spec.estG, estH: spec.estH, orderId: spec.orderId ?? null, productionOrderId: spec.productionOrderId ?? null, fileVersionId: spec.fileVersionId ?? null,
+    workspaceId: WORKSPACE_ID, number, kind: spec.kind, title: spec.title, machineId: spec.machineId ?? null, materialId: spec.materialId ?? null, position: Number(mx.n) + 1, qty: spec.qty ?? 1,
+    estG: spec.estG, estH: spec.estH, dims: spec.dims ?? null, orderId: spec.orderId ?? null, productionOrderId: spec.productionOrderId ?? null, fileVersionId: spec.fileVersionId ?? null,
     sliceRunId: spec.sliceRunId ?? null, reprintOfId: spec.reprintOfId ?? null, notes: spec.notes ?? null, createdBy: spec.userId ?? null,
   }).returning({ id: s.printJobs.id });
   for (const oi of spec.orderItemIds ?? []) await db.insert(s.jobItems).values({ workspaceId: WORKSPACE_ID, jobId: job.id, orderItemId: oi, qty: spec.qty ?? 1 });
-  if (machineId) await scheduleMachine(machineId);
-  await audit('print_job', job.id, 'crear', { number, machineId }, spec.userId);
+  await scheduleQueue();
+  await audit('print_job', job.id, 'crear', { number, machineId: spec.machineId ?? null }, spec.userId);
   return job.id;
 }
 
-/** Recalcula inicio y término planificados de la cola de una máquina. */
-export async function scheduleMachine(machineId: string) {
-  const db = await getDb();
-  const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId));
-  if (!m) return;
-  const jobs = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado']), isNull(s.printJobs.deletedAt))).orderBy(asc(s.printJobs.position), asc(s.printJobs.createdAt));
-  let cursor = Date.now();
+export interface PlannedJob { jobId: string; machineId: string | null; start: number; end: number; /** true = la máquina no está asignada: es la que el sistema sugiere */ projected: boolean }
+
+/**
+ * Proyecta la cola completa (sin escribir nada): los trabajos en curso ocupan su máquina hasta que terminen; luego se recorre la cola
+ * en orden y cada trabajo va a su máquina asignada o, si no tiene, a la que lo dejaría terminando antes
+ * (cabe la pieza, tiene el material cargado y queda libre antes — mismo criterio que `suggestMachine`).
+ */
+export async function projectQueue(db?: Q): Promise<Map<string, PlannedJob>> {
+  const q = db ?? (await getDb());
+  const now = Date.now();
+  const machines = await q.select().from(s.machines).where(isNull(s.machines.deletedAt));
+  const byId = new Map(machines.map((m) => [m.id, m]));
+  const spools = await q.select({ machineId: s.spools.machineId, materialId: s.spools.materialId }).from(s.spools).where(and(isNull(s.spools.deletedAt), gt(s.spools.remainingG, 0)));
+  const loaded = new Set(spools.filter((x) => x.machineId).map((x) => `${x.machineId}|${x.materialId}`));
+  const candidates = machines.filter((m) => m.status !== 'fuera_de_servicio' && !m.simulated);
+  const rank = (st: string) => (st === 'imprimiendo' ? 0 : st === 'pausado' ? 1 : 2);
+  const jobs = (await q.select().from(s.printJobs).where(isLive())).sort((a, b) => rank(a.status) - rank(b.status) || a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
+  const free = new Map<string, number>();
+  const durOf = (j: { estH: number }, m?: { timeFactor: number | null }) => j.estH * (m?.timeFactor || 1) * 3600_000;
+  const out = new Map<string, PlannedJob>();
   for (const j of jobs) {
-    const dur = (j.estH * (m.timeFactor || 1)) * 3600_000;
-    let start = cursor; let end = start + dur;
-    if (j.status === 'imprimiendo' && j.realStart) { start = j.realStart.getTime(); end = Math.max(Date.now(), start + dur); }
-    await db.update(s.printJobs).set({ plannedStart: new Date(start), plannedEnd: new Date(end) }).where(eq(s.printJobs.id, j.id));
-    cursor = Math.max(cursor, end);
+    if (j.status === 'en_cola' || !j.machineId) continue;
+    const start = j.realStart ? j.realStart.getTime() : now;
+    const end = Math.max(now, start + durOf(j, byId.get(j.machineId)));
+    free.set(j.machineId, Math.max(free.get(j.machineId) ?? now, end));
+    out.set(j.id, { jobId: j.id, machineId: j.machineId, start, end, projected: false });
+  }
+  for (const j of jobs) {
+    if (j.status !== 'en_cola') continue;
+    let machineId = j.machineId; let projected = false;
+    if (!machineId) {
+      let best: { id: string; score: number } | null = null;
+      for (const m of candidates) {
+        if (j.dims && !fitsIn(j.dims, [m.volX, m.volY, m.volZ])) continue;
+        const score = ((free.get(m.id) ?? now) - now) / 3600_000 - (j.materialId && loaded.has(`${m.id}|${j.materialId}`) ? 3 : 0) + (m.status === 'mantenimiento' ? 24 : 0);
+        if (!best || score < best.score) best = { id: m.id, score };
+      }
+      if (!best) continue;
+      machineId = best.id; projected = true;
+    }
+    const start = free.get(machineId) ?? now; const end = start + durOf(j, byId.get(machineId));
+    free.set(machineId, end);
+    out.set(j.id, { jobId: j.id, machineId, start, end, projected });
+  }
+  return out;
+}
+
+/** Recalcula y guarda inicio y término planificados de todos los trabajos de la cola (los sin máquina, según la proyección). */
+export async function scheduleQueue() {
+  const db = await getDb();
+  const plan = await projectQueue(db);
+  const live = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(isLive());
+  for (const { id } of live) {
+    const p = plan.get(id);
+    await db.update(s.printJobs).set({ plannedStart: p ? new Date(p.start) : null, plannedEnd: p ? new Date(p.end) : null }).where(eq(s.printJobs.id, id));
   }
 }
 
-export async function moveJob(jobId: string, machineId: string, position: number, userId?: string | null) {
+/** Coloca el trabajo justo antes de `beforeJobId` en la cola global (o al final si es null / no existe). No cambia su máquina. */
+export async function reorderJob(jobId: string, beforeJobId: string | null, userId?: string | null) {
+  const t = await getT();
+  const db = await getDb();
+  await db.transaction(async (tx) => {
+    const rows = await tx.select({ id: s.printJobs.id, status: s.printJobs.status, position: s.printJobs.position }).from(s.printJobs).where(isLive()).orderBy(asc(s.printJobs.position), asc(s.printJobs.createdAt), asc(s.printJobs.id));
+    const me = rows.find((r) => r.id === jobId);
+    if (!me) throw new Error(t('queue.jobNotFound'));
+    if (me.status === 'imprimiendo') throw new Error(t('queue.aJobInProgressCannot'));
+    const rest = rows.filter((r) => r.id !== jobId);
+    const at = beforeJobId ? rest.findIndex((r) => r.id === beforeJobId) : -1;
+    rest.splice(at < 0 ? rest.length : at, 0, me);
+    for (let i = 0; i < rest.length; i++) {
+      if (rest[i].position === i + 1) continue;
+      await tx.update(s.printJobs).set(rest[i].id === jobId ? { position: i + 1, updatedAt: new Date() } : { position: i + 1 }).where(eq(s.printJobs.id, rest[i].id));
+    }
+  });
+  await scheduleQueue();
+  await audit('print_job', jobId, 'reordenar', { before: beforeJobId }, userId);
+}
+
+/** Asigna el trabajo a una máquina, o lo deja sin asignar (machineId = null). No cambia su lugar en la cola. */
+export async function assignJob(jobId: string, machineId: string | null, userId?: string | null) {
   const t = await getT();
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
-  if (!j || j.status === 'imprimiendo') throw new Error(t('queue.aJobInProgressCannot'));
-  const old = j.machineId;
-  await db.update(s.printJobs).set({ machineId, position: position - 0.5, updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
-  // normalizar posiciones
-  const rows = await db.select().from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), inArray(s.printJobs.status, ['en_cola', 'pausado', 'imprimiendo']))).orderBy(asc(s.printJobs.position));
-  let p = 1; for (const r of rows) await db.update(s.printJobs).set({ position: p++ }).where(eq(s.printJobs.id, r.id));
-  await scheduleMachine(machineId); if (old && old !== machineId) await scheduleMachine(old);
-  await audit('print_job', jobId, 'mover', { from: old, to: machineId, position }, userId);
+  if (!j || j.deletedAt) throw new Error(t('queue.jobNotFound'));
+  if (j.status === 'imprimiendo' || j.status === 'pausado') throw new Error(t('queue.aJobInProgressCannot'));
+  if (j.status !== 'en_cola') throw new Error(t('queue.theJobIsAlreadyClosed'));
+  if (machineId) {
+    const [m] = await db.select({ id: s.machines.id }).from(s.machines).where(and(eq(s.machines.id, machineId), isNull(s.machines.deletedAt)));
+    if (!m) throw new LocalizedError('machines.machineNotFound');
+  }
+  if ((j.machineId ?? null) === machineId) return;
+  await db.update(s.printJobs).set({ machineId, updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
+  await scheduleQueue();
+  await audit('print_job', jobId, 'asignar_maquina', { from: j.machineId, to: machineId }, userId);
 }
 
 export async function pickSpool(materialId: string | null | undefined, grams: number, machineId?: string | null, db?: Db) {
@@ -96,12 +170,22 @@ export async function pickSpool(materialId: string | null | undefined, grams: nu
   return [...sp].sort((a, b) => rank(a) - rank(b) || a.remainingG - b.remainingG).find((x) => x.remainingG >= grams) ?? [...sp].sort((a, b) => b.remainingG - a.remainingG)[0] ?? null;
 }
 
+/** Para iniciar un trabajo sin máquina: una máquina libre ahora donde quepa la pieza (prefiere la que ya tiene el material cargado). */
+async function idleMachineFor(db: Q, j: { materialId: string | null; dims: [number, number, number] | null }): Promise<string | undefined> {
+  const machines = await db.select().from(s.machines).where(and(isNull(s.machines.deletedAt), ne(s.machines.status, 'fuera_de_servicio'), eq(s.machines.simulated, false)));
+  const printing = new Set((await db.select({ id: s.printJobs.machineId }).from(s.printJobs).where(and(eq(s.printJobs.status, 'imprimiendo'), isNull(s.printJobs.deletedAt)))).map((r) => r.id));
+  const spools = j.materialId ? await db.select({ machineId: s.spools.machineId }).from(s.spools).where(and(eq(s.spools.materialId, j.materialId), isNull(s.spools.deletedAt), gt(s.spools.remainingG, 0))) : [];
+  const loaded = new Set(spools.map((x) => x.machineId));
+  const rank = (m: { id: string; status: string }) => (loaded.has(m.id) ? 0 : 1) + (m.status === 'mantenimiento' ? 2 : 0);
+  return machines.filter((m) => !printing.has(m.id) && (!j.dims || fitsIn(j.dims, [m.volX, m.volY, m.volZ]))).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))[0]?.id;
+}
+
 export async function startJob(jobId: string, o: { machineId?: string; spoolId?: string; userId?: string | null } = {}) {
   const t = await getT();
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j) throw new Error(t('queue.jobNotFound'));
-  const machineId = o.machineId ?? j.machineId;
+  const machineId = o.machineId ?? j.machineId ?? (await idleMachineFor(db, j));
   if (!machineId) throw new Error(t('queue.assignAMachineBeforeStarting'));
   const [busy] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), eq(s.printJobs.status, 'imprimiendo'), ne(s.printJobs.id, jobId))).limit(1);
   if (busy) throw new Error(t('queue.theMachineIsAlreadyPrinting'));
@@ -114,7 +198,7 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   const items = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
   if (items.length) await db.update(s.orderItems).set({ status: 'imprimiendo' }).where(inArray(s.orderItems.id, items.map((i) => i.orderItemId!).filter(Boolean)));
   if (j.orderId) await recomputeOrderStatus(j.orderId);
-  await scheduleMachine(machineId);
+  await scheduleQueue();
   await audit('print_job', jobId, 'iniciar', { machineId, spoolId: spool?.id }, o.userId);
 }
 
@@ -152,8 +236,8 @@ export async function finishJob(jobId: string, o: FinishInput) {
       status: 'disponible', hoursTotal: m.hoursTotal + realH, jobsOk: m.jobsOk + (failed ? 0 : 1), jobsFailed: m.jobsFailed + (failed ? 1 : 0), timeFactor: factor, updatedAt: now,
     }).where(eq(s.machines.id, m.id));
     await checkMaintenance(m.id);
-    await scheduleMachine(m.id);
   }
+  await scheduleQueue();
   // costo real al pedido (incluye fallas)
   if (j.orderId) {
     const [od] = await db.select().from(s.orders).where(eq(s.orders.id, j.orderId));
@@ -184,7 +268,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   if (failed && o.reprint !== false) {
     reprintId = await createJob({
       kind: j.kind as any, title: t('queue.reprint2', { job: j.title }), materialId: j.materialId, qty: Math.max(1, j.qty - qtyGood), estG: j.estG * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)), estH: j.estH * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)),
-      orderId: j.orderId, orderItemIds: oiIds, productionOrderId: j.productionOrderId, machineId: j.machineId, reprintOfId: jobId, notes: t('queue.reprintOf', { job: j.number }), userId: o.userId,
+      orderId: j.orderId, orderItemIds: oiIds, productionOrderId: j.productionOrderId, machineId: j.machineId, dims: j.dims, reprintOfId: jobId, notes: t('queue.reprintOf', { job: j.number }), userId: o.userId,
     });
     await notify('trabajo_fallido', t('queue.failedJob', { job: j.number }), o.failCause ?? t('queue.noCauseGiven'), '/cola');
   } else await notify('trabajo_terminado', t('queue.finishedJob', { job: j.number }), j.title ?? '', '/cola');
@@ -213,9 +297,44 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j || ['terminado', 'fallido', 'cancelado'].includes(j.status)) return;
   await db.update(s.printJobs).set({ status: 'cancelado', updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
-  if (j.machineId) { if (j.status === 'imprimiendo' || j.status === 'pausado') await db.update(s.machines).set({ status: 'disponible' }).where(eq(s.machines.id, j.machineId)); await scheduleMachine(j.machineId); }
+  if (j.machineId) { if (j.status === 'imprimiendo' || j.status === 'pausado') await db.update(s.machines).set({ status: 'disponible' }).where(eq(s.machines.id, j.machineId)); }
+  await scheduleQueue();
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'cancelada' }).where(eq(s.productionOrders.id, j.productionOrderId));
+  if (j.orderId) {
+    // las líneas del pedido que cubría este trabajo vuelven a estar pendientes (se pueden relanzar) y el pedido recalcula su estado
+    const lines = (await db.select({ id: s.jobItems.orderItemId }).from(s.jobItems).where(eq(s.jobItems.jobId, jobId))).map((x) => x.id!).filter(Boolean);
+    if (lines.length) await db.update(s.orderItems).set({ status: 'pendiente' }).where(and(inArray(s.orderItems.id, lines), inArray(s.orderItems.status, ['en_cola', 'imprimiendo'])));
+    await recomputeOrderStatus(j.orderId);
+  }
   await audit('print_job', jobId, 'cancelar', {}, userId);
+}
+
+/** Vuelve a lanzar un trabajo cancelado: crea uno nuevo igual, al final de la cola (sin máquina asignada si no la tenía). */
+export async function requeueJob(jobId: string, userId?: string | null): Promise<string> {
+  const t = await getT();
+  const db = await getDb();
+  const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
+  if (!j || j.deletedAt) throw new Error(t('queue.jobNotFound'));
+  if (j.status !== 'cancelado') throw new Error(t('queue.onlyCancelledJobsCanBeRequeued'));
+  if (j.orderId) {
+    const [o] = await db.select({ status: s.orders.status }).from(s.orders).where(eq(s.orders.id, j.orderId));
+    if (o && ['cancelado', 'entregado'].includes(o.status)) throw new Error(t('orders.theOrderIsAlreadyClosed'));
+  }
+  const lines = (await db.select({ id: s.jobItems.orderItemId }).from(s.jobItems).where(eq(s.jobItems.jobId, jobId))).map((x) => x.id!).filter(Boolean);
+  if (lines.length) { // no duplicar: si alguna de sus líneas ya tiene otro trabajo en cola, en curso o terminado, no se relanza
+    const [dup] = await db.select({ id: s.printJobs.id }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId))
+      .where(and(inArray(s.jobItems.orderItemId, lines), ne(s.printJobs.id, jobId), isNull(s.printJobs.deletedAt), inArray(s.printJobs.status, [...LIVE_STATUSES, 'terminado']))).limit(1);
+    if (dup) throw new Error(t('queue.itemsAlreadyHaveAnActiveJob'));
+  }
+  const id = await createJob({
+    kind: j.kind as JobSpec['kind'], title: j.title ?? '', materialId: j.materialId, qty: j.qty, estG: j.estG, estH: j.estH, dims: j.dims, orderId: j.orderId, orderItemIds: lines,
+    productionOrderId: j.productionOrderId, machineId: j.machineId, fileVersionId: j.fileVersionId, sliceRunId: j.sliceRunId, reprintOfId: j.reprintOfId, notes: t('queue.requeuedFrom', { job: j.number }), userId,
+  });
+  if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'en_cola' }).where(and(eq(s.productionOrders.id, j.productionOrderId), eq(s.productionOrders.status, 'cancelada')));
+  if (lines.length) await db.update(s.orderItems).set({ status: 'en_cola' }).where(and(inArray(s.orderItems.id, lines), eq(s.orderItems.status, 'pendiente')));
+  if (j.orderId) await recomputeOrderStatus(j.orderId);
+  await audit('print_job', id, 'relanzar', { from: jobId }, userId);
+  return id;
 }
 
 /** Alerta de mantenimiento por horas o por días. */

@@ -53,6 +53,8 @@ export const orders = {
   orderSource: 'Origen del pedido',
   howDidItComeIn: '— ¿Por qué canal llegó? —',
   sendToProduction: 'Enviar a producción',
+  launchLine: 'Lanzar esta línea',
+  lineLaunched: 'Trabajo creado en la cola',
   markReady: 'Marcar listo',
   deliver: 'Entregar',
   copyMessage: 'Copiar aviso',

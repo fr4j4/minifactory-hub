@@ -7,12 +7,12 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can, canSeeCosts } from '@/lib/perm';
 import { PageHeader, Card, StatusBadge, Table, Badge, Meter } from '@/components/ui';
-import { OrderActions, PaymentButton, ContactForm } from '@/components/order-bits';
+import { OrderActions, PaymentButton, ContactForm, RequeueButton, LaunchLineButton } from '@/components/order-bits';
 import { LinksEditor } from '@/components/links-editor';
 import { PhotoCapture } from '@/components/photo-capture';
 import { getSettings } from '@/lib/settings';
 import { fillTemplate, waLink } from '@/lib/messages';
-import { paymentStatus } from '@/lib/services/orders';
+import { paymentStatus, pendingPrintItems } from '@/lib/services/orders';
 import { dmy, dmyHm, dur, grams, money, pct, sources } from '@/lib/format';
 import { tOr } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
@@ -41,7 +41,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const [cust] = o.customerId ? await db.select().from(s.customers).where(eq(s.customers.id, o.customerId)) : [];
   const costs = canSeeCosts(user); const balance = o.total - o.paid; const pst = paymentStatus(o.total, o.paid);
   const needsPrint = items.some((i) => !(i.variantId && i.fromStock >= i.qty));
-  const planned = jobs.some((j) => j.j.status !== 'cancelado');
+  // «Enviar a producción» (todas las líneas) solo si aún no hay trabajos en cola, en curso o terminados; mientras tanto cada línea pendiente se puede lanzar por separado
+  const hasPlannedJobs = jobs.some((j) => ['en_cola', 'imprimiendo', 'pausado', 'terminado'].includes(j.j.status));
+  const pendingIds = new Set((needsPrint ? await pendingPrintItems(id) : []).map((i) => i.id));
   const stepIdx = Math.max(0, STEPS.findIndex((k) => k === o.status));
   const vars = { cliente: o.customerName, numero: o.number, seguimiento: o.tracking ?? '' };
   const phone = o.customerPhone ?? cust?.phone;
@@ -51,7 +53,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
     <>
       <PageHeader back={{ href: '/pedidos', label: t('nav.orders') }} title={<span>{o.number} <StatusBadge status={o.status} /> <StatusBadge status={pst} /></span>}
         subtitle={<>{cust ? <Link className="underline" href={`/clientes/${cust.id}`}>{o.customerName}</Link> : o.customerName ?? t('common.noCustomer')}{phone ? ` · ${phone}` : ''}{o.source ? ` · ${sources(t)[o.source] ?? o.source}` : ''} · {t('orders.createdOn', { date: dmy(o.createdAt) })}{o.dueDate ? ` · ${t('orders.dueOn', { date: dmy(o.dueDate) })}` : ''}{o.dueDate && o.dueDate < today && !['entregado', 'cancelado'].includes(o.status) ? ` ⚠ ${t('orders.late')}` : ''}</>}
-        actions={<>{o.status !== 'cancelado' && can(user, 'pedidos', 'E') && <EditButton kind="order" id={o.id} fields={editFields('order', t)} values={o} className="btn-secondary" testId="edit-order" />}<OrderActions id={o.id} status={o.status} canPlan={needsPrint && !planned} canReady={o.status === 'post_proceso' || (!needsPrint && o.status === 'recibido')} hasStockLines={items.some((i) => i.variantId)} shipMethod={o.shipMethod} tracking={o.tracking} canEdit={can(user, 'pedidos', 'E')} occasional={!o.customerId}
+        actions={<>{o.status !== 'cancelado' && can(user, 'pedidos', 'E') && <EditButton kind="order" id={o.id} fields={editFields('order', t)} values={o} className="btn-secondary" testId="edit-order" />}<OrderActions id={o.id} status={o.status} canPlan={needsPrint && !hasPlannedJobs} canReady={o.status === 'post_proceso' || (!needsPrint && o.status === 'recibido')} hasStockLines={items.some((i) => i.variantId)} shipMethod={o.shipMethod} tracking={o.tracking} canEdit={can(user, 'pedidos', 'E')} occasional={!o.customerId}
           msgReady={fillTemplate(st.templates.whatsappReady, vars)} msgShipped={fillTemplate(st.templates.whatsappShipped, vars)} wa={waLink(phone, fillTemplate(st.templates.whatsappReady, vars))} waShipped={waLink(phone, fillTemplate(st.templates.whatsappShipped, vars))} /></>} />
       {o.status !== 'cancelado' ? (
         <ol className="flex mb-5 overflow-x-auto" aria-label={t('orders.orderProgress')}>{STEPS.map((k, i) => <li key={k} className="flex-1 min-w-[84px] text-center text-xs"><div className={`mx-auto h-2 rounded-full ${i <= stepIdx ? 'bg-brand-600' : 'bg-slate-200 dark:bg-slate-700'} ${i === 0 ? 'rounded-l-full' : ''}`} /><div className={`mt-1.5 ${i === stepIdx ? 'font-semibold' : 'muted'}`}>{t(`status.${k}`)}</div></li>)}</ol>
@@ -63,11 +65,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               <tbody>{items.map((it) => { const ms = models.filter((m) => m.qm.orderItemId === it.id); const ls = links.filter((l) => l.ownerType === 'order_item' && l.ownerId === it.id);
                 return (<tr key={it.id}><td className="td"><div className="font-medium">{it.description}</div><div className="text-xs muted">{it.variantId ? `${t('orders.catalogProductStock', { n: it.fromStock })}${it.qty - it.fromStock > 0 ? ` + ${t('orders.toProduce', { n: it.qty - it.fromStock })}` : ''}` : it.gramsTotal > 0 ? `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)}` : t('orders.noPrintData')}</div>
                   {ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className={cn('badge hover:underline mr-1 mt-1', TONES.gray)}>{m.name}</Link>)}{ls.map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline mr-2">🔗 {l.title ?? l.url}</a>)}</td>
-                  <td className="td text-right tabular">{it.qty}</td><td className="td text-right tabular">{money(it.finalUnit)}{costs && it.finalUnit !== it.suggestedUnit && it.suggestedUnit > 0 && <div className="text-xs muted line-through">{money(it.suggestedUnit)}</div>}</td><td className="td text-right tabular font-medium">{money(it.finalUnit * it.qty)}</td><td className="td"><StatusBadge status={it.status === 'pendiente' ? 'pendiente' : it.status === 'en_cola' ? 'en_cola' : it.status === 'imprimiendo' ? 'imprimiendo' : it.status === 'listo' ? 'listo' : it.status === 'entregado' ? 'entregado' : 'post_proceso'} /></td></tr>); })}</tbody></Table>
+                  <td className="td text-right tabular">{it.qty}</td><td className="td text-right tabular">{money(it.finalUnit)}{costs && it.finalUnit !== it.suggestedUnit && it.suggestedUnit > 0 && <div className="text-xs muted line-through">{money(it.suggestedUnit)}</div>}</td><td className="td text-right tabular font-medium">{money(it.finalUnit * it.qty)}</td><td className="td"><StatusBadge status={it.status === 'pendiente' ? 'pendiente' : it.status === 'en_cola' ? 'en_cola' : it.status === 'imprimiendo' ? 'imprimiendo' : it.status === 'listo' ? 'listo' : it.status === 'entregado' ? 'entregado' : 'post_proceso'} />{pendingIds.has(it.id) && !['cancelado', 'entregado'].includes(o.status) && can(user, 'pedidos', 'E') && <div className="mt-1"><LaunchLineButton orderId={id} itemId={it.id} /></div>}</td></tr>); })}</tbody></Table>
           </Card>
           <Card title={t('orders.printJobs')} pad={false} actions={<Link href="/cola" className="btn-ghost btn-sm">{t('orders.viewQueue')}</Link>}>
             {jobs.length === 0 ? <p className="p-4 text-sm muted">{needsPrint ? t('orders.thereAreNoJobsYet') : t('orders.everythingComesFromCatalogStock')}</p> : (
-              <Table><thead><tr><th className="th">{t('common.job')}</th><th className="th">{t('common.machine')}</th><th className="th">{t('common.status')}</th><th className="th text-right">{t('orders.estimated')}</th><th className="th text-right">{t('orders.actual')}</th><th className="th">{t('orders.finished')}</th></tr></thead><tbody>{jobs.map(({ j, m }) => <tr key={j.id}><td className="td font-medium">{j.number}{j.reprintOfId && <Badge tone="amber" className="ml-1">{t('orders.reprint')}</Badge>}</td><td className="td">{m ?? '—'}</td><td className="td"><StatusBadge status={j.status} /></td><td className="td text-right tabular text-xs">{grams(j.estG)} · {dur(j.estH * 3600)}</td><td className="td text-right tabular text-xs">{j.realG ? `${grams(j.realG)} · ${dur((j.realH ?? 0) * 3600)}` : '—'}</td><td className="td tabular text-xs">{dmyHm(j.realEnd ?? j.plannedEnd)}</td></tr>)}</tbody></Table>
+              <Table><thead><tr><th className="th">{t('common.job')}</th><th className="th">{t('common.machine')}</th><th className="th">{t('common.status')}</th><th className="th text-right">{t('orders.estimated')}</th><th className="th text-right">{t('orders.actual')}</th><th className="th">{t('orders.finished')}</th><th className="th" /></tr></thead><tbody>{jobs.map(({ j, m }) => <tr key={j.id}><td className="td font-medium">{j.number}{j.reprintOfId && <Badge tone="amber" className="ml-1">{t('orders.reprint')}</Badge>}</td><td className="td">{m ?? '—'}</td><td className="td"><StatusBadge status={j.status} /></td><td className="td text-right tabular text-xs">{grams(j.estG)} · {dur(j.estH * 3600)}</td><td className="td text-right tabular text-xs">{j.realG ? `${grams(j.realG)} · ${dur((j.realH ?? 0) * 3600)}` : '—'}</td><td className="td tabular text-xs">{dmyHm(j.realEnd ?? j.plannedEnd)}</td><td className="td text-right">{j.status === 'cancelado' && can(user, 'pedidos', 'E') && <RequeueButton jobId={j.id} />}</td></tr>)}</tbody></Table>
             )}
           </Card>
           <Card title={t('orders.orderPhotos')}>

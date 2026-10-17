@@ -110,19 +110,33 @@ export async function approveQuote(quoteId: string, o: { by: string; channel: st
   return orderId;
 }
 
-/** Crea los trabajos de impresión de las líneas a medida (y de lo que falte en stock). */
-export async function planProduction(orderId: string, user: User) {
+/** Líneas del pedido que ya tienen un trabajo en cola, en curso, pausado o terminado (las canceladas o fallidas sin reimpresión no cuentan). */
+async function plannedItemIds(db: Awaited<ReturnType<typeof getDb>>, orderId: string) {
+  const rows = await db.select({ oi: s.jobItems.orderItemId }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId)).where(and(eq(s.printJobs.orderId, orderId), isNull(s.printJobs.deletedAt), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado', 'terminado'])));
+  return new Set(rows.map((r) => r.oi));
+}
+
+/** Líneas que hay que imprimir y todavía no tienen trabajo (p. ej. porque se canceló el que tenían). */
+export async function pendingPrintItems(orderId: string) {
+  const db = await getDb();
+  const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, orderId)).orderBy(asc(s.orderItems.position));
+  const planned = await plannedItemIds(db, orderId);
+  return items.filter((it) => !planned.has(it.id) && (it.variantId ? it.qty - it.fromStock > 0 : true));
+}
+
+/** Crea los trabajos de las líneas sin trabajo. Con `itemIds` solo lanza esas líneas (lanzamiento individual). */
+export async function planProduction(orderId: string, user: User, itemIds?: string[]) {
   const t = await getT();
   const db = await getDb();
   const [order] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
   if (!order) throw new Error(t('orders.orderNotFound'));
   if (['cancelado', 'entregado'].includes(order.status)) throw new Error(t('orders.theOrderIsAlreadyClosed'));
   const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, orderId)).orderBy(asc(s.orderItems.position));
-  const existing = await db.select({ oi: s.jobItems.orderItemId }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId)).where(and(eq(s.printJobs.orderId, orderId), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado', 'terminado'])));
-  const planned = new Set(existing.map((e) => e.oi));
+  const planned = await plannedItemIds(db, orderId);
   const created: string[] = [];
+  const only = itemIds ? new Set(itemIds) : null;
   for (const it of items) {
-    if (planned.has(it.id)) continue;
+    if (planned.has(it.id) || (only && !only.has(it.id))) continue;
     let qty = it.qty, estG = it.gramsTotal, estH = it.hoursTotal, materialId = it.materialId;
     if (it.variantId) {
       const need = it.qty - it.fromStock;

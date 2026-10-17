@@ -148,6 +148,13 @@
       "when": 1792203527757,
       "tag": "0020_iva_proveedor",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792210000000,
+      "tag": "0021_cola_global",
+      "breakpoints": true
     }
   ]
 }

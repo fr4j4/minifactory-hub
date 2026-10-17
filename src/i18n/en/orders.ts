@@ -56,6 +56,8 @@ export const orders: Shape<typeof es['orders']> = {
   orderSource: 'Order source',
   howDidItComeIn: '— How did it come in? —',
   sendToProduction: 'Send to production',
+  launchLine: 'Launch this line',
+  lineLaunched: 'Job created in the queue',
   markReady: 'Mark ready',
   deliver: 'Deliver',
   copyMessage: 'Copy message',

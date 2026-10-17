@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { addContactAction, addPaymentAction, cancelOrderAction, planProductionAction, promoteCustomerAction, setOrderStatusAction } from '@/actions/orders';
+import { requeueJobAction } from '@/actions/production';
 import { CopyButton, Modal, useAction } from './client';
 import { sources } from '@/lib/format';
 import { useT } from '@/i18n/client';
@@ -63,4 +64,18 @@ export function ContactForm({ orderId, customerId }: { orderId: string; customer
       <button className="btn-ghost shrink-0" disabled={pending || !txt.trim()} data-testid="contact-add">{t('orders.log')}</button>
     </form>
   );
+}
+
+/** Vuelve a lanzar un trabajo cancelado del pedido: crea uno nuevo igual en la cola. */
+export function RequeueButton({ jobId }: { jobId: string }) {
+  const t = useT();
+  const { run, pending } = useAction();
+  return <button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => requeueJobAction(jobId), { ok: t('queue.jobRequeued') })} data-testid="requeue-job">{t('queue.requeue')}</button>;
+}
+
+/** Lanza solo esta línea del pedido (crea su trabajo en la cola), sin tocar las demás. */
+export function LaunchLineButton({ orderId, itemId }: { orderId: string; itemId: string }) {
+  const t = useT();
+  const { run, pending } = useAction();
+  return <button className="btn-ghost btn-sm" disabled={pending} onClick={() => run(() => planProductionAction(orderId, [itemId]), { ok: t('orders.lineLaunched') })} data-testid="launch-line">{t('orders.launchLine')}</button>;
 }

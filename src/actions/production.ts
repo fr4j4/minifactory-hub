@@ -6,7 +6,7 @@ import { canonicalMaterialTypes, KNOWN_MATERIAL_TYPES } from '@/lib/slicer/mater
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
-import { cancelJob, completeMaintenance, createJob, finishJob, machineDeleteInfo, moveJob, pauseJob, removeMachine, resumeJob, scheduleMachine, startJob, type FinishInput } from '@/lib/services/production';
+import { assignJob, cancelJob, completeMaintenance, createJob, finishJob, machineDeleteInfo, pauseJob, removeMachine, reorderJob, requeueJob, resumeJob, scheduleQueue, startJob, type FinishInput } from '@/lib/services/production';
 import { safe } from './common';
 import type { MessageKey, TFn } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
@@ -14,9 +14,14 @@ import { getT } from '@/i18n/server';
 export async function startJobAction(id: string, o: { machineId?: string; spoolId?: string } = {}) { return safe(async () => { const u = await requirePerm('cola', 'E'); await startJob(id, { ...o, userId: u.id }); }, ['/cola', '/pedidos']); }
 export async function pauseJobAction(id: string) { return safe(async () => { await requirePerm('cola', 'E'); await pauseJob(id); }, ['/cola']); }
 export async function resumeJobAction(id: string) { return safe(async () => { await requirePerm('cola', 'E'); await resumeJob(id); }, ['/cola']); }
+/** Vuelve a lanzar un trabajo cancelado (se usa desde el pedido y desde la cola). */
+export async function requeueJobAction(id: string) { return safe(async () => { const u = await requirePerm('pedidos', 'E'); return requeueJob(id, u.id); }, ['/cola', '/pedidos']); }
 export async function cancelJobAction(id: string) { return safe(async () => { const u = await requirePerm('cola', 'E'); await cancelJob(id, u.id); }, ['/cola', '/pedidos']); }
 export async function finishJobAction(id: string, i: Omit<FinishInput, 'userId'>) { return safe(async () => { const u = await requirePerm('cola', 'E'); return finishJob(id, { ...i, userId: u.id }); }, ['/cola', '/pedidos', '/inventario', '/catalogo', '/maquinas']); }
-export async function moveJobAction(id: string, machineId: string, position: number) { return safe(async () => { const u = await requirePerm('cola', 'E'); await moveJob(id, machineId, position, u.id); }, ['/cola']); }
+/** Coloca el trabajo antes de `beforeJobId` en la cola global (al final si es null). No cambia la máquina. */
+export async function reorderJobAction(id: string, beforeJobId: string | null) { return safe(async () => { const u = await requirePerm('cola', 'E'); await reorderJob(id, beforeJobId, u.id); }, ['/cola']); }
+/** Asigna el trabajo a una máquina; `null` lo deja sin asignar. No cambia su lugar en la cola. */
+export async function assignJobAction(id: string, machineId: string | null) { return safe(async () => { const u = await requirePerm('cola', 'E'); await assignJob(id, machineId, u.id); }, ['/cola', '/maquinas']); }
 export async function createTestJobAction(i: { title: string; machineId?: string | null; materialId?: string | null; grams: number; hours: number; qty?: number }) {
   const t = await getT();
   return safe(async () => { const u = await requirePerm('cola', 'C'); return createJob({ kind: 'prueba', title: i.title || t('machines.testJob'), machineId: i.machineId, materialId: i.materialId, estG: i.grams, estH: i.hours, qty: i.qty ?? 1, userId: u.id }); }, ['/cola']);
@@ -71,7 +76,7 @@ export async function saveMachineAction(i: MachineInput) {
     const [m] = await db.insert(s.machines).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...row }).returning({ id: s.machines.id }); await audit('machine', m.id, 'crear', { name: v.name }, u.id); return m.id;
   }, ['/maquinas', '/cola', '/laminador']);
 }
-export async function setMachineStatusAction(id: string, status: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); await db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, id)); await audit('machine', id, 'estado', { to: status }, u.id); await scheduleMachine(id); }, ['/maquinas', `/maquinas/${id}`, '/cola']); }
+export async function setMachineStatusAction(id: string, status: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); await db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, id)); await audit('machine', id, 'estado', { to: status }, u.id); await scheduleQueue(); }, ['/maquinas', `/maquinas/${id}`, '/cola']); }
 export async function addPlanAction(i: { machineId: string; task: string; intervalHours?: number | null; intervalDays?: number | null }) {
   const t = await getT();
   return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.task.trim() || (!i.intervalHours && !i.intervalDays)) throw new Error(t('machines.enterTheTaskAndIts')); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, i.machineId)); await db.insert(s.maintenancePlans).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, task: i.task, intervalHours: i.intervalHours || null, intervalDays: i.intervalDays || null, lastDoneHours: m?.hoursTotal ?? 0, lastDoneAt: new Date().toISOString().slice(0, 10), createdBy: u.id }); }, [`/maquinas/${i.machineId}`]);

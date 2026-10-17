@@ -529,7 +529,8 @@ export const printJobs = pgTable('print_jobs', {
   machineId: uuid('machine_id'),
   spoolId: uuid('spool_id'),
   materialId: uuid('material_id'),
-  position: integer('position').notNull().default(0),
+  position: integer('position').notNull().default(0), // orden en la cola GLOBAL (1 = primero); machine_id es solo la asignación
+  dims: jsonb('dims').$type<[number, number, number]>(), // mm de la pieza (para sugerir máquinas donde cabe); null = desconocido
   plannedStart: timestamp('planned_start', { withTimezone: true }),
   plannedEnd: timestamp('planned_end', { withTimezone: true }),
   realStart: timestamp('real_start', { withTimezone: true }),
