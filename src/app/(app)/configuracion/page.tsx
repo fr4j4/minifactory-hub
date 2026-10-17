@@ -43,6 +43,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Detalle legible de un registro de auditoría: «campo: valor · …», sin identificadores internos. */
 function auditDetail(changes: unknown, t: TFn): string {
   if (!changes || typeof changes !== 'object') return changes == null ? '' : String(changes);
+  if (Array.isArray(changes)) return changes.join(', ');
   return Object.entries(changes as Record<string, unknown>).filter(([, v]) => !(typeof v === 'string' && UUID.test(v)))
     .map(([k, v]) => `${tOr(t, `audit.field.${k}`, k)}: ${v == null ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join(' · ');
 }
