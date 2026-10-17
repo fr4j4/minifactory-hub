@@ -71,7 +71,8 @@ export async function uploadAcceptingDuplicates(page: Page, files: string | stri
     // si la página aún no se había hidratado, el primer intento se pierde: se repite hasta que aparezca la lista de progreso
     if (!(await started()) && Date.now() - lastTry > 6_000 && tries < 4) { await input.setInputFiles(files); tries++; lastTry = Date.now(); await page.waitForTimeout(300); }
     const dlg = page.getByTestId('duplicate-upload');
-    if (await dlg.isVisible()) { await dlg.click(); continue; }
+    // el diálogo se desvanece unos 160 ms tras cerrarse: se espera a que salga para no hacer clic dos veces
+    if (await dlg.isVisible()) { await dlg.click(); await dlg.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => {}); continue; }
     if ((await page.getByText('Listo ✓').count()) >= (Array.isArray(files) ? files.length : 1)) return;
     await page.waitForTimeout(150);
   }
