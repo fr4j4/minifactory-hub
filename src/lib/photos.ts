@@ -51,6 +51,8 @@ export async function exportPhoto(photoId: string, o: { ratio?: string; watermar
   const [p] = await db.select().from(s.photos).where(eq(s.photos.id, photoId));
   if (!p) throw new Error(t('gallery.photoNotFound'));
   if (p.internalOnly) throw new Error(t('gallery.thisPhotoIsForInternal'));
+  // el permiso vigente del cliente manda: si lo retiró después de subir la foto, tampoco se exporta
+  if (p.customerId) { const [c] = await db.select({ consent: s.customers.photoConsent }).from(s.customers).where(eq(s.customers.id, p.customerId)); if (c && (c.consent === 'no' || c.consent === 'unknown')) throw new Error(t('gallery.internalUseOnlyTheCustomer')); }
   let img = sharp(await getBuffer(p.variants?.['1600'] ?? p.storageKey)).rotate();
   const r = o.ratio ? RATIOS[o.ratio] : null;
   if (r) { const meta = await img.metadata(); const W = meta.width ?? 1600; const H = Math.round((W * r[1]) / r[0]); img = img.resize({ width: W, height: H, fit: 'cover' }); }
