@@ -23,5 +23,7 @@ export const archive = {
     contact: 'Contacto',
     payment: 'Pago',
     file: 'Archivo 3D',
+    photo: 'Foto',
+    machine: 'Máquina',
   },
 };

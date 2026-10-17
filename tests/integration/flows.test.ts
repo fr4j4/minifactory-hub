@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { getDb, s } from '@/db';
+import { getDb, s, WORKSPACE_ID } from '@/db';
 import { seedDemo } from '@/lib/seed';
 import { getSettings, saveSettings } from '@/lib/settings';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus, addPayment } from '@/lib/services/orders';
@@ -439,6 +439,17 @@ describe('papelera de archivos 3D (P4)', () => {
     expect((await listArchived('file')).some((r) => r.id === f.id)).toBe(true);
     await restoreRecord('file', f.id, admin.id);
     const [back] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id)); expect(back.deletedAt).toBeNull();
+  });
+  it('una foto y una máquina eliminadas aparecen en archivados y se restauran', async () => {
+    const { removeRecord } = await import('@/lib/services/removal'); const { listArchived, restoreRecord } = await import('@/lib/services/archive');
+    const [m] = await db.insert(s.machines).values({ workspaceId: WORKSPACE_ID, name: 'Máquina papelera' }).returning();
+    const [ph] = await db.insert(s.photos).values({ workspaceId: WORKSPACE_ID, storageKey: 'x.jpg', caption: 'Foto papelera' }).returning();
+    for (const [k, id, tbl] of [['photo', ph.id, s.photos], ['machine', m.id, s.machines]] as const) {
+      await removeRecord(k, id, admin.id);
+      expect((await listArchived(k)).some((r) => r.id === id)).toBe(true);
+      await restoreRecord(k, id, admin.id);
+      const [back] = await db.select().from(tbl as typeof s.photos).where(eq((tbl as typeof s.photos).id, id)); expect(back.deletedAt).toBeNull();
+    }
   });
 });
 
