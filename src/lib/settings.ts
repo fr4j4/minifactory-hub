@@ -3,7 +3,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import type { Rates } from './pricing';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
 import type { DocTemplate } from './documents';
-import { setTimeZone, ymd } from './format';
+import { setNumberFormat, setTimeZone, ymd } from './format';
 
 export interface AppSettings {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string; /** paleta por defecto de la interfaz (cada persona puede elegir otra en su navegador) */ palette?: string };
@@ -67,6 +67,7 @@ export async function getSettingsRaw(): Promise<AppSettings> {
   const [row] = await db.select().from(s.settings).where(eq(s.settings.workspaceId, WORKSPACE_ID));
   const st = merge(DEFAULT_SETTINGS, row?.data ?? {});
   setTimeZone(st.shop.timezone); // fechas y "hoy" del servidor en la zona del taller
+  setNumberFormat(st.shop.lang, st.shop.currency);
   return st;
 }
 /** Ajustes seguros para páginas y componentes: sin la clave de IA. */
@@ -96,6 +97,3 @@ export async function nextNumber(kind: keyof AppSettings['numbering'], tx?: any)
   const n = Number(rows[0].value);
   return st.numbering[kind].replace('{YYYY}', String(year)).replace(/\{N+\}/, (m: string) => String(n).padStart(m.length - 2, '0'));
 }
-
-export const fmtMoney = (n: number | null | undefined, cur = 'CLP') =>
-  n == null ? '—' : new Intl.NumberFormat('es-CL', { style: 'currency', currency: cur, maximumFractionDigits: cur === 'CLP' ? 0 : 2 }).format(n);

@@ -1,7 +1,15 @@
 import type { TFn } from '@/i18n/translate';
 
-export const money = (n: number | null | undefined) => (n == null ? '—' : new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 }).format(n));
-export const num = (n: number | null | undefined, d = 1) => (n == null ? '—' : new Intl.NumberFormat('es-CL', { maximumFractionDigits: d, minimumFractionDigits: 0 }).format(n));
+// Formato del taller (ajustes shop.lang y shop.currency), solo para mostrar. Lo fija getSettings() en el servidor
+// y I18nProvider en el navegador; es uno por taller, así que no depende de la petición.
+let fmt = { lang: 'es-CL', currency: 'CLP', money: new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }) };
+export function setNumberFormat(lang: string, currency: string) {
+  if (lang === fmt.lang && currency === fmt.currency) return;
+  try { fmt = { lang, currency, money: new Intl.NumberFormat(lang, { style: 'currency', currency }) }; } catch { /* idioma o moneda inválidos: queda el formato anterior */ }
+}
+/** Monto en la moneda del taller (los decimales los decide la moneda: CLP sin decimales, USD/EUR con 2). */
+export const money = (n: number | null | undefined) => (n == null ? '—' : fmt.money.format(n));
+export const num = (n: number | null | undefined, d = 1) => (n == null ? '—' : new Intl.NumberFormat(fmt.lang, { maximumFractionDigits: d, minimumFractionDigits: 0 }).format(n));
 export const pct = (n: number | null | undefined, d = 0) => (n == null ? '—' : `${num(n, d)}%`);
 export const dur = (sec: number | null | undefined) => { if (sec == null) return '—'; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return `${h}:${String(m).padStart(2, '0')} h`; };
 export const hoursFmt = (h: number | null | undefined) => (h == null ? '—' : dur(Math.round(h * 3600)));
