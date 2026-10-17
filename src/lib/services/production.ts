@@ -228,7 +228,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   const spoolId = o.spoolId ?? j.spoolId ?? (await pickSpool(j.materialId, realG, j.machineId, db))?.id ?? null;
   // cierre condicionado antes de cualquier efecto: si otra petición ya lo cerró, no se consume material dos veces
   const [claimed] = await db.update(s.printJobs).set({
-    status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
+    status: failed && qtyGood === 0 ? 'fallido' : 'terminado', realEnd: now, realG, realH, qtyGood, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
     failCharge: o.failCharge ?? null, spoolId, updatedAt: now,
   }).where(and(eq(s.printJobs.id, jobId), inArray(s.printJobs.status, ['imprimiendo', 'pausado']))).returning({ id: s.printJobs.id });
   if (!claimed) throw new Error(t('queue.theJobIsAlreadyClosed'));
@@ -271,9 +271,8 @@ export async function finishJob(jobId: string, o: FinishInput) {
   // líneas del pedido
   const items = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
   const oiIds = items.map((i) => i.orderItemId).filter(Boolean) as string[];
-  // falla sin reimpresión: si quedaron piezas buenas se aceptan; si no quedó ninguna, la línea vuelve a «pendiente» para planificarla otra vez
-  const itemStatus = !failed ? 'post_proceso' : o.reprint !== false ? 'en_cola' : qtyGood > 0 ? 'post_proceso' : 'pendiente';
-  if (oiIds.length) await db.update(s.orderItems).set({ status: itemStatus }).where(inArray(s.orderItems.id, oiIds));
+  if (!failed || o.reprint !== false) { if (oiIds.length) await db.update(s.orderItems).set({ status: failed ? 'en_cola' : 'post_proceso' }).where(inArray(s.orderItems.id, oiIds)); }
+  else await settleOrderLines(oiIds);
   // reimpresión
   let reprintId: string | null = null;
   if (failed && o.reprint !== false) {
@@ -311,9 +310,8 @@ export async function cancelJob(jobId: string, userId?: string | null) {
   await scheduleQueue();
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'cancelada' }).where(eq(s.productionOrders.id, j.productionOrderId));
   if (j.orderId) {
-    // las líneas del pedido que cubría este trabajo vuelven a estar pendientes (se pueden relanzar) y el pedido recalcula su estado
-    const lines = (await db.select({ id: s.jobItems.orderItemId }).from(s.jobItems).where(eq(s.jobItems.jobId, jobId))).map((x) => x.id!).filter(Boolean);
-    if (lines.length) await db.update(s.orderItems).set({ status: 'pendiente' }).where(and(inArray(s.orderItems.id, lines), inArray(s.orderItems.status, ['en_cola', 'imprimiendo'])));
+    const its = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
+    await settleOrderLines(its.map((i) => i.orderItemId).filter(Boolean) as string[]);
     await recomputeOrderStatus(j.orderId);
   }
   await audit('print_job', jobId, 'cancelar', {}, userId);
@@ -345,6 +343,19 @@ export async function requeueJob(jobId: string, userId?: string | null): Promise
   if (j.orderId) await recomputeOrderStatus(j.orderId);
   await audit('print_job', id, 'relanzar', { from: jobId }, userId);
   return id;
+}
+
+/**
+ * Estado de las líneas cuando su trabajo se cierra sin reimpresión (cancelado o fallido): con otro trabajo abierto no cambian;
+ * con un trabajo terminado (piezas buenas de una falla parcial) pasan a post-proceso; si no, vuelven a «pendiente» para planificarlas otra vez.
+ */
+async function settleOrderLines(oiIds: string[]) {
+  const db = await getDb();
+  for (const id of oiIds) {
+    const jobs = await db.select({ status: s.printJobs.status }).from(s.jobItems).innerJoin(s.printJobs, eq(s.printJobs.id, s.jobItems.jobId)).where(and(eq(s.jobItems.orderItemId, id), isNull(s.printJobs.deletedAt)));
+    if (jobs.some((x) => ['en_cola', 'imprimiendo', 'pausado'].includes(x.status))) continue;
+    await db.update(s.orderItems).set({ status: jobs.some((x) => x.status === 'terminado') ? 'post_proceso' : 'pendiente' }).where(eq(s.orderItems.id, id));
+  }
 }
 
 /** Alerta de mantenimiento por horas o por días. */
