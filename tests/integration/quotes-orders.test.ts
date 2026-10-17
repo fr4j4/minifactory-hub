@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import { and, asc, eq, inArray } from 'drizzle-orm';
-import { getDb, s } from '@/db';
+import { getDb, s, WORKSPACE_ID } from '@/db';
+import { errorText } from '@/i18n/errors';
+import { createT } from '@/i18n/translate';
 import { seedDemo } from '@/lib/seed';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
 import { getSettings, saveSettings } from '@/lib/settings';
@@ -146,5 +148,13 @@ describe('aprobar presupuestos', () => {
       const oid = await approveQuote(id, ap, ventas);
       expect((await order(oid)).costEstimated).toBe(q.costTotal);
     } finally { await saveSettings({ rates: st.rates }); }
+  });
+});
+
+describe('errores de la base', () => {
+  it('un valor repetido se avisa traducido y sin el SQL', async () => {
+    await db.insert(s.tagDefs).values({ workspaceId: WORKSPACE_ID, name: 'repetida' });
+    const e = await db.insert(s.tagDefs).values({ workspaceId: WORKSPACE_ID, name: 'repetida' }).then(() => null, (x) => x);
+    expect(errorText(e, createT('es'))).toBe('Ya existe uno con ese nombre.');
   });
 });
