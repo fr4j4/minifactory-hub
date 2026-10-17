@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
-import { config } from './config';
+import { sessionSecret } from './config';
 
 /** Cifrado simétrico (AES-256-GCM) para secretos guardados en la base, con llave derivada de SESSION_SECRET. */
-const key = () => crypto.createHash('sha256').update(`${config.sessionSecret}:printer-secrets:v1`).digest();
+const key = () => crypto.createHash('sha256').update(`${sessionSecret()}:printer-secrets:v1`).digest();
 export function seal(plain: string) {
   const iv = crypto.randomBytes(12); const c = crypto.createCipheriv('aes-256-gcm', key(), iv);
   const enc = Buffer.concat([c.update(plain, 'utf8'), c.final()]);

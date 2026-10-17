@@ -7,7 +7,7 @@ const chromium = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium-1194/ch
 const SSDP = '12021';
 // nube de Bambu simulada (API HTTP + broker MQTT con TLS; su CA se escribe fuera de data/e2e, que se borra al iniciar)
 const CLOUD = { api: '18080', mqtt: '18884', ca: path.resolve('data/bambu-cloud-ca-e2e.pem') };
-const env = { BAMBU_SSDP_PORTS: SSDP, BAMBU_CLOUD_API: `http://127.0.0.1:${CLOUD.api}`, BAMBU_CLOUD_WEB: `http://127.0.0.1:${CLOUD.api}`, BAMBU_CLOUD_MQTT: `127.0.0.1:${CLOUD.mqtt}`, BAMBU_CLOUD_CA_FILE: CLOUD.ca, PGLITE_DIR: path.resolve('data/e2e/pgdata'), STORAGE_DIR: path.resolve('data/e2e/storage'), DATA_DIR: path.resolve('data/e2e'), SESSION_SECRET: 'e2e', PORT: String(PORT) };
+const env = { BAMBU_SSDP_PORTS: SSDP, BAMBU_CLOUD_API: `http://127.0.0.1:${CLOUD.api}`, BAMBU_CLOUD_WEB: `http://127.0.0.1:${CLOUD.api}`, BAMBU_CLOUD_MQTT: `127.0.0.1:${CLOUD.mqtt}`, BAMBU_CLOUD_CA_FILE: CLOUD.ca, PGLITE_DIR: path.resolve('data/e2e/pgdata'), STORAGE_DIR: path.resolve('data/e2e/storage'), DATA_DIR: path.resolve('data/e2e'), SESSION_SECRET: 'e2e-secreto-de-pruebas-de-32-caracteres', PORT: String(PORT) };
 
 export default defineConfig({
   testDir: 'tests/e2e', timeout: 240_000, expect: { timeout: 20_000 }, workers: 1, fullyParallel: false, retries: 0, reporter: [['list']],
