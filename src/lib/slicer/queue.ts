@@ -127,11 +127,13 @@ async function execute(runId: string) {
     const gcodeKeys: string[] = [];
     for (const pl of r.plates) gcodeKeys.push(await putFile(newKey('gcode', 'gcode'), pl.gcodePath, false));
     const threemfKey = r.threemfPath ? await putFile(newKey('gcode', '3mf'), r.threemfPath, false) : null;
-    await db.update(s.sliceRuns).set({
+    const done = await db.update(s.sliceRuns).set({
       status: 'done', timeS, filament: Object.values(fil2).map((x) => ({ g: +x.g.toFixed(2), mm: +x.mm.toFixed(1), cm3: +x.cm3.toFixed(2) })),
       layers, plates: r.plates.length, durationMs: r.durationMs, engineVersion: r.engine, gcodeKey: gcodeKeys[0], threemfKey,
       result: { gcodeKeys, slicer: r.plates[0].meta.slicer }, error: null, updatedAt: new Date(),
-    }).where(stillRunning(runId));
+    }).where(stillRunning(runId)).returning({ id: s.sliceRuns.id });
+    // cancelado mientras se guardaban los archivos: nadie los referencia, se borran
+    if (!done.length) for (const k of [...gcodeKeys, threemfKey]) if (k) await remove(k).catch(() => {});
   } catch (e) {
     await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, result: { errorCode: 'other' }, updatedAt: new Date() }).where(stillRunning(runId));
   } finally {
@@ -161,6 +163,7 @@ export function ensureWorker() {
   if (!runsQueues() || g.__sliceWorker?.timer) return;
   g.__sliceWorker = { running: 0 };
   getDb().then(async (db) => {
+    await (await import('../settings')).getSettingsRaw().catch(() => {}); // zona horaria del taller antes de que las colas usen ymd() (vencimientos, numeración)
     // trabajos que quedaron "running" por un reinicio vuelven a la cola
     await db.update(s.sliceRuns).set({ status: 'queued' }).where(eq(s.sliceRuns.status, 'running'));
     // análisis de archivos interrumpidos por el reinicio
@@ -176,7 +179,7 @@ export function ensureWorker() {
 
 const keysOf = (r: { gcodeKey: string | null; threemfKey: string | null; result: any }) => [r.gcodeKey, r.threemfKey, ...((r.result?.gcodeKeys as string[] | undefined) ?? [])].filter((k): k is string => !!k);
 
-/** Borra los laminados terminados de más de `days` días que nada usa (línea de presupuesto o pedido, trabajo de cola, envío a impresora) y sus archivos.
+/** Borra los laminados terminados de más de `days` días que nada usa (línea de presupuesto o pedido, trabajo de cola, envío a impresora, propuesta abierta de la IA) y sus archivos.
  *  Un archivo que otra corrida comparte (los aciertos de caché copian las claves) se conserva.
  *  ponytail: lee todas las corridas con archivos en memoria; paginar si llegan a ser cientos de miles. */
 export async function gcSliceOutputs(days = 30) {
@@ -186,6 +189,8 @@ export async function gcSliceOutputs(days = 30) {
   const used = new Set<string>();
   for (const tb of [s.quoteItems, s.orderItems, s.printJobs]) for (const r of await db.select({ id: tb.sliceRunId }).from(tb).where(isNotNull(tb.sliceRunId))) used.add(r.id!);
   for (const r of await db.select({ c: s.activityLog.changes }).from(s.activityLog).where(eq(s.activityLog.action, 'enviar_impresion'))) if ((r.c as any)?.runId) used.add((r.c as any).runId);
+  // propuestas de la IA aún abiertas: sus laminados base y candidatos se vuelven a evaluar sin relaminar
+  for (const r of await db.select({ p: s.aiSuggestions.proposal }).from(s.aiSuggestions).where(eq(s.aiSuggestions.status, 'proposed'))) for (const id of [r.p?.baselineRunId, ...((r.p?.candidates as any[] | undefined) ?? []).map((c) => c?.runId)]) if (id) used.add(id);
   const gone = new Set(old.map((r) => r.id).filter((id) => !used.has(id)));
   if (!gone.size) return 0;
   const withFiles = await db.select({ id: s.sliceRuns.id, gcodeKey: s.sliceRuns.gcodeKey, threemfKey: s.sliceRuns.threemfKey, result: s.sliceRuns.result }).from(s.sliceRuns).where(isNotNull(s.sliceRuns.gcodeKey));

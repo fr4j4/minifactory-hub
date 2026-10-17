@@ -73,4 +73,12 @@ describe('limpieza de laminados viejos', () => {
     expect((await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, b.id))).length).toBe(1);
     expect(await st.exists(own)).toBe(false); expect(await st.exists(shared)).toBe(true);
   });
+  it('conserva los laminados de una propuesta abierta de la IA', async () => {
+    const { gcSliceOutputs } = await import('@/lib/slicer/queue');
+    const [v] = await db.select().from(s.fileVersions).limit(1); const old = new Date(Date.now() - 40 * 86400_000);
+    const [r] = await db.insert(s.sliceRuns).values({ workspaceId: v.workspaceId, fileVersionId: v.id, status: 'done', createdAt: old }).returning();
+    await db.insert(s.aiSuggestions).values({ workspaceId: v.workspaceId, feature: 'profile_advisor', inputHash: 'gc-test', provider: 'x', model: 'x', promptVersion: '1', proposal: { baselineRunId: r.id, candidates: [] } });
+    await gcSliceOutputs(30);
+    expect((await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, r.id))).length).toBe(1);
+  });
 });
