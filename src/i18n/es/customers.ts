@@ -1,5 +1,7 @@
 export const customers = {
   theNameIsRequired: 'El nombre es obligatorio',
+  invalidRut: 'El RUT no es válido: revisa el dígito verificador.',
+  invalidDepositPct: 'El abono debe estar entre 0 % y 100 %.',
   theCsvIsEmpty: 'El CSV está vacío',
   theNombreColumnIsMissing: 'Falta la columna “nombre”',
   newOrder: 'Nuevo pedido',

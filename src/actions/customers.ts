@@ -5,6 +5,7 @@ import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { safe } from './common';
 import { parseCsv } from '@/lib/csv';
+import { rutOk } from '@/lib/format';
 import { getT } from '@/i18n/server';
 
 export interface CustomerInput { id?: string; type: string; name: string; phone?: string; email?: string; taxId?: string; addresses?: Array<{ label: string; text: string }>; priceListId?: string | null; photoConsent: string; tags?: string[]; notes?: string; depositPct?: number | null }
@@ -13,6 +14,8 @@ export async function saveCustomerAction(i: CustomerInput) {
   return safe(async () => {
     const u = await requirePerm('clientes', i.id ? 'E' : 'C'); const db = await getDb();
     if (!i.name.trim()) throw new Error(t('customers.theNameIsRequired'));
+    if (i.taxId && !rutOk(i.taxId)) throw new Error(t('customers.invalidRut'));
+    if (i.depositPct != null && !(i.depositPct >= 0 && i.depositPct <= 100)) throw new Error(t('customers.invalidDepositPct')); // alimenta el abono mínimo del pedido
     const v = { type: i.type, name: i.name.trim(), phone: i.phone || null, email: i.email || null, taxId: i.taxId || null, addresses: i.addresses ?? [], priceListId: i.priceListId || null, photoConsent: i.photoConsent, tags: i.tags ?? [], notes: i.notes || null, depositPct: i.depositPct ?? null, isOccasional: false, updatedAt: new Date() };
     if (i.id) { await db.update(s.customers).set(v).where(eq(s.customers.id, i.id)); await audit('customer', i.id, 'editar', {}, u.id); return i.id; }
     const [c] = await db.insert(s.customers).values({ workspaceId: WORKSPACE_ID, createdBy: u.id, ...v }).returning({ id: s.customers.id });

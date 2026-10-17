@@ -3,6 +3,8 @@ import type { es } from '../es';
 
 export const customers: Shape<typeof es['customers']> = {
   theNameIsRequired: 'The name is required',
+  invalidRut: 'The RUT is not valid: check the verification digit.',
+  invalidDepositPct: 'The deposit must be between 0% and 100%.',
   theCsvIsEmpty: 'The CSV is empty',
   theNombreColumnIsMissing: 'The “nombre” column is missing',
   newOrder: 'New order',

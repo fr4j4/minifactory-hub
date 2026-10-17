@@ -4,6 +4,7 @@ import { buildGcodePreview, parse3mfSliceMeta, parseDuration, parseGcodeMeta } f
 import { parse3MF, parseOBJ, parsePLY, parseSTL } from '@/lib/mesh/parse';
 import { analyze, decimate, fitsIn, renderThumbnail, toPreviewBin, weld } from '@/lib/mesh/ops';
 import { csvCell, parseCsv } from '@/lib/csv';
+import { rutOk } from '@/lib/format';
 import { fillTemplate, waLink } from '@/lib/messages';
 import { can, canSeeCosts, DEFAULT_MATRIX } from '@/lib/perm';
 import { normalizeUrl, fetchLinkPreview, siteLabel } from '@/lib/links';
@@ -72,6 +73,10 @@ describe('lectura de G-code y 3MF laminados', () => {
 });
 
 describe('utilidades', () => {
+  it('rutOk revisa el dígito verificador solo si el texto tiene forma de RUT', () => {
+    for (const ok of ['76.123.456-0', '11.111.111-1', '12345678-5', '10.000.013-K', 'DE123456789']) expect(rutOk(ok)).toBe(true);
+    for (const bad of ['76.123.456-7', '12.345.678-9']) expect(rutOk(bad)).toBe(false);
+  });
   it('csvCell neutraliza fórmulas en texto y deja los números', () => {
     expect(csvCell('=HYPERLINK("http://x")')).toBe(`"'=HYPERLINK(""http://x"")"`);
     expect(csvCell('@SUM(A1)')).toBe("'@SUM(A1)"); expect(csvCell(-5)).toBe('-5'); expect(csvCell('Ana')).toBe('Ana');
