@@ -4,9 +4,11 @@ import { eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
-import { getT } from '@/i18n/server';
+import { getLocale, getT } from '@/i18n/server';
 import { LOCALE_COOKIE } from '@/i18n/config';
 import { renderPdf } from '@/lib/pdf';
+import { getSettings } from '@/lib/settings';
+import { DOC_FONTS, normalizeTemplate } from '@/lib/documents';
 import { exists, getBuffer, newKey, putBuffer } from '@/lib/storage';
 
 export const maxDuration = 60;
@@ -25,13 +27,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (q.status !== 'borrador' && q.pdfKey && (await exists(q.pdfKey))) return new Response(new Uint8Array(await getBuffer(q.pdfKey)), { headers });
   // origen interno fijo: req.url sale del encabezado Host, que controla el cliente (SSRF y PDF guardado alterado)
   const origin = process.env.INTERNAL_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? 3000}`; const sess = (await cookies()).get('mf_session')?.value ?? '';
-  // mf_lang: el PDF sale en el mismo idioma que la vista previa de quien lo pide
-  const lang = (await cookies()).get(LOCALE_COOKIE)?.value;
+  // mf_lang: el borrador sale en el idioma de la vista previa de quien lo pide (cookie o Accept-Language: Chromium no envía este último).
+  // Un presupuesto congelado usa el idioma con que se envió (docT en la página imprimible), así la copia guardada no depende de quién la pidió primero.
+  const lang = await getLocale();
   // pie en cada página: número del presupuesto y página X/Y
   const num = `${q.number}${q.version > 1 ? ` (v${q.version})` : ''}`.replace(/[<>&"]/g, '');
-  const footer = `<div style="font-size:8px;color:#64748b;width:100%;padding:0 8mm;display:flex;justify-content:space-between"><span>${num}</span><span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>`;
+  // misma letra que el documento; 17 mm = margen de página (8 mm) + relleno lateral del documento (34 px)
+  const font = DOC_FONTS[normalizeTemplate((q.docTemplate as any) ?? (await getSettings()).documents.quote).theme.font].replace(/"/g, "'");
+  const footer = `<div style="font-family:${font};font-size:8px;color:#64748b;width:100%;padding:0 17mm;display:flex;justify-content:space-between"><span>${num}</span><span><span class="pageNumber"></span>/<span class="totalPages"></span></span></div>`;
   try {
-    const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, [{ name: 'mf_session', value: sess }, ...(lang ? [{ name: LOCALE_COOKIE, value: lang }] : [])], footer);
+    const pdf = await renderPdf(`${origin}/imprimir/presupuesto/${id}`, [{ name: 'mf_session', value: sess }, { name: LOCALE_COOKIE, value: lang }], footer);
     if (q.status !== 'borrador') { const key = newKey('pdf', 'pdf'); await putBuffer(key, pdf); await db.update(s.quotes).set({ pdfKey: key }).where(eq(s.quotes.id, id)); }
     return new Response(new Uint8Array(pdf), { headers });
   } catch (e) {
