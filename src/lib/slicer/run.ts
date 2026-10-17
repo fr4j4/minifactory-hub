@@ -74,17 +74,24 @@ export function parseProgressLine(line: string): { pct: number; message: string 
   } catch { return null; }
 }
 
-export async function runOrca(o: {
+type OrcaInput = {
   inputPath: string; ext: string; machine: Record<string, any>; process: Record<string, any>; filament: Record<string, any>;
   /** Filamentos de los extrusores 2…n (proyectos multicolor: el 3MF ya trae el extrusor de cada objeto). */
   extraFilaments?: Array<Record<string, any>>;
   copies: number; orient?: boolean; timeoutS?: number; signal?: AbortSignal;
   /** Progreso real del laminado (--pipe de OrcaSlicer): porcentaje de la placa y etapa. */
   onProgress?: (p: { pct: number; message: string }) => void;
-}): Promise<CliResult> {
+};
+
+/** Lamina en una carpeta temporal que devuelve en `tmpDir` (la borra quien llama). Si algo falla antes de devolverla (3MF corrupto, copia), la borra aquí. */
+export async function runOrca(o: OrcaInput): Promise<CliResult> {
+  const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mf-slice-'));
+  try { return await sliceIn(tmpDir, o); } catch (e) { await cleanup(tmpDir).catch(() => {}); throw e; }
+}
+
+async function sliceIn(tmpDir: string, o: OrcaInput): Promise<CliResult> {
   const t = await getT();
   const t0 = Date.now();
-  const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mf-slice-'));
   const engine = await engineVersion();
   if (!fs.existsSync(config.orcaBin)) return { ok: false, errorCode: 'not_installed', error: t('slicer.orcaslicerIsNotInstalledOn'), engine, durationMs: 0, plates: [], tmpDir };
   const outDir = path.join(tmpDir, 'out'); await fsp.mkdir(outDir);

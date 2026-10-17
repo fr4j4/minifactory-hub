@@ -32,7 +32,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
   const [filId, setFilId] = useState<string | null>(null); const [runId, setRunId] = useState<string | null>(null); const [lastGood, setLastGood] = useState<string | null>(null); const [stale, setStale] = useState(false); const [auto, setAuto] = useState(true); const [exploring, setExploring] = useState(false);
   const [advisorOpen, setAdvisorOpen] = useState(false); const [ab, setAb] = useState(false);
   const schemaV = useMemo(() => { extendSchema(extraParams ?? []); return extraParams?.length ?? 0; }, [extraParams]);
-  const inflight = useRef<string | null>(null); const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const inflight = useRef<string | null>(null); const baseRef = useRef<string | null>(null); const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const machine = setup ? ctx.machines.find((m) => m.id === setup.machineId) : undefined; const material = ctx.materials.find((m) => m.id === materialId);
   const runs = useRunPolling([runId, baseRunId].filter(Boolean) as string[]);
   const run = runId ? runs[runId] : null; const baseRun = baseRunId ? runs[baseRunId] : null;
@@ -41,10 +41,13 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
 
   const launch = useCallback(async (overrides: Ov, asBase = false) => {
     if (!setup?.machineProfileId || !processId || !material) return;
-    if (!asBase && inflight.current) { void cancelRunAction(inflight.current); }
+    // un ajuste nuevo descarta el laminado anterior; un cambio de configuración descarta también la base anterior
+    if (inflight.current) { void cancelRunAction(inflight.current); inflight.current = null; }
+    if (asBase && baseRef.current) { void cancelRunAction(baseRef.current); baseRef.current = null; }
     const r = await sliceAction({ fileVersionId, machineProfileId: setup.machineProfileId, processProfileId: processId, materialId: material.id, copies, label: `${fileName} · ${asBase ? 'base' : 'estudio'}`, overrides: { process: overrides.process, filament: overrides.filament, machine: overrides.machine } });
     if (!r.ok) { toast.push(r.error, 'err'); return; }
-    if (asBase) setBaseRunId(r.data); else { inflight.current = r.data; setRunId(r.data); setStale(false); }
+    // la base es también la primera vista (una sola corrida sin ajustes, no dos idénticas)
+    if (asBase) { baseRef.current = r.data; setBaseRunId(r.data); setRunId(r.data); setStale(false); } else { inflight.current = r.data; setRunId(r.data); setStale(false); }
   }, [setup?.machineProfileId, processId, material, fileVersionId, copies, fileName, toast]);
 
   // base: valores efectivos del perfil + una corrida sin ajustes para comparar
@@ -60,7 +63,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
       const b = await studioBaseAction({ machineProfileId: setup.machineProfileId!, processProfileId: processId, filamentProfileId: f.data.profileId });
       if (!off && b.ok) setBase(b.data);
     })();
-    if (canSlice) { void launch(EMPTY, true); void launch(EMPTY); }
+    if (canSlice) void launch(EMPTY, true);
     return () => { off = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setupKey, processId, materialId, copies]);
