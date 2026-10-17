@@ -44,10 +44,10 @@ export function SelectField({ value, onValueChange, options, placeholder, label,
         <SelectPrimitive.Value placeholder={placeholder} /><SelectPrimitive.Icon><ChevronDown className="h-4 w-4 opacity-60" aria-hidden /></SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content position="popper" sideOffset={4} className="z-[100] card p-1 shadow-2xl min-w-[var(--radix-select-trigger-width)] max-h-72 overflow-y-auto">
+        <SelectPrimitive.Content position="popper" sideOffset={4} className="z-[100] card p-1 shadow-[var(--shadow-pop)] min-w-[var(--radix-select-trigger-width)] max-h-72 overflow-y-auto">
           <SelectPrimitive.Viewport>
             {options.map((o) => (
-              <SelectPrimitive.Item key={o.value} value={o.value} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800">
+              <SelectPrimitive.Item key={o.value} value={o.value} className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-[var(--hover)]">
                 <SelectPrimitive.ItemText>{o.label}</SelectPrimitive.ItemText><SelectPrimitive.ItemIndicator><Check className="h-4 w-4" aria-hidden /></SelectPrimitive.ItemIndicator>
               </SelectPrimitive.Item>
             ))}
@@ -76,8 +76,8 @@ export function DropdownMenu({ trigger, items, label }: { trigger: ReactNode; it
     <Dropdown.Root>
       <Dropdown.Trigger asChild><button type="button" className="btn-ghost btn-sm" aria-label={label}>{trigger}</button></Dropdown.Trigger>
       <Dropdown.Portal>
-        <Dropdown.Content align="end" sideOffset={4} className="z-[100] card p-1 shadow-2xl min-w-[10rem]">
-          {items.map((i) => <Dropdown.Item key={i.key} onSelect={i.onSelect} className={cn('rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800', i.danger && 'text-danger')}>{i.label}</Dropdown.Item>)}
+        <Dropdown.Content align="end" sideOffset={4} className="z-[100] card p-1 shadow-[var(--shadow-pop)] min-w-[10rem] origin-[var(--radix-dropdown-menu-content-transform-origin)] data-[state=open]:animate-pop">
+          {items.map((i) => <Dropdown.Item key={i.key} onSelect={i.onSelect} className={cn('rounded-lg px-3 py-2 text-sm cursor-pointer outline-none data-[highlighted]:bg-[var(--hover)]', i.danger && 'text-danger')}>{i.label}</Dropdown.Item>)}
         </Dropdown.Content>
       </Dropdown.Portal>
     </Dropdown.Root>
