@@ -98,9 +98,10 @@ Severidad: **alta** rompe un flujo principal o expone datos; **media** da un res
 
 ### Riesgos que quedan tras `fix/seguridad`
 
-- La cámara RTSPS (X1/H2) la abre ffmpeg con el código en la URL; no se puede fijar la huella sin un proxy TLS propio.
+- La cámara RTSPS (X1/H2): antes de lanzar ffmpeg, una conexión TLS de prueba compara la huella. ffmpeg abre otra conexión: un intermediario que reenvíe la prueba a la impresora real no se detecta. Cerrarlo requiere un proxy TLS local fijado.
 - safeGet revisa la IP antes de cada salto, pero fetch vuelve a resolver el DNS (rebinding). Cerrarlo requiere fijar la IP en el agente HTTP.
-- El Operador sigue recibiendo el costo por kg de materiales y el costo de máquinas: el editor los usa para el precio sugerido (decisión de security-5).
+- El Operador sigue recibiendo el costo por kg de materiales y el costo de máquinas: el editor los usa para el precio sugerido (decisión de security-5). En Inventario también: el Operador registra materiales y bobinas con su costo.
+- El límite de intentos de login cuenta por correo; un navegador donde la cuenta ya inició sesión cuenta aparte. Un navegador nuevo del dueño sí queda bloqueado 15 minutos. El token de instalación (62 bits, un solo uso) tiene un contador global; reiniciar el servidor lo libera.
 - Chromium sigue con --no-sandbox dentro de Docker; quitarlo requiere un perfil seccomp.
 - El cambio de huella en FTPS y cámara supone que la impresora usa el mismo certificado en los tres puertos (así lo hace el simulador). Falta confirmarlo con una impresora real.
 

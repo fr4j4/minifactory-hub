@@ -8,7 +8,7 @@ const PLACEHOLDERS = [DEV_SECRET, 'cambia-esto-por-un-valor-largo-y-aleatorio'];
 export function sessionSecret() {
   const v = process.env.SESSION_SECRET ?? '';
   if (process.env.NODE_ENV !== 'production') return v || DEV_SECRET;
-  if (v.length < 32 || PLACEHOLDERS.includes(v)) throw new Error('SESSION_SECRET falta, es corto (mínimo 32 caracteres) o es el valor de ejemplo. Genera uno con: openssl rand -hex 32');
+  if (v.length < 32 || PLACEHOLDERS.includes(v)) throw new Error('SESSION_SECRET falta, es corto (mínimo 32 caracteres) o es el valor de ejemplo. Genera uno con: openssl rand -hex 32. Si reemplazas uno que ya usabas, pon el anterior en SESSION_SECRET_PREVIOUS para no perder los códigos de impresoras ni la clave de IA guardados.');
   return v;
 }
 export const config = {
