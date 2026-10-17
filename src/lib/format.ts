@@ -9,7 +9,7 @@ export function setNumberFormat(lang: string, currency: string) {
 }
 /** Monto en la moneda del taller (los decimales los decide la moneda: CLP sin decimales, USD/EUR con 2). */
 export const money = (n: number | null | undefined) => (n == null ? '—' : fmt.money.format(n));
-export const num = (n: number | null | undefined, d = 1) => (n == null ? '—' : new Intl.NumberFormat(fmt.lang, { maximumFractionDigits: d, minimumFractionDigits: 0 }).format(n));
+export const num = (n: number | null | undefined, d = 1, min = 0) => (n == null ? '—' : new Intl.NumberFormat(fmt.lang, { maximumFractionDigits: d, minimumFractionDigits: min }).format(n));
 export const pct = (n: number | null | undefined, d = 0) => (n == null ? '—' : `${num(n, d)}%`);
 export const dur = (sec: number | null | undefined) => { if (sec == null) return '—'; const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return `${h}:${String(m).padStart(2, '0')} h`; };
 export const hoursFmt = (h: number | null | undefined) => (h == null ? '—' : dur(Math.round(h * 3600)));
