@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, actions, back, eyebrow }: { title:
 export function Card({ title, actions, children, className, pad = true }: { title?: ReactNode; actions?: ReactNode; children: ReactNode; className?: string; pad?: boolean }) {
   return (
     <section className={cn('card min-w-0', className)}>
-      {(title || actions) && <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1"><h2 className="text-[13px] font-semibold tracking-tight flex items-center gap-2"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden />{title}</h2>{actions}</header>}
+      {(title || actions) && <header className="flex items-center justify-between gap-2 px-4 pt-3.5 pb-1">{title ? <h2 className="text-[13px] font-semibold tracking-tight flex items-center gap-2"><span className="h-3 w-[3px] rounded-full bg-[var(--accent)]" aria-hidden />{title}</h2> : <span />}{actions}</header>}
       <div className={pad ? 'p-4' : ''}>{children}</div>
     </section>
   );
