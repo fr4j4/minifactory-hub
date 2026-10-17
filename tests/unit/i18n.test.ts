@@ -36,6 +36,10 @@ describe('i18n: createT', () => {
     expect(es('time.daysAgo', { count: 3 })).toBe('hace 3 días');
     expect(en('time.daysAgo', { count: 1 })).toBe('1 day ago');
   });
+  it('elige el plural también con {n} cuando no viene count', () => {
+    expect(createT('es')('inventory.lineColors', { n: 1 })).toBe('1 color');
+    expect(createT('en')('inventory.lineColors', { n: 3 })).toBe('3 colors');
+  });
   it('si falta una clave devuelve la clave', () => {
     expect(createT('es')('no.existe' as never)).toBe('no.existe');
   });
