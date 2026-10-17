@@ -24,7 +24,8 @@ export function QuickCalc({ ctx, models, showCosts, canPrice, canCreate, whatsap
   const toQuote = async () => {
     setBusy(true);
     const r = await saveQuoteAction({ items: items.map((x) => ({ kind: x.models.length ? 'modelo' : 'manual', description: x.description, qty: x.qty, materialId: x.materialId, color: x.color, machineId: x.machineId, processProfileId: x.processProfileId, mode: x.mode, gramsTotal: x.gramsTotal, hoursTotal: x.hoursTotal, origin: x.origin as any, postMinutes: x.postMinutes, postSupplies: x.postSupplies, prepMinutes: x.prepMinutes, shipping: x.shipping, finalUnit: x.finalUnit, sliceRunId: x.sliceRunId, models: x.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })) })) });
-    setBusy(false); if (!r.ok) toast.push(r.error, 'err'); else router.push(`/presupuestos/${r.data}`);
+    // con éxito el botón sigue deshabilitado hasta que llega la página nueva (un segundo toque crearía otro presupuesto)
+    if (!r.ok) { setBusy(false); toast.push(r.error, 'err'); } else router.push(`/presupuestos/${r.data.id}`);
   };
   return (
     <div className="space-y-4">

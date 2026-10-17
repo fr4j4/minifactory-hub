@@ -6,7 +6,7 @@ import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { cancelJob, createJob } from './production';
-import { loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
+import { customerPriceAdj, loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 
@@ -27,11 +27,7 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
   const discount = Math.max(0, Math.round(input.discount ?? 0));
   const ctx = await pricingContext();
   const db = ctx.db; const rt = ctx.settings.rates;
-  let adj = 0;
-  if (input.customerId) {
-    const [c] = await db.select().from(s.customers).where(eq(s.customers.id, input.customerId));
-    if (c?.priceListId) { const [pl] = await db.select().from(s.priceLists).where(eq(s.priceLists.id, c.priceListId)); adj = pl?.adjustPct ?? 0; }
-  }
+  const adj = await customerPriceAdj(db, input.customerId);
   const priced = [] as Array<{ it: ItemInput; p: Awaited<ReturnType<typeof priceItem>>; finalUnit: number }>;
   const lines: QuoteLine[] = [];
   for (const it of input.items) {

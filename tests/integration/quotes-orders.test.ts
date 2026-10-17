@@ -5,8 +5,9 @@ import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
 import { cancelOrder, createOrder, planProduction, setOrderStatus } from '@/lib/services/orders';
 import { cancelJob, createJob, finishJob, moveJob, startJob } from '@/lib/services/production';
+import { loadQuote, newQuoteVersion, previewRecalc, saveQuote, sendQuote } from '@/lib/services/quotes';
 
-let admin: any; let db: Awaited<ReturnType<typeof getDb>>; let pla: any; let a1: any; let ender: any;
+let admin: any; let ventas: any; let db: Awaited<ReturnType<typeof getDb>>; let pla: any; let a1: any; let ender: any;
 const U = (u: any) => ({ id: u.id, role: u.role, permOverrides: {} });
 const line = (o: any = {}) => ({ description: 'Pieza', qty: 1, materialId: pla.id, machineId: a1.id, mode: 'manual' as const, gramsTotal: 40, hoursTotal: 2, ...o });
 const order = async (id: string) => (await db.select().from(s.orders).where(eq(s.orders.id, id)))[0];
@@ -15,7 +16,8 @@ const job = async (id: string) => (await db.select().from(s.printJobs).where(eq(
 beforeAll(async () => {
   fs.rmSync('data/test-storage', { recursive: true, force: true });
   await seedDemo(); db = await getDb();
-  admin = U((await db.select().from(s.users)).find((u) => u.role === 'admin'));
+  const users = await db.select().from(s.users);
+  admin = U(users.find((u) => u.role === 'admin')); ventas = U(users.find((u) => u.role === 'ventas'));
   pla = (await db.select().from(s.materials).where(eq(s.materials.colorName, 'Negro'))).find((m) => m.type === 'PLA');
   const ms = await db.select().from(s.machines); a1 = ms.find((m) => m.name.startsWith('Bambu')); ender = ms.find((m) => m.name.startsWith('Ender'));
 });
@@ -82,5 +84,38 @@ describe('estados del pedido', () => {
     await expect(cancelOrder(c, 'x', admin)).rejects.toThrow();
     expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, v.id)))[0].reserved).toBe(2);
     expect(other).toBeTruthy();
+  });
+});
+
+describe('guardar presupuestos', () => {
+  const count = async () => (await db.select({ id: s.quotes.id }).from(s.quotes)).length;
+  it('un guardado rechazado (bajo el costo) no deja presupuesto ni líneas a medias', async () => {
+    const n0 = await count();
+    await expect(saveQuote({ items: [line({ finalUnit: 500 })] }, ventas)).rejects.toThrow(/bajo el costo/);
+    expect(await count()).toBe(n0);
+    const id = await saveQuote({ items: [line({ finalUnit: 30000 })] }, ventas);
+    const before = (await loadQuote(id))!;
+    await expect(saveQuote({ id, items: [{ ...line({ finalUnit: 500 }), id: before.items[0].id }] }, ventas)).rejects.toThrow(/bajo el costo/);
+    const after = (await loadQuote(id))!;
+    expect(after.items[0].finalUnit).toBe(30000); expect(after.quote.total).toBe(before.quote.total);
+  });
+  it('las líneas conservan su id entre guardados y el historial de precio no se repite', async () => {
+    const id = await saveQuote({ items: [line({ finalUnit: 25000 })] }, admin);
+    const it0 = (await loadQuote(id))!.items[0];
+    for (let k = 0; k < 2; k++) await saveQuote({ id, items: [{ ...line({ finalUnit: 25000 }), id: it0.id }] }, admin);
+    const d = (await loadQuote(id))!;
+    expect(d.items[0].id).toBe(it0.id);
+    expect((await db.select().from(s.priceAdjustments).where(eq(s.priceAdjustments.ownerId, it0.id))).length).toBe(1);
+    expect((d.quote.calc as any).lines[0].id).toBe(it0.id);
+  });
+  it('una versión nueva conserva el IVA y la vista previa usa la urgencia', async () => {
+    const id = await saveQuote({ applyTax: true, urgency: '48h', items: [line()] }, admin); await sendQuote(id, admin.id);
+    const v2 = await newQuoteVersion(id, admin);
+    expect((await loadQuote(v2))!.quote.applyTax).toBe(true);
+    const id3 = await saveQuote({ urgency: '48h', items: [line({ gramsTotal: 100, hoursTotal: 3 })] }, admin); await sendQuote(id3, admin.id);
+    expect((await previewRecalc(id3))!.delta).toBe(0);
+  });
+  it('un total fijado menor que el envío se rechaza', async () => {
+    await expect(saveQuote({ finalTotal: 3000, items: [line({ shipping: 5000 })] }, admin)).rejects.toThrow(/envío/);
   });
 });

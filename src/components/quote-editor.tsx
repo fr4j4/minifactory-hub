@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcQuote } from '@/lib/pricing';
+import { calcQuote, roundPrice } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import type { ModelBrief } from '@/actions/quotes';
 import { saveQuoteAction } from '@/actions/quotes';
@@ -28,14 +28,16 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   const idRef = useRef(initial.id);
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
   const cust = customers.find((c) => c.id === q.customerId); const adj = cust?.priceAdj ?? 0;
-  const set = useCallback((p: Partial<QuoteState>) => { setQ((x) => ({ ...x, ...p })); setDirty(true); }, []);
-  const setItem = (uidv: string, p: Partial<ItemState>) => { setQ((x) => ({ ...x, items: x.items.map((i) => (i.uid === uidv ? { ...i, ...p } : i)) })); setDirty(true); };
+  // cada edición sube la revisión: un guardado solo marca «guardado» si nada cambió mientras viajaba
+  const rev = useRef(0);
+  const set = useCallback((p: Partial<QuoteState>) => { setQ((x) => ({ ...x, ...p })); setDirty(true); rev.current++; }, []);
+  const setItem = (uidv: string, p: Partial<ItemState>) => { setQ((x) => ({ ...x, items: x.items.map((i) => (i.uid === uidv ? { ...i, ...p } : i)) })); setDirty(true); rev.current++; };
 
-  // totales en vivo (el servidor recalcula con los mismos datos)
+  // totales en vivo (el servidor recalcula con las mismas fórmulas y redondeo al guardar)
   const calc = useMemo(() => {
-    const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost - (it.shipping ?? 0), shipping: it.shipping }; });
+    const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; });
     const urg = ctx.urgency.find((u) => u.key === q.urgency)?.pct ?? 0;
-    if (urg) for (const l of lines) l.suggestedUnit = Math.round(l.suggestedUnit * (1 + urg / 100) / 10) * 10;
+    if (urg) for (const l of lines) l.suggestedUnit = roundPrice(l.suggestedUnit * (1 + urg / 100), ctx.rates.rounding);
     return calcQuote(lines, ctx.rates, { discount: q.discount, finalTotalOverride: q.finalTotal, applyTax: q.applyTax });
   }, [q.items, q.discount, q.finalTotal, q.applyTax, q.urgency, ctx, adj, vById]);
 
@@ -51,13 +53,19 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
     if (inflight.current) { if (silent) return null; await inflight.current; }
     const run = (async () => {
       setSaving(true);
-      const r = await saveQuoteAction(payload(qRef.current));
+      const r0 = rev.current; const sent = qRef.current;
+      const r = await saveQuoteAction(payload(sent));
       setSaving(false);
       if (!r.ok) { if (!silent) toast.push(r.error, 'err'); return null; }
-      setDirty(false); setSavedAt(new Date());
-      if (!idRef.current) { idRef.current = r.data; window.history.replaceState(null, '', `/presupuestos/${r.data}`); }
+      // las líneas nuevas reciben su id: el próximo guardado las reconoce (historial de precio, enlaces)
+      const ids = new Map(sent.items.map((i, k) => [i.uid, r.data.itemIds[k]]));
+      setQ((x) => ({ ...x, items: x.items.map((i) => (ids.get(i.uid) && !i.id ? { ...i, id: ids.get(i.uid) } : i)) }));
+      if (rev.current === r0) setDirty(false); // si se editó durante el guardado, queda pendiente y el autoguardado vuelve a correr
+      setSavedAt(new Date());
+      if (!idRef.current) { idRef.current = r.data.id; window.history.replaceState(null, '', `/presupuestos/${r.data.id}`); }
+      else if (initial.id) router.refresh(); // en /presupuestos/[id]: actualiza total y mensajes de la cabecera (en /nuevo volvería a montar el editor)
       if (!silent) toast.push(t('quotes.quoteSaved'));
-      return r.data;
+      return r.data.id;
     })();
     inflight.current = run;
     try { return await run; } finally { if (inflight.current === run) inflight.current = null; }

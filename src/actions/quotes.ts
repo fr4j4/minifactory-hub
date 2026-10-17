@@ -1,5 +1,5 @@
 'use server';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { requirePerm } from '@/lib/auth';
 import { canSetFinalPrice } from '@/lib/perm';
@@ -9,12 +9,17 @@ import { safe } from './common';
 import { getT } from '@/i18n/server';
 import { normalizeLicense } from '@/lib/library/source';
 
+/** Guarda el borrador y devuelve los ids de sus líneas (en el orden enviado) para que el editor los conserve. */
 export async function saveQuoteAction(input: QuoteInput) {
   return safe(async () => {
     const u = await requirePerm('presupuestos', input.id ? 'E' : 'C');
     if (!canSetFinalPrice(u)) { for (const it of input.items) it.finalUnit = null; input.finalTotal = null; }
-    return saveQuote(input, u);
-  }, ['/presupuestos']);
+    const id = await saveQuote(input, u);
+    const db = await getDb();
+    const itemIds = (await db.select({ id: s.quoteItems.id }).from(s.quoteItems).where(eq(s.quoteItems.quoteId, id)).orderBy(asc(s.quoteItems.position))).map((r) => r.id);
+    return { id, itemIds };
+    // sin revalidar: en /presupuestos/nuevo eso volvería a montar el editor y borraría lo escrito durante el guardado
+  });
 }
 export async function sendQuoteAction(id: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await sendQuote(id, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }
 export async function rejectQuoteAction(id: string, reason: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await rejectQuote(id, reason, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }

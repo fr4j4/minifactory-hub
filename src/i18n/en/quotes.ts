@@ -117,6 +117,7 @@ export const quotes: Shape<typeof es['quotes']> = {
   theQuoteHasAlreadyBeen: 'The quote has already been sent or approved: create a new version to modify it',
   theFinalPriceIsBelow2: 'The final price is below cost. Selling below cost requires Administrator authorization.',
   enterTheReasonForThe: 'Enter the reason for the price: it is below cost.',
+  finalTotalBelowShipping: 'The fixed total cannot be lower than the shipping.',
   quoteNotFound: 'Quote not found',
   markedAsSentPricesAnd2: 'Marked as sent: prices and costs are now frozen',
   newVersionCreated2: 'New version created',
