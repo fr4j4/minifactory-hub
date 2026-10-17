@@ -29,7 +29,7 @@ export function OrderForm({ ctx, customers, models, variants, showCosts, canPric
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
   const adj = customers.find((c) => c.id === cust.customerId)?.priceAdj ?? 0;
   const setItem = (id: string, p: Partial<ItemState>) => setItems((x) => x.map((i) => (i.uid === id ? { ...i, ...p } : i)));
-  const tt = useMemo(() => calcQuote(items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost - it.shipping, shipping: it.shipping }; }), ctx.rates, { discount }), [items, ctx, adj, vById, discount]);
+  const tt = useMemo(() => calcQuote(items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; }), ctx.rates, { discount }), [items, ctx, adj, vById, discount]);
   const save = async () => {
     setBusy(true);
     const r = await createOrderAction({
@@ -37,8 +37,8 @@ export function OrderForm({ ctx, customers, models, variants, showCosts, canPric
       deposit: dep > 0 ? { amount: dep, method } : null,
       items: items.map((i) => ({ kind: i.kind, description: i.description || (i.variantId ? vById[i.variantId]?.label : t('common.order')), qty: i.qty, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
     });
-    setBusy(false);
-    if (!r.ok) { toast.push(r.error, 'err'); return; }
+    // con éxito el botón sigue deshabilitado hasta que llega la página nueva (un segundo toque registraría otro pedido)
+    if (!r.ok) { setBusy(false); toast.push(r.error, 'err'); return; }
     toast.push(t('orders.orderRegistered')); router.push(`/pedidos/${r.data}`);
   };
   return (

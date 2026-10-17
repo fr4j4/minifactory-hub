@@ -1,5 +1,5 @@
 import net from 'node:net';
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit } from '../audit';
@@ -53,6 +53,8 @@ export async function connectPrinter(i: ConnectInput) {
   let fp: string | null = null; test.on('fingerprint', (f) => { fp = f; });
   test.connect();
   let st; try { st = await test.waitReady(12_000); } finally { test.close(); }
+  // máquina nueva + vínculo en una transacción: si el vínculo falla no queda una máquina huérfana
+  const { link, machineId } = await (await getDb()).transaction(async (db) => {
   let machineId = i.machineId ?? null;
   if (machineId) {
     const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m) throw new Error(t('machines.machineNotFound'));
@@ -74,6 +76,8 @@ export async function connectPrinter(i: ConnectInput) {
     mqttPort: i.mqttPort ?? 8883, cameraPort: i.cameraPort ?? null, ftpPort: i.ftpPort ?? 990, fingerprint: fp, lastStatus: st as unknown as Record<string, any>, lastSeenAt: new Date(), createdBy: i.userId ?? null,
   }).returning();
   await db.update(s.machines).set({ serial, connection: { vendor: 'bambu', linkId: link.id }, status: st.state === 'RUNNING' ? 'imprimiendo' : st.state === 'PAUSE' ? 'pausada' : 'disponible', updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  return { link, machineId };
+  });
   await audit('printer_link', link.id, 'conectar', { serial, host, model: i.model }, i.userId);
   await reloadLink(link.id);
   return { linkId: link.id, machineId };
@@ -96,7 +100,8 @@ export async function updatePrinter(id: string, p: { host?: string; accessCode?:
 
 export async function removePrinter(id: string, userId?: string | null) {
   const db = await getDb(); const [l] = await db.select().from(s.printerLinks).where(eq(s.printerLinks.id, id)); if (!l) return;
-  await db.update(s.printerLinks).set({ deletedAt: new Date(), enabled: false }).where(eq(s.printerLinks.id, id));
+  // el serial queda con sufijo (como los códigos de bobina): el índice único no impide volver a conectar la misma impresora
+  await db.update(s.printerLinks).set({ deletedAt: new Date(), enabled: false, serial: sql`${s.printerLinks.serial} || ${'~' + Date.now().toString(36)}` }).where(eq(s.printerLinks.id, id));
   await db.update(s.machines).set({ connection: {} }).where(eq(s.machines.id, l.machineId));
   await audit('printer_link', id, 'desconectar', {}, userId);
   await reloadLink(id);
@@ -252,6 +257,7 @@ export async function addCloudPrinter(i: { accountId: string; serial: string; na
   const [dup] = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.serial, d.serial), isNull(s.printerLinks.deletedAt)));
   if (dup) throw new Error(t('machines.thisPrinterIsAlreadyConnected'));
   const md = modelFromCode(d.model, d.serial);
+  const { link, machineId } = await db.transaction(async (db) => {
   let machineId = i.machineId ?? null;
   if (machineId) {
     const [taken] = await db.select().from(s.printerLinks).where(and(eq(s.printerLinks.machineId, machineId), isNull(s.printerLinks.deletedAt)));
@@ -264,6 +270,8 @@ export async function addCloudPrinter(i: { accountId: string; serial: string; na
   }
   const [link] = await db.insert(s.printerLinks).values({ workspaceId: WORKSPACE_ID, machineId, mode: 'cloud', cloudAccountId: i.accountId, serial: d.serial, host: null, accessCodeEnc: seal(d.accessCode ?? ''), model: d.model, name: i.name?.trim() || d.name, createdBy: i.userId ?? null }).returning();
   await db.update(s.machines).set({ serial: d.serial, connection: { vendor: 'bambu', linkId: link.id, mode: 'cloud' }, updatedAt: new Date() }).where(eq(s.machines.id, machineId));
+  return { link, machineId };
+  });
   await audit('printer_link', link.id, 'conectar_nube', { serial: d.serial, accountId: i.accountId }, i.userId);
   await reloadLink(link.id);
   return { linkId: link.id, machineId };

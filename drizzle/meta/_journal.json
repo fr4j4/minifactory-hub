@@ -155,6 +155,13 @@
       "when": 1792210000000,
       "tag": "0021_cola_global",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792220000000,
+      "tag": "0022_trabajos_piezas_buenas",
+      "breakpoints": true
     }
   ]
 }

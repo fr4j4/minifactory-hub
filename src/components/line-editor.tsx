@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { calcLine, estimateFromMesh, type CostBreakdown } from '@/lib/pricing';
+import { calcLine, estimateFromMesh, roundPrice, type CostBreakdown } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import { cn, dur, grams, money, num, pct } from '@/lib/format';
 import { Icon } from '@/components/shell';
@@ -24,13 +24,13 @@ import type { ItemState } from '@/lib/item-state';
 export function computeItem(it: ItemState, ctx: CalcContext, priceAdj = 0, variantInfo?: { price: number; avgCost: number }): { bd: CostBreakdown; suggestedUnit: number; cost: number } {
   const qty = Math.max(1, it.qty);
   if (it.variantId && variantInfo) {
-    const price = Math.round(variantInfo.price * (1 + priceAdj / 100) / 10) * 10;
+    const price = priceAdj ? roundPrice(variantInfo.price * (1 + priceAdj / 100), ctx.rates.rounding) : variantInfo.price;
     const cost = variantInfo.avgCost * qty;
     return { bd: { material: 0, machine: 0, energy: 0, prep: 0, post: 0, failure: 0, cost, marginPct: 0, urgencyPct: 0, volumePct: 0, priceBeforeRound: price * qty, suggestedTotal: price * qty, suggestedUnit: price, shipping: it.shipping, hoursEffective: 0, gramsEffective: 0 }, suggestedUnit: price, cost };
   }
   const mat = ctx.materials.find((m) => m.id === it.materialId); const mach = ctx.machines.find((m) => m.id === it.machineId);
   const bd = calcLine({ qty, gramsTotal: it.gramsTotal, hoursTotal: it.hoursTotal, costPerKg: mat?.costPerKg ?? 0, machine: mach?.cost ?? null, prepMinutes: it.prepMinutes, postMinutesPerUnit: it.postMinutes, postSuppliesPerUnit: it.postSupplies, shipping: it.shipping, applyTimeFactor: it.mode !== 'manual' }, ctx.rates);
-  const unit = priceAdj ? Math.round(bd.suggestedUnit * (1 + priceAdj / 100) / 10) * 10 : bd.suggestedUnit;
+  const unit = priceAdj ? roundPrice(bd.suggestedUnit * (1 + priceAdj / 100), ctx.rates.rounding) : bd.suggestedUnit;
   return { bd, suggestedUnit: unit, cost: bd.cost };
 }
 
@@ -49,7 +49,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   const { bd, suggestedUnit, cost } = useMemo(() => computeItem(it, ctx, priceAdj, vInfo), [it, ctx, priceAdj, vInfo]);
   const qty = Math.max(1, it.qty);
   const finalUnit = it.finalUnit ?? suggestedUnit; const netUnit = finalUnit;
-  const margin = netUnit > 0 ? ((netUnit * qty - (cost - (it.shipping ?? 0))) / (netUnit * qty)) * 100 : null;
+  const margin = netUnit > 0 ? ((netUnit * qty - cost) / (netUnit * qty)) * 100 : null;
   const diff = suggestedUnit > 0 ? ((finalUnit - suggestedUnit) / suggestedUnit) * 100 : 0;
   const belowMin = margin != null && margin < ctx.rates.minMarginPct; const belowCost = margin != null && margin < 0;
   const mats = ctx.materials; const mach = ctx.machines.find((m) => m.id === it.machineId); const mat = mats.find((m) => m.id === it.materialId);

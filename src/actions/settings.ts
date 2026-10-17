@@ -12,6 +12,7 @@ export async function saveSettingsAction(patch: Partial<AppSettings>) {
   return safe(async () => {
     const u = await requirePerm('config', 'E');
     const { ai: _ignored, ...safePatch } = patch as Partial<AppSettings>; // la IA se guarda solo con saveAiSettingsAction
+    if (patch.numbering && Object.values(patch.numbering).some((f) => !String(f).includes('{YYYY}') || !/\{N+\}/.test(String(f)))) throw new Error((await getT())('settings.numberingNeedsYear'));
     const before = await getSettings(); const next = await saveSettings(safePatch);
     if (patch.rates) await audit('settings', null, 'tarifas', { before: before.rates, after: next.rates }, u.id);
     return true;

@@ -26,7 +26,6 @@ test('pedido: cancelar un trabajo permite lanzar la línea de nuevo, sin duplica
   await page.getByTestId('launch-line').click(); // lanzar solo esa línea
   await expect(page.getByTestId('launch-line')).toBeHidden(); await expect(page.getByTestId('plan-production')).toBeHidden();
   await page.goto('/cola'); await expect(page.getByTestId('job-card').filter({ hasText: 'Pieza relanzable' })).toHaveCount(1); // un solo trabajo vivo
-  await page.goto(orderUrl); await page.getByTestId('requeue-job').click(); // relanzar el cancelado duplicaría la línea: se rechaza
-  await page.goto('/cola'); await expect(page.getByTestId('job-card').filter({ hasText: 'Pieza relanzable' })).toHaveCount(1);
-  await page.getByTestId('job-card').filter({ hasText: 'Pieza relanzable' }).getByRole('button', { name: /^Cancelar/ }).click(); // deja la cola como estaba
+  await page.goto(orderUrl); await expect(page.getByTestId('requeue-job')).toBeHidden(); // relanzar el cancelado duplicaría la línea: ya no se ofrece (requeueJob también lo rechaza)
+  await page.goto('/cola'); await page.getByTestId('job-card').filter({ hasText: 'Pieza relanzable' }).getByRole('button', { name: /^Cancelar/ }).click(); // deja la cola como estaba
 });

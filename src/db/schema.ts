@@ -540,6 +540,7 @@ export const printJobs = pgTable('print_jobs', {
   estH: doublePrecision('est_h').notNull().default(0),
   realH: doublePrecision('real_h'),
   result: text('result'), // exito | falla_parcial | falla_total
+  qtyGood: integer('qty_good'), // piezas buenas al cerrar (null: trabajo sin cerrar o anterior a este dato)
   failCause: text('fail_cause'),
   failCode: text('fail_code'), // catálogo cerrado (lib/production/fail-causes.ts); fail_cause guarda el detalle libre
   failCharge: text('fail_charge'), // taller | pedido

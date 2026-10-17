@@ -154,6 +154,7 @@ export const settings = {
   templatesNote: 'Los mensajes se copian o se abren en WhatsApp: no se envía nada automáticamente.',
   numberingExample: 'Ej.',
   numberingExample2: 'genera P-2026-0001 y reinicia cada año.',
+  numberingNeedsYear: 'Cada numeración debe incluir {YYYY} y {NNNN}: el contador reinicia cada año y sin el año los números se repetirían.',
   channelKind: {
     directo: 'Directo',
     marketplace: 'Marketplace',

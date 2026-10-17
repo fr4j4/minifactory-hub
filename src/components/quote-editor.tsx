@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcQuote } from '@/lib/pricing';
+import { calcQuote, roundPrice } from '@/lib/pricing';
 import type { CalcContext } from '@/lib/context';
 import type { ModelBrief } from '@/actions/quotes';
 import { saveQuoteAction } from '@/actions/quotes';
+import { draftFlush } from './quote-actions';
 import type { LinkRow } from '@/actions/links';
 import { computeItem, LineEditor, newItem, uid, type ItemState } from './line-editor';
 import { CustomerPicker, SourceSelect, type CustomerOpt } from './customer-picker';
@@ -19,23 +20,32 @@ import { DateInput } from '@/components/date-input';
 export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; applyTax: boolean; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
 export type VariantOpt = { id: string; label: string; price: number; avgCost: number; stock: number };
 
+/**
+ * El primer guardado en /presupuestos/nuevo cambia la URL a /presupuestos/<id> y Next monta otra vez el editor con lo que vino del servidor.
+ * Lo escrito mientras viajaba ese guardado pasa al editor nuevo por aquí (vive en memoria del navegador, solo entre esos dos montajes).
+ */
+const handoff = new Map<string, QuoteState>();
+
 export function QuoteEditor({ initial, ctx, customers, models, variants, showCosts, canPrice, number, version }: { initial: QuoteState; ctx: CalcContext; customers: CustomerOpt[]; models: ModelBrief[]; variants: VariantOpt[]; showCosts: boolean; canPrice: boolean; number?: string; version?: number }) {
   const t = useT(); const locale = useLocale();
   const router = useRouter(); const toast = useToast();
-  const [q, setQ] = useState<QuoteState>(initial); const [dirty, setDirty] = useState(false); const [saving, setSaving] = useState(false); const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [pending] = useState(() => { const h = initial.id ? handoff.get(initial.id) : undefined; if (h) handoff.delete(initial.id!); return h; });
+  const [q, setQ] = useState<QuoteState>(pending ?? initial); const [dirty, setDirty] = useState(!!pending); const [saving, setSaving] = useState(false); const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [addProd, setAddProd] = useState(false);
   const qRef = useRef(q); qRef.current = q;
-  const idRef = useRef(initial.id);
+  const idRef = useRef(initial.id); const created = useRef(false);
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
   const cust = customers.find((c) => c.id === q.customerId); const adj = cust?.priceAdj ?? 0;
-  const set = useCallback((p: Partial<QuoteState>) => { setQ((x) => ({ ...x, ...p })); setDirty(true); }, []);
-  const setItem = (uidv: string, p: Partial<ItemState>) => { setQ((x) => ({ ...x, items: x.items.map((i) => (i.uid === uidv ? { ...i, ...p } : i)) })); setDirty(true); };
+  // cada edición sube la revisión: un guardado solo marca «guardado» si nada cambió mientras viajaba
+  const rev = useRef(0);
+  const set = useCallback((p: Partial<QuoteState>) => { setQ((x) => ({ ...x, ...p })); setDirty(true); rev.current++; }, []);
+  const setItem = (uidv: string, p: Partial<ItemState>) => { setQ((x) => ({ ...x, items: x.items.map((i) => (i.uid === uidv ? { ...i, ...p } : i)) })); setDirty(true); rev.current++; };
 
-  // totales en vivo (el servidor recalcula con los mismos datos)
+  // totales en vivo (el servidor recalcula con las mismas fórmulas y redondeo al guardar)
   const calc = useMemo(() => {
-    const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost - (it.shipping ?? 0), shipping: it.shipping }; });
+    const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; });
     const urg = ctx.urgency.find((u) => u.key === q.urgency)?.pct ?? 0;
-    if (urg) for (const l of lines) l.suggestedUnit = Math.round(l.suggestedUnit * (1 + urg / 100) / 10) * 10;
+    if (urg) for (const l of lines) l.suggestedUnit = roundPrice(l.suggestedUnit * (1 + urg / 100), ctx.rates.rounding);
     return calcQuote(lines, ctx.rates, { discount: q.discount, finalTotalOverride: q.finalTotal, applyTax: q.applyTax });
   }, [q.items, q.discount, q.finalTotal, q.applyTax, q.urgency, ctx, adj, vById]);
 
@@ -47,24 +57,39 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   // un guardado manual no se pierde si coincide con el autoguardado: espera a que termine por completo
   // (incluido el id del presupuesto recién creado) y vuelve a guardar con los datos actuales
   const inflight = useRef<Promise<string | null> | null>(null);
-  const save = useCallback(async (silent = false): Promise<string | null> => {
+  const save = useCallback(async (silent = false, quietOk = silent): Promise<string | null> => {
     if (inflight.current) { if (silent) return null; await inflight.current; }
     const run = (async () => {
       setSaving(true);
-      const r = await saveQuoteAction(payload(qRef.current));
+      const r0 = rev.current; const sent = qRef.current;
+      const r = await saveQuoteAction(payload(sent));
       setSaving(false);
       if (!r.ok) { if (!silent) toast.push(r.error, 'err'); return null; }
-      setDirty(false); setSavedAt(new Date());
-      if (!idRef.current) { idRef.current = r.data; window.history.replaceState(null, '', `/presupuestos/${r.data}`); }
-      if (!silent) toast.push(t('quotes.quoteSaved'));
-      return r.data;
+      // las líneas nuevas reciben su id: el próximo guardado las reconoce (historial de precio, enlaces)
+      const ids = new Map(sent.items.map((i, k) => [i.uid, r.data.itemIds[k]]));
+      setQ((x) => ({ ...x, items: x.items.map((i) => (ids.get(i.uid) && !i.id ? { ...i, id: ids.get(i.uid) } : i)) }));
+      if (rev.current === r0) setDirty(false); // si se editó durante el guardado, queda pendiente y el autoguardado vuelve a correr
+      setSavedAt(new Date());
+      // Next sigue la URL nueva y monta el editor de /presupuestos/[id]; lo pendiente pasa por `handoff`
+      if (!idRef.current) { idRef.current = r.data.id; created.current = true; window.history.replaceState(null, '', `/presupuestos/${r.data.id}`); }
+      if (!quietOk) toast.push(t('quotes.quoteSaved'));
+      return r.data.id;
     })();
     inflight.current = run;
     try { return await run; } finally { if (inflight.current === run) inflight.current = null; }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // «El cliente aceptó» en la cabecera: primero se guarda lo pendiente, para aprobar exactamente lo que se ve
+  const live = useRef({ dirty, total: calc.total }); live.current = { dirty, total: calc.total };
+  useEffect(() => {
+    draftFlush.current = async () => ((live.current.dirty || inflight.current) && !(await save(false, true)) ? null : live.current.total);
+    return () => { draftFlush.current = null; };
+  }, [save]);
+  useEffect(() => () => { if (created.current && live.current.dirty && idRef.current) handoff.set(idRef.current, qRef.current); }, []);
   // guardado automático de borradores
-  useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (qRef.current.items.length) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
+  // un presupuesto nuevo con solo líneas vacías no se guarda: abrir el formulario y salir no deja un borrador ni gasta un número
+  const worthSaving = (x: QuoteState) => x.items.length > 0 && (!!idRef.current || x.items.some((i) => i.description.trim() || i.gramsTotal > 0 || i.variantId || i.models.length || i.finalUnit != null));
+  useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (worthSaving(qRef.current)) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);
 
   const addItem = () => set({ items: [...q.items.map((i) => ({ ...i, open: false })), newItem(ctx)] });

@@ -16,7 +16,7 @@ export function RepairButton({ versionId }: { versionId: string }) {
       <Modal open={!!rep} onClose={() => { setRep(null); router.refresh(); }} title={t('files.repairDone')}>
         {rep && <div className="space-y-2 text-sm" data-testid="repair-report">
           <p>{rep.closedAfter ? t('files.repairClosed') : t('files.repairStillOpen')}</p>
-          <ul className="list-disc pl-5"><li>{t('files.repairRemoved', { n: rep.removed })}</li><li>{t('files.repairFlipped', { n: rep.flipped })}</li><li>{t('files.repairHoles', { n: rep.holesFilled })}{rep.holesLeft > 0 && ` · ${t('files.repairHolesLeft', { n: rep.holesLeft })}`}</li>{rep.invertedAll && <li>{t('files.repairInverted')}</li>}</ul>
+          <ul className="list-disc pl-5"><li>{t('files.repairRemoved', { count: rep.removed, n: rep.removed })}</li><li>{t('files.repairFlipped', { count: rep.flipped, n: rep.flipped })}</li><li>{t('files.repairHoles', { count: rep.holesFilled, n: rep.holesFilled })}{rep.holesLeft > 0 && ` · ${t('files.repairHolesLeft', { count: rep.holesLeft, n: rep.holesLeft })}`}</li>{rep.invertedAll && <li>{t('files.repairInverted')}</li>}</ul>
           <p className="muted text-xs">{t('files.repairNote')}</p>
           <div className="flex justify-end"><button className="btn-primary" onClick={() => { setRep(null); router.refresh(); }}>{t('common.close')}</button></div>
         </div>}

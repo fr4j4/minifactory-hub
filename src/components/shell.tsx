@@ -1,5 +1,5 @@
 'use client';
-import { Bell, Box, Calculator, Camera, ChartColumn, ClipboardList, FileText, House, Image, Layers, ListOrdered, Menu, Package, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Users, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Bell, Box, Calculator, Camera, ChartColumn, Check, ChevronDown, ChevronRight, ChevronsLeft, ChevronsRight, ClipboardList, Copy, FileText, House, Image, Layers, ListOrdered, Menu, Package, Plus, Printer, QrCode, Search, Settings, ShoppingBag, ShoppingCart, Star, Users, X, type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
@@ -13,6 +13,7 @@ export interface NavItem { href: string; label: string; icon: string; group: 'ma
 const ICONS: Record<string, LucideIcon> = {
   home: House, orders: ClipboardList, quote: FileText, calc: Calculator, users: Users, cube: Box, slice: Layers, box: Package, bag: ShoppingBag, cart: ShoppingCart, printer: Printer, queue: ListOrdered,
   image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
+  x: X, copy: Copy, check: Check, star: Star, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
 };
 export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {
   const C = ICONS[name] ?? Package;
@@ -56,7 +57,8 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
     window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
   }, []);
   const active = (href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(href + '/'));
-  const bottom = ['/', '/pedidos', '/cola', '/inventario'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[];
+  // 4 casillas + el botón central caben en grid-cols-5 (con una más, la barra se parte en dos filas y tapa los botones fijos); inventario queda en «Más»
+  const bottom = ['/', '/pedidos', '/cola'].map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[];
   const quick = [
     { href: '/pedidos/nuevo', label: t('shell.quickNewOrder'), icon: 'orders' }, { href: '/ventas/nueva', label: t('shell.quickQuickSale'), icon: 'cart' },
     { href: '/presupuestos/nuevo', label: t('shell.quickNewQuote'), icon: 'quote' }, { href: '/calculadora', label: t('shell.quickCalculator'), icon: 'calc' },

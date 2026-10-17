@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { nextNumber } from '../settings';
@@ -25,6 +25,8 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
   const db = await getDb();
   const attributes = i.mode === 'variantes' ? (i.attributes ?? []).filter((a) => a.name && a.values.length) : [];
   const vals = { name: i.name, category: i.category ?? null, description: i.description ?? null, mode: i.mode, status: i.status ?? 'activo', modelFileId: i.modelFileId ?? null, tags: i.tags ?? [], attributes, updatedAt: new Date() };
+  // producto y variantes en una transacción: si una variante falla no queda un producto sin variantes
+  const id = await db.transaction(async (db) => {
   let id = i.id;
   if (id) await db.update(s.products).set(vals).where(eq(s.products.id, id));
   else { const [p] = await db.insert(s.products).values({ workspaceId: WORKSPACE_ID, createdBy: user.id, ...vals }).returning({ id: s.products.id }); id = p.id; }
@@ -37,9 +39,10 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
     if (existing.some((e) => key(e.attrs ?? {}) === key(c))) continue;
     n++;
     const suffix = Object.values(c).map((v) => slug(v).slice(0, 3)).join('-');
-    let sku = `${prefix}${suffix ? '-' + suffix : ''}`;
-    const [dup] = await db.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1);
-    if (dup) sku = `${sku}-${n}`;
+    const base = `${prefix}${suffix ? '-' + suffix : ''}`;
+    // el SKU se prueba hasta encontrar uno libre (el primer sufijo también puede estar tomado)
+    let sku = base; let k = n;
+    while ((await db.select({ id: s.productVariants.id }).from(s.productVariants).where(and(eq(s.productVariants.workspaceId, WORKSPACE_ID), eq(s.productVariants.sku, sku))).limit(1)).length) sku = `${base}-${k++}`;
     await db.insert(s.productVariants).values({
       workspaceId: WORKSPACE_ID, productId: id!, sku, attrs: c, price: i.price ?? 0, materialId: i.materialId ?? null, weightG: i.weightG ?? 0, printH: i.printH ?? 0,
       minStock: i.minStock ?? 0, location: i.location ?? null, createdBy: user.id,
@@ -47,6 +50,8 @@ export async function saveProduct(i: ProductInput, user: User): Promise<string> 
   }
   // variantes que ya no existen en la grilla se desactivan (nunca se borran si tienen movimientos)
   for (const e of existing) if (!combos.some((c) => key(c) === key(e.attrs ?? {}))) await db.update(s.productVariants).set({ active: false }).where(eq(s.productVariants.id, e.id));
+  return id!;
+  });
   await audit('product', id!, i.id ? 'editar' : 'crear', { name: i.name, mode: i.mode }, user.id);
   return id!;
 }
@@ -108,8 +113,7 @@ export async function createSale(i: QuickSaleInput, user: User) {
   }).returning();
   for (const { v, it, unit, list } of rows) {
     await db.insert(s.saleItems).values({ workspaceId: WORKSPACE_ID, saleId: sale.id, variantId: v.id, description: it.description ?? null, qty: it.qty, listPrice: list, unitPrice: unit, frozenCost: v.avgCost });
-    const stock = Math.max(0, v.stock - it.qty);
-    await db.update(s.productVariants).set({ stock, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
+    const [{ stock }] = await db.update(s.productVariants).set({ stock: sql`greatest(0, ${s.productVariants.stock} - ${it.qty})`, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id)).returning({ stock: s.productVariants.stock });
     await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -it.qty, unitCost: v.avgCost, saleId: sale.id, reason: t('catalog.sale', { number }), createdBy: user.id });
     if (stock <= v.minStock) await notify('stock_bajo', t('catalog.lowProductStock', { sku: v.sku }), t('catalog.unitsLeftMinimumSuggestionProduc', { stock, min: v.minStock }), '/catalogo');
   }
@@ -125,14 +129,17 @@ export async function setSaleStatus(saleId: string, status: 'por_despachar' | 'd
   const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, saleId));
   if (!sale) throw new Error(t('catalog.saleNotFound'));
   if (sale.status === 'anulada') throw new Error(t('catalog.theSaleIsAlreadyVoided'));
+  // anular es condicionado: dos anulaciones simultáneas no reingresan el stock dos veces
   if (status === 'anulada') {
     if (!o.reason) throw new Error(t('catalog.enterTheReasonForVoiding'));
+    const [claimed] = await db.update(s.sales).set({ status }).where(and(eq(s.sales.id, saleId), ne(s.sales.status, 'anulada'))).returning({ id: s.sales.id });
+    if (!claimed) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
     const items = await db.select().from(s.saleItems).where(eq(s.saleItems.saleId, saleId));
     for (const it of items) {
       const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
       if (!v) continue;
       if (o.returnToStock !== false) {
-        await db.update(s.productVariants).set({ stock: v.stock + it.qty }).where(eq(s.productVariants.id, v.id));
+        await db.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.qty}` }).where(eq(s.productVariants.id, v.id));
         await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'devolucion', qty: it.qty, unitCost: it.frozenCost, saleId, reason: t('catalog.voidLabel', { sale: sale.number, reason: o.reason }), createdBy: user.id });
       } else await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, saleId, reason: t('catalog.voidWithoutRestock', { sale: sale.number, reason: o.reason }), createdBy: user.id });
     }

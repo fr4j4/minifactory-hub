@@ -50,6 +50,14 @@ describe('cola global', () => {
     await db.update(s.machines).set({ deletedAt: null }).where(eq(s.machines.id, other.id));
   });
 
+  it('un trabajo FDM no va a la impresora de resina: assignJob lo rechaza y ni createJob ni la proyección lo ponen ahí', async () => {
+    const resin = (await db.select().from(s.machines)).find((m) => m.tech === 'SLA')!;
+    const a = await mk('A'); const b = await mk('B', { machineId: resin.id });
+    await expect(assignJob(a, resin.id)).rejects.toThrow(); expect((await get(a)).machineId).toBeNull();
+    expect((await get(b)).machineId).toBeNull();
+    const plan = await projectQueue(); expect(plan.get(a)?.machineId).not.toBe(resin.id); expect(plan.get(b)?.machineId).not.toBe(resin.id);
+  });
+
   it('la proyección manda un trabajo sin asignar a la máquina que queda libre antes y respeta si la pieza cabe', async () => {
     await mk('Largo', { machineId: a1.id, estH: 6 });
     const libre = await mk('Libre', { estH: 1 }); const enorme = await mk('Enorme', { dims: [99999, 99999, 99999] });

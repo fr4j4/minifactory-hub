@@ -39,6 +39,9 @@ export function getDb(): Promise<AnyDb> {
   return g.__mfDb;
 }
 
+/** Transacción de `db.transaction(async (tx) => …)`: dentro solo se usa `tx` (en PGlite una consulta fuera de ella queda esperando). */
+export type Tx = Parameters<Parameters<AnyDb['transaction']>[0]>[0];
+
 export function driverName() { return g.__mfDriver ?? (process.env.DATABASE_URL ? 'postgres' : 'pglite'); }
 
 export * as s from './schema';
