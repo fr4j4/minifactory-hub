@@ -70,6 +70,22 @@ describe('estados del pedido', () => {
     expect((await order(oid)).status).toBe('recibido');
     expect((await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid)))[0].status).toBe('pendiente');
   });
+  it('falla parcial con reimpresión y reimpresión cancelada: la línea pasa a post-proceso y el pedido avanza', async () => {
+    const oid = await createOrder({ customerName: 'Parcial', items: [line({ qty: 4 })] }, admin);
+    const [j] = await planProduction(oid, admin); await startJob(j, { userId: admin.id });
+    const f = await finishJob(j, { result: 'falla_parcial', qtyGood: 2, reprint: true, userId: admin.id });
+    await cancelJob(f.reprintId!, admin.id);
+    expect((await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid)))[0].status).toBe('post_proceso');
+    expect((await order(oid)).status).toBe('post_proceso');
+    expect((await job(j)).qtyGood).toBe(2);
+  });
+  it('solo avances válidos de estado: no se marca listo con líneas sin imprimir ni se retrocede', async () => {
+    const oid = await createOrder({ customerName: 'Transiciones', items: [line()] }, admin);
+    await expect(setOrderStatus(oid, 'listo', admin)).rejects.toThrow();
+    const [j] = await planProduction(oid, admin); await startJob(j, { userId: admin.id }); await finishJob(j, { result: 'exito', userId: admin.id });
+    await setOrderStatus(oid, 'listo', admin);
+    await expect(setOrderStatus(oid, 'post_proceso', admin)).rejects.toThrow();
+  });
   it('planificar dos veces a la vez no duplica los trabajos', async () => {
     const oid = await createOrder({ customerName: 'Doble plan', items: [line()] }, admin);
     const [r1, r2] = await Promise.all([planProduction(oid, admin), planProduction(oid, admin)]);
@@ -142,6 +158,33 @@ describe('aprobar presupuestos', () => {
     await expect(approveQuote(v2, ap, admin)).rejects.toThrow(/Otra versión/);
     await cancelOrder(oid, 'cambio', admin);
     expect(await approveQuote(v2, ap, admin)).toBeTruthy();
+  });
+  it('si crear el pedido falla, no queda pedido ni reserva y el presupuesto se puede aprobar otra vez', async () => {
+    const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.active, true)).limit(1);
+    await db.update(s.productVariants).set({ stock: 10, reserved: 0 }).where(eq(s.productVariants.id, v.id));
+    const id = await saveQuote({ items: [{ description: 'Stock', qty: 2, variantId: v.id, kind: 'producto' as const }] }, admin); await sendQuote(id, admin.id);
+    await expect(approveQuote(id, { ...ap, deposit: { amount: 3_000_000_000, method: 'efectivo' } }, admin)).rejects.toThrow(/abono/);
+    expect((await db.select().from(s.orders).where(eq(s.orders.quoteId, id))).length).toBe(0);
+    expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, v.id)))[0].reserved).toBe(0);
+    expect((await loadQuote(id))!.quote.status).toBe('enviado');
+    await approveQuote(id, ap, admin);
+    expect((await db.select().from(s.orders).where(eq(s.orders.quoteId, id))).length).toBe(1);
+  });
+  it('un guardado que coincide con la aprobación no reescribe el presupuesto aprobado', async () => {
+    const id = await saveQuote({ items: [line({ finalUnit: 4000 })] }, admin); await sendQuote(id, admin.id);
+    await db.update(s.quotes).set({ status: 'borrador', frozen: false }).where(eq(s.quotes.id, id));
+    const it0 = (await loadQuote(id))!.items[0];
+    await Promise.allSettled([saveQuote({ id, items: [{ ...line({ qty: 9, finalUnit: 400 }), id: it0.id }] }, admin), approveQuote(id, ap, admin)]);
+    // gane quien gane, el presupuesto aprobado y su pedido coinciden; si el guardado ganó, no hay pedido
+    const d = (await loadQuote(id))!; const [o] = await db.select().from(s.orders).where(eq(s.orders.quoteId, id));
+    if (!o) { expect(d.quote.status).toBe('borrador'); return; }
+    const [oi] = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, o.id));
+    expect(d.quote.status).toBe('aprobado'); expect(d.items[0].qty).toBe(oi.qty); expect(d.quote.total).toBe(o.total);
+  });
+  it('un costo «congelado» enviado desde el navegador se ignora', async () => {
+    const oid = await createOrder({ customerName: 'Falso', items: [{ ...line(), frozen: { suggestedUnit: 1, costTotal: 0, breakdown: {} } } as any] }, ventas);
+    const [oi] = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid));
+    expect(oi.suggestedUnit).toBeGreaterThan(1); expect(oi.costUnit).toBeGreaterThan(0);
   });
   it('el pedido usa los costos congelados del presupuesto aunque las tarifas suban', async () => {
     const id = await saveQuote({ items: [line({ gramsTotal: 200, hoursTotal: 10 })] }, ventas); await sendQuote(id, admin.id);

@@ -20,8 +20,6 @@ export interface ItemInput {
   postMinutes?: number; postSupplies?: number; prepMinutes?: number; shipping?: number;
   finalUnit?: number | null; sliceRunId?: string | null; variantId?: string | null;
   models?: ModelRef[]; links?: LinkInput[];
-  /** costos y precio sugerido ya congelados (línea que viene de un presupuesto aprobado): no se recalculan */
-  frozen?: { breakdown: CostBreakdown; suggestedUnit: number; costTotal: number };
 }
 export interface QuoteInput {
   id?: string; customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null;
@@ -142,7 +140,11 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
       const [q] = await tx.insert(s.quotes).values({ workspaceId: WORKSPACE_ID, number: number!, version: input._version?.version ?? 1, rootId: input._version?.rootId, createdBy: user.id, ...header }).returning({ id: s.quotes.id });
       quoteId = q.id;
       if (!input._version) await tx.update(s.quotes).set({ rootId: quoteId }).where(eq(s.quotes.id, quoteId));
-    } else await tx.update(s.quotes).set(header).where(eq(s.quotes.id, quoteId));
+    } else {
+      // condicionado: si otra pestaña lo envió o aprobó entretanto, no se reescriben sus líneas (lanza y se deshace la transacción)
+      const [open] = await tx.update(s.quotes).set(header).where(and(eq(s.quotes.id, quoteId), eq(s.quotes.frozen, false))).returning({ id: s.quotes.id });
+      if (!open) throw new Error(t('quotes.theQuoteHasAlreadyBeen'));
+    }
 
     // reemplazar líneas: cada línea conocida conserva su id (historial de precios, enlaces y vistas de detalle siguen apuntando a ella)
     const oldItems = await tx.select().from(s.quoteItems).where(eq(s.quoteItems.quoteId, quoteId));
