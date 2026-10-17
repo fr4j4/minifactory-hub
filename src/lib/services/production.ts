@@ -52,16 +52,19 @@ type Q = Db | Tx;
 
 export async function createJob(spec: JobSpec): Promise<string> {
   const db = await getDb();
+  let machineId = spec.machineId ?? null;
+  // una máquina eliminada o simulada no está en el tablero: el trabajo queda sin asignar y la cola le sugiere una
+  if (machineId) { const [m] = await db.select().from(s.machines).where(eq(s.machines.id, machineId)); if (!m || m.deletedAt || m.simulated) machineId = null; }
   const number = await nextNumber('job');
   const [mx] = await db.select({ n: sql<number>`coalesce(max(${s.printJobs.position}),0)` }).from(s.printJobs).where(isLive());
   const [job] = await db.insert(s.printJobs).values({
-    workspaceId: WORKSPACE_ID, number, kind: spec.kind, title: spec.title, machineId: spec.machineId ?? null, materialId: spec.materialId ?? null, position: Number(mx.n) + 1, qty: spec.qty ?? 1,
+    workspaceId: WORKSPACE_ID, number, kind: spec.kind, title: spec.title, machineId, materialId: spec.materialId ?? null, position: Number(mx.n) + 1, qty: spec.qty ?? 1,
     estG: spec.estG, estH: spec.estH, dims: spec.dims ?? null, orderId: spec.orderId ?? null, productionOrderId: spec.productionOrderId ?? null, fileVersionId: spec.fileVersionId ?? null,
     sliceRunId: spec.sliceRunId ?? null, reprintOfId: spec.reprintOfId ?? null, notes: spec.notes ?? null, createdBy: spec.userId ?? null,
   }).returning({ id: s.printJobs.id });
   for (const oi of spec.orderItemIds ?? []) await db.insert(s.jobItems).values({ workspaceId: WORKSPACE_ID, jobId: job.id, orderItemId: oi, qty: spec.qty ?? 1 });
   await scheduleQueue();
-  await audit('print_job', job.id, 'crear', { number, machineId: spec.machineId ?? null }, spec.userId);
+  await audit('print_job', job.id, 'crear', { number, machineId }, spec.userId);
   return job.id;
 }
 
@@ -185,13 +188,16 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j) throw new Error(t('queue.jobNotFound'));
+  if (j.status !== 'en_cola') throw new Error(t('queue.jobStatusChanged'));
   const machineId = o.machineId ?? j.machineId ?? (await idleMachineFor(db, j));
   if (!machineId) throw new Error(t('queue.assignAMachineBeforeStarting'));
   const [busy] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), eq(s.printJobs.status, 'imprimiendo'), ne(s.printJobs.id, jobId))).limit(1);
   if (busy) throw new Error(t('queue.theMachineIsAlreadyPrinting'));
   const spool = o.spoolId ? (await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId)))[0] : await pickSpool(j.materialId, j.estG, machineId, db);
   const now = new Date();
-  await db.update(s.printJobs).set({ status: 'imprimiendo', machineId, spoolId: spool?.id ?? null, realStart: now, updatedAt: now }).where(eq(s.printJobs.id, jobId));
+  // transición condicionada: dos clics (o dos pestañas) no inician el mismo trabajo dos veces
+  const [claimed] = await db.update(s.printJobs).set({ status: 'imprimiendo', machineId, spoolId: spool?.id ?? null, realStart: now, updatedAt: now }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, 'en_cola'))).returning({ id: s.printJobs.id });
+  if (!claimed) throw new Error(t('queue.jobStatusChanged'));
   await db.update(s.machines).set({ status: 'imprimiendo', updatedAt: now }).where(eq(s.machines.id, machineId));
   if (spool) await db.update(s.spools).set({ status: 'en_uso', machineId, openedAt: spool.openedAt ?? now.toISOString().slice(0, 10), updatedAt: now }).where(eq(s.spools.id, spool.id));
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'imprimiendo' }).where(eq(s.productionOrders.id, j.productionOrderId));
@@ -211,37 +217,40 @@ export async function finishJob(jobId: string, o: FinishInput) {
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j) throw new Error(t('queue.jobNotFound'));
   if (j.status === 'terminado' || j.status === 'fallido') throw new Error(t('queue.theJobIsAlreadyClosed'));
+  // solo se cierra un trabajo que se está imprimiendo o está en pausa (uno en cola o cancelado no consumió material)
+  if (!['imprimiendo', 'pausado'].includes(j.status)) throw new Error(t('queue.jobStatusChanged'));
   const now = new Date();
   const failed = o.result !== 'exito';
   const realH = o.realH ?? (j.realStart ? Math.max(0.01, (now.getTime() - j.realStart.getTime()) / 3600_000) : j.estH);
   const factorOnFail = o.result === 'falla_total' ? 0.5 : 0.75;
   const realG = o.realG ?? (failed ? j.estG * factorOnFail : j.estG * (1 + st.rates.wastePct / 100));
   const qtyGood = o.result === 'exito' ? j.qty : o.result === 'falla_total' ? 0 : Math.max(0, Math.min(j.qty, o.qtyGood ?? Math.floor(j.qty / 2)));
-  // consumo de material
   const spoolId = o.spoolId ?? j.spoolId ?? (await pickSpool(j.materialId, realG, j.machineId, db))?.id ?? null;
+  // cierre condicionado antes de cualquier efecto: si otra petición ya lo cerró, no se consume material dos veces
+  const [claimed] = await db.update(s.printJobs).set({
+    status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
+    failCharge: o.failCharge ?? null, spoolId, updatedAt: now,
+  }).where(and(eq(s.printJobs.id, jobId), inArray(s.printJobs.status, ['imprimiendo', 'pausado']))).returning({ id: s.printJobs.id });
+  if (!claimed) throw new Error(t('queue.theJobIsAlreadyClosed'));
+  // consumo de material
   if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
   const costPerKg = j.materialId ? await materialCostPerKg(j.materialId, db) : 0;
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
   const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
-  await db.update(s.printJobs).set({
-    status: failed && o.result === 'falla_total' ? 'fallido' : 'terminado', realEnd: now, realG, realH, result: o.result, failCause: o.failCause?.trim() || null, failCode: failed ? (isFailCode(o.failCode) ? o.failCode : normalizeFailCause(o.failCause) ?? (o.failCause?.trim() ? 'otro' : null)) : null,
-    failCharge: o.failCharge ?? null, spoolId, updatedAt: now,
-  }).where(eq(s.printJobs.id, jobId));
   // máquina: contadores y factor de corrección de tiempo
   if (m) {
     const recent = await db.select({ e: s.printJobs.estH, r: s.printJobs.realH }).from(s.printJobs).where(and(eq(s.printJobs.machineId, m.id), eq(s.printJobs.result, 'exito'))).orderBy(desc(s.printJobs.realEnd)).limit(20);
     const ratios = recent.filter((x) => x.e > 0 && x.r && x.r > 0).map((x) => x.r! / x.e).sort((a, b) => a - b);
     const factor = ratios.length >= 3 ? ratios[Math.floor(ratios.length / 2)] : m.timeFactor;
     await db.update(s.machines).set({
-      status: 'disponible', hoursTotal: m.hoursTotal + realH, jobsOk: m.jobsOk + (failed ? 0 : 1), jobsFailed: m.jobsFailed + (failed ? 1 : 0), timeFactor: factor, updatedAt: now,
+      status: 'disponible', hoursTotal: sql`${s.machines.hoursTotal} + ${realH}`, jobsOk: sql`${s.machines.jobsOk} + ${failed ? 0 : 1}`, jobsFailed: sql`${s.machines.jobsFailed} + ${failed ? 1 : 0}`, timeFactor: factor, updatedAt: now,
     }).where(eq(s.machines.id, m.id));
     await checkMaintenance(m.id);
   }
   await scheduleQueue();
   // costo real al pedido (incluye fallas)
   if (j.orderId) {
-    const [od] = await db.select().from(s.orders).where(eq(s.orders.id, j.orderId));
-    await db.update(s.orders).set({ costReal: (od?.costReal ?? 0) + line.cost, updatedAt: now }).where(eq(s.orders.id, j.orderId));
+    await db.update(s.orders).set({ costReal: sql`coalesce(${s.orders.costReal}, 0) + ${line.cost}`, updatedAt: now }).where(eq(s.orders.id, j.orderId));
   }
   // producción para stock
   if (j.productionOrderId) {
@@ -262,7 +271,9 @@ export async function finishJob(jobId: string, o: FinishInput) {
   // líneas del pedido
   const items = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
   const oiIds = items.map((i) => i.orderItemId).filter(Boolean) as string[];
-  if (oiIds.length) await db.update(s.orderItems).set({ status: failed ? 'en_cola' : 'post_proceso' }).where(inArray(s.orderItems.id, oiIds));
+  // falla sin reimpresión: si quedaron piezas buenas se aceptan; si no quedó ninguna, la línea vuelve a «pendiente» para planificarla otra vez
+  const itemStatus = !failed ? 'post_proceso' : o.reprint !== false ? 'en_cola' : qtyGood > 0 ? 'post_proceso' : 'pendiente';
+  if (oiIds.length) await db.update(s.orderItems).set({ status: itemStatus }).where(inArray(s.orderItems.id, oiIds));
   // reimpresión
   let reprintId: string | null = null;
   if (failed && o.reprint !== false) {
@@ -280,23 +291,22 @@ export async function finishJob(jobId: string, o: FinishInput) {
 
 export async function pauseJob(jobId: string) {
   const db = await getDb();
-  const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
+  const [j] = await db.update(s.printJobs).set({ status: 'pausado' }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, 'imprimiendo'))).returning();
   if (!j) return;
-  await db.update(s.printJobs).set({ status: 'pausado' }).where(eq(s.printJobs.id, jobId));
   if (j.machineId) await db.update(s.machines).set({ status: 'pausada' }).where(eq(s.machines.id, j.machineId));
 }
 export async function resumeJob(jobId: string) {
   const db = await getDb();
-  const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
+  const [j] = await db.update(s.printJobs).set({ status: 'imprimiendo' }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, 'pausado'))).returning();
   if (!j) return;
-  await db.update(s.printJobs).set({ status: 'imprimiendo' }).where(eq(s.printJobs.id, jobId));
   if (j.machineId) await db.update(s.machines).set({ status: 'imprimiendo' }).where(eq(s.machines.id, j.machineId));
 }
 export async function cancelJob(jobId: string, userId?: string | null) {
   const db = await getDb();
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j || ['terminado', 'fallido', 'cancelado'].includes(j.status)) return;
-  await db.update(s.printJobs).set({ status: 'cancelado', updatedAt: new Date() }).where(eq(s.printJobs.id, jobId));
+  const [claimed] = await db.update(s.printJobs).set({ status: 'cancelado', updatedAt: new Date() }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, j.status))).returning({ id: s.printJobs.id });
+  if (!claimed) return;
   if (j.machineId) { if (j.status === 'imprimiendo' || j.status === 'pausado') await db.update(s.machines).set({ status: 'disponible' }).where(eq(s.machines.id, j.machineId)); }
   await scheduleQueue();
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'cancelada' }).where(eq(s.productionOrders.id, j.productionOrderId));

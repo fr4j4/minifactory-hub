@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
@@ -14,7 +14,7 @@ export async function generateMetadata() { return { title: (await getT())('meta.
 export default async function QueuePage() {
   const t = await getT();
   const user = await pagePerm('cola', 'V'); const db = await getDb(); const st = await getSettings();
-  const machines = await db.select().from(s.machines).where(and(isNull(s.machines.deletedAt), eq(s.machines.simulated, false)));
+  const machines = await db.select().from(s.machines).where(and(isNull(s.machines.deletedAt), eq(s.machines.simulated, false))).orderBy(asc(s.machines.name));
   const rows = await db.select({ j: s.printJobs, o: s.orders.number, c: s.orders.customerName }).from(s.printJobs).leftJoin(s.orders, eq(s.orders.id, s.printJobs.orderId)).where(and(isNull(s.printJobs.deletedAt), inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado'])));
   const done = await db.select({ j: s.printJobs }).from(s.printJobs).where(inArray(s.printJobs.status, ['terminado', 'fallido'])).orderBy(desc(s.printJobs.realEnd)).limit(12);
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)); const spools = await db.select().from(s.spools).where(and(isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));

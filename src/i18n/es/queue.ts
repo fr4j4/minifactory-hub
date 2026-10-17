@@ -72,6 +72,7 @@ export const queue = {
   assignAMachineBeforeStarting: 'Asigna una máquina antes de iniciar',
   theMachineIsAlreadyPrinting: 'La máquina ya está imprimiendo otro trabajo',
   theJobIsAlreadyClosed: 'El trabajo ya está cerrado',
+  jobStatusChanged: 'El trabajo cambió de estado. Recarga la página.',
   job: 'Trabajo {job}',
   reprint2: '{job} (reimpresión)',
   reprintOf: 'Reimpresión de {job}',

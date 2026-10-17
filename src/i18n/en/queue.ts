@@ -75,6 +75,7 @@ export const queue: Shape<typeof es['queue']> = {
   assignAMachineBeforeStarting: 'Assign a machine before starting',
   theMachineIsAlreadyPrinting: 'The machine is already printing another job',
   theJobIsAlreadyClosed: 'The job is already closed',
+  jobStatusChanged: 'The job status changed. Reload the page.',
   job: 'Job {job}',
   reprint2: '{job} (reprint)',
   reprintOf: 'Reprint of {job}',
