@@ -65,8 +65,14 @@ describe('conector Bambu Lab (contra el simulador)', () => {
     expect(c.status.firmware).toBe('01.08.02.00');
     c.close();
     // la huella queda fijada: con otra distinta se rechaza (certificado cambiado)
+    // y el código de acceso no sale: la huella se revisa antes de CONNECT (MQTT), de PASS (FTPS) y del paquete de la cámara
+    const before = p1s.auths.n;
     const evil = new BambuClient({ host: '127.0.0.1', serial: p1s.opts.serial, accessCode: '12345678', mqttPort: B + 883, fingerprint: 'AA:BB' }); evil.connect();
     await expect(evil.waitReady(8000)).rejects.toMatchObject({ code: 'cert_changed' }); evil.close();
+    await expect(listFiles({ host: '127.0.0.1', accessCode: '12345678', port: B + 990, fingerprint: 'AA:BB' })).rejects.toMatchObject({ code: 'cert_changed' });
+    await expect(snapshot({ host: '127.0.0.1', accessCode: '12345678', kind: 'jpeg-tls', port: B + 600, fingerprint: 'AA:BB' }, 4000)).rejects.toMatchObject({ code: 'cert_changed' });
+    expect(p1s.auths.n).toBe(before);
+    expect((await listFiles({ host: '127.0.0.1', accessCode: '12345678', port: B + 990, fingerprint: fp })).length).toBeGreaterThanOrEqual(0); // con la huella correcta sí entra
   }, 30_000);
 
   it('bobina externa y avisos HMS (A1 mini)', async () => {

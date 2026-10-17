@@ -3,8 +3,9 @@ import { spawn } from 'node:child_process';
 import type { CameraKind } from './models';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { certChangedError, checkPin } from './pin';
 
-export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number }
+export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number; fingerprint?: string | null }
 
 /** Paquete de autenticación de la cámara P1/A1: 4 enteros LE (0x40, 0x3000, 0, 0) + usuario y código en 32 bytes cada uno. */
 export function cameraAuthPacket(accessCode: string) {
@@ -25,7 +26,8 @@ export async function* jpegTlsFrames(o: CamOpts, signal?: AbortSignal): AsyncGen
   let buf = Buffer.alloc(0);
   const finish = (e: Error | true) => { done = e; wake?.(); };
   signal?.addEventListener('abort', () => { sock.destroy(); finish(true); });
-  sock.on('secureConnect', () => sock.write(cameraAuthPacket(o.accessCode)));
+  // el código de acceso sale solo si el certificado es el de la impresora (huella fijada en la primera conexión MQTT)
+  sock.on('secureConnect', () => { if (!checkPin(sock, o.fingerprint).ok) { sock.destroy(); finish(certChangedError()); return; } sock.write(cameraAuthPacket(o.accessCode)); });
   sock.on('timeout', () => { sock.destroy(); finish(Object.assign(new Error(t('machines.theCameraDidNotRespond')), { code: 'cam_timeout' })); });
   sock.on('error', (e) => finish(e));
   sock.on('close', () => finish(true));

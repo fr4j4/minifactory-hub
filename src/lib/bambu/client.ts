@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
-import type { TLSSocket } from 'node:tls';
-import mqtt, { type MqttClient } from 'mqtt';
+import { MqttClient } from 'mqtt';
+import { pinnedTlsStream } from './pin';
 import { deepMerge, normalize, type PrinterStatus } from './state';
 import { LocalizedError, tDefault } from '@/i18n/errors';
 
@@ -23,18 +23,16 @@ export class BambuClient extends EventEmitter {
 
   connect() {
     if (this.mq) return;
-    const mq = mqtt.connect(`mqtts://${this.o.host}:${this.o.mqttPort ?? 8883}`, {
+    // la huella se revisa al terminar el saludo TLS, antes de que salga CONNECT con el código de acceso
+    let fp: string | null = null;
+    const mq = new MqttClient(() => pinnedTlsStream({ host: this.o.host, port: this.o.mqttPort ?? 8883 }, this.o.fingerprint, (f, ok) => {
+      fp = f; if (!ok) { this.fail('cert_changed', tDefault('connector.certChanged')); this.close(); }
+    }), {
       username: 'bblp', password: this.o.accessCode, clientId: `minifactory_${Math.random().toString(16).slice(2, 10)}`,
-      rejectUnauthorized: false, reconnectPeriod: 5000, connectTimeout: 8000, keepalive: 30, protocolVersion: 4,
+      reconnectPeriod: 5000, connectTimeout: 8000, keepalive: 30, protocolVersion: 4,
     });
     this.mq = mq;
     mq.on('connect', () => {
-      const sock = (mq as unknown as { stream?: TLSSocket }).stream;
-      const fp = sock?.getPeerCertificate?.()?.fingerprint256 ?? null;
-      if (this.o.fingerprint && fp && fp !== this.o.fingerprint) {
-        this.fail('cert_changed', tDefault('connector.certChanged'));
-        this.close(); return;
-      }
       if (!this.o.fingerprint && fp) { this.o.fingerprint = fp; this.emit('fingerprint', fp); }
       this.online = true; this.lastError = null; this.emit('online');
       mq.subscribe(`device/${this.o.serial}/report`, (err) => { if (err) this.fail('subscribe', err.message); });

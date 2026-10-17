@@ -163,7 +163,7 @@ export async function sendToPrinter(i: SendInput) {
   }
   const base = (run.label ?? 'pieza').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.\- ]+/g, '').replace(/\s+/g, '_').slice(0, 40) || 'pieza';
   const fileName = `MF_${run.id.slice(0, 8)}_${base}.3mf`;
-  await uploadFile({ host: L.host!, accessCode: unseal(L.accessCodeEnc), port: L.ftpPort }, fileName, buf);
+  await uploadFile({ host: L.host!, accessCode: unseal(L.accessCodeEnc), port: L.ftpPort, fingerprint: L.fingerprint }, fileName, buf);
   (e.client as BambuClient).startProject({ fileName, plate: i.plate ?? 1, urlPrefix: L.urlPrefix, useAms: i.useAms, amsMapping: i.useAms ? [i.amsSlot ?? 0] : [], timelapse: i.timelapse, bedLeveling: i.bedLeveling ?? true, md5: info.md5 });
   if (i.jobId) await startJob(i.jobId, { machineId: L.machineId, userId: i.userId });
   await audit('printer_link', L.id, 'enviar_impresion', { runId: run.id, fileName, jobId: i.jobId ?? null, useAms: i.useAms, amsSlot: i.amsSlot ?? null }, i.userId);
