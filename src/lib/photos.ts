@@ -25,7 +25,7 @@ export async function ingestPhoto(o: { tmpPath: string; filename: string; userId
   await putFile(origKey, o.tmpPath, true);
   // consentimiento del cliente: sin permiso → solo uso interno
   let internalOnly = false;
-  if (o.customerId) { const [c] = await db.select().from(s.customers).where((await import('drizzle-orm')).eq(s.customers.id, o.customerId)); internalOnly = !!c && (c.photoConsent === 'no' || c.photoConsent === 'unknown'); }
+  if (o.customerId) { const [c] = await db.select().from(s.customers).where((await import('drizzle-orm')).eq(s.customers.id, o.customerId)); internalOnly = !!c && noPhotoConsent(c.photoConsent); }
   // etiquetas automáticas: material, color, máquina, cliente (si hay consentimiento), categoría del modelo
   const auto: string[] = [];
   const { eq } = await import('drizzle-orm');
@@ -43,6 +43,9 @@ export async function ingestPhoto(o: { tmpPath: string; filename: string; userId
   return p;
 }
 
+/** Sin permiso vigente del cliente para publicar sus fotos (lo retiró o nunca lo dio). */
+export const noPhotoConsent = (consent: string | null | undefined) => consent === 'no' || consent === 'unknown';
+
 /** Recorte a formato de redes con marca de agua opcional. */
 export async function exportPhoto(photoId: string, o: { ratio?: string; watermark?: { logo: Buffer; opacity: number; position: string } | null }): Promise<Buffer> {
   const t = await getT();
@@ -52,7 +55,7 @@ export async function exportPhoto(photoId: string, o: { ratio?: string; watermar
   if (!p) throw new Error(t('gallery.photoNotFound'));
   if (p.internalOnly) throw new Error(t('gallery.thisPhotoIsForInternal'));
   // el permiso vigente del cliente manda: si lo retiró después de subir la foto, tampoco se exporta
-  if (p.customerId) { const [c] = await db.select({ consent: s.customers.photoConsent }).from(s.customers).where(eq(s.customers.id, p.customerId)); if (c && (c.consent === 'no' || c.consent === 'unknown')) throw new Error(t('gallery.internalUseOnlyTheCustomer')); }
+  if (p.customerId) { const [c] = await db.select({ consent: s.customers.photoConsent }).from(s.customers).where(eq(s.customers.id, p.customerId)); if (c && noPhotoConsent(c.consent)) throw new Error(t('gallery.internalUseOnlyTheCustomer')); }
   let img = sharp(await getBuffer(p.variants?.['1600'] ?? p.storageKey)).rotate();
   const r = o.ratio ? RATIOS[o.ratio] : null;
   if (r) { const meta = await img.metadata(); const W = meta.width ?? 1600; const H = Math.round((W * r[1]) / r[0]); img = img.resize({ width: W, height: H, fit: 'cover' }); }

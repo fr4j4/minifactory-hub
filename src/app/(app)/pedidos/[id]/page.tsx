@@ -16,6 +16,7 @@ import { paymentStatus, pendingPrintItems } from '@/lib/services/orders';
 import { dmy, dmyHm, dur, grams, money, pct, sources } from '@/lib/format';
 import { tOr } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
+import { noPhotoConsent } from '@/lib/photos';
 import { RemoveButton } from '@/components/remove-button';
 import { EditButton } from '@/components/edit-button';
 import { editFields } from '@/lib/edit-fields';
@@ -41,7 +42,8 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const replaced = new Set(jis.filter((a) => a.orderItemId && jis.some((b) => b.orderItemId === a.orderItemId && b.jobId !== a.jobId && ['en_cola', 'imprimiendo', 'pausado', 'terminado'].includes(statusOf.get(b.jobId) ?? ''))).map((a) => a.jobId));
   const pays = await db.select().from(s.payments).where(and(eq(s.payments.orderId, id), isNull(s.payments.deletedAt))).orderBy(desc(s.payments.paidAt));
   const contacts = await db.select().from(s.contactLog).where(and(eq(s.contactLog.orderId, id), isNull(s.contactLog.deletedAt))).orderBy(desc(s.contactLog.createdAt));
-  const photos = await db.select().from(s.photos).where(and(eq(s.photos.orderId, id), isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(24);
+  // «Interno» también si el cliente retiró el permiso después de subir la foto
+  const photos = (await db.select({ p: s.photos, consent: s.customers.photoConsent }).from(s.photos).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(eq(s.photos.orderId, id), isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(24)).map(({ p, consent }) => ({ ...p, internalOnly: p.internalOnly || noPhotoConsent(consent) }));
   const hist = await db.select().from(s.activityLog).where(and(eq(s.activityLog.entity, 'order'), eq(s.activityLog.entityId, id))).orderBy(desc(s.activityLog.createdAt)).limit(15);
   const [quote] = o.quoteId ? await db.select().from(s.quotes).where(eq(s.quotes.id, o.quoteId)) : [];
   const [cust] = o.customerId ? await db.select().from(s.customers).where(eq(s.customers.id, o.customerId)) : [];

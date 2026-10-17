@@ -5,12 +5,13 @@ import { requirePerm } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { safe } from './common';
 import { getT } from '@/i18n/server';
+import { noPhotoConsent } from '@/lib/photos';
 
 export async function updatePhotoAction(id: string, p: { stage?: string; featured?: boolean; tags?: string[]; caption?: string | null; publish?: Record<string, { status: string; url?: string }>; suggestedText?: string | null; internalOnly?: boolean }) {
   const t = await getT();
   return safe(async () => {
     const u = await requirePerm('galeria', 'E'); const db = await getDb();
-    if (p.internalOnly === false) { const [ph] = await db.select().from(s.photos).where(eq(s.photos.id, id)); if (ph?.customerId) { const [c] = await db.select().from(s.customers).where(eq(s.customers.id, ph.customerId)); if (c && (c.photoConsent === 'no' || c.photoConsent === 'unknown')) throw new Error(t('gallery.theCustomerHasNotGiven')); } }
+    if (p.internalOnly === false) { const [ph] = await db.select().from(s.photos).where(eq(s.photos.id, id)); if (ph?.customerId) { const [c] = await db.select().from(s.customers).where(eq(s.customers.id, ph.customerId)); if (c && noPhotoConsent(c.photoConsent)) throw new Error(t('gallery.theCustomerHasNotGiven')); } }
     await db.update(s.photos).set(p).where(eq(s.photos.id, id)); await audit('photo', id, 'editar', Object.keys(p), u.id);
   }, ['/galeria']);
 }
