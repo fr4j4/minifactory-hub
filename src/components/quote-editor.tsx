@@ -57,7 +57,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   // un guardado manual no se pierde si coincide con el autoguardado: espera a que termine por completo
   // (incluido el id del presupuesto recién creado) y vuelve a guardar con los datos actuales
   const inflight = useRef<Promise<string | null> | null>(null);
-  const save = useCallback(async (silent = false): Promise<string | null> => {
+  const save = useCallback(async (silent = false, quietOk = silent): Promise<string | null> => {
     if (inflight.current) { if (silent) return null; await inflight.current; }
     const run = (async () => {
       setSaving(true);
@@ -72,7 +72,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
       setSavedAt(new Date());
       // Next sigue la URL nueva y monta el editor de /presupuestos/[id]; lo pendiente pasa por `handoff`
       if (!idRef.current) { idRef.current = r.data.id; created.current = true; window.history.replaceState(null, '', `/presupuestos/${r.data.id}`); }
-      if (!silent) toast.push(t('quotes.quoteSaved'));
+      if (!quietOk) toast.push(t('quotes.quoteSaved'));
       return r.data.id;
     })();
     inflight.current = run;
@@ -82,7 +82,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   // «El cliente aceptó» en la cabecera: primero se guarda lo pendiente, para aprobar exactamente lo que se ve
   const live = useRef({ dirty, total: calc.total }); live.current = { dirty, total: calc.total };
   useEffect(() => {
-    draftFlush.current = async () => ((live.current.dirty || inflight.current) && !(await save(false)) ? null : live.current.total);
+    draftFlush.current = async () => ((live.current.dirty || inflight.current) && !(await save(false, true)) ? null : live.current.total);
     return () => { draftFlush.current = null; };
   }, [save]);
   useEffect(() => () => { if (created.current && live.current.dirty && idRef.current) handoff.set(idRef.current, qRef.current); }, []);

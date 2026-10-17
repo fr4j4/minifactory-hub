@@ -16,7 +16,8 @@ export function QuickCalc({ ctx, models, showCosts, canPrice, canCreate, whatsap
   const [level, setLevel] = useState(level0); const advanced = level === 'avanzado';
   const [items, setItems] = useState<ItemState[]>(() => [newItem(ctx)]); const router = useRouter(); const toast = useToast(); const [busy, setBusy] = useState(false);
   const cs = useMemo(() => items.map((x) => computeItem(x, ctx)), [items, ctx]);
-  const totals = items.map((x, i) => (x.finalUnit ?? cs[i].suggestedUnit) * Math.max(1, x.qty));
+  // el envío va aparte del precio unitario y se suma al total, como en el presupuesto (calcQuote)
+  const totals = items.map((x, i) => (x.finalUnit ?? cs[i].suggestedUnit) * Math.max(1, x.qty) + (x.shipping ?? 0));
   const total = totals.reduce((a, b) => a + b, 0);
   const text = items.length === 1
     ? t('calculator.reply', { item: items[0].description || t('calculator.yourPart'), qty: items[0].qty, total: money(total) })

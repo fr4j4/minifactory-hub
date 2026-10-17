@@ -59,6 +59,10 @@ export function RatesForm({ st }: { st: AppSettings }) {
   );
 }
 
+/** {YYYY} y {N…} obligatorios: el navegador marca el campo que falla y no envía el formulario. */
+const NUMBERING_PATTERN = '(?=.*\\{YYYY\\})(?=.*\\{N+\\}).*';
+const NUMBERING_RE = new RegExp(`^${NUMBERING_PATTERN}$`);
+
 export function TemplatesForm({ st }: { st: AppSettings }) {
   const t = useT();
   const { run, pending } = useAction(); const [tt, setT] = useState(st.templates); const [n, setN] = useState(st.numbering);
@@ -67,7 +71,7 @@ export function TemplatesForm({ st }: { st: AppSettings }) {
       <p className="text-xs muted">{t('settings.variablesLabel')} <code>{'{cliente} {numero} {total} {vigencia} {seguimiento}'}</code>. {t('settings.templatesNote')}</p>
       {([['terms', t('settings.termsAndConditionsQuotePdf')], ['whatsappQuote', t('settings.quoteMessage')], ['whatsappReady', t('settings.orderReadyMessage')], ['whatsappShipped', t('settings.shippingMessage')]] as const).map(([k, l]) => <label key={k} className="block"><span className="label">{l}</span><textarea className="input h-20" value={tt[k]} onChange={(e) => setT({ ...tt, [k]: e.target.value })} /></label>)}
       <h3 className="text-sm font-medium pt-2">{t('settings.documentNumbering')}</h3>
-      <div className="grid sm:grid-cols-5 gap-3">{(['quote', 'order', 'sale', 'job', 'production'] as const).map((k) => <label key={k} className="block"><span className="label">{{ quote: t('common.quote'), order: t('common.order'), sale: t('settings.sale'), job: t('common.job'), production: t('settings.production') }[k]}</span><input className="input tabular" value={n[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })} /></label>)}</div>
+      <div className="grid sm:grid-cols-5 gap-3">{(['quote', 'order', 'sale', 'job', 'production'] as const).map((k) => <label key={k} className="block"><span className="label">{{ quote: t('common.quote'), order: t('common.order'), sale: t('settings.sale'), job: t('common.job'), production: t('settings.production') }[k]}</span><input className="input tabular" value={n[k]} onChange={(e) => setN({ ...n, [k]: e.target.value })} required pattern={NUMBERING_PATTERN} title={t('settings.numberingNeedsYear')} aria-invalid={!NUMBERING_RE.test(n[k])} data-testid={`numbering-${k}`} /></label>)}</div>
       <p className="text-xs muted">{t('settings.numberingExample')} <code>P-{'{YYYY}'}-{'{NNNN}'}</code> {t('settings.numberingExample2')}</p>
       <div className="flex justify-end"><button className="btn-primary" disabled={pending}>{t('common.save')}</button></div>
     </form>

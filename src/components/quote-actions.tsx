@@ -17,8 +17,15 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
   const [ap, setAp] = useState(false); const [rj, setRj] = useState(false);
   const [by, setBy] = useState(defaultBy); const [channel, setChannel] = useState('whatsapp'); const [dep, setDep] = useState(Math.round(total * depositPct / 100)); const [method, setMethod] = useState('transferencia'); const [due, setDue] = useState(''); const [plan, setPlan] = useState(true); const [reason, setReason] = useState('');
   const [liveTotal, setLiveTotal] = useState<number | null>(null); const shown = liveTotal ?? total;
+  // mientras se guarda el borrador el botón queda deshabilitado; el abono solo se recalcula si cambió el total
+  const [opening, setOpening] = useState(false);
   const openApprove = async () => {
-    if (draftFlush.current) { const tot = await draftFlush.current(); if (tot == null) return; setLiveTotal(tot); setDep(Math.round(tot * depositPct / 100)); }
+    if (draftFlush.current) {
+      setOpening(true);
+      const tot = await draftFlush.current().finally(() => setOpening(false));
+      if (tot == null) return;
+      if (tot !== shown) { setLiveTotal(tot); setDep(Math.round(tot * depositPct / 100)); }
+    }
     setAp(true);
   };
   const [rc, setRc] = useState<{ lines: Array<{ id: string; description: string; qty: number; oldUnit: number; newUnit: number }>; oldTotal: number; newTotal: number; delta: number } | null>(null);
@@ -29,7 +36,7 @@ export function QuoteActions({ id, status, canEdit, canOrder, msg, wa, defaultBy
       <CopyButton text={msg} label={t('quotes.copyMessage')} className="btn-ghost" />
       <a className="btn-ghost" href={wa} target="_blank" rel="noopener noreferrer">{t('quotes.whatsapp')}</a>
       {canEdit && status === 'borrador' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => sendQuoteAction(id), { ok: t('quotes.markedAsSentPricesAnd2') })} data-testid="quote-send">{t('quotes.markAsSent')}</button>}
-      {canEdit && ['borrador', 'enviado', 'vencido'].includes(status) && canOrder && <button className="btn-primary" disabled={pending} onClick={openApprove} data-testid="quote-approve">{t('quotes.theCustomerAccepted')}</button>}
+      {canEdit && ['borrador', 'enviado', 'vencido'].includes(status) && canOrder && <button className="btn-primary" disabled={pending || opening} aria-busy={opening} onClick={openApprove} data-testid="quote-approve">{opening ? t('common.saving') : t('quotes.theCustomerAccepted')}</button>}
       {canEdit && ['enviado', 'vencido', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, false), { ok: t('quotes.newVersionCreated2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })} data-testid="quote-newversion">{t('quotes.newVersion')}</button>}
       {canEdit && ['enviado', 'rechazado', 'aprobado'].includes(status) && <button className="btn-ghost" onClick={openRecalc} data-testid="quote-recalc">{t('quotes.recalcCurrent')}</button>}
       {canEdit && status === 'vencido' && <button className="btn-ghost" disabled={pending} onClick={() => run(() => newVersionAction(id, true), { ok: t('quotes.reactivatedWithCurrentRates2'), onOk: (nid) => router.push(`/presupuestos/${nid}`) })}>{t('quotes.reactivateWithCurrentRates')}</button>}

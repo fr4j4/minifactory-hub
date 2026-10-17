@@ -13,7 +13,7 @@ export const queue = {
   jobUnassigned: 'Trabajo sin asignar',
   reprint: 'Reimpresión',
   willFinishOutsideWorkingHours: '🌙 Terminará fuera del horario del taller:',
-  ends: 'Termina ',
+  ends: 'Termina',
   start: 'Iniciar',
   pause: 'Pausar',
   finish: 'Terminar',
