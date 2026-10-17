@@ -59,12 +59,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         {live.length === 0 ? <p className="relative text-sm text-white/70">{t('home.noMachines')} <Link href="/maquinas/nueva" className="underline">{t('home.addTheFirstOne')}</Link>.</p> : (
           <ul className="relative flex gap-3 overflow-x-auto snap-x snap-mandatory -mx-4 px-4 pb-1 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 xl:grid-cols-4 [scrollbar-width:none]">{live.map(({ m, pj, p, c }) => (
             <li key={m.id} className="snap-start shrink-0 w-[78%] sm:w-auto"><Link href={pj ? '/cola' : `/maquinas/${m.id}`} className="group flex gap-4 rounded-2xl bg-white/[.04] hover:bg-white/[.07] border border-white/10 p-3.5 transition-colors h-full">
-              <div className="relative h-[68px] w-[52px] shrink-0 rounded-lg bg-black/30 border border-white/10 flex flex-col-reverse items-center gap-[2px] p-1.5 overflow-hidden" aria-hidden>
+              <div className={`relative h-[68px] w-[52px] shrink-0 rounded-lg bg-black/30 border border-white/10 flex flex-col-reverse items-center gap-[2px] p-1.5 overflow-hidden ${pj ? '' : 'opacity-60'}`} aria-hidden>
                 {Array.from({ length: 10 }, (_, i) => <span key={i} className={i < Math.round(p / 10) ? 'bg-[var(--accent)]' : 'bg-white/10'} style={{ height: 3, width: `${92 - Math.abs(4.5 - i) * 7}%`, borderRadius: 2, opacity: i < Math.round(p / 10) ? 0.55 + i * 0.045 : 1 }} />)}
                 {pj && <span className="absolute left-1/2 -translate-x-1/2 h-1.5 w-3 rounded-sm bg-white/80" style={{ bottom: `${8 + Math.round(p / 10) * 5}px` }} />}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium truncate">{m.name}</span><span className={`font-mono text-[10px] uppercase tracking-[.1em] ${pj ? 'text-[var(--accent)]' : m.status === 'disponible' ? 'text-emerald-400' : 'text-amber-300'}`}>{pj ? t('home.printsNow') : m.status === 'disponible' ? t('home.free') : tOr(t, `status.${m.status}`, m.status).toLowerCase()}</span></div>
+                <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium truncate">{m.name}</span><span className={`font-mono text-[10px] uppercase tracking-[.1em] ${pj ? 'text-[var(--accent)]' : m.status === 'disponible' ? 'text-white/60' : 'text-amber-300'}`}>{pj ? t('home.printsNow') : m.status === 'disponible' ? t('home.free') : tOr(t, `status.${m.status}`, m.status).toLowerCase()}</span></div>
                 {pj ? <><div className="text-xs text-white/70 truncate mt-0.5">{pj.j.title}</div><div className="flex items-baseline justify-between mt-1.5"><span className="num text-2xl font-medium">{num(p, 0)}<span className="text-sm text-white/60">%</span></span><span className="font-mono text-[10px] text-white/60">{t('home.ends')} {dmyHm(pj.j.plannedEnd)}</span></div>{c && <div className="mt-1"><PrinterPill machineId={m.id} initial={c} dark /></div>}</>
                   : <div className="text-xs text-white/60 mt-1.5">{c ? <PrinterPill machineId={m.id} initial={c} dark /> : m.status === 'disponible' ? t('home.readyForTheNextJob') : t('home.checkTheMachine')}</div>}
               </div>
@@ -73,8 +73,8 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 
       <div className="grid grid-cols-3 md:grid-cols-6 gap-2.5 mb-6" aria-label={t('home.quickActions')}>
         {actions.map((a) => (
-          <Link key={a.h} href={a.h} className="group card !rounded-2xl p-3 md:p-3.5 flex flex-col gap-3 min-h-[92px] justify-between hover:-translate-y-0.5 hover:border-[var(--accent)] transition-all">
-            <span className="flex items-center justify-between"><span className="h-9 w-9 rounded-xl bg-slate-100 dark:bg-slate-800 grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)] transition-colors"><Icon name={a.i} className="h-[18px] w-[18px]" /></span><span className="hidden md:inline font-mono text-[10px] text-slate-500 dark:text-slate-500 group-hover:text-[var(--accent-ink)]"><Icon name="arrow-up-right" className="h-3.5 w-3.5" /></span></span>
+          <Link key={a.h} href={a.h} className="group card !rounded-2xl p-3 md:p-3 flex flex-col md:flex-row md:items-center gap-3 min-h-[92px] md:min-h-[64px] justify-between md:justify-start hover:-translate-y-0.5 hover:border-[var(--accent)] transition-[transform,border-color] duration-150">
+            <span className="h-9 w-9 shrink-0 rounded-xl bg-[var(--hover)] grid place-items-center group-hover:bg-[var(--accent)] group-hover:text-[var(--on-accent)] transition-colors"><Icon name={a.i} className="h-[18px] w-[18px]" /></span>
             <span className="text-[13px] font-medium leading-tight">{a.l}</span>
           </Link>))}
       </div>
@@ -88,7 +88,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <Card title={t('home.thisMonthSFigures')}>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <Stat label={t('common.sales')} value={money(d.ind.revenue)} sub={t('home.ordersQuickSales', { orders: d.ind.ordersCount, sales: d.ind.salesCount })} />
-              {costs && <Stat label={t('home.grossMargin')} value={money(d.ind.grossMargin)} sub={pct(d.ind.marginPct, 0)} tone={d.ind.marginPct != null && d.ind.marginPct < 25 ? 'warn' : 'good'} />}
+              {costs && <Stat label={t('home.grossMargin')} value={money(d.ind.grossMargin)} sub={pct(d.ind.marginPct, 0)} tone={d.ind.marginPct != null && d.ind.marginPct < 25 ? 'warn' : 'good'} meter={d.ind.marginPct != null ? { value: d.ind.marginPct, max: 100 } : undefined} />}
               <Stat label={t('home.delivered')} value={d.ind.delivered} />
               <Stat label={t('home.approvalRate')} value={d.ind.approvalRate != null ? pct(d.ind.approvalRate, 0) : '—'} sub={t('home.quotesSent', { count: d.ind.quotesCount })} />
               <Stat label={t('home.machineHours')} value={<>{num(d.ind.machineHours, 0)}<span className="text-sm muted ml-1">{t('common.h')}</span></>} />
@@ -101,7 +101,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           {alerts.length === 0 ? <Empty title={t('home.noAlerts')} hint={t('home.stockMaintenanceAndPaymentsAre')} /> : <div className="space-y-3" data-testid="alerts">{(['red', 'amber', 'blue'] as const).map((tone) => { const list = alerts.filter((a) => a.tone === tone); if (!list.length) return null; return (
             <section key={tone} aria-label={t(`home.alertGroup_${tone}` as 'home.alertGroup_red')}>
               <h3 className="eyebrow mb-1">{t(`home.alertGroup_${tone}` as 'home.alertGroup_red')} · {list.length}</h3>
-              <ul className="space-y-1.5 -mx-1">{list.slice(0, 5).map((a, i) => <li key={i}><Link href={a.href} className={`flex items-start gap-2.5 text-sm rounded-xl px-2.5 py-2 border-l-[3px] hover:bg-slate-50 dark:hover:bg-slate-800/50 ${tone === 'red' ? 'border-red-500' : tone === 'amber' ? 'border-amber-500' : 'border-sky-500'}`}>{a.text}</Link></li>)}</ul>
+              <ul className="space-y-1.5 -mx-1">{list.slice(0, 5).map((a, i) => <li key={i}><Link href={a.href} className={`flex items-start gap-2.5 text-sm rounded-r-lg px-3 py-2 hover:bg-[var(--hover)] ${tone === 'red' ? 'shadow-[inset_3px_0_0_theme(colors.red.500)]' : tone === 'amber' ? 'shadow-[inset_3px_0_0_theme(colors.amber.500)]' : 'shadow-[inset_3px_0_0_theme(colors.sky.500)]'}`}>{a.text}</Link></li>)}</ul>
               {list.length > 5 && <p className="text-xs muted mt-1 px-1">{t('home.alertMore', { n: list.length - 5 })}</p>}
             </section>); })}</div>}
         </Card>
