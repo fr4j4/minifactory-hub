@@ -90,8 +90,10 @@ export async function consumeFromSpool(o: { spoolId: string; grams: number; kind
   db = db ?? (await getDb());
   const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId));
   if (!sp) return null;
-  const left = Math.max(0, sp.remainingG - o.grams);
-  await db.update(s.spools).set({ remainingG: left, status: left <= 0 ? 'agotada' : sp.status === 'nueva' ? 'abierta' : sp.status, updatedAt: new Date() }).where(eq(s.spools.id, o.spoolId));
+  // descuento en SQL: dos consumos simultáneos de la misma bobina no se pisan
+  const after = sql`greatest(0, ${s.spools.remainingG} - ${o.grams})`;
+  const [{ remainingG: left }] = await db.update(s.spools).set({ remainingG: after, status: sql`case when ${after} <= 0 then 'agotada' when ${s.spools.status} = 'nueva' then 'abierta' else ${s.spools.status} end`, updatedAt: new Date() })
+    .where(eq(s.spools.id, o.spoolId)).returning({ remainingG: s.spools.remainingG });
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, qty: -Math.min(o.grams, sp.remainingG), unitCost: sp.unitCost, jobId: o.jobId ?? null, note: o.note ?? null, createdBy: o.userId ?? null });
   await checkLowStock(sp.materialId);
   return { before: sp.remainingG, after: left, depleted: left <= 0 };
@@ -132,10 +134,9 @@ export async function moveItem(o: { itemId: string; qty: number; kind: 'entrada'
   const [it] = await db.select().from(s.inventoryItems).where(eq(s.inventoryItems.id, o.itemId));
   if (!it) throw new Error(t('inventory.itemNotFound'));
   const delta = o.kind === 'entrada' ? Math.abs(o.qty) : o.kind === 'ajuste' ? o.qty : -Math.abs(o.qty);
-  const stock = it.stock + delta;
   let unitCost = it.unitCost;
-  if (o.kind === 'entrada' && o.unitCost != null && stock > 0) unitCost = Math.round((it.stock * it.unitCost + Math.abs(o.qty) * o.unitCost) / stock);
-  await db.update(s.inventoryItems).set({ stock, unitCost, updatedAt: new Date() }).where(eq(s.inventoryItems.id, o.itemId));
+  if (o.kind === 'entrada' && o.unitCost != null && it.stock + delta > 0) unitCost = Math.round((it.stock * it.unitCost + Math.abs(o.qty) * o.unitCost) / (it.stock + delta));
+  const [{ stock }] = await db.update(s.inventoryItems).set({ stock: sql`${s.inventoryItems.stock} + ${delta}`, unitCost, updatedAt: new Date() }).where(eq(s.inventoryItems.id, o.itemId)).returning({ stock: s.inventoryItems.stock });
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.kind, itemId: o.itemId, qty: delta, unitCost: o.unitCost ?? it.unitCost, note: o.note ?? null, createdBy: o.userId ?? null });
   if (stock <= it.minStock) await notify('stock_bajo', t('inventory.lowStock2', { name: it.name }), t('inventory.leftMinimum', { stock, unit: it.unit, min: it.minStock }), '/inventario?tab=otros');
   return stock;
