@@ -74,8 +74,8 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
   const sections = SECTIONS.map((s) => ({ t: t(s.t), items: s.hrefs.map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[] })).filter((s) => s.items.length);
   const section = nav.filter((n) => active(n.href)).sort((a, b) => b.href.length - a.href.length)[0];
   const tail = section ? path.slice(section.href.length).split('/').filter(Boolean) : [];
-  const full = !collapsed;
   const offNav = section ? undefined : OFF_NAV[path.split('/')[1] as keyof typeof OFF_NAV];
+  const full = !collapsed;
   return (
     <div className="min-h-screen md:flex">
       {/* panel de control: riel con íconos en tablet, completo en escritorio */}

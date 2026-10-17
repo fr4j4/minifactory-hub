@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { PrintButton } from '@/components/print-button';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { loadQuote } from '@/lib/services/quotes';
@@ -19,7 +21,8 @@ export default async function PrintQuote({ params, searchParams }: { params: Pro
   const template = (d.quote.docTemplate as any) ?? st.documents.quote; const dt = docT(d.quote, t);
   return (
     <div className="print-doc">
-      {sp.sinpdf && <div role="alert" className="no-print" style={{ background: '#fef3c7', border: '1px solid #f59e0b', padding: '8px 12px', marginBottom: 12, borderRadius: 6 }}>{t('quotes.pdfUnavailable')}</div>}
+      {sp.sinpdf && <div role="alert" className="no-print" style={{ background: '#fef3c7', border: '1px solid #f59e0b', padding: '8px 12px', marginBottom: 12, borderRadius: 6 }}>{t('quotes.pdfUnavailable')}
+        <div className="flex flex-wrap items-center gap-2 mt-2"><PrintButton /><Link className="btn-ghost" href={`/presupuestos/${id}`}>{t('common.back')}</Link></div></div>}
       <style>{`*{box-sizing:border-box}body{background:#fff!important}ul{margin:4px 0}tr,[data-section]:not([data-section=items]){break-inside:avoid}`}</style>
       <QuoteDocument data={buildQuoteDoc(d, st, dt)} template={template} t={dt} />
     </div>

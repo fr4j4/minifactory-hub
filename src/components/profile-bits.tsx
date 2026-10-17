@@ -190,7 +190,7 @@ export function ProfileEditor({ p, versions, canEdit, usedBy = [] }: { p: { id: 
   const set = (k: string, v: string) => setVals((cur) => ({ ...cur, [k]: v }));
   return (
     <div className="grid gap-4 xl:grid-cols-3">
-      <div className="xl:col-span-2 space-y-4">
+      <div className="xl:col-span-2 min-w-0 space-y-4">
         <div className="card p-4 space-y-3">
           <div className="grid sm:grid-cols-2 gap-3">
             <label className="block"><span className="label">{t('common.name')}</span><input className="input" value={name} onChange={(e) => setName(e.target.value)} disabled={!canEdit} data-testid="profile-title" /></label>

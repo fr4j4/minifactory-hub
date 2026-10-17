@@ -113,7 +113,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
       </div>
       {it.open && (
         <div className="p-3 sm:p-4 grid gap-4 lg:grid-cols-5">
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-3 min-w-0 space-y-4">
             <div className="grid sm:grid-cols-4 gap-3">
               <label className="block sm:col-span-3"><span className="label">{t('common.description')}</span><input className="input" value={it.description} disabled={dis} onChange={(e) => onChange({ description: e.target.value })} placeholder={t('calculator.eGCameraMount')} data-testid="line-desc" /></label>
               <label className="block"><span className="label">{t('common.quantity')}</span><input type="number" min={1} inputMode="numeric" className={num_} value={it.qty} disabled={dis} onChange={(e) => setQty(+e.target.value)} data-testid="line-qty" /></label>
@@ -202,7 +202,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
               </div>
             </details>
           </div>
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 min-w-0">
             <div className="rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 p-3 space-y-3 sticky top-20">
               <div className="flex items-baseline justify-between"><span className="label !mb-0">{t('common.suggestedPrice')}</span><span className="tabular text-lg font-semibold" data-testid="line-suggested">{money(suggestedUnit)}<span className="text-xs muted font-normal"> {t('calculator.unit')}</span></span></div>
               <label className="block"><span className="label">{t('calculator.finalPricePerUnitYou')}</span>

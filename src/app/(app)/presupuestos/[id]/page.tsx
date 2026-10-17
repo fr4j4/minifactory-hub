@@ -77,7 +77,7 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
       {order && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 p-3 text-sm mb-4">{t('quotes.approvedLine', { name: q.approvedBy, channel: q.approvedChannel, date: dmyHm(q.approvedAt) })} → {t('quotes.orderWord')} <Link className="underline font-medium" href={`/pedidos/${order.id}`}>{order.number}</Link></div>}
       {q.frozen && q.status !== 'aprobado' && <p className="text-xs muted mb-3">{t('quotes.thisQuoteIsFrozenChanging')}</p>}
       <div className="grid gap-4 xl:grid-cols-3">
-        <div className="xl:col-span-2 space-y-4">
+        <div className="xl:col-span-2 min-w-0 space-y-4">
           <Card title={t('quotes.items')} pad={false}>
             <Table><thead><tr><th className="th">{t('common.description')}</th><th className="th text-right">{t('common.qty')}</th><th className="th text-right">{t('common.unitPrice')}</th><th className="th text-right">{t('common.total')}</th>{costs && <th className="th text-right">{t('common.margin')}</th>}</tr></thead>
               <tbody>{items.map((it) => { const l = lt.find((x) => x.id === it.id); const ms = models.filter((m) => m.qm.quoteItemId === it.id); const ls = links.filter((x) => x.ownerType === 'quote_item' && x.ownerId === it.id);
