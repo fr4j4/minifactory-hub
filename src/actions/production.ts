@@ -11,6 +11,7 @@ import { LocalizedError } from '@/i18n/errors';
 import { safe } from './common';
 import type { MessageKey, TFn } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
+import { ymd } from '@/lib/format';
 
 export async function startJobAction(id: string, o: { machineId?: string; spoolId?: string } = {}) { return safe(async () => { const u = await requirePerm('cola', 'E'); await startJob(id, { ...o, userId: u.id }); }, ['/cola', '/pedidos']); }
 export async function pauseJobAction(id: string) { return safe(async () => { await requirePerm('cola', 'E'); await pauseJob(id); }, ['/cola']); }
@@ -80,7 +81,7 @@ export async function saveMachineAction(i: MachineInput) {
 export async function setMachineStatusAction(id: string, status: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); if (!['disponible', 'imprimiendo', 'pausada', 'mantenimiento', 'fuera_de_servicio'].includes(status)) throw new LocalizedError('edit.invalid'); const db = await getDb(); await db.update(s.machines).set({ status, updatedAt: new Date() }).where(eq(s.machines.id, id)); await audit('machine', id, 'estado', { to: status }, u.id); await scheduleQueue(); }, ['/maquinas', `/maquinas/${id}`, '/cola']); }
 export async function addPlanAction(i: { machineId: string; task: string; intervalHours?: number | null; intervalDays?: number | null }) {
   const t = await getT();
-  return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.task.trim() || (!i.intervalHours && !i.intervalDays)) throw new Error(t('machines.enterTheTaskAndIts')); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, i.machineId)); await db.insert(s.maintenancePlans).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, task: i.task, intervalHours: i.intervalHours || null, intervalDays: i.intervalDays || null, lastDoneHours: m?.hoursTotal ?? 0, lastDoneAt: new Date().toISOString().slice(0, 10), createdBy: u.id }); }, [`/maquinas/${i.machineId}`]);
+  return safe(async () => { const u = await requirePerm('maquinas', 'E'); const db = await getDb(); if (!i.task.trim() || (!i.intervalHours && !i.intervalDays)) throw new Error(t('machines.enterTheTaskAndIts')); const [m] = await db.select().from(s.machines).where(eq(s.machines.id, i.machineId)); await db.insert(s.maintenancePlans).values({ workspaceId: WORKSPACE_ID, machineId: i.machineId, task: i.task, intervalHours: i.intervalHours || null, intervalDays: i.intervalDays || null, lastDoneHours: m?.hoursTotal ?? 0, lastDoneAt: ymd(), createdBy: u.id }); }, [`/maquinas/${i.machineId}`]);
 }
 export async function completeMaintenanceAction(i: Parameters<typeof completeMaintenance>[0] & { machineId: string }) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); await completeMaintenance({ ...i, userId: u.id }); }, [`/maquinas/${i.machineId}`, '/']); }
 export async function addIncidentAction(i: { machineId: string; kind: string; description: string }) {

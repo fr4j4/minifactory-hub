@@ -58,7 +58,7 @@ export async function createSpool(o: { materialId: string; initialG?: number; ta
   const initial = o.initialG ?? 1000;
   const [sp] = await db.insert(s.spools).values({
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,
-    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? new Date().toISOString().slice(0, 10), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
+    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? ymd(), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
   }).returning();
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
   await audit('spool', sp.id, 'entrada', { initialG: initial, unitCost: o.unitCost ?? m.costPerKg }, o.userId);
@@ -88,15 +88,22 @@ export async function weighSpool(spoolId: string, grossG: number, userId?: strin
 
 export async function consumeFromSpool(o: { spoolId: string; grams: number; kind: 'consumo' | 'falla'; jobId?: string; note?: string; userId?: string | null }, db?: Db) {
   db = db ?? (await getDb());
-  const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId));
+  // descuento en una sola sentencia que también devuelve el saldo previo (con otro consumo simultáneo, `taken` no mezcla los gramos ajenos); la bobina no baja de 0
+  const res = await db.execute(sql`
+    with prev as (select id, remaining_g, unit_cost, material_id from spools where id = ${o.spoolId} for update)
+    update spools set remaining_g = greatest(0, prev.remaining_g - ${o.grams}), updated_at = now(),
+      status = case when prev.remaining_g - ${o.grams} <= 0 then 'agotada' when spools.status = 'nueva' then 'abierta' else spools.status end
+    from prev where spools.id = prev.id
+    returning spools.remaining_g as "left", prev.remaining_g as "before", prev.unit_cost as "unitCost", prev.material_id as "materialId"`);
+  const [sp] = ((res as any).rows ?? res) as Array<{ left: number; before: number; unitCost: number | null; materialId: string }>;
   if (!sp) return null;
-  // descuento en SQL: dos consumos simultáneos de la misma bobina no se pisan
-  const after = sql`greatest(0, ${s.spools.remainingG} - ${o.grams})`;
-  const [{ remainingG: left }] = await db.update(s.spools).set({ remainingG: after, status: sql`case when ${after} <= 0 then 'agotada' when ${s.spools.status} = 'nueva' then 'abierta' else ${s.spools.status} end`, updatedAt: new Date() })
-    .where(eq(s.spools.id, o.spoolId)).returning({ remainingG: s.spools.remainingG });
-  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, qty: -Math.min(o.grams, sp.remainingG), unitCost: sp.unitCost, jobId: o.jobId ?? null, note: o.note ?? null, createdBy: o.userId ?? null });
+  const left = Number(sp.left), before = Number(sp.before), taken = before - left;
+  const mv = { workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, unitCost: sp.unitCost, jobId: o.jobId ?? null, createdBy: o.userId ?? null };
+  await db.insert(s.inventoryMovements).values({ ...mv, qty: -taken, note: o.note ?? null });
+  // lo que excede a la bobina también queda registrado: así los movimientos suman lo que gastó el trabajo (el pesaje corrige después)
+  if (o.grams > taken) await db.insert(s.inventoryMovements).values({ ...mv, qty: -(o.grams - taken), note: (await getT())('inventory.consumedBeyondSpool', { g: Math.round(o.grams - taken) }) });
   await checkLowStock(sp.materialId);
-  return { before: sp.remainingG, after: left, depleted: left <= 0 };
+  return { before, after: left, depleted: left <= 0 };
 }
 
 /** Alerta de stock bajo (por peso total del material/color). */
@@ -179,6 +186,7 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
 
 /* ── Directorio de proveedores (N4b) ────────────────────────────────────── */
 import SUPPLIER_SEED from '../catalog/suppliers.json';
+import { ymd } from '../format';
 /** Siembra el directorio inicial (marcado «sin verificar») si la tabla está vacía. Idempotente. */
 export async function seedSuppliers(db?: Db) {
   db ??= await getDb();

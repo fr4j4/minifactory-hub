@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 import { getDb, s, WORKSPACE_ID } from '@/db';
-import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer } from './storage';
+import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer, remove } from './storage';
 import { analyze, decimate, renderThumbnail, renderTurntable, toPreviewBin, weld } from './mesh/ops';
 import { extOf, parseMesh, SUPPORTED_MESH, GCODE_EXT, IMAGE_EXT } from './mesh/parse';
 import { parseAms } from './mesh/threemf-ams';
@@ -54,8 +54,8 @@ export async function ingestModel(i: IngestInput) {
   await audit('model_file', modelId, number === 1 ? 'crear' : 'nueva_version', { filename: i.filename, version: number }, i.userId);
   // el análisis va a la cola persistente (reintenta y sobrevive a reinicios); en modo sync se espera su resultado
   const { enqueueJob, runJobNow } = await import('./jobs');
-  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId });
-  if (i.sync) await runJobNow(jobId);
+  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId, claimed: i.sync });
+  if (i.sync) await runJobNow(jobId, { claimed: true });
   return { modelFileId: modelId, versionId: v.id, version: number, duplicateOf: dup && dup.id !== modelId ? dup : null };
 }
 
@@ -115,6 +115,9 @@ export async function processVersion(versionId: string) {
   }
   meta.processMs = Date.now() - t0;
   await db.update(s.fileVersions).set({ meta, thumbKey, updatedAt: new Date() }).where(eq(s.fileVersions.id, versionId));
+  // un reanálisis deja archivos nuevos: los de la pasada anterior se borran (nadie más los usa)
+  const prevMeta = (v.meta ?? {}) as Record<string, any>;
+  for (const k of [prevMeta.previewKey, prevMeta.turnKey, prevMeta.gcodePreviewKey, v.thumbKey]) if (typeof k === 'string' && k && ![meta.previewKey, meta.turnKey, meta.gcodePreviewKey, thumbKey].includes(k)) await remove(k).catch(() => {});
   const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
   if (mf?.currentVersionId === versionId) {
     await db.update(s.modelFiles).set({ ...mfUpdate, updatedAt: new Date() }).where(eq(s.modelFiles.id, v.modelFileId));

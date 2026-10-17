@@ -4,9 +4,10 @@ import ExcelJS from 'exceljs';
 import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can, type Module } from '@/lib/perm';
-import { reportAllowed, reportData } from '@/lib/reports';
+import { reportAllowed, reportData, reportRange } from '@/lib/reports';
 import { getT } from '@/i18n/server';
 import { csvCell } from '@/lib/csv';
+import { getSettings } from '@/lib/settings';
 
 /** Exportaciones: clientes (CSV) y reportes (CSV / XLSX). */
 export async function GET(req: Request, { params }: { params: Promise<{ kind: string }> }) {
@@ -22,8 +23,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     header = ['nombre', 'telefono', 'email', 'rut', 'tipo', 'etiquetas', 'consentimiento_fotos']; rows = cs.map((c) => [c.name, c.phone, c.email, c.taxId, c.type, (c.tags ?? []).join(';'), c.photoConsent]); name = 'clientes';
   } else if (reportAllowed(user, kind)) {
     if (!can(user, 'reportes', 'V')) return NextResponse.json({ error: t('api.noPermission') }, { status: 403 });
-    const from = url.searchParams.get('from') ? new Date(url.searchParams.get('from')!) : new Date(Date.now() - 30 * 86400_000); const to = url.searchParams.get('to') ? new Date(url.searchParams.get('to')! + 'T23:59:59') : new Date();
-    const d = await reportData(kind, { from, to }, user); header = d.columns.map((c) => c.label); rows = d.rows.map((r) => d.columns.map((c) => r[c.key])); name = `reporte-${kind}`;
+    await getSettings(); // fija la zona del taller antes de calcular el rango por defecto
+    const d = await reportData(kind, reportRange(url.searchParams.get('from'), url.searchParams.get('to'), 30), user); header = d.columns.map((c) => c.label); rows = d.rows.map((r) => d.columns.map((c) => r[c.key])); name = `reporte-${kind}`;
   } else return NextResponse.json({ error: t('api.unknownExport') }, { status: 404 });
   if (fmt === 'xlsx') {
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(name.slice(0, 30)); ws.addRow(header).font = { bold: true }; rows.forEach((r) => ws.addRow(r as any[])); ws.columns.forEach((c) => { c.width = 18; });

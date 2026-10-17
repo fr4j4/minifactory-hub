@@ -4,7 +4,7 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { PageHeader, Card, Table, StatusBadge, Empty, Badge } from '@/components/ui';
-import { dmy, money, sources } from '@/lib/format';
+import { dmy, money, sources, ymd } from '@/lib/format';
 import { paymentStatus } from '@/lib/services/orders';
 import { getT } from '@/i18n/server';
 
@@ -18,7 +18,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   if (sp.st) conds.push(eq(s.orders.status, sp.st)); else conds.push(inArray(s.orders.status, ['recibido', 'en_produccion', 'post_proceso', 'listo']));
   if (sp.src) conds.push(eq(s.orders.source, sp.src));
   const rows = await db.select().from(s.orders).where(and(...conds)).orderBy(desc(s.orders.createdAt)).limit(200);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd();
   return (
     <>
       <PageHeader title={t('common.orders')} subtitle={t('orders.everythingInTheWorkshopStatus')} actions={can(user, 'pedidos', 'C') && <Link href="/pedidos/nuevo" className="btn-primary" data-testid="new-order">{t('orders.registerOrder')}</Link>} />

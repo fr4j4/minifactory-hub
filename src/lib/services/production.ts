@@ -10,7 +10,10 @@ import { consumeFromSpool, materialCostPerKg } from './inventory';
 import { machineCostOf } from './quotes';
 import { recomputeOrderStatus } from './orders';
 import { getT } from '@/i18n/server';
+import { LOCALES } from '@/i18n/config';
+import { createT } from '@/i18n/translate';
 import { LocalizedError } from '@/i18n/errors';
+import { ymd } from '../format';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -192,23 +195,31 @@ async function idleMachineFor(db: Q, j: { materialId: string | null; dims: [numb
   return machines.filter((m) => !printing.has(m.id) && techFits(mat?.tech, m.tech) && (!j.dims || fitsIn(j.dims, [m.volX, m.volY, m.volZ]))).sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))[0]?.id;
 }
 
-export async function startJob(jobId: string, o: { machineId?: string; spoolId?: string; userId?: string | null } = {}) {
+/** Lo que startJob exige (el trabajo existe, tiene máquina y la máquina no imprime otro). Enviar a la impresora lo revisa antes de subir el archivo. */
+export async function checkJobCanStart(jobId: string, machineId?: string | null, db?: Db) {
   const t = await getT();
-  const db = await getDb();
+  db = db ?? (await getDb());
   const [j] = await db.select().from(s.printJobs).where(eq(s.printJobs.id, jobId));
   if (!j) throw new Error(t('queue.jobNotFound'));
   if (j.status !== 'en_cola') throw new Error(t('queue.jobStatusChanged'));
-  const machineId = o.machineId ?? j.machineId ?? (await idleMachineFor(db, j));
-  if (!machineId) throw new Error(t('queue.assignAMachineBeforeStarting'));
-  const [busy] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, machineId), eq(s.printJobs.status, 'imprimiendo'), ne(s.printJobs.id, jobId))).limit(1);
+  const mid = machineId ?? j.machineId ?? (await idleMachineFor(db, j));
+  if (!mid) throw new Error(t('queue.assignAMachineBeforeStarting'));
+  const [busy] = await db.select({ id: s.printJobs.id }).from(s.printJobs).where(and(eq(s.printJobs.machineId, mid), eq(s.printJobs.status, 'imprimiendo'), ne(s.printJobs.id, jobId))).limit(1);
   if (busy) throw new Error(t('queue.theMachineIsAlreadyPrinting'));
+  return { j, machineId: mid };
+}
+
+export async function startJob(jobId: string, o: { machineId?: string; spoolId?: string; userId?: string | null } = {}) {
+  const t = await getT();
+  const db = await getDb();
+  const { j, machineId } = await checkJobCanStart(jobId, o.machineId, db);
   const spool = o.spoolId ? (await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId)))[0] : await pickSpool(j.materialId, j.estG, machineId, db);
   const now = new Date();
   // transición condicionada: dos clics (o dos pestañas) no inician el mismo trabajo dos veces
   const [claimed] = await db.update(s.printJobs).set({ status: 'imprimiendo', machineId, spoolId: spool?.id ?? null, realStart: now, updatedAt: now }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, 'en_cola'))).returning({ id: s.printJobs.id });
   if (!claimed) throw new Error(t('queue.jobStatusChanged'));
   await db.update(s.machines).set({ status: 'imprimiendo', updatedAt: now }).where(eq(s.machines.id, machineId));
-  if (spool) await db.update(s.spools).set({ status: 'en_uso', machineId, openedAt: spool.openedAt ?? now.toISOString().slice(0, 10), updatedAt: now }).where(eq(s.spools.id, spool.id));
+  if (spool) await db.update(s.spools).set({ status: 'en_uso', machineId, openedAt: spool.openedAt ?? ymd(now), updatedAt: now }).where(eq(s.spools.id, spool.id));
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'imprimiendo' }).where(eq(s.productionOrders.id, j.productionOrderId));
   const items = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
   if (items.length) await db.update(s.orderItems).set({ status: 'imprimiendo' }).where(inArray(s.orderItems.id, items.map((i) => i.orderItemId!).filter(Boolean)));
@@ -419,11 +430,13 @@ export async function completeMaintenance(o: { planId: string; cost?: number; do
   const [p] = await db.select().from(s.maintenancePlans).where(eq(s.maintenancePlans.id, o.planId));
   if (!p) throw new Error(t('queue.planNotFound'));
   const [m] = await db.select().from(s.machines).where(eq(s.machines.id, p.machineId));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd();
   const { moveItem } = await import('./inventory');
   for (const part of o.parts ?? []) await moveItem({ itemId: part.itemId, qty: part.qty, kind: 'consumo', note: t('queue.maintenance', { task: p.task, machine: m.name }), userId: o.userId });
   await db.insert(s.maintenanceLogs).values({ workspaceId: WORKSPACE_ID, machineId: m.id, planId: p.id, task: p.task, doneAt: today, atHours: m.hoursTotal, cost: o.cost ?? 0, downtimeH: o.downtimeH ?? 0, parts: o.parts ?? [], notes: o.notes ?? null, createdBy: o.userId ?? null });
   await db.update(s.maintenancePlans).set({ lastDoneHours: m.hoursTotal, lastDoneAt: today }).where(eq(s.maintenancePlans.id, p.id));
+  // el aviso "vencida" de este ciclo queda leído: si no, su copia sin leer bloquea el aviso del ciclo siguiente (el título depende del idioma)
+  await db.update(s.notifications).set({ read: true }).where(and(eq(s.notifications.kind, 'mantenimiento'), eq(s.notifications.read, false), inArray(s.notifications.title, LOCALES.map((l) => createT(l)('queue.maintenanceOverdue', { task: p.task, machine: m.name })))));
   await audit('machine', m.id, 'mantenimiento', { task: p.task }, o.userId);
 }
 

@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
+import { addDays, ymd } from '../format';
 
 const DAY = 86400_000;
 const OPEN = ['borrador', 'enviado'];
@@ -12,7 +13,7 @@ export async function quoteBoard(now = new Date()) {
   const counts: Record<string, number> = {};
   for (const q of all) counts[q.status] = (counts[q.status] ?? 0) + 1;
   const open = all.filter((q) => OPEN.includes(q.status));
-  const in3 = new Date(now.getTime() + 3 * DAY).toISOString().slice(0, 10); const today = now.toISOString().slice(0, 10);
+  const today = ymd(now); const in3 = addDays(today, 3);
   const dueSoon = open.filter((q) => q.status === 'enviado' && q.validUntil && String(q.validUntil) >= today && String(q.validUntil) <= in3).length;
   const noReply = open.filter((q) => q.status === 'enviado' && now.getTime() - q.updatedAt.getTime() > 7 * DAY).length;
   const win = all.filter((q) => now.getTime() - q.createdAt.getTime() <= 30 * DAY && ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status));

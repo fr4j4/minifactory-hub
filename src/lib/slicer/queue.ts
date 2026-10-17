@@ -1,10 +1,10 @@
 import { runsQueues } from '../worker-mode';
 import crypto from 'node:crypto';
 import fsp from 'node:fs/promises';
-import { and, eq, inArray, asc, desc, sql } from 'drizzle-orm';
+import { and, eq, inArray, asc, desc, isNotNull, lt, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { config } from '../config';
-import { absPath, newKey, putFile } from '../storage';
+import { absPath, newKey, putFile, remove } from '../storage';
 import { buildCliProfile } from './catalog';
 import { resolveFilament } from './resolve';
 import { cleanup, engineVersion, runOrca } from './run';
@@ -79,6 +79,9 @@ export async function enqueueSlice(input: EnqueueInput): Promise<string> {
   return row.id;
 }
 
+/** Las escrituras finales solo valen si el laminado sigue "running": una cancelación (de otro proceso) no se pisa. */
+const stillRunning = (runId: string) => and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'running'));
+
 async function execute(runId: string) {
   const t = await getT();
   const db = await getDb();
@@ -109,11 +112,10 @@ async function execute(runId: string) {
         const now = Date.now(); if (p.pct === lastPct || now - last < 700) return; last = now; lastPct = p.pct;
         void db.update(s.sliceRuns).set({ result: { progress: p } }).where(and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'running'))).catch(() => {});
       }; })() });
-    aborts().delete(runId);
     tmpDir = r.tmpDir;
     if (r.errorCode === 'cancelled') { await db.update(s.sliceRuns).set({ status: 'cancelado', error: null, result: { errorCode: 'cancelled' }, durationMs: r.durationMs, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId)); return; }
     if (!r.ok) {
-      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
+      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(stillRunning(runId));
       return;
     }
     // sumar todas las placas (si las copias no caben en una)
@@ -125,22 +127,27 @@ async function execute(runId: string) {
     const gcodeKeys: string[] = [];
     for (const pl of r.plates) gcodeKeys.push(await putFile(newKey('gcode', 'gcode'), pl.gcodePath, false));
     const threemfKey = r.threemfPath ? await putFile(newKey('gcode', '3mf'), r.threemfPath, false) : null;
-    await db.update(s.sliceRuns).set({
+    const done = await db.update(s.sliceRuns).set({
       status: 'done', timeS, filament: Object.values(fil2).map((x) => ({ g: +x.g.toFixed(2), mm: +x.mm.toFixed(1), cm3: +x.cm3.toFixed(2) })),
       layers, plates: r.plates.length, durationMs: r.durationMs, engineVersion: r.engine, gcodeKey: gcodeKeys[0], threemfKey,
       result: { gcodeKeys, slicer: r.plates[0].meta.slicer }, error: null, updatedAt: new Date(),
-    }).where(eq(s.sliceRuns.id, runId));
+    }).where(stillRunning(runId)).returning({ id: s.sliceRuns.id });
+    // cancelado mientras se guardaban los archivos: nadie los referencia, se borran
+    if (!done.length) for (const k of [...gcodeKeys, threemfKey]) if (k) await remove(k).catch(() => {});
   } catch (e) {
-    await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, result: { errorCode: 'other' }, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId));
+    await db.update(s.sliceRuns).set({ status: 'error', error: (e as Error).message, result: { errorCode: 'other' }, updatedAt: new Date() }).where(stillRunning(runId));
   } finally {
+    aborts().delete(runId);
     if (tmpDir && !process.env.MF_KEEP_TMP) await cleanup(tmpDir).catch(() => {});
   }
 }
 
 async function tick() {
   const w = g.__sliceWorker!;
-  if (w.running >= config.orcaConcurrency) return;
   const db = await getDb();
+  // cancelaciones hechas desde otro proceso (la web con MF_EXTERNAL_WORKER=1) o antes de registrar el AbortController: matar OrcaSlicer aquí
+  if (aborts().size) for (const r of await db.select({ id: s.sliceRuns.id }).from(s.sliceRuns).where(and(inArray(s.sliceRuns.id, [...aborts().keys()]), eq(s.sliceRuns.status, 'cancelado')))) aborts().get(r.id)?.abort();
+  if (w.running >= config.orcaConcurrency) return;
   const free = config.orcaConcurrency - w.running;
   const rows = await db.select({ id: s.sliceRuns.id }).from(s.sliceRuns).where(eq(s.sliceRuns.status, 'queued')).orderBy(asc(s.sliceRuns.createdAt)).limit(free);
   for (const r of rows) {
@@ -156,6 +163,7 @@ export function ensureWorker() {
   if (!runsQueues() || g.__sliceWorker?.timer) return;
   g.__sliceWorker = { running: 0 };
   getDb().then(async (db) => {
+    await (await import('../settings')).getSettingsRaw().catch(() => {}); // zona horaria del taller antes de que las colas usen ymd() (vencimientos, numeración)
     // trabajos que quedaron "running" por un reinicio vuelven a la cola
     await db.update(s.sliceRuns).set({ status: 'queued' }).where(eq(s.sliceRuns.status, 'running'));
     // análisis de archivos interrumpidos por el reinicio
@@ -165,6 +173,32 @@ export function ensureWorker() {
   const tt = setInterval(() => { tick().catch(() => {}); }, 800);
   tt.unref?.();
   g.__sliceWorker.timer = tt;
+  // limpieza diaria de G-code/3MF viejos (la primera, un minuto después de arrancar)
+  setTimeout(() => { void gcSliceOutputs().catch(() => {}); setInterval(() => { void gcSliceOutputs().catch(() => {}); }, 86400_000).unref?.(); }, 60_000).unref?.();
+}
+
+const keysOf = (r: { gcodeKey: string | null; threemfKey: string | null; result: any }) => [r.gcodeKey, r.threemfKey, ...((r.result?.gcodeKeys as string[] | undefined) ?? [])].filter((k): k is string => !!k);
+
+/** Borra los laminados terminados de más de `days` días que nada usa (línea de presupuesto o pedido, trabajo de cola, envío a impresora, propuesta abierta de la IA) y sus archivos.
+ *  Un archivo que otra corrida comparte (los aciertos de caché copian las claves) se conserva.
+ *  ponytail: lee todas las corridas con archivos en memoria; paginar si llegan a ser cientos de miles. */
+export async function gcSliceOutputs(days = 30) {
+  const db = await getDb();
+  const old = await db.select({ id: s.sliceRuns.id }).from(s.sliceRuns).where(and(eq(s.sliceRuns.status, 'done'), lt(s.sliceRuns.createdAt, new Date(Date.now() - days * 86400_000))));
+  if (!old.length) return 0;
+  const used = new Set<string>();
+  for (const tb of [s.quoteItems, s.orderItems, s.printJobs]) for (const r of await db.select({ id: tb.sliceRunId }).from(tb).where(isNotNull(tb.sliceRunId))) used.add(r.id!);
+  for (const r of await db.select({ c: s.activityLog.changes }).from(s.activityLog).where(eq(s.activityLog.action, 'enviar_impresion'))) if ((r.c as any)?.runId) used.add((r.c as any).runId);
+  // propuestas de la IA aún abiertas: sus laminados base y candidatos se vuelven a evaluar sin relaminar
+  for (const r of await db.select({ p: s.aiSuggestions.proposal }).from(s.aiSuggestions).where(eq(s.aiSuggestions.status, 'proposed'))) for (const id of [r.p?.baselineRunId, ...((r.p?.candidates as any[] | undefined) ?? []).map((c) => c?.runId)]) if (id) used.add(id);
+  const gone = new Set(old.map((r) => r.id).filter((id) => !used.has(id)));
+  if (!gone.size) return 0;
+  const withFiles = await db.select({ id: s.sliceRuns.id, gcodeKey: s.sliceRuns.gcodeKey, threemfKey: s.sliceRuns.threemfKey, result: s.sliceRuns.result }).from(s.sliceRuns).where(isNotNull(s.sliceRuns.gcodeKey));
+  const keep = new Set(withFiles.filter((r) => !gone.has(r.id)).flatMap(keysOf));
+  const ids = [...gone];
+  await db.delete(s.sliceRuns).where(inArray(s.sliceRuns.id, ids));
+  for (const r of withFiles) if (gone.has(r.id)) for (const k of keysOf(r)) if (!keep.has(k)) await remove(k).catch(() => {});
+  return ids.length;
 }
 
 export async function waitForRuns(ids: string[], timeoutMs = 120_000) {
@@ -179,11 +213,10 @@ export async function waitForRuns(ids: string[], timeoutMs = 120_000) {
 
 const sortKeys = (v: any): any => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
 
-/** Cancela un laminado: si espera en la cola lo marca; si corre, mata el proceso de OrcaSlicer. */
+/** Cancela un laminado: lo marca en la base (en cola o corriendo). Si corre en este proceso mata OrcaSlicer ya; si corre en el worker, su tick lo mata. */
 export async function cancelRun(runId: string): Promise<'cancelado' | 'noop'> {
   const db = await getDb();
-  const done = await db.update(s.sliceRuns).set({ status: 'cancelado', updatedAt: new Date() }).where(and(eq(s.sliceRuns.id, runId), eq(s.sliceRuns.status, 'queued'))).returning({ id: s.sliceRuns.id });
-  if (done.length) return 'cancelado';
-  const ctl = aborts().get(runId); if (ctl) { ctl.abort(); return 'cancelado'; }
-  return 'noop';
+  const done = await db.update(s.sliceRuns).set({ status: 'cancelado', updatedAt: new Date() }).where(and(eq(s.sliceRuns.id, runId), inArray(s.sliceRuns.status, ['queued', 'running']))).returning({ id: s.sliceRuns.id });
+  aborts().get(runId)?.abort();
+  return done.length ? 'cancelado' : 'noop';
 }

@@ -21,6 +21,7 @@ export const settings = {
   jobRetry: 'Reintentar',
   jobRetried: 'Reintento en cola',
   'jobKind_file.process': 'Análisis de archivo',
+  jobInterrupted: 'Se interrumpió con el reinicio del servidor y ya no le quedan intentos',
   group_shop: 'Taller',
   group_prices: 'Precios y ventas',
   group_team: 'Equipo',

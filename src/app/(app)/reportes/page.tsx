@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { pagePerm } from '@/lib/auth';
 import { PageHeader, Card, Table, Tabs, Empty } from '@/components/ui';
-import { reportAllowed, reportData, REPORTS, type Col } from '@/lib/reports';
+import { reportAllowed, reportData, reportRange, REPORTS, type Col } from '@/lib/reports';
+import { getSettings } from '@/lib/settings';
 import { dmy, dur, money, num, pct } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { DateInput } from '@/components/date-input';
@@ -12,16 +13,17 @@ const cell = (v: any, c: Col) => v == null || v === '' ? '—' : c.fmt === 'mone
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ r?: string; from?: string; to?: string }> }) {
   const t = await getT();
   const user = await pagePerm('reportes', 'V'); const sp = await searchParams;
-  const to = sp.to ? new Date(sp.to + 'T23:59:59') : new Date(); const from = sp.from ? new Date(sp.from) : new Date(Date.now() - 90 * 86400_000);
+  await getSettings(); // fija la zona del taller antes de calcular el rango por defecto
+  const { from, to } = reportRange(sp.from, sp.to, 90);
   const list = Object.entries(REPORTS).filter(([k]) => reportAllowed(user, k)); const kind = reportAllowed(user, sp.r ?? '') ? sp.r! : list[0][0];
   const d = await reportData(kind, { from, to }, user);
-  const q = `from=${from.toISOString().slice(0, 10)}&to=${to.toISOString().slice(0, 10)}`;
+  const q = `from=${from}&to=${to}`;
   const moneyCol = d.columns.find((c) => c.fmt === 'money' && ['revenue', 'amount', 'final', 'net'].includes(c.key)); const max = moneyCol ? Math.max(1, ...d.rows.map((r) => Math.abs(r[moneyCol.key] ?? 0))) : 0;
   return (
     <>
       <PageHeader title={t('reports.reports')} subtitle={user.role === 'ventas' ? t('reports.onlyYourSales') : t('reports.filterByDateAndExport')} />
       <Tabs current={kind} tabs={list.map(([k, v]) => ({ key: k, label: t(v.title), href: `/reportes?r=${k}&${q}` }))} />
-      <form className="flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><DateInput name="from" defaultValue={from.toISOString().slice(0, 10)} /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><DateInput name="to" defaultValue={to.toISOString().slice(0, 10)} /></label><button className="btn-ghost">{t('reports.apply')}</button>
+      <form className="flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><DateInput name="from" defaultValue={from} /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><DateInput name="to" defaultValue={to} /></label><button className="btn-ghost">{t('reports.apply')}</button>
         <div className="ml-auto flex gap-2 no-print"><a className="btn-ghost" href={`/api/export/${kind}?fmt=csv&${q}`} data-testid="export-csv">{t('reports.csv')}</a><a className="btn-ghost" href={`/api/export/${kind}?fmt=xlsx&${q}`} data-testid="export-xlsx">{t('reports.excel')}</a><a className="btn-ghost" href="#" data-print="1">{t('reports.pdfPrint')}</a></div></form>
       <Card title={d.title} actions={<span className="text-xs muted">{d.question}</span>} pad={false}>
         {d.rows.length === 0 ? <Empty title={t('reports.noDataInThisPeriod')} hint={t('reports.widenTheDateRange')} /> : (

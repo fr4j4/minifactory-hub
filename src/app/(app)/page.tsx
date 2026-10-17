@@ -38,7 +38,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     ...d.toShip.map((x) => ({ tone: 'blue' as const, text: `${t('home.saleToShip', { number: x.number })}${x.externalOrder ? ' · ' + x.externalOrder : ''}`, href: '/ventas' })),
     ...d.oldJobs.map((x) => ({ tone: 'amber' as const, text: t('home.reservationAboutToExpireHas', { job: x.j.number, days: 15 }), href: '/cola' })),
   ];
-  const hour = new Date().getHours(); const hello = hour < 12 ? t('home.goodMorning') : hour < 20 ? t('home.goodAfternoon') : t('home.goodEvening');
+  const hour = Number(dmyHm(new Date()).slice(11, 13)); const hello = hour < 12 ? t('home.goodMorning') : hour < 20 ? t('home.goodAfternoon') : t('home.goodEvening');
   const conn = liveByMachine();
   // si la máquina está conectada, el avance es el real que informa la impresora; si no, se estima con el tiempo transcurrido
   const live = d.machines.map((m) => { const pj = d.printing.find((x) => x.j.machineId === m.id); const c = conn[m.id]; const cs = c?.online ? c.status : null; const cBusy = !!cs && ['RUNNING', 'PAUSE', 'PREPARE'].includes(cs.state);

@@ -7,12 +7,13 @@ import { seedDemo } from '@/lib/seed';
 import { getSettings, saveSettings } from '@/lib/settings';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus, addPayment } from '@/lib/services/orders';
 import { loadQuote, newQuoteVersion, saveQuote, sendQuote } from '@/lib/services/quotes';
-import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance } from '@/lib/services/production';
+import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance, completeMaintenance } from '@/lib/services/production';
 import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/services/catalog';
-import { materialStock, weighSpool, shoppingList } from '@/lib/services/inventory';
+import { materialStock, weighSpool, shoppingList, createSpool, consumeFromSpool } from '@/lib/services/inventory';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
 import { orcaAvailable } from '@/lib/slicer/catalog';
-import { reportAllowed, reportData, REPORTS } from '@/lib/reports';
+import { reportAllowed, reportData, reportRange, REPORTS } from '@/lib/reports';
+import { dayStart } from '@/lib/format';
 import { dashboardData } from '@/lib/stats';
 
 let admin: any, ventas: any, op: any; let db: Awaited<ReturnType<typeof getDb>>;
@@ -113,6 +114,15 @@ describe('aprobación manual → pedido → producción → inventario', () => {
     const due = await maintenanceDue(); expect(due.some((d) => d.machineId === ender.id)).toBe(true); await checkMaintenance(ender.id);
     expect((await db.select().from(s.notifications).where(eq(s.notifications.kind, 'mantenimiento'))).length).toBeGreaterThan(0);
   });
+  it('mantenimiento hecho: su aviso queda leído y el ciclo siguiente vuelve a avisar', async () => {
+    const unread = () => db.select().from(s.notifications).where(and(eq(s.notifications.kind, 'mantenimiento'), eq(s.notifications.read, false)));
+    const before = (await unread()).length; expect(before).toBeGreaterThan(0);
+    const plans = (await maintenanceDue()).filter((d) => d.machineId === ender.id);
+    for (const p of plans) await completeMaintenance({ planId: p.planId, userId: admin.id });
+    expect((await unread()).length).toBeLessThan(before);
+    await db.update(s.machines).set({ hoursTotal: 2000 }).where(eq(s.machines.id, ender.id)); await checkMaintenance(ender.id);
+    expect((await unread()).length).toBeGreaterThanOrEqual(before);
+  });
 });
 
 describe('catálogo: productos con variantes, stock y ventas', () => {
@@ -143,7 +153,7 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
   it('venta rápida: precio a mano bajo el costo solo para el Administrador; nunca negativo', async () => {
     const items = (unitPrice: number) => ({ items: [{ variantId: variantIds[0], qty: 1, unitPrice }] });
     await expect(createSale(items(1), ventas)).rejects.toThrow(/bajo el costo/);
-    await expect(createSale(items(-10), admin)).rejects.toThrow(/inválido/);
+    await expect(createSale(items(-10), admin)).rejects.toThrow(/negativo/);
   });
   it('pedido manual: la cantidad se normaliza y un precio final negativo se rechaza', async () => {
     await expect(createOrder({ items: [line({ finalUnit: -1 })] }, admin)).rejects.toThrow(/inválido/);
@@ -163,17 +173,80 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await expect(adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4 }, admin)).rejects.toThrow(/motivo/); await adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4, reason: 'Conteo' }, admin);
     await expect(adjustStock({ variantId: variantIds[1], kind: 'merma', qty: 10, reason: 'x' }, admin)).rejects.toThrow(/negativo/);
   });
+  it('vender de más deja el stock negativo (igual a sus movimientos) y anular devuelve lo exacto y da de baja el pago', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: before + 3 }] }, ventas);
+    expect(await stockOf()).toBe(-3); expect(r.shortages.length).toBe(1);
+    const ledger = async () => (await db.select().from(s.stockMovements).where(eq(s.stockMovements.variantId, vid))).reduce((a, m) => a + m.qty, 0);
+    expect(await ledger()).toBe(await stockOf());
+    await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Error' });
+    expect(await stockOf()).toBe(before); expect(await ledger()).toBe(before);
+    const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, r.id)); expect(sale.paid).toBe(0);
+    expect((await db.select().from(s.payments).where(and(eq(s.payments.saleId, r.id), isNull(s.payments.deletedAt)))).length).toBe(0);
+  });
+  it('dos anulaciones simultáneas devuelven el stock una sola vez', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: 1 }] }, ventas);
+    const res = await Promise.allSettled([setSaleStatus(r.id, 'anulada', ventas, { reason: 'a' }), setSaleStatus(r.id, 'anulada', ventas, { reason: 'b' })]);
+    expect(res.filter((x) => x.status === 'fulfilled').length).toBe(1);
+    expect(await stockOf()).toBe(before);
+    expect((await db.select().from(s.stockMovements).where(and(eq(s.stockMovements.saleId, r.id), eq(s.stockMovements.kind, 'devolucion')))).length).toBe(1);
+  });
+  it('una venta de $0 en marketplace no cobra la comisión fija (igual que el carrito)', async () => {
+    const ml = (await db.select().from(s.salesChannels).where(eq(s.salesChannels.name, 'Mercado Libre')))[0];
+    const r = await createSale({ channelId: ml.id, items: [{ variantId: variantIds[1], qty: 1, unitPrice: 0 }] }, ventas); expect(r.commission).toBe(0);
+  });
+  it('la venta rechaza cantidades no enteras o repetidas sin dejar una venta a medias', async () => {
+    const n = (await db.select().from(s.sales)).length;
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1.5 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 0 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1 }, { variantId: variantIds[2], qty: 1 }] }, ventas)).rejects.toThrow(/dos veces/);
+    expect((await db.select().from(s.sales)).length).toBe(n);
+  });
+  it('SKU repetido: busca el siguiente libre; un valor que vuelve reactiva su variante', async () => {
+    const skus: string[] = [];
+    for (let k = 0; k < 3; k++) { const id = await saveProduct({ name: 'Llavero', mode: 'simple', price: 1000 }, admin); skus.push((await db.select().from(s.productVariants).where(eq(s.productVariants.productId, id)))[0].sku); }
+    expect(new Set(skus).size).toBe(3);
+    const attrs = (values: string[]) => [{ name: 'Color', values }];
+    const pid = await saveProduct({ name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    const vs = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, pid)); expect(vs.length).toBe(2); expect(vs.every((v) => v.active)).toBe(true);
+  });
+});
+
+describe('inventario: consumo de filamento', () => {
+  it('un consumo mayor a lo que queda agota la bobina y los movimientos suman todo lo gastado', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 100, tareG: 0, unitCost: 15000, userId: admin.id });
+    const r = await consumeFromSpool({ spoolId: sp.id, grams: 300, kind: 'consumo', userId: admin.id });
+    expect(r).toMatchObject({ before: 100, after: 0, depleted: true });
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.status).toBe('agotada');
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.reduce((a, m) => a + m.qty, 0)).toBe(-300);
+  });
+  it('dos consumos simultáneos registran cada uno sus gramos', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 1000, tareG: 0, unitCost: 15000, userId: admin.id });
+    await Promise.all([consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' }), consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' })]);
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.remainingG).toBe(800);
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.map((m) => m.qty)).toEqual([-100, -100]);
+  });
 });
 
 describe('reportes y dashboard', () => {
-  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, { from: new Date(Date.now() - 120 * 86400_000), to: new Date() }, admin); expect(d.columns.length).toBeGreaterThan(2); } });
+  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, reportRange(null, null, 120), admin); expect(d.columns.length).toBeGreaterThan(2); } });
   it('el dashboard calcula indicadores y alertas', async () => { const d = await dashboardData(); expect(d.ind.revenue).toBeGreaterThan(0); expect(d.val.total).toBeGreaterThan(0); expect(d.lowMaterials.length + d.lowItems.length + d.maint.length).toBeGreaterThan(0); });
-  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, admin); const mine = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, ventas); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+  it('el rango ignora fechas imposibles e invierte desde/hasta al revés', () => {
+    expect(reportRange('2026-13-01', '2026-10-16', 30)).toEqual({ from: '2026-09-16', to: '2026-10-16' });
+    expect(reportRange('2026-02-30', '2026-10-16', 30).from).toBe('2026-09-16');
+    expect(reportRange('2026-10-20', '2026-10-01', 30)).toEqual({ from: '2026-10-01', to: '2026-10-20' });
+  });
+  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', reportRange(null, null, 365), admin); const mine = await reportData('ventas', reportRange(null, null, 365), ventas); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
   it('Ventas ve solo sus presupuestos; sin costos no hay reportes de costos', async () => {
-    const r = { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }; const n = (d: any) => d.rows[1].n; // fila «enviados»
+    const r = reportRange(null, null, 365); const n = (d: any) => d.rows[1].n; // fila «enviados»
     const [mine, all] = [await reportData('embudo', r, ventas), await reportData('embudo', r, admin)];
     const qs = await db.select().from(s.quotes).where(eq(s.quotes.createdBy, ventas.id));
-    expect(n(mine)).toBe(qs.filter((q) => ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status) && q.createdAt >= r.from).length); expect(n(mine)).toBeLessThanOrEqual(n(all));
+    expect(n(mine)).toBe(qs.filter((q) => ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status) && q.createdAt >= dayStart(r.from)).length); expect(n(mine)).toBeLessThanOrEqual(n(all));
     const opR = { ...op, permOverrides: { reportes: 'V' } };
     expect(reportAllowed(opR, 'estimado_real')).toBe(false); expect(reportAllowed(opR, 'embudo')).toBe(true);
     await expect(reportData('estimado_real', r, opR)).rejects.toThrow();

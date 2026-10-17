@@ -12,6 +12,7 @@ import { tOr } from '@/i18n/translate';
 import { EditButton } from '@/components/edit-button';
 import { editFields } from '@/lib/edit-fields';
 import { getT } from '@/i18n/server';
+import { noPhotoConsent } from '@/lib/photos';
 import { RemoveButton } from '@/components/remove-button';
 
 export async function generateMetadata() { return { title: (await getT())('meta.gallery') }; }
@@ -23,11 +24,11 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
   if (sp.tag) conds.push(sql`${s.photos.tags}::text ilike ${'%' + sp.tag + '%'}`);
   if (sp.months) conds.push(gte(s.photos.takenAt, new Date(Date.now() - Number(sp.months) * 30 * 86400_000)));
   if (sp.cliente) conds.push(eq(s.photos.customerId, sp.cliente));
-  const rows = await db.select({ p: s.photos, o: s.orders.number, c: s.customers.name }).from(s.photos).leftJoin(s.orders, eq(s.orders.id, s.photos.orderId)).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(...conds)).orderBy(desc(s.photos.featured), desc(s.photos.takenAt)).limit(300);
+  const rows = await db.select({ p: s.photos, o: s.orders.number, c: s.customers.name, consent: s.customers.photoConsent }).from(s.photos).leftJoin(s.orders, eq(s.orders.id, s.photos.orderId)).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(...conds)).orderBy(desc(s.photos.featured), desc(s.photos.takenAt)).limit(300);
   const cols = await db.select().from(s.collections).where(isNull(s.collections.deletedAt)); const colPhotos = sp.col ? await db.select().from(s.collectionPhotos).where(eq(s.collectionPhotos.collectionId, sp.col)) : [];
   const list = sp.col ? rows.filter((r) => colPhotos.some((c) => c.photoId === r.p.id)) : rows;
   const allTags = [...new Set((await db.select({ t: s.photos.tags }).from(s.photos).where(isNull(s.photos.deletedAt))).flatMap((x) => x.t ?? []))].sort().slice(0, 30);
-  const views: PhotoView[] = list.map(({ p, o, c }) => ({ id: p.id, kind: p.kind, thumb: p.kind === 'video' ? '' : `/api/media/${p.variants?.['320'] ?? p.storageKey}`, large: `/api/media/${p.kind === 'video' ? p.storageKey : p.variants?.['1600'] ?? p.storageKey}`, stage: p.stage, stageLabel: tOr(t, `gallery.stage.${p.stage}`, p.stage), featured: p.featured, tags: p.tags ?? [], caption: p.caption, internalOnly: p.internalOnly, takenAt: p.takenAt.toISOString(), order: o, customer: c, publish: p.publish ?? {}, suggestedText: p.suggestedText }));
+  const views: PhotoView[] = list.map(({ p, o, c, consent }) => ({ id: p.id, kind: p.kind, thumb: p.kind === 'video' ? '' : `/api/media/${p.variants?.['320'] ?? p.storageKey}`, large: `/api/media/${p.kind === 'video' ? p.storageKey : p.variants?.['1600'] ?? p.storageKey}`, stage: p.stage, stageLabel: tOr(t, `gallery.stage.${p.stage}`, p.stage), featured: p.featured, tags: p.tags ?? [], caption: p.caption, internalOnly: p.internalOnly || noPhotoConsent(consent), takenAt: p.takenAt.toISOString(), order: o, customer: c, publish: p.publish ?? {}, suggestedText: p.suggestedText }));
   return (
     <>
       <PageHeader title={t('gallery.gallery')} subtitle={t('gallery.everyPhotoIsLinkedTo')} />

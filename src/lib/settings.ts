@@ -3,6 +3,7 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import type { Rates } from './pricing';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
 import type { DocTemplate } from './documents';
+import { setTimeZone, ymd } from './format';
 
 export interface AppSettings {
   shop: { name: string; legalName: string; taxId: string; address: string; phone: string; email: string; logoKey?: string; currency: string; timezone: string; lang: string; brandColor: string; /** paleta por defecto de la interfaz (cada persona puede elegir otra en su navegador) */ palette?: string };
@@ -64,7 +65,9 @@ function merge<T>(base: T, over: any): T {
 export async function getSettingsRaw(): Promise<AppSettings> {
   const db = await getDb();
   const [row] = await db.select().from(s.settings).where(eq(s.settings.workspaceId, WORKSPACE_ID));
-  return merge(DEFAULT_SETTINGS, row?.data ?? {});
+  const st = merge(DEFAULT_SETTINGS, row?.data ?? {});
+  setTimeZone(st.shop.timezone); // fechas y "hoy" del servidor en la zona del taller
+  return st;
 }
 /** Ajustes seguros para páginas y componentes: sin la clave de IA. */
 export async function getSettings(): Promise<AppSettings> {
@@ -84,7 +87,7 @@ export async function saveSettings(patch: Partial<AppSettings>) {
 export async function nextNumber(kind: keyof AppSettings['numbering'], tx?: any): Promise<string> {
   const db = tx ?? (await getDb());
   const st = await getSettings();
-  const year = new Date().getFullYear();
+  const year = Number(ymd().slice(0, 4)); // año del taller, no del servidor (en UTC el 31-12 de noche ya es el año siguiente)
   const res = await db.execute(sql`
     insert into sequences (workspace_id, key, year, value) values (${WORKSPACE_ID}, ${kind}, ${year}, 1)
     on conflict (workspace_id, key, year) do update set value = sequences.value + 1

@@ -6,7 +6,6 @@ import { audit } from '@/lib/audit';
 import { bulkUpdateLine, createSpool, moveItem, weighSpool } from '@/lib/services/inventory';
 import { checkNum, safe } from './common';
 import { getT } from '@/i18n/server';
-import { LocalizedError } from '@/i18n/errors';
 
 export interface MaterialInput { id?: string; tech: string; manufacturer?: string; line?: string; type: string; colorName: string; hex: string; diameter?: number | null; density: number; costPerKg: number; stockMinG: number; tempNozzle?: string; tempBed?: string; supplierText?: string; filamentProfileId?: string | null }
 export async function saveMaterialAction(i: MaterialInput) {
@@ -31,10 +30,10 @@ export async function updateSpoolAction(id: string, p: { location?: string | nul
   return safe(async () => {
     const u = await requirePerm('inventario', 'E'); const db = await getDb();
     const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, id)); if (!sp) throw new Error(t('common.spoolNotFound'));
-    // solo los campos editables (antes se copiaba el objeto del cliente entero: podía tocar remainingG, unitCost o deletedAt)
+    // solo los campos editables (antes se copiaba el objeto del cliente entero: podía tocar remainingG, unitCost o deletedAt); los gramos y el costo cambian por pesaje o consumo, que dejan movimiento
     const patch: Record<string, any> = { updatedAt: new Date() };
     for (const k of ['location', 'machineId', 'slot', 'status', 'lastDriedAt', 'tareG'] as const) if (p[k] !== undefined) patch[k] = p[k];
-    if (p.status !== undefined && !['nueva', 'abierta', 'en_uso', 'agotada', 'descartada'].includes(p.status)) throw new LocalizedError('edit.invalid');
+    if (p.status !== undefined && !['nueva', 'abierta', 'en_uso', 'agotada', 'descartada'].includes(p.status)) throw new Error(t('inventory.invalidSpoolStatus'));
     if (p.tareG !== undefined) checkNum(p.tareG);
     if (p.machineId) { patch.status = sp.status === 'agotada' ? sp.status : 'en_uso'; const [m] = await db.select().from(s.machines).where(eq(s.machines.id, p.machineId)); patch.location = t('inventory.loadedIn', { machine: m?.name ?? '' }) + (p.slot ? ' · ' + p.slot : ''); }
     if (p.machineId === null) { patch.machineId = null; }

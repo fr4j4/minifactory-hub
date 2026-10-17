@@ -24,6 +24,7 @@ export const settings: Shape<typeof es['settings']> = {
   jobRetry: 'Retry',
   jobRetried: 'Retry queued',
   'jobKind_file.process': 'File analysis',
+  jobInterrupted: 'Interrupted by a server restart with no attempts left',
   group_shop: 'Shop',
   group_prices: 'Prices and sales',
   group_team: 'Team',
