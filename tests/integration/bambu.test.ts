@@ -71,6 +71,8 @@ describe('conector Bambu Lab (contra el simulador)', () => {
     await expect(evil.waitReady(8000)).rejects.toMatchObject({ code: 'cert_changed' }); evil.close();
     await expect(listFiles({ host: '127.0.0.1', accessCode: '12345678', port: B + 990, fingerprint: 'AA:BB' })).rejects.toMatchObject({ code: 'cert_changed' });
     await expect(snapshot({ host: '127.0.0.1', accessCode: '12345678', kind: 'jpeg-tls', port: B + 600, fingerprint: 'AA:BB' }, 4000)).rejects.toMatchObject({ code: 'cert_changed' });
+    // RTSPS (X1/H2): la prueba TLS corta antes de lanzar ffmpeg con el código (el puerto TLS del simulador basta)
+    await expect(snapshot({ host: '127.0.0.1', accessCode: '12345678', kind: 'rtsps', port: B + 600, fingerprint: 'AA:BB' }, 4000)).rejects.toMatchObject({ code: 'cert_changed' });
     expect(p1s.auths.n).toBe(before);
     expect((await listFiles({ host: '127.0.0.1', accessCode: '12345678', port: B + 990, fingerprint: fp })).length).toBeGreaterThanOrEqual(0); // con la huella correcta sí entra
   }, 30_000);

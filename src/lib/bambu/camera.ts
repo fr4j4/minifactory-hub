@@ -63,9 +63,23 @@ export async function* splitMjpeg(src: AsyncIterable<Buffer>): AsyncGenerator<Bu
   }
 }
 
+/**
+ * ffmpeg no revisa la huella: antes de darle el código se abre un TLS de prueba al mismo puerto y se compara.
+ * ponytail: son dos conexiones; un intermediario que reenvíe la prueba a la impresora real y capture la de ffmpeg no se detecta. Cerrarlo pide un proxy TLS local fijado.
+ */
+function probePin(o: CamOpts, timeoutMsg: string) {
+  return new Promise<void>((res, rej) => {
+    const sock = tls.connect({ host: o.host, port: o.port ?? 322, rejectUnauthorized: false, timeout: 10_000 });
+    sock.once('secureConnect', () => { const ok = checkPin(sock, o.fingerprint).ok; sock.destroy(); if (ok) res(); else rej(certChangedError()); });
+    sock.once('timeout', () => { sock.destroy(); rej(Object.assign(new Error(timeoutMsg), { code: 'cam_timeout' })); });
+    sock.once('error', rej);
+  });
+}
+
 /** Cuadros de la cámara X1/H2 (RTSPS, puerto 322) convertidos a MJPEG con ffmpeg. */
 export async function* rtspsFrames(o: CamOpts, signal?: AbortSignal, fps = 2): AsyncGenerator<Buffer> {
   const t = await getT();
+  await probePin(o, t('machines.theCameraDidNotRespond'));
   const url = `rtsps://bblp:${encodeURIComponent(o.accessCode)}@${o.host}:${o.port ?? 322}/streaming/live/1`;
   const ff = spawn(process.env.FFMPEG_BIN || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-timeout', '10000000', '-i', url, '-an', '-vf', `fps=${fps}`, '-q:v', '6', '-f', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
   let err = ''; ff.stderr.on('data', (d) => { err = (err + d).slice(-400); });
