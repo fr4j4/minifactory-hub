@@ -28,10 +28,12 @@ export const reportAllowed = (user: PermUser, kind: string) => !!REPORTS[kind] &
 
 const mon = (d: Date | string) => (typeof d === 'string' ? d : ymd(d)).slice(0, 7);
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
-/** Rango de un reporte desde la URL: días aaaa-mm-dd (ambos incluidos) en la zona del taller; si faltan o no son válidos, los últimos `days` días. */
+const isDay = (d: string | null | undefined): d is string => !!d && DAY_RE.test(d) && !Number.isNaN(Date.parse(d + 'T00:00:00Z')) && addDays(d, 0) === d; // descarta 2026-13-01 o 2026-02-30
+/** Rango de un reporte desde la URL: días aaaa-mm-dd (ambos incluidos) en la zona del taller; si faltan o no son válidos, los últimos `days` días. Si vienen al revés, se invierten. */
 export function reportRange(from: string | null | undefined, to: string | null | undefined, days: number) {
-  const t = to && DAY_RE.test(to) ? to : ymd();
-  return { from: from && DAY_RE.test(from) ? from : addDays(t, -days), to: t };
+  const t = isDay(to) ? to : ymd();
+  const f = isDay(from) ? from : addDays(t, -days);
+  return f <= t ? { from: f, to: t } : { from: t, to: f };
 }
 
 /** `r`: días aaaa-mm-dd, ambos incluidos. Los instantes se filtran en [inicio de `from`, inicio del día siguiente a `to`) en la zona del taller; las ventas rápidas, por su fecha de negocio (`sales.date`).

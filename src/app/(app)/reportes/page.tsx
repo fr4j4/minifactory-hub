@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { pagePerm } from '@/lib/auth';
 import { PageHeader, Card, Table, Tabs, Empty } from '@/components/ui';
 import { reportAllowed, reportData, reportRange, REPORTS, type Col } from '@/lib/reports';
+import { getSettings } from '@/lib/settings';
 import { dmy, dur, money, num, pct } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { DateInput } from '@/components/date-input';
@@ -12,6 +13,7 @@ const cell = (v: any, c: Col) => v == null || v === '' ? '—' : c.fmt === 'mone
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ r?: string; from?: string; to?: string }> }) {
   const t = await getT();
   const user = await pagePerm('reportes', 'V'); const sp = await searchParams;
+  await getSettings(); // fija la zona del taller antes de calcular el rango por defecto
   const { from, to } = reportRange(sp.from, sp.to, 90);
   const list = Object.entries(REPORTS).filter(([k]) => reportAllowed(user, k)); const kind = reportAllowed(user, sp.r ?? '') ? sp.r! : list[0][0];
   const d = await reportData(kind, { from, to }, user);

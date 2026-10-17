@@ -184,6 +184,18 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, r.id)); expect(sale.paid).toBe(0);
     expect((await db.select().from(s.payments).where(and(eq(s.payments.saleId, r.id), isNull(s.payments.deletedAt)))).length).toBe(0);
   });
+  it('dos anulaciones simultáneas devuelven el stock una sola vez', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: 1 }] }, ventas);
+    const res = await Promise.allSettled([setSaleStatus(r.id, 'anulada', ventas, { reason: 'a' }), setSaleStatus(r.id, 'anulada', ventas, { reason: 'b' })]);
+    expect(res.filter((x) => x.status === 'fulfilled').length).toBe(1);
+    expect(await stockOf()).toBe(before);
+    expect((await db.select().from(s.stockMovements).where(and(eq(s.stockMovements.saleId, r.id), eq(s.stockMovements.kind, 'devolucion')))).length).toBe(1);
+  });
+  it('una venta de $0 en marketplace no cobra la comisión fija (igual que el carrito)', async () => {
+    const ml = (await db.select().from(s.salesChannels).where(eq(s.salesChannels.name, 'Mercado Libre')))[0];
+    const r = await createSale({ channelId: ml.id, items: [{ variantId: variantIds[1], qty: 1, unitPrice: 0 }] }, ventas); expect(r.commission).toBe(0);
+  });
   it('la venta rechaza cantidades no enteras o repetidas sin dejar una venta a medias', async () => {
     const n = (await db.select().from(s.sales)).length;
     await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1.5 }] }, ventas)).rejects.toThrow(/entero/);
@@ -212,11 +224,23 @@ describe('inventario: consumo de filamento', () => {
     const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
     expect(mv.reduce((a, m) => a + m.qty, 0)).toBe(-300);
   });
+  it('dos consumos simultáneos registran cada uno sus gramos', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 1000, tareG: 0, unitCost: 15000, userId: admin.id });
+    await Promise.all([consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' }), consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' })]);
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.remainingG).toBe(800);
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.map((m) => m.qty)).toEqual([-100, -100]);
+  });
 });
 
 describe('reportes y dashboard', () => {
   it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, reportRange(null, null, 120), admin); expect(d.columns.length).toBeGreaterThan(2); } });
   it('el dashboard calcula indicadores y alertas', async () => { const d = await dashboardData(); expect(d.ind.revenue).toBeGreaterThan(0); expect(d.val.total).toBeGreaterThan(0); expect(d.lowMaterials.length + d.lowItems.length + d.maint.length).toBeGreaterThan(0); });
+  it('el rango ignora fechas imposibles e invierte desde/hasta al revés', () => {
+    expect(reportRange('2026-13-01', '2026-10-16', 30)).toEqual({ from: '2026-09-16', to: '2026-10-16' });
+    expect(reportRange('2026-02-30', '2026-10-16', 30).from).toBe('2026-09-16');
+    expect(reportRange('2026-10-20', '2026-10-01', 30)).toEqual({ from: '2026-10-01', to: '2026-10-20' });
+  });
   it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', reportRange(null, null, 365), admin); const mine = await reportData('ventas', reportRange(null, null, 365), ventas); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
   it('Ventas ve solo sus presupuestos; sin costos no hay reportes de costos', async () => {
     const r = reportRange(null, null, 365); const n = (d: any) => d.rows[1].n; // fila «enviados»

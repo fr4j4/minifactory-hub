@@ -7,6 +7,7 @@ import { can, type Module } from '@/lib/perm';
 import { reportAllowed, reportData, reportRange } from '@/lib/reports';
 import { getT } from '@/i18n/server';
 import { csvCell } from '@/lib/csv';
+import { getSettings } from '@/lib/settings';
 
 /** Exportaciones: clientes (CSV) y reportes (CSV / XLSX). */
 export async function GET(req: Request, { params }: { params: Promise<{ kind: string }> }) {
@@ -22,6 +23,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
     header = ['nombre', 'telefono', 'email', 'rut', 'tipo', 'etiquetas', 'consentimiento_fotos']; rows = cs.map((c) => [c.name, c.phone, c.email, c.taxId, c.type, (c.tags ?? []).join(';'), c.photoConsent]); name = 'clientes';
   } else if (reportAllowed(user, kind)) {
     if (!can(user, 'reportes', 'V')) return NextResponse.json({ error: t('api.noPermission') }, { status: 403 });
+    await getSettings(); // fija la zona del taller antes de calcular el rango por defecto
     const d = await reportData(kind, reportRange(url.searchParams.get('from'), url.searchParams.get('to'), 30), user); header = d.columns.map((c) => c.label); rows = d.rows.map((r) => d.columns.map((c) => r[c.key])); name = `reporte-${kind}`;
   } else return NextResponse.json({ error: t('api.unknownExport') }, { status: 404 });
   if (fmt === 'xlsx') {
