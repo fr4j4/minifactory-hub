@@ -20,13 +20,20 @@ import { DateInput } from '@/components/date-input';
 export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; applyTax: boolean; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
 export type VariantOpt = { id: string; label: string; price: number; avgCost: number; stock: number };
 
+/**
+ * El primer guardado en /presupuestos/nuevo cambia la URL a /presupuestos/<id> y Next monta otra vez el editor con lo que vino del servidor.
+ * Lo escrito mientras viajaba ese guardado pasa al editor nuevo por aquí (vive en memoria del navegador, solo entre esos dos montajes).
+ */
+const handoff = new Map<string, QuoteState>();
+
 export function QuoteEditor({ initial, ctx, customers, models, variants, showCosts, canPrice, number, version }: { initial: QuoteState; ctx: CalcContext; customers: CustomerOpt[]; models: ModelBrief[]; variants: VariantOpt[]; showCosts: boolean; canPrice: boolean; number?: string; version?: number }) {
   const t = useT(); const locale = useLocale();
   const router = useRouter(); const toast = useToast();
-  const [q, setQ] = useState<QuoteState>(initial); const [dirty, setDirty] = useState(false); const [saving, setSaving] = useState(false); const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [pending] = useState(() => { const h = initial.id ? handoff.get(initial.id) : undefined; if (h) handoff.delete(initial.id!); return h; });
+  const [q, setQ] = useState<QuoteState>(pending ?? initial); const [dirty, setDirty] = useState(!!pending); const [saving, setSaving] = useState(false); const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [addProd, setAddProd] = useState(false);
   const qRef = useRef(q); qRef.current = q;
-  const idRef = useRef(initial.id);
+  const idRef = useRef(initial.id); const created = useRef(false);
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
   const cust = customers.find((c) => c.id === q.customerId); const adj = cust?.priceAdj ?? 0;
   // cada edición sube la revisión: un guardado solo marca «guardado» si nada cambió mientras viajaba
@@ -63,8 +70,8 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
       setQ((x) => ({ ...x, items: x.items.map((i) => (ids.get(i.uid) && !i.id ? { ...i, id: ids.get(i.uid) } : i)) }));
       if (rev.current === r0) setDirty(false); // si se editó durante el guardado, queda pendiente y el autoguardado vuelve a correr
       setSavedAt(new Date());
-      if (!idRef.current) { idRef.current = r.data.id; window.history.replaceState(null, '', `/presupuestos/${r.data.id}`); }
-      else if (initial.id) router.refresh(); // en /presupuestos/[id]: actualiza total y mensajes de la cabecera (en /nuevo volvería a montar el editor)
+      // Next sigue la URL nueva y monta el editor de /presupuestos/[id]; lo pendiente pasa por `handoff`
+      if (!idRef.current) { idRef.current = r.data.id; created.current = true; window.history.replaceState(null, '', `/presupuestos/${r.data.id}`); }
       if (!silent) toast.push(t('quotes.quoteSaved'));
       return r.data.id;
     })();
@@ -78,6 +85,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
     draftFlush.current = async () => ((live.current.dirty || inflight.current) && !(await save(false)) ? null : live.current.total);
     return () => { draftFlush.current = null; };
   }, [save]);
+  useEffect(() => () => { if (created.current && live.current.dirty && idRef.current) handoff.set(idRef.current, qRef.current); }, []);
   // guardado automático de borradores
   useEffect(() => { if (!dirty) return; const tt = setTimeout(() => { if (qRef.current.items.length) save(true); }, 2500); return () => clearTimeout(tt); }, [q, dirty, save]);
   useEffect(() => { const h = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); } }; window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h); }, [dirty]);

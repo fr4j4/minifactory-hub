@@ -18,8 +18,7 @@ export async function saveQuoteAction(input: QuoteInput) {
     const db = await getDb();
     const itemIds = (await db.select({ id: s.quoteItems.id }).from(s.quoteItems).where(eq(s.quoteItems.quoteId, id)).orderBy(asc(s.quoteItems.position))).map((r) => r.id);
     return { id, itemIds };
-    // sin revalidar: en /presupuestos/nuevo eso volvería a montar el editor y borraría lo escrito durante el guardado
-  });
+  }, ['/presupuestos']);
 }
 export async function sendQuoteAction(id: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await sendQuote(id, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }
 export async function rejectQuoteAction(id: string, reason: string) { return safe(async () => { const u = await requirePerm('presupuestos', 'E'); await rejectQuote(id, reason, u.id); }, ['/presupuestos', `/presupuestos/${id}`]); }
