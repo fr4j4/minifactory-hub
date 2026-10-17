@@ -14,7 +14,7 @@ export interface SaleVariant { id: string; label: string; sku: string; stock: nu
 export interface SaleChannel { id: string; name: string; kind: string; commissionPct: number; commissionFixed: number; avgShipping: number }
 
 /** Venta rápida (mostrador, feria o marketplace): pocos toques y margen neto a la vista. */
-export function QuickSale({ variants, channels, showCosts }: { variants: SaleVariant[]; channels: SaleChannel[]; showCosts: boolean }) {
+export function QuickSale({ variants, channels, showCosts, canPrice }: { variants: SaleVariant[]; channels: SaleChannel[]; showCosts: boolean; /** sin permiso de precio final se vende a precio de lista */ canPrice: boolean }) {
   const t = useT();
   const toast = useToast(); const router = useRouter();
   const [ch, setCh] = useState<string>(channels[0]?.id ?? ''); const [q, setQ] = useState(''); const [cart, setCart] = useState<Array<{ id: string; qty: number; price: number | null }>>([]);
@@ -46,7 +46,7 @@ export function QuickSale({ variants, channels, showCosts }: { variants: SaleVar
           {lines.length === 0 ? <p className="text-sm muted">{t('sales.tapAProductToAdd')}</p> : (
             <ul className="space-y-2" data-testid="cart">{lines.map((l) => <li key={l.id} className="flex items-center gap-2 text-sm"><span className="flex-1 min-w-0 truncate">{l.v.label}</span>
               <input type="number" min={1} className="input !w-16 !min-h-[40px] text-center" value={l.qty} aria-label={t('sales.quantityOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, qty: Math.max(1, +e.target.value || 1) } : x)))} />
-              <input type="number" min={0} className="input !w-24 !min-h-[40px] tabular" value={l.price ?? ''} placeholder={String(listOf(l.v))} aria-label={t('sales.priceOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, price: e.target.value === '' ? null : +e.target.value } : x)))} data-testid="sale-price" />
+              {canPrice ? <input type="number" min={0} className="input !w-24 !min-h-[40px] tabular" value={l.price ?? ''} placeholder={String(listOf(l.v))} aria-label={t('sales.priceOf', { v: l.v.label })} onChange={(e) => setCart(cart.map((x) => (x.id === l.id ? { ...x, price: e.target.value === '' ? null : +e.target.value } : x)))} data-testid="sale-price" /> : <span className="w-24 text-right tabular" data-testid="sale-price">{money(listOf(l.v))}</span>}
               <button className="btn-ghost btn-sm" onClick={() => setCart(cart.filter((x) => x.id !== l.id))} aria-label={t('sales.remove')}><Icon name="x" className="h-4 w-4" /></button></li>)}</ul>)}
           {channel?.kind === 'marketplace' && <div className="grid grid-cols-2 gap-2"><input className="input" placeholder={t('sales.externalOrderNo')} value={ext} onChange={(e) => setExt(e.target.value)} aria-label={t('sales.externalOrder')} /><DateInput value={by} onChange={setBy} aria-label={t('sales.shipBefore')} /></div>}
           <input className="input" placeholder={t('sales.customerOptional')} value={cust} onChange={(e) => setCust(e.target.value)} aria-label={t('common.customer')} />
