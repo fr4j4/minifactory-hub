@@ -334,12 +334,26 @@ export async function requeueJob(jobId: string, userId?: string | null): Promise
       .where(and(inArray(s.jobItems.orderItemId, lines), ne(s.printJobs.id, jobId), isNull(s.printJobs.deletedAt), inArray(s.printJobs.status, [...LIVE_STATUSES, 'terminado']))).limit(1);
     if (dup) throw new Error(t('queue.itemsAlreadyHaveAnActiveJob'));
   }
-  const id = await createJob({
-    kind: j.kind as JobSpec['kind'], title: j.title ?? '', materialId: j.materialId, qty: j.qty, estG: j.estG, estH: j.estH, dims: j.dims, orderId: j.orderId, orderItemIds: lines,
-    productionOrderId: j.productionOrderId, machineId: j.machineId, fileVersionId: j.fileVersionId, sliceRunId: j.sliceRunId, reprintOfId: j.reprintOfId, notes: t('queue.requeuedFrom', { job: j.number }), userId,
-  });
-  if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'en_cola' }).where(and(eq(s.productionOrders.id, j.productionOrderId), eq(s.productionOrders.status, 'cancelada')));
-  if (lines.length) await db.update(s.orderItems).set({ status: 'en_cola' }).where(and(inArray(s.orderItems.id, lines), eq(s.orderItems.status, 'pendiente')));
+  // las líneas (pendiente → en_cola) o la orden de producción (cancelada → en_cola) se reclaman antes de crear el trabajo:
+  // dos «Relanzar» simultáneos (o «Relanzar» y «Lanzar línea») no crean dos trabajos para lo mismo
+  const mine = lines.length ? (await db.update(s.orderItems).set({ status: 'en_cola' }).where(and(inArray(s.orderItems.id, lines), eq(s.orderItems.status, 'pendiente'))).returning({ id: s.orderItems.id })).map((x) => x.id) : [];
+  const release = async () => { if (mine.length) await db.update(s.orderItems).set({ status: 'pendiente' }).where(and(inArray(s.orderItems.id, mine), eq(s.orderItems.status, 'en_cola'))); };
+  if (mine.length < lines.length) { await release(); throw new Error(t('queue.itemsAlreadyHaveAnActiveJob')); }
+  if (j.productionOrderId) {
+    const [po] = await db.update(s.productionOrders).set({ status: 'en_cola' }).where(and(eq(s.productionOrders.id, j.productionOrderId), eq(s.productionOrders.status, 'cancelada'))).returning({ id: s.productionOrders.id });
+    if (!po && !lines.length) throw new Error(t('queue.jobStatusChanged'));
+  }
+  let id: string;
+  try {
+    id = await createJob({
+      kind: j.kind as JobSpec['kind'], title: j.title ?? '', materialId: j.materialId, qty: j.qty, estG: j.estG, estH: j.estH, dims: j.dims, orderId: j.orderId, orderItemIds: lines,
+      productionOrderId: j.productionOrderId, machineId: j.machineId, fileVersionId: j.fileVersionId, sliceRunId: j.sliceRunId, reprintOfId: j.reprintOfId, notes: t('queue.requeuedFrom', { job: j.number }), userId,
+    });
+  } catch (e) {
+    await release();
+    if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'cancelada' }).where(and(eq(s.productionOrders.id, j.productionOrderId), eq(s.productionOrders.status, 'en_cola')));
+    throw e;
+  }
   if (j.orderId) await recomputeOrderStatus(j.orderId);
   await audit('print_job', id, 'relanzar', { from: jobId }, userId);
   return id;
