@@ -80,6 +80,7 @@ describe('utilidades', () => {
   it('csvCell neutraliza fórmulas en texto y deja los números', () => {
     expect(csvCell('=HYPERLINK("http://x")')).toBe(`"'=HYPERLINK(""http://x"")"`);
     expect(csvCell('@SUM(A1)')).toBe("'@SUM(A1)"); expect(csvCell(-5)).toBe('-5'); expect(csvCell('Ana')).toBe('Ana');
+    expect(csvCell('+56 9 8123 4567')).toBe('+56 9 8123 4567'); expect(csvCell('-12.5')).toBe('-12.5'); expect(csvCell('+1+cmd')).toBe("'+1+cmd");
   });
   it('CSV con comillas y punto y coma', () => { expect(parseCsv('nombre;telefono\n"Pérez, Juan";123\nAna;456')).toEqual([['nombre', 'telefono'], ['Pérez, Juan', '123'], ['Ana', '456']]); });
   it('plantillas y WhatsApp', () => { expect(fillTemplate('Hola {cliente}, {total}', { cliente: 'Ana', total: '$1.000' })).toBe('Hola Ana, $1.000'); expect(waLink('+56 9 1234 5678', 'hola mundo')).toBe('https://wa.me/56912345678?text=hola%20mundo'); });
