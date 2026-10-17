@@ -1,7 +1,7 @@
 export const shell = {
   expandMenu: 'Expandir menú',
   collapseMenu: 'Plegar menú',
-  collapse: '« Plegar',
+  collapse: 'Plegar',
   home: 'Inicio',
   searchAria: 'Buscar (Ctrl+K)',
   searchShort: 'Buscar…',

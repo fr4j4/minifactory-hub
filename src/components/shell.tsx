@@ -9,14 +9,17 @@ import { useT } from '@/i18n/client';
 import { LocaleSwitcher } from './locale-switcher';
 import { ThemePicker } from './theme-picker';
 
-export interface NavItem { href: string; label: string; icon: string; group: 'main' | 'more' }
-const ICONS: Record<string, LucideIcon> = {
+export interface NavItem { href: string; label: string; icon: IconName; group: 'main' | 'more' }
+// sin respaldo: un nombre que no está aquí no compila (antes caía en Package y todo se veía como una caja)
+const ICONS = {
   home: House, orders: ClipboardList, quote: FileText, calc: Calculator, users: Users, cube: Box, slice: Layers, box: Package, bag: ShoppingBag, cart: ShoppingCart, printer: Printer, queue: ListOrdered,
   image: Image, chart: ChartColumn, cog: Settings, plus: Plus, search: Search, bell: Bell, menu: Menu, camera: Camera, qr: QrCode,
-  x: X, copy: Copy, check: Check, star: Star, 'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
-};
-export function Icon({ name, className = 'h-5 w-5' }: { name: string; className?: string }) {
-  const C = ICONS[name] ?? Package;
+  x: X, check: Check, star: Star, copy: Copy, 'arrow-left': ArrowLeft, 'arrow-up-right': ArrowUpRight,
+  'chevron-down': ChevronDown, 'chevron-right': ChevronRight, 'chevrons-left': ChevronsLeft, 'chevrons-right': ChevronsRight,
+} satisfies Record<string, LucideIcon>;
+export type IconName = keyof typeof ICONS;
+export function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
+  const C = ICONS[name];
   return <C className={className} strokeWidth={1.8} aria-hidden />;
 }
 
@@ -63,7 +66,7 @@ export function AppShell({ nav, user, unread, shopPalette, children }: { nav: Na
     { href: '/pedidos/nuevo', label: t('shell.quickNewOrder'), icon: 'orders' }, { href: '/ventas/nueva', label: t('shell.quickQuickSale'), icon: 'cart' },
     { href: '/presupuestos/nuevo', label: t('shell.quickNewQuote'), icon: 'quote' }, { href: '/calculadora', label: t('shell.quickCalculator'), icon: 'calc' },
     { href: '/galeria?subir=1', label: t('shell.quickUploadPhoto'), icon: 'camera' }, { href: '/inventario/escanear', label: t('shell.quickScanQr'), icon: 'qr' },
-  ];
+  ] satisfies Array<{ href: string; label: string; icon: IconName }>;
   const sections = SECTIONS.map((s) => ({ t: t(s.t), items: s.hrefs.map((h) => nav.find((n) => n.href === h)).filter(Boolean) as NavItem[] })).filter((s) => s.items.length);
   const section = nav.filter((n) => active(n.href)).sort((a, b) => b.href.length - a.href.length)[0];
   const tail = section ? path.slice(section.href.length).split('/').filter(Boolean) : [];
