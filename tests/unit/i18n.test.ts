@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DICTIONARIES, createT } from '@/i18n/translate';
 import { LOCALES, matchLocale } from '@/i18n/config';
+import { LocalizedError, errorText } from '@/i18n/errors';
 
 type Tree = { [k: string]: string | Tree };
 const flat = (o: Tree, p = ''): Record<string, string> => Object.entries(o).reduce((a, [k, v]) => (typeof v === 'string' ? { ...a, [p + k]: v } : { ...a, ...flat(v, p + k + '.') }), {});
@@ -39,6 +40,12 @@ describe('i18n: createT', () => {
   it('elige el plural también con {n} cuando no viene count', () => {
     expect(createT('es')('inventory.lineColors', { n: 1 })).toBe('1 color');
     expect(createT('en')('inventory.lineColors', { n: 3 })).toBe('3 colors');
+  });
+  it('un error traduce también el nombre del campo en el idioma de quien lo ve', () => {
+    const e = new LocalizedError('nozzle.valNegative', { field: 'nozzle.param.min_layer_height' });
+    const en = createT('en');
+    expect(errorText(e, en)).toBe(en('nozzle.valNegative', { field: en('nozzle.param.min_layer_height') }));
+    expect(e.message).toContain(createT('es')('nozzle.param.min_layer_height'));
   });
   it('si falta una clave devuelve la clave', () => {
     expect(createT('es')('no.existe' as never)).toBe('no.existe');

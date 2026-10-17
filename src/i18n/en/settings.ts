@@ -8,6 +8,8 @@ export const settings: Shape<typeof es['settings']> = {
   presetNew: 'New quality',
   presetEditTitle: 'Edit quality',
   presetName: 'Name',
+  presetRange: '«{field}» must be between {lo} and {hi}',
+  presetNameRequired: 'Give the quality a name',
   presetLayer: 'Layer (× nozzle)',
   presetLayerHint: '0.5 = half the diameter',
   presetInfill: 'Infill',

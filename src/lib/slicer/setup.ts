@@ -4,7 +4,7 @@ import { audit } from '../audit';
 import { entryNozzle, findVendorOf, getIndex, listFactory, profileNozzle, resolveFactory, rowNozzle, type ProfileType } from './catalog';
 import { layerRange, normNozzle, nozzleFromName, numStr, qualityTemplates, scaleSpeeds, standardLayer, type TemplateKey } from './nozzle';
 import { getT } from '@/i18n/server';
-import { tDefault } from '@/i18n/errors';
+import { LocalizedError, tDefault } from '@/i18n/errors';
 
 /**
  * Configuración guiada del laminado. Para laminar en el sitio hacen falta tres cosas:
@@ -198,7 +198,7 @@ export function templateBase(machineBase?: string | null) {
   const std = machineBase ? processesFor(machineBase)[0] : null;
   if (std) return std;
   const g = getIndex().all.find((e) => e.type === 'process' && /^fdm_process_common$/.test(e.name)) ?? getIndex().all.find((e) => e.type === 'process' && /^fdm_.*common$/.test(e.name));
-  if (!g) throw new Error(tDefault('nozzle.errNoBaseProcess'));
+  if (!g) throw new LocalizedError('nozzle.errNoBaseProcess');
   return g.name;
 }
 

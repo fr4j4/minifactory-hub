@@ -1,6 +1,7 @@
 import { and, asc, eq, isNull, like, or, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { normalizeTag } from './tags';
+import { LocalizedError } from '@/i18n/errors';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -36,13 +37,13 @@ export const inFolder = (path: string) => or(eq(s.modelFiles.folder, path), like
 /** Cambia el nombre o mueve una carpeta: arrastra sus subcarpetas y los archivos. Falla si el destino ya existe. */
 export async function renameFolder(fromRaw: string, toRaw: string, db?: Db): Promise<number> {
   db ??= await getDb();
-  const from = normPath(fromRaw), to = normPath(toRaw); if (!from || !to) throw new Error('folder');
+  const from = normPath(fromRaw), to = normPath(toRaw); if (!from || !to) throw new LocalizedError('files.errFolderInvalid');
   if (from === to) return 0;
-  if (to.startsWith(from + '/')) throw new Error('folder: no se puede mover dentro de sí misma');
+  if (to.startsWith(from + '/')) throw new LocalizedError('files.errFolderIntoItself');
   const [clash] = await db.select({ id: s.folders.id }).from(s.folders).where(and(eq(s.folders.path, to), isNull(s.folders.deletedAt)));
-  if (clash) throw new Error('folder exists');
+  if (clash) throw new LocalizedError('files.errFolderExists');
   const subs = (await db.select().from(s.folders).where(isNull(s.folders.deletedAt))).filter((f) => f.path === from || f.path.startsWith(from + '/'));
-  if (!subs.length) throw new Error('folder not found');
+  if (!subs.length) throw new LocalizedError('files.errFolderNotFound');
   let moved = 0;
   for (const f of subs) {
     const next = to + f.path.slice(from.length);
@@ -70,7 +71,7 @@ export async function ensureTags(names: string[], db?: Db) {
 }
 export async function setTagColor(name: string, color: string | null, db?: Db) {
   db ??= await getDb(); const n = normalizeTag(name); if (!n) return;
-  if (color && !/^#[0-9a-f]{6}$/i.test(color)) throw new Error('color');
+  if (color && !/^#[0-9a-f]{6}$/i.test(color)) throw new LocalizedError('files.errTagColor');
   await ensureTags([n], db); await db.update(s.tagDefs).set({ color: color?.toLowerCase() ?? null, updatedAt: new Date() }).where(eq(s.tagDefs.name, n));
 }
 export async function tagColors(db?: Db): Promise<Map<string, string>> {

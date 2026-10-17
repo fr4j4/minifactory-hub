@@ -176,6 +176,8 @@ export const slicer = {
   machineNotFound: 'Máquina no encontrada',
   thereAreNoQualityProfiles: 'No hay perfiles de calidad para esa impresora',
   materialNotFound: 'Material no encontrado',
+  errNoMaterial: 'Falta el material o el perfil de filamento',
+  errNoFilamentForType: 'No hay perfil de filamento para este tipo de material',
   chooseAFilamentProfile: 'Elige un perfil de filamento',
   giveTheFilamentAName: 'Ponle un nombre al filamento',
   mustBeANumber: '«{field}» debe ser un número',

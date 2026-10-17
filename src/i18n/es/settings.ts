@@ -5,6 +5,8 @@ export const settings = {
   presetNew: 'Nueva calidad',
   presetEditTitle: 'Editar calidad',
   presetName: 'Nombre',
+  presetRange: '«{field}» debe estar entre {lo} y {hi}',
+  presetNameRequired: 'Ponle nombre a la calidad',
   presetLayer: 'Capa (× boquilla)',
   presetLayerHint: '0,5 = la mitad del diámetro',
   presetInfill: 'Relleno',

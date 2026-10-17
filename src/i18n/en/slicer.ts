@@ -179,6 +179,8 @@ export const slicer: Shape<typeof es['slicer']> = {
   machineNotFound: 'Machine not found',
   thereAreNoQualityProfiles: 'There are no quality profiles for that printer',
   materialNotFound: 'Material not found',
+  errNoMaterial: 'The material or filament profile is missing',
+  errNoFilamentForType: 'There is no filament profile for this material type',
   chooseAFilamentProfile: 'Choose a filament profile',
   giveTheFilamentAName: 'Give the filament a name',
   mustBeANumber: '“{field}” must be a number',

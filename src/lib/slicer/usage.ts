@@ -1,14 +1,14 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import type { ProfileType } from './catalog';
-import { tDefault } from '@/i18n/errors';
+import { LocalizedError } from '@/i18n/errors';
 import type { MessageKey, TFn } from '@/i18n/translate';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
 /** Nombre único dentro del tipo: si ya existe, agrega « (2)», « (3)»… `exceptId` deja conservar el propio nombre al editar. */
 export async function uniqueProfileName(db: Db, type: ProfileType, wanted: string, exceptId?: string) {
-  const base = wanted.trim(); if (!base) throw new Error(tDefault('slicer.giveTheProfileAName'));
+  const base = wanted.trim(); if (!base) throw new LocalizedError('slicer.giveTheProfileAName');
   const rows = await db.select({ id: s.slicerProfiles.id, n: s.slicerProfiles.name }).from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, type), isNull(s.slicerProfiles.deletedAt)));
   const names = new Set(rows.filter((r) => r.id !== exceptId).map((r) => r.n.toLowerCase()));
   let name = base; for (let k = 2; names.has(name.toLowerCase()); k++) name = `${base} (${k})`;
@@ -24,7 +24,7 @@ export const usageText = (items: UsageItem[], t: TFn) => items.map((x) => t(`noz
  * `historic` = presupuestos y pedidos ya hechos: se pueden conservar porque cada corrida guarda su propia versión del perfil.
  */
 export async function profileUsage(db: Db, id: string) {
-  const [p] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); if (!p) throw new Error(tDefault('slicer.profileNotFound'));
+  const [p] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id)); if (!p) throw new LocalizedError('slicer.profileNotFound');
   const blocking: UsageItem[] = []; let historic = 0;
   if (p.type === 'filament') {
     const mats = (await (await import('./links')).materialsLinkedTo(id, db)).map((x) => ({ t: x.type, c: x.colorName, m: x.manufacturer }));
