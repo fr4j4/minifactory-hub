@@ -22,13 +22,14 @@ test.describe('Paletas y tema (R6 / N9b)', () => {
   });
 
   test('matriz: cada paleta en claro y oscuro, sin violaciones graves de contraste ni scroll horizontal (360 y 1280 px)', async ({ page }) => {
+    test.setTimeout(900_000); // 2 anchos x 12 combinaciones x 5 rutas con axe
     await login(page, 'admin');
     const bad: string[] = [];
     for (const width of [360, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       for (const pal of PALETTES) for (const theme of ['light', 'dark'] as const) {
         await page.addInitScript(([p, m]) => { localStorage.setItem('mf_palette', p); localStorage.setItem('mf_theme', m); }, [pal, theme]);
-        for (const path of ['/', '/archivos']) {
+        for (const path of ['/', '/archivos', '/pedidos', '/cola', '/maquinas']) {
           await page.goto(path); await page.waitForLoadState('networkidle');
           const r = await new AxeBuilder({ page }).withTags(['wcag2aa']).options({ runOnly: ['color-contrast'] }).analyze();
           if (r.violations.length) bad.push(`${width}px ${pal}/${theme} ${path}: ${r.violations[0].nodes.length} nodos`);

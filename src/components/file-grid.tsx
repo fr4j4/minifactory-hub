@@ -39,10 +39,10 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
           <button className="btn-ghost btn-sm ml-auto" onClick={() => setSel(new Set())}>{t('common.cancel')}</button>
         </div>)}
       <datalist id="vocab-tags">{vocabulary.map((v) => <option key={v.tag} value={v.tag} />)}</datalist>
-      <ul className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5" data-testid="file-grid">
+      <ul className={`grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5 ${sel.size ? 'selecting' : ''}`} data-testid="file-grid">
         {cards.map((c) => (
-          <li key={c.id} className={`card overflow-hidden flex flex-col relative ${sel.has(c.id) ? 'ring-2 ring-[var(--accent)]' : ''}`}>
-            {canEdit && <label className="absolute right-1.5 top-1.5 z-10 bg-white/90 dark:bg-slate-900/80 rounded-md p-1 cursor-pointer"><input type="checkbox" className="h-4 w-4" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={t('files.selectFile', { name: c.name })} data-testid="file-select" /></label>}
+          <li key={c.id} className={`group card overflow-hidden flex flex-col relative ${sel.has(c.id) ? 'ring-2 ring-[var(--accent)]' : ''}`}>
+            {canEdit && <label className="tile-check absolute right-1.5 top-1.5 z-10 bg-white/90 dark:bg-slate-900/80 rounded-md p-1 cursor-pointer"><input type="checkbox" className="h-4 w-4" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={t('files.selectFile', { name: c.name })} data-testid="file-select" /></label>}
             <Link href={`/archivos/${c.id}`} className="block aspect-[4/3] bg-slate-100 dark:bg-slate-800 relative" aria-label={t('files.open', { name: c.name })}>
               {c.hasThumb && c.versionId ? <CardThumb versionId={c.versionId} hasTurn={!!c.hasTurn} alt={t('files.thumbnailOf', { name: c.name })} /> : <div className="w-full h-full grid place-items-center text-slate-400 text-sm">{c.format}</div>}
               <span className="absolute left-1.5 top-1.5 badge bg-white/90 dark:bg-slate-900/80 border-transparent">{c.format}</span>
@@ -52,7 +52,7 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
               <div className="text-xs muted tabular">{c.dims}</div>
               <div className="flex flex-wrap gap-1 mt-auto">
                 {c.closed === false && <Badge tone="amber">{t('files.openMesh')}</Badge>}{c.version > 1 && <Badge>v{c.version}</Badge>}{c.multicolor && <Badge tone="violet">{t('files.badgeMulticolor')}</Badge>}
-                {c.fits.length > 0 && <Badge tone="green" className="max-w-full truncate">{t('files.badgeFits', { names: c.fits.slice(0, 2).join(', ') + (c.fits.length > 2 ? '…' : '') })}</Badge>}
+                {c.fits.length > 0 && <Badge tone="green" className="max-w-full"><span className="truncate">{t('files.badgeFits', { names: c.fits.slice(0, 2).join(', ') + (c.fits.length > 2 ? '…' : '') })}</span></Badge>}
                 {c.slices > 0 && <Badge tone="blue">{t('files.badgeSlices', { n: c.slices })}</Badge>}{c.quotes > 0 && <Badge tone="blue">{t('files.badgeQuotes', { n: c.quotes })}</Badge>}
                 {c.tags.slice(0, 3).map((tt) => <span key={tt} className="badge" style={tagColors[tt] ? { borderColor: tagColors[tt], boxShadow: `inset 3px 0 0 ${tagColors[tt]}` } : undefined}>{tt}</span>)}
               </div>

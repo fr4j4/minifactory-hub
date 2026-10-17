@@ -112,7 +112,7 @@ export function GcodeViewer({ src, className }: { src: string; className?: strin
   const n = data?.layers.length ?? 0;
   return (
     <div className={cn('card overflow-hidden', className)}>
-      <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
+      <div className="relative bg-slate-100 dark:bg-[var(--bg)]" style={{ height: 'min(62vh, 520px)', minHeight: 320 }}>
         <div ref={host} className="absolute inset-0" />
         {!data && !err && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingToolpaths')}</div>}
         {err && <div className="absolute inset-0 grid place-items-center text-sm text-danger p-6 text-center" role="alert">{err}</div>}

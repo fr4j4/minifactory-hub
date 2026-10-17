@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { pagePerm } from '@/lib/auth';
-import { PageHeader, Card, Table, Tabs, Empty } from '@/components/ui';
+import { PageHeader, Card, Table, Tabs, Empty, Stat, Meter } from '@/components/ui';
 import { reportAllowed, reportData, reportRange, REPORTS, type Col } from '@/lib/reports';
 import { getSettings } from '@/lib/settings';
 import { dmy, dur, money, num, pct } from '@/lib/format';
@@ -23,13 +23,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     <>
       <PageHeader title={t('reports.reports')} subtitle={user.role === 'ventas' ? t('reports.onlyYourSales') : t('reports.filterByDateAndExport')} />
       <Tabs current={kind} tabs={list.map(([k, v]) => ({ key: k, label: t(v.title), href: `/reportes?r=${k}&${q}` }))} />
-      <form className="flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><DateInput name="from" defaultValue={from} /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><DateInput name="to" defaultValue={to} /></label><button className="btn-ghost">{t('reports.apply')}</button>
-        <div className="ml-auto flex gap-2 no-print"><a className="btn-ghost" href={`/api/export/${kind}?fmt=csv&${q}`} data-testid="export-csv">{t('reports.csv')}</a><a className="btn-ghost" href={`/api/export/${kind}?fmt=xlsx&${q}`} data-testid="export-xlsx">{t('reports.excel')}</a><a className="btn-ghost" href="#" data-print="1">{t('reports.pdfPrint')}</a></div></form>
+      <form className="max-sm:grid max-sm:grid-cols-2 flex flex-wrap items-end gap-2 mb-4"><input type="hidden" name="r" value={kind} /><label className="block"><span className="label">{t('reports.from')}</span><DateInput name="from" defaultValue={from} /></label><label className="block"><span className="label">{t('reports.toLabel')}</span><DateInput name="to" defaultValue={to} /></label><button className="btn-ghost max-sm:col-span-2">{t('reports.apply')}</button>
+        <div className="sm:ml-auto max-sm:col-span-2 flex gap-2 no-print overflow-x-auto [scrollbar-width:none] [&>*]:shrink-0"><a className="btn-ghost" href={`/api/export/${kind}?fmt=csv&${q}`} data-testid="export-csv">{t('reports.csv')}</a><a className="btn-ghost" href={`/api/export/${kind}?fmt=xlsx&${q}`} data-testid="export-xlsx">{t('reports.excel')}</a><a className="btn-ghost" href="#" data-print="1">{t('reports.pdfPrint')}</a></div></form>
+      {/* resumen arriba: la respuesta antes que el detalle */}
+      {d.summary && <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" data-testid="report-summary">{d.summary.map((x) => <Stat key={x.label} label={x.label} value={/^\d+$/.test(x.value) ? money(+x.value) : x.value} />)}</div>}
       <Card title={d.title} actions={<span className="text-xs muted">{d.question}</span>} pad={false}>
         {d.rows.length === 0 ? <Empty title={t('reports.noDataInThisPeriod')} hint={t('reports.widenTheDateRange')} /> : (
-          <Table><thead><tr>{d.columns.map((c) => <th key={c.key} className={`th ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right' : ''}`}>{c.label}</th>)}{moneyCol && <th className="th w-40" />}</tr></thead>
-            <tbody data-testid="report-rows">{d.rows.map((r, i) => <tr key={i}>{d.columns.map((c) => <td key={c.key} className={`td ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right tabular' : ''}`}>{cell(r[c.key], c)}</td>)}{moneyCol && <td className="td"><div className="h-2 rounded bg-brand-500/70" style={{ width: `${Math.max(2, (Math.abs(r[moneyCol.key] ?? 0) / max) * 100)}%` }} /></td>}</tr>)}</tbody></Table>)}
-        {d.summary && <div className="p-3 text-sm border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-4">{d.summary.map((x) => <span key={x.label}><span className="muted">{x.label}: </span><b className="tabular">{/^\d+$/.test(x.value) ? money(+x.value) : x.value}</b></span>)}</div>}
+          <Table><thead><tr>{d.columns.map((c) => <th key={c.key} className={`th ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right' : ''}`}>{c.label}</th>)}{moneyCol && <th className="th w-48" />}</tr></thead>
+            <tbody data-testid="report-rows">{d.rows.map((r, i) => <tr key={i}>{d.columns.map((c) => <td key={c.key} className={`td ${['money', 'pct', 'num', 'h', 'kg'].includes(c.fmt ?? '') ? 'text-right tabular' : c.fmt === 'date' || c.key === 'month' ? 'tabular' : ''}`}>{cell(r[c.key], c)}</td>)}{moneyCol && <td className="td"><Meter value={Math.abs(r[moneyCol.key] ?? 0)} max={max} decorative /></td>}</tr>)}</tbody></Table>)}
       </Card>
       <script dangerouslySetInnerHTML={{ __html: "document.querySelectorAll('[data-print]').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();window.print()}))" }} />
     </>

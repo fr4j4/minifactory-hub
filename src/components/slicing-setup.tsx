@@ -95,7 +95,7 @@ export function SlicingSetup({ data, canEdit }: { data: SetupData; canEdit: bool
   const ready = data.machines.length > 0 && data.done.machines === data.machines.length;
   return (
     <div className="space-y-5">
-      <section className={cn('rounded-3xl p-5 md:p-6 ring-1', ready ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-900' : 'bg-[var(--panel)] text-[var(--panel-ink)] ring-black/5 dark:ring-white/[.07]')} data-testid="setup-summary">
+      <section className={cn('rounded-3xl p-5 md:p-6 ring-1', ready ? 'bg-emerald-50 ring-emerald-200 dark:bg-emerald-950/30 dark:ring-emerald-900' : 'on-panel bg-[var(--panel)] text-[var(--panel-ink)] ring-black/5 dark:ring-white/[.07]')} data-testid="setup-summary">
         <h2 className="font-display text-xl font-semibold tracking-tight">{ready ? t('slicer.readyToSlice') : t('slicer.whatIsNeededToSlice')}</h2>
         <p className={cn('text-sm mt-1.5 max-w-3xl', ready ? 'text-emerald-900 dark:text-emerald-200' : 'text-white/75')}>
           {t('slicer.introSameProfiles')} <b>{t('slicer.whichPrinterEachMachineIs')}</b>, <b>{t('slicer.whichQualityToUseBy')}</b> {t('slicer.andWord')} <b>{t('slicer.whichFilamentEachMaterialIs')}</b> {t('slicer.introFromInventory')}</p>
@@ -196,7 +196,7 @@ export function CustomFilamentButton({ label: labelProp, materialId, type: type0
           </div>
           <p className="text-xs muted">{t('slicer.base')} <b>{base ? pretty(base, t) : '…'}</b></p>
           {groups.map((g) => <fieldset key={g}><legend className="eyebrow mb-2">{t(g)}</legend><div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
-            {FIELDS.filter((f) => f.group === g).map((f) => <label key={f.key} className="block"><span className="label">{t(f.label)}{f.unit ? ` (${f.unit})` : ''}</span><input className={cn('input num', vals[f.key] && 'ring-2 ring-brand-500/40')} inputMode="decimal" value={vals[f.key] ?? ''} placeholder={defs[f.key] ?? ''} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} data-testid={`cf-${f.key}`} /></label>)}
+            {FIELDS.filter((f) => f.group === g).map((f) => <label key={f.key} className="block"><span className="label">{t(f.label)}{f.unit ? ` (${f.unit})` : ''}</span><input className={cn('input num', vals[f.key] && 'ring-2 ring-[var(--accent-line)]')} inputMode="decimal" value={vals[f.key] ?? ''} placeholder={defs[f.key] ?? ''} onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} data-testid={`cf-${f.key}`} /></label>)}
           </div></fieldset>)}
           {!materialId && <div className="rounded-2xl border border-[var(--line)] p-3 space-y-3">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={inv} onChange={(e) => setInv(e.target.checked)} data-testid="cf-inventory" /> {t('slicer.alsoAddItToThe')}</label>

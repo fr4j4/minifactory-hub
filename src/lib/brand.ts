@@ -17,15 +17,22 @@ export const WHITE: [number, number, number] = [255, 255, 255], BLACK: [number, 
 export function ensureContrast(c: [number, number, number], bg: [number, number, number], min: number, toward: [number, number, number]) {
   let out = c; for (let i = 0; i < 20 && contrast(out, bg) < min; i++) out = mix(out, toward, 0.1); return out;
 }
+/**
+ * La tinta del acento también se lee sobre --accent-soft (insignias «en curso»), que es más oscuro (claro) o más claro (oscuro)
+ * que la tarjeta: se exige el contraste contra ese fondo, que cubre también la tarjeta. Mismo 11 % que globals.css;
+ * 4,6 deja margen al redondeo de color-mix del navegador.
+ */
+const soft = (accent: [number, number, number], bg: [number, number, number]) => mix(bg, accent, 0.11);
+const INK_MIN = 4.6;
 export interface BrandVars { '--accent': string; '--accent-ink': string; '--on-accent': string; '--accent-hover': string; '--accent-shadow': string; '--glow': string }
 export interface Brand { light: BrandVars; dark: BrandVars }
 export function deriveBrand(hex: string): Brand | null {
   const base = hexToRgb(hex); if (!base) return null;
   const on = contrast(base, [23, 22, 26]) >= contrast(base, WHITE) ? '#17161a' : '#ffffff';
-  const paper: [number, number, number] = [243, 241, 236], ink: [number, number, number] = [18, 18, 17];
+  const paper: [number, number, number] = [243, 241, 236], ink: [number, number, number] = [27, 27, 25]; // fondo claro y tarjeta oscura de «capa»
   const mk = (accent: [number, number, number], inkBg: [number, number, number], inkToward: [number, number, number], glowA: number): BrandVars => ({
     '--accent': toHex(...accent), '--on-accent': on,
-    '--accent-ink': toHex(...ensureContrast(accent, inkBg, 4.5, inkToward)),
+    '--accent-ink': toHex(...ensureContrast(accent, soft(accent, inkBg), INK_MIN, inkToward)),
     '--accent-hover': toHex(...mix(accent, WHITE, 0.12)), '--accent-shadow': toHex(...mix(accent, BLACK, 0.3)),
     '--glow': `rgba(${accent.map(Math.round).join(',')}, ${glowA})`,
   });
@@ -46,7 +53,7 @@ export function accentVars(accent: string, bg: string, dark: boolean): BrandVars
   const a = hexToRgb(accent)!, b = hexToRgb(bg)!;
   const on = contrast(a, [23, 22, 26]) >= contrast(a, WHITE) ? '#17161a' : '#ffffff';
   return {
-    '--accent': toHex(...a), '--on-accent': on, '--accent-ink': toHex(...ensureContrast(a, b, 4.5, dark ? WHITE : BLACK)),
+    '--accent': toHex(...a), '--on-accent': on, '--accent-ink': toHex(...ensureContrast(a, soft(a, b), INK_MIN, dark ? WHITE : BLACK)),
     '--accent-hover': toHex(...mix(a, dark ? WHITE : WHITE, 0.12)), '--accent-shadow': toHex(...mix(a, BLACK, 0.3)), '--glow': `rgba(${a.map(Math.round).join(',')}, ${dark ? 0.14 : 0.16})`,
   };
 }
