@@ -111,6 +111,7 @@ export const orders = {
   theOrderIsAlreadyClosed: 'El pedido ya está cerrado',
   part: 'Pieza',
   theOrderIsCancelled: 'El pedido está cancelado',
+  orderStatusChanged: 'El pedido cambió de estado. Recarga la página.',
   order: 'Pedido {number}',
   lowProductStock: 'Stock bajo de producto: {sku}',
   unitsLeftMinimum: 'Quedan {stock} u. (mínimo {min}).',

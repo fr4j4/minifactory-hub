@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { nextNumber } from '../settings';
@@ -108,8 +108,7 @@ export async function createSale(i: QuickSaleInput, user: User) {
   }).returning();
   for (const { v, it, unit, list } of rows) {
     await db.insert(s.saleItems).values({ workspaceId: WORKSPACE_ID, saleId: sale.id, variantId: v.id, description: it.description ?? null, qty: it.qty, listPrice: list, unitPrice: unit, frozenCost: v.avgCost });
-    const stock = Math.max(0, v.stock - it.qty);
-    await db.update(s.productVariants).set({ stock, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
+    const [{ stock }] = await db.update(s.productVariants).set({ stock: sql`greatest(0, ${s.productVariants.stock} - ${it.qty})`, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id)).returning({ stock: s.productVariants.stock });
     await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -it.qty, unitCost: v.avgCost, saleId: sale.id, reason: t('catalog.sale', { number }), createdBy: user.id });
     if (stock <= v.minStock) await notify('stock_bajo', t('catalog.lowProductStock', { sku: v.sku }), t('catalog.unitsLeftMinimumSuggestionProduc', { stock, min: v.minStock }), '/catalogo');
   }
@@ -125,14 +124,17 @@ export async function setSaleStatus(saleId: string, status: 'por_despachar' | 'd
   const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, saleId));
   if (!sale) throw new Error(t('catalog.saleNotFound'));
   if (sale.status === 'anulada') throw new Error(t('catalog.theSaleIsAlreadyVoided'));
+  // anular es condicionado: dos anulaciones simultáneas no reingresan el stock dos veces
   if (status === 'anulada') {
     if (!o.reason) throw new Error(t('catalog.enterTheReasonForVoiding'));
+    const [claimed] = await db.update(s.sales).set({ status }).where(and(eq(s.sales.id, saleId), ne(s.sales.status, 'anulada'))).returning({ id: s.sales.id });
+    if (!claimed) throw new Error(t('catalog.theSaleIsAlreadyVoided'));
     const items = await db.select().from(s.saleItems).where(eq(s.saleItems.saleId, saleId));
     for (const it of items) {
       const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
       if (!v) continue;
       if (o.returnToStock !== false) {
-        await db.update(s.productVariants).set({ stock: v.stock + it.qty }).where(eq(s.productVariants.id, v.id));
+        await db.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} + ${it.qty}` }).where(eq(s.productVariants.id, v.id));
         await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'devolucion', qty: it.qty, unitCost: it.frozenCost, saleId, reason: t('catalog.voidLabel', { sale: sale.number, reason: o.reason }), createdBy: user.id });
       } else await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'merma', qty: 0, saleId, reason: t('catalog.voidWithoutRestock', { sale: sale.number, reason: o.reason }), createdBy: user.id });
     }

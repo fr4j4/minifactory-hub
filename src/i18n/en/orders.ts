@@ -114,6 +114,7 @@ export const orders: Shape<typeof es['orders']> = {
   theOrderIsAlreadyClosed: 'The order is already closed',
   part: 'Part',
   theOrderIsCancelled: 'The order is cancelled',
+  orderStatusChanged: 'The order status changed. Reload the page.',
   order: 'Order {number}',
   lowProductStock: 'Low product stock: {sku}',
   unitsLeftMinimum: '{stock} units left (minimum {min}).',

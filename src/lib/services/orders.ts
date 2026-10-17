@@ -5,7 +5,7 @@ import { getSettings, nextNumber } from '../settings';
 import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
-import { createJob } from './production';
+import { cancelJob, createJob } from './production';
 import { loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
@@ -58,8 +58,11 @@ export async function createOrder(input: OrderInput, user: User): Promise<string
       const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
       if (v) {
         fromStock = Math.max(0, Math.min(it.qty, v.stock - v.reserved));
+        // reserva atómica: si otro pedido tomó esas unidades entretanto, no se reserva (la línea se produce)
+        const [ok] = fromStock > 0 ? await db.update(s.productVariants).set({ reserved: sql`${s.productVariants.reserved} + ${fromStock}`, updatedAt: new Date() })
+          .where(and(eq(s.productVariants.id, v.id), sql`${s.productVariants.stock} - ${s.productVariants.reserved} >= ${fromStock}`)).returning({ id: s.productVariants.id }) : [];
+        if (!ok) fromStock = 0;
         if (fromStock > 0) {
-          await db.update(s.productVariants).set({ reserved: v.reserved + fromStock, updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
           await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'reserva', qty: 0, reason: t('orders.reservationOfUnitsFor', { fromStock, number }), orderId: order.id, createdBy: user.id });
         }
       }
@@ -148,10 +151,14 @@ export async function planProduction(orderId: string, user: User, itemIds?: stri
       const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId));
       qty = need; estG = (v?.weightG ?? 0) * need; estH = (v?.printH ?? 0) * need; materialId = v?.materialId ?? materialId;
     }
+    // la línea se reserva antes de crear el trabajo: dos planificaciones simultáneas no la duplican
+    const [mine] = await db.update(s.orderItems).set({ status: 'en_cola' }).where(and(eq(s.orderItems.id, it.id), eq(s.orderItems.status, it.status))).returning({ id: s.orderItems.id });
+    if (!mine) continue;
     const mm = await db.select({ f: s.modelFiles }).from(s.quoteItemModels).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.quoteItemModels.modelFileId)).where(eq(s.quoteItemModels.orderItemId, it.id));
     const dims = mm.length ? ([Math.max(...mm.map((x) => x.f.dimX ?? 0)), Math.max(...mm.map((x) => x.f.dimY ?? 0)), Math.max(...mm.map((x) => x.f.dimZ ?? 0))] as [number, number, number]) : null;
-    const id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || t('orders.part')} ×${qty}`, materialId, qty, estG, estH, orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id });
-    await db.update(s.orderItems).set({ status: 'en_cola' }).where(eq(s.orderItems.id, it.id));
+    let id: string;
+    try { id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || t('orders.part')} ×${qty}`, materialId, qty, estG, estH, orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id }); }
+    catch (e) { await db.update(s.orderItems).set({ status: it.status }).where(eq(s.orderItems.id, it.id)); throw e; }
     created.push(id);
   }
   await recomputeOrderStatus(orderId);
@@ -172,7 +179,9 @@ export async function recomputeOrderStatus(orderId: string) {
     const open = live.filter((j) => ['en_cola', 'imprimiendo', 'pausado'].includes(j.status));
     const printing = live.some((j) => ['imprimiendo', 'pausado'].includes(j.status));
     const closedOk = live.every((j) => j.status === 'terminado' || j.status === 'fallido');
-    if (!open.length && closedOk) status = 'post_proceso'; else status = printing || live.some((j) => j.status === 'terminado') || open.length ? 'en_produccion' : 'recibido';
+    // una línea sin imprimir (p. ej. falla total sin reimpresión) impide pasar a post-proceso
+    const unprinted = items.some((i) => i.status === 'pendiente' || i.status === 'en_cola');
+    if (!open.length && closedOk && !unprinted) status = 'post_proceso'; else status = printing || live.some((j) => j.status === 'terminado') || open.length ? 'en_produccion' : 'recibido';
   } else if (items.length && items.every((i) => i.variantId && i.fromStock >= i.qty)) status = 'listo';
   if (status !== o.status) {
     await db.update(s.orders).set({ status, updatedAt: new Date() }).where(eq(s.orders.id, orderId));
@@ -186,25 +195,28 @@ export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' 
   const [ord] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
   if (!ord) throw new Error(t('orders.orderNotFound'));
   if (ord.status === 'cancelado') throw new Error(t('orders.theOrderIsCancelled'));
+  // un pedido entregado no retrocede y solo se entrega uno listo
+  if (ord.status === 'entregado' || (to === 'entregado' && ord.status !== 'listo')) throw new Error(t('orders.orderStatusChanged'));
   const patch: Record<string, any> = { status: to, updatedAt: new Date() };
   if (o.tracking !== undefined) patch.tracking = o.tracking;
   if (o.shipMethod) patch.shipMethod = o.shipMethod;
+  if (to === 'entregado') patch.deliveredAt = new Date();
+  // transición condicionada antes de mover stock: una entrega repetida (doble clic, otra pestaña) no descuenta dos veces
+  const [claimed] = await db.update(s.orders).set(patch).where(and(eq(s.orders.id, orderId), eq(s.orders.status, ord.status))).returning({ id: s.orders.id });
+  if (!claimed) throw new Error(t('orders.orderStatusChanged'));
   if (to === 'entregado') {
-    patch.deliveredAt = new Date();
     // las unidades reservadas de stock salen definitivamente
     const items = await db.select().from(s.orderItems).where(and(eq(s.orderItems.orderId, orderId), sql`${s.orderItems.variantId} is not null`));
     for (const it of items) {
-      const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId!));
       const qty = it.fromStock;
-      if (v && qty > 0) {
-        await db.update(s.productVariants).set({ stock: v.stock - qty, reserved: Math.max(0, v.reserved - qty), updatedAt: new Date() }).where(eq(s.productVariants.id, v.id));
-        await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -qty, unitCost: v.avgCost, orderId, reason: t('orders.order', { number: ord.number }), createdBy: user.id });
-        if (v.stock - qty <= v.minStock) await notify('stock_bajo', t('orders.lowProductStock', { sku: v.sku }), t('orders.unitsLeftMinimum', { stock: v.stock - qty, min: v.minStock }), '/catalogo');
-      }
+      if (qty <= 0) continue;
+      const [v] = await db.update(s.productVariants).set({ stock: sql`${s.productVariants.stock} - ${qty}`, reserved: sql`greatest(0, ${s.productVariants.reserved} - ${qty})`, updatedAt: new Date() }).where(eq(s.productVariants.id, it.variantId!)).returning();
+      if (!v) continue;
+      await db.insert(s.stockMovements).values({ workspaceId: WORKSPACE_ID, variantId: v.id, kind: 'venta', qty: -qty, unitCost: v.avgCost, orderId, reason: t('orders.order', { number: ord.number }), createdBy: user.id });
+      if (v.stock <= v.minStock) await notify('stock_bajo', t('orders.lowProductStock', { sku: v.sku }), t('orders.unitsLeftMinimum', { stock: v.stock, min: v.minStock }), '/catalogo');
     }
     await db.update(s.orderItems).set({ status: 'entregado' }).where(eq(s.orderItems.orderId, orderId));
   }
-  await db.update(s.orders).set(patch).where(eq(s.orders.id, orderId));
   await audit('order', orderId, 'estado', { from: ord.status, to, tracking: o.tracking }, user.id);
 }
 
@@ -214,14 +226,17 @@ export async function cancelOrder(orderId: string, reason: string, user: User) {
   const [ord] = await db.select().from(s.orders).where(eq(s.orders.id, orderId));
   if (!ord) throw new Error(t('orders.orderNotFound'));
   if (ord.status === 'entregado') throw new Error(t('orders.aDeliveredOrderCannotBe'));
+  if (ord.status === 'cancelado') throw new Error(t('orders.theOrderIsCancelled'));
+  // se cancela primero (condicionado): una segunda cancelación no libera reservas de otros pedidos
+  const [claimed] = await db.update(s.orders).set({ status: 'cancelado', canceledReason: reason, updatedAt: new Date() })
+    .where(and(eq(s.orders.id, orderId), eq(s.orders.status, ord.status))).returning({ id: s.orders.id });
+  if (!claimed) throw new Error(t('orders.orderStatusChanged'));
   const jobs = await db.select().from(s.printJobs).where(and(eq(s.printJobs.orderId, orderId), inArray(s.printJobs.status, ['en_cola', 'pausado'])));
-  for (const j of jobs) await db.update(s.printJobs).set({ status: 'cancelado' }).where(eq(s.printJobs.id, j.id));
+  for (const j of jobs) await cancelJob(j.id, user.id);
   const items = await db.select().from(s.orderItems).where(and(eq(s.orderItems.orderId, orderId), sql`${s.orderItems.variantId} is not null`));
   for (const it of items) if (it.fromStock > 0) {
-    const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, it.variantId!));
-    if (v) await db.update(s.productVariants).set({ reserved: Math.max(0, v.reserved - it.fromStock) }).where(eq(s.productVariants.id, v.id));
+    await db.update(s.productVariants).set({ reserved: sql`greatest(0, ${s.productVariants.reserved} - ${it.fromStock})` }).where(eq(s.productVariants.id, it.variantId!));
   }
-  await db.update(s.orders).set({ status: 'cancelado', canceledReason: reason, updatedAt: new Date() }).where(eq(s.orders.id, orderId));
   await audit('order', orderId, 'cancelar', { reason }, user.id);
 }
 
