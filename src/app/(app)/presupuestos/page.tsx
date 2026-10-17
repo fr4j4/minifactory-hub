@@ -37,7 +37,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       return (
         <li key={q.id} className="card p-3 flex items-center gap-3 flex-wrap sm:flex-nowrap">
           <Link href={`/presupuestos/${q.id}`} className="flex items-center gap-3 min-w-0 flex-1 min-h-[56px]">
-            <div className="flex -space-x-3 shrink-0 w-14" aria-hidden>{ids.length ? ids.map((id) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={id} src={`/api/files/v/${id}/thumb`} alt="" className="h-10 w-10 rounded-lg object-cover border-2 border-[var(--card)] bg-[var(--bg)]" />) : <span className="h-10 w-10 rounded-lg border border-dashed border-[var(--line)]" />}</div>
+            <div className="flex -space-x-3 shrink-0 w-14" aria-hidden>{ids.length ? ids.map((id) => /* eslint-disable-next-line @next/next/no-img-element */ <img key={id} src={`/api/files/v/${id}/thumb`} alt="" className="h-10 w-10 rounded-lg object-cover border-2 border-[var(--card)] bg-[var(--bg)]" />) : <span className="h-10 w-10 rounded-lg bg-[var(--bg)] border border-[var(--line)] flex flex-col justify-center items-center gap-[3px] px-2">{[50, 70, 90].map((w) => <span key={w} className="block h-[3px] rounded-full bg-[var(--muted)] opacity-30" style={{ width: `${w}%` }} />)}</span>}</div>
             <div className="min-w-0"><div className="font-medium truncate">{q.number}{q.version > 1 && <span className="muted"> v{q.version}</span>} <span className="muted font-normal">· {q.customerName ?? t('common.noCustomer')}</span></div><div className="text-xs muted truncate">{q.title ?? '—'}</div></div>
           </Link>
           <div className="flex items-center gap-2 text-xs shrink-0">
@@ -46,7 +46,7 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
           </div>
           <div className="text-right shrink-0 ml-auto"><div className="tabular font-semibold">{money(q.total)}</div>{costs && m != null && <div className="text-xs muted">{t('common.margin')} {num(m, 0)}%</div>}</div>
           <StatusBadge status={q.status} />
-          <div className="flex gap-1.5 shrink-0"><a className="btn-ghost btn-sm" href={`/api/quotes/${q.id}/pdf`} aria-label={`PDF ${q.number}`}>PDF</a>{q.customerPhone && <a className="btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${q.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(wa)}`}>WhatsApp</a>}</div>
+          <div className="row-actions flex gap-1.5 shrink-0"><a className="btn-ghost btn-sm" href={`/api/quotes/${q.id}/pdf`} aria-label={`PDF ${q.number}`}>PDF</a>{q.customerPhone && <a className="btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href={`https://wa.me/${q.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(wa)}`}>WhatsApp</a>}</div>
         </li>);
     })}</ul>
   );
@@ -67,12 +67,12 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
   const table = (
     <Card pad={false}><Table><thead><tr><th className="th">{t('common.noLabel')}</th><th className="th">{t('common.customer')}</th><th className="th">{t('quotes.title')}</th><th className="th text-right">{t('common.suggested')}</th><th className="th text-right">{t('common.total')}</th>{costs && <th className="th text-right">{t('common.margin')}</th>}<th className="th">{t('quotes.validUntil')}</th><th className="th">{t('common.status')}</th></tr></thead>
       <tbody>{rows.map((q) => { const m = (q.calc as any)?.totals?.marginPct; const diff = q.suggestedTotal ? ((q.total - q.suggestedTotal) / q.suggestedTotal) * 100 : 0; return (
-        <tr key={q.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40"><td className="td font-medium"><Link className="hover:underline" href={`/presupuestos/${q.id}`}>{q.number}{q.version > 1 && <span className="muted"> v{q.version}</span>}</Link></td><td className="td">{q.customerName ?? '—'}</td><td className="td">{q.title ?? '—'}</td><td className="td text-right tabular muted">{money(q.suggestedTotal)}</td><td className="td text-right tabular font-medium">{money(q.total)} {Math.abs(diff) >= 1 && <span className={`text-xs ${diff < 0 ? 'text-amber-600' : 'text-blue-600'}`}>{diff > 0 ? '+' : ''}{num(diff, 0)}%</span>}</td>{costs && <td className="td text-right tabular">{m != null ? `${num(m, 0)}%` : '—'}</td>}<td className="td tabular">{dmy(q.validUntil)}</td><td className="td"><StatusBadge status={q.status} /></td></tr>); })}</tbody></Table></Card>
+        <tr key={q.id}><td className="td font-medium"><Link className="num hover:underline" href={`/presupuestos/${q.id}`}>{q.number}{q.version > 1 && <span className="muted"> v{q.version}</span>}</Link></td><td className="td">{q.customerName ?? '—'}</td><td className="td">{q.title ?? '—'}</td><td className="td text-right tabular muted">{money(q.suggestedTotal)}</td><td className="td text-right tabular font-medium">{money(q.total)} {Math.abs(diff) >= 1 && <span className={`text-xs ${diff < 0 ? 'text-amber-600' : 'text-blue-600'}`}>{diff > 0 ? '+' : ''}{num(diff, 0)}%</span>}</td>{costs && <td className="td text-right tabular">{m != null ? `${num(m, 0)}%` : '—'}</td>}<td className="td tabular">{dmy(q.validUntil)}</td><td className="td"><StatusBadge status={q.status} /></td></tr>); })}</tbody></Table></Card>
   );
   return (
     <>
       <PageHeader title={t('common.quotes')} subtitle={t('quotes.quoteSeveralModelsPerQuote')} actions={can(user, 'presupuestos', 'C') && <><Link href="/calculadora" className="btn-ghost">{t('quotes.quickCalculator')}</Link><Link href="/presupuestos/nuevo" className="btn-primary" data-testid="new-quote">{t('quotes.newQuote')}</Link></>} />
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5" data-testid="quote-kpis">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2" data-testid="quote-kpis">
         <Stat label={t('quotes.kpiOpen')} value={board.openCount} sub={money(board.openAmount)} />
         <Stat label={t('quotes.kpiDueSoon')} value={board.dueSoon} tone={board.dueSoon ? 'warn' : undefined} />
         <Stat label={t('quotes.kpiNoReply')} value={board.noReply} tone={board.noReply ? 'warn' : undefined} />
