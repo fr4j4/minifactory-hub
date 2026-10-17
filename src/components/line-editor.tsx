@@ -210,7 +210,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   {it.finalUnit != null && !dis && <button type="button" className="btn-ghost btn-sm shrink-0" onClick={() => onChange({ finalUnit: null })} data-testid="line-reset-price">{t('calculator.useSuggested')}</button>}</div>
               </label>
               <div id={`d${it.uid}`} className="flex flex-wrap gap-1.5 text-xs" data-testid="line-chips">
-                {it.finalUnit != null && it.finalUnit !== suggestedUnit && <Badge tone={diff < 0 ? 'amber' : 'blue'}>{t('quotes.vsSuggested', { pct: `${diff > 0 ? '+' : ''}${num(diff, 1)}` })} ({money(finalUnit - suggestedUnit)}/u)</Badge>}
+                {it.finalUnit != null && it.finalUnit !== suggestedUnit && <Badge tone={diff < 0 ? 'amber' : 'blue'}>{t('quotes.vsSuggested', { pct: `${diff > 0 ? '+' : ''}${num(diff, 1)}` })} ({money(finalUnit - suggestedUnit)} {t('calculator.unit')})</Badge>}
                 {showCosts && margin != null && <Badge tone={belowCost ? 'red' : belowMin ? 'amber' : 'green'}>{t('common.margin')} {pct(margin, 0)}</Badge>}
                 {belowCost && <Badge tone="red">{t('calculator.belowCost')}</Badge>}{!belowCost && belowMin && showCosts && <Badge tone="amber">{t('calculator.belowMinMargin', { pct: ctx.rates.minMarginPct })}</Badge>}
               </div>
