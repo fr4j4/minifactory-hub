@@ -64,7 +64,7 @@ cd $HOME\Downloads\minifactory-hub
 Solo hace falta una llave secreta; no necesitas definir una contraseña de administrador todavía (el siguiente paso explica por qué):
 
 ```powershell
-$clave = -join ((48..57)+(97..102) | Get-Random -Count 64 | ForEach-Object {[char]$_})
+$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); $clave = -join ($b | ForEach-Object { $_.ToString('x2') })
 Set-Content -Path .env -Value "SESSION_SECRET=$clave"
 ```
 
