@@ -19,6 +19,7 @@ import type { QuoteDocData } from '@/components/quote-document';
 import { RemoveButton } from '@/components/remove-button';
 import { can } from '@/lib/perm';
 import { RestoreButton } from '@/components/restore-button';
+import { auditDetail } from '@/lib/audit-detail';
 import { listArchived } from '@/lib/services/archive';
 import { PresetsEditor } from '@/components/presets-editor';
 import { presetRows } from '@/lib/slicer/presets';
@@ -39,15 +40,6 @@ function docSample(st: Awaited<ReturnType<typeof getSettings>>, t: TFn): QuoteDo
   };
 }
 export async function generateMetadata() { return { title: (await getT())('meta.settings') }; }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** Detalle legible de un registro de auditoría: «campo: valor · …», sin identificadores internos. */
-function auditDetail(changes: unknown, t: TFn): string {
-  if (!changes || typeof changes !== 'object') return changes == null ? '' : String(changes);
-  if (Array.isArray(changes)) return changes.join(', ');
-  return Object.entries(changes as Record<string, unknown>).filter(([, v]) => !(typeof v === 'string' && UUID.test(v)))
-    .map(([k, v]) => `${tOr(t, `audit.field.${k}`, k)}: ${v == null ? '—' : typeof v === 'object' ? JSON.stringify(v) : String(v)}`).join(' · ');
-}
-
 export default async function ConfigPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const t = await getT();
   const user = await pagePerm('config', 'V'); const { tab = 'taller' } = await searchParams; const db = await getDb(); const st = await getSettings();
