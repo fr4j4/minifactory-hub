@@ -14,6 +14,7 @@ import { getT } from '@/i18n/server';
 
 export async function generateMetadata() { return { title: (await getT())('meta.files') }; }
 
+const LIMIT = 200;
 export default async function FilesPage({ searchParams }: { searchParams: Promise<{ q?: string; tag?: string; folder?: string; fav?: string }> }) {
   const t = await getT();
   const user = await pagePerm('archivos', 'V'); const sp = await searchParams; const db = await getDb();
@@ -22,7 +23,7 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
   if (sp.tag) conds.push(sql`${s.modelFiles.tags}::text ilike ${'%"' + sp.tag + '"%'}`);
   if (sp.folder) conds.push(inFolder(sp.folder));
   if (sp.fav) conds.push(eq(s.modelFiles.favorite, true));
-  const rows = await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).leftJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(and(...conds)).orderBy(desc(s.modelFiles.favorite), desc(s.modelFiles.updatedAt)).limit(200);
+  const rows = await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).leftJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(and(...conds)).orderBy(desc(s.modelFiles.favorite), desc(s.modelFiles.updatedAt)).limit(LIMIT);
   const all = await db.select({ tags: s.modelFiles.tags, folder: s.modelFiles.folder }).from(s.modelFiles).where(isNull(s.modelFiles.deletedAt));
   const tags = [...new Set(all.flatMap((a) => a.tags ?? []))].sort(); const folderRows = await listFolders(db); const folders = folderRows.map((f) => f.path); const colors = await tagColors(db);
   // insignias de uso: cabe en máquinas, laminados y presupuestos (una consulta por tipo, no por modelo)
@@ -46,7 +47,8 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
         <button className="btn-ghost">{t('common.filter')}</button>
       </form>
       {can(user, 'archivos', 'E') && <FolderManager folders={folderRows} tags={vocabulary.map((v) => ({ ...v, color: colors.get(v.tag) ?? null }))} />}
-      {rows.length === 0 ? <Card><Empty title={t('files.noFiles')} hint={t('files.uploadAnStlOr3mf')} /></Card> : (
+      {rows.length === LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: LIMIT })}</p>}
+      {rows.length === 0 ? (sp.q || sp.tag || sp.folder || sp.fav ? <Card><Empty title={t('common.noMatches')} action={<Link className="btn-ghost" href="/archivos">{t('common.clearFilters')}</Link>} /></Card> : <Card><Empty title={t('files.noFiles')} hint={t('files.uploadAnStlOr3mf')} /></Card>) : (
         <FileGrid canEdit={can(user, 'archivos', 'E')} vocabulary={vocabulary} cards={cards} tagColors={Object.fromEntries(colors)} />
       )}
     </>

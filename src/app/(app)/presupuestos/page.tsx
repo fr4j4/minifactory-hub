@@ -14,13 +14,14 @@ import { getT } from '@/i18n/server';
 
 export async function generateMetadata() { return { title: (await getT())('meta.quotes') }; }
 
+const LIMIT = 150;
 export default async function QuotesPage({ searchParams }: { searchParams: Promise<{ q?: string; st?: string }> }) {
   const t = await getT();
   const user = await pagePerm('presupuestos', 'V'); const sp = await searchParams; const db = await getDb();
   const conds = [isNull(s.quotes.deletedAt)];
   if (sp.q) conds.push(or(ilike(s.quotes.number, `%${sp.q}%`), ilike(s.quotes.customerName, `%${sp.q}%`), ilike(s.quotes.title, `%${sp.q}%`))!);
   if (sp.st) conds.push(eq(s.quotes.status, sp.st)); else conds.push(inArray(s.quotes.status, ['borrador', 'enviado', 'aprobado', 'rechazado', 'vencido']));
-  const rows = await db.select().from(s.quotes).where(and(...conds)).orderBy(desc(s.quotes.createdAt)).limit(150);
+  const rows = await db.select().from(s.quotes).where(and(...conds)).orderBy(desc(s.quotes.createdAt)).limit(LIMIT);
   const costs = canSeeCosts(user); const board = await quoteBoard(); const thumbs = await quoteThumbs(rows.map((r) => r.id)); const st = await getSettings();
   const qs = (status: string) => { const p = new URLSearchParams(); if (sp.q) p.set('q', sp.q); if (status) p.set('st', status); const x = p.toString(); return `/presupuestos${x ? `?${x}` : ''}`; };
   const STATUSES = ['borrador', 'enviado', 'aprobado', 'rechazado', 'vencido'];
@@ -80,7 +81,8 @@ export default async function QuotesPage({ searchParams }: { searchParams: Promi
       </div>
       <Tabs current={sp.st ?? ''} tabs={[{ key: '', href: qs(''), label: t('quotes.active'), count: active }, ...STATUSES.map((k) => ({ key: k, href: qs(k), label: t(`status.${k}` as 'status.borrador'), count: board.counts[k] ?? 0 }))]} />
       <form className="flex flex-wrap gap-2 mb-4" role="search"><input name="q" defaultValue={sp.q} className="input sm:max-w-xs" placeholder={t('quotes.searchByNumberCustomerOr')} aria-label={t('quotes.searchQuotes')} />{sp.st && <input type="hidden" name="st" value={sp.st} />}<button className="btn-ghost">{t('common.filter')}</button></form>
-      {rows.length === 0 ? <Card><Empty title={t('quotes.thereAreNoQuotes')} hint={t('quotes.createTheFirstOneUpload')} action={<Link className="btn-primary" href="/presupuestos/nuevo">{t('common.newQuote')}</Link>} /></Card> : <QuoteViews list={list} table={table} kanban={kanban} />}
+      {rows.length === LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: LIMIT })}</p>}
+      {rows.length === 0 ? (sp.q || sp.st ? <Card><Empty title={t('common.noMatches')} action={<Link className="btn-ghost" href="/presupuestos">{t('common.clearFilters')}</Link>} /></Card> : <Card><Empty title={t('quotes.thereAreNoQuotes')} hint={t('quotes.createTheFirstOneUpload')} action={<Link className="btn-primary" href="/presupuestos/nuevo">{t('common.newQuote')}</Link>} /></Card>) : <QuoteViews list={list} table={table} kanban={kanban} />}
     </>
   );
 }

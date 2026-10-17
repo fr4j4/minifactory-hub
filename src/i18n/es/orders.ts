@@ -131,6 +131,7 @@ export const orders = {
   createdOn: 'creado {date}',
   dueOn: 'entrega {date}',
   late: 'atrasado',
+  noOpenOrders: 'No hay pedidos en curso. Los entregados y cancelados se ven con el filtro de estado.',
   orderItems: 'Ítems del pedido',
   fromQuote: 'desde {number} v{version}',
   catalogProductStock: 'Producto de catálogo · {n} de stock',

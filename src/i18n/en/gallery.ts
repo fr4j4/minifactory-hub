@@ -25,6 +25,7 @@ export const gallery: Shape<typeof es['gallery']> = {
   allCollections: 'All collections',
   featured: 'Featured',
   featuredOne: 'Featured',
+  deletePhotoConfirm: 'Delete this photo from the gallery? It cannot be restored from the app.',
   noPhotosMatchTheseFilters: 'No photos match these filters',
   takePhotosFromAnOrder: 'Take photos from an order or a job, or upload them here.',
   takePhotos: 'Take photos',

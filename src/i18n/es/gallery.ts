@@ -22,6 +22,7 @@ export const gallery = {
   allCollections: 'Todas las colecciones',
   featured: 'Destacadas',
   featuredOne: 'Destacada',
+  deletePhotoConfirm: '¿Eliminar esta foto de la galería? No se puede recuperar desde la app.',
   noPhotosMatchTheseFilters: 'No hay fotos con estos filtros',
   takePhotosFromAnOrder: 'Toma fotos desde un pedido o un trabajo, o súbelas aquí.',
   takePhotos: 'Tomar fotos',

@@ -1,6 +1,9 @@
 export const common = {
   language: 'Idioma',
   close: 'Cerrar',
+  noMatches: 'Nada coincide con la búsqueda o los filtros',
+  clearFilters: 'Limpiar filtros',
+  listCapped: 'Se muestran los primeros {n}. Usa la búsqueda o los filtros para encontrar el resto.',
   confirm: 'Confirmar',
   cancel: 'Cancelar',
   copy: 'Copiar',

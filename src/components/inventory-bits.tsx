@@ -10,11 +10,13 @@ import { Icon } from '@/components/shell';
 export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Array<{ id: string; name: string }>; trigger: React.ReactNode }) {
   const t = useT();
   const [open, setOpen] = useState(false); const { run, pending } = useAction();
-  const [v, setV] = useState({ tech: m?.tech ?? 'fdm', manufacturer: m?.manufacturer ?? '', line: m?.line ?? '', type: m?.type ?? 'PLA', colorName: m?.colorName ?? '', hex: m?.hex ?? '#888888', diameter: m?.diameter ?? 1.75, density: m?.density ?? 1.24, costPerKg: m?.costPerKg ?? 0, stockMinG: m?.stockMinG ?? 1000, tempNozzle: m?.tempNozzle ?? '', tempBed: m?.tempBed ?? '', supplierText: m?.supplierText ?? '', filamentProfileId: m?.filamentProfileId ?? '' });
+  // el estado se rearma al abrir: si no, «Nuevo» mostraba lo del último guardado y Cancelar no descartaba
+  const init = () => ({ tech: m?.tech ?? 'fdm', manufacturer: m?.manufacturer ?? '', line: m?.line ?? '', type: m?.type ?? 'PLA', colorName: m?.colorName ?? '', hex: m?.hex ?? '#888888', diameter: m?.diameter ?? 1.75, density: m?.density ?? 1.24, costPerKg: m?.costPerKg ?? 0, stockMinG: m?.stockMinG ?? 1000, tempNozzle: m?.tempNozzle ?? '', tempBed: m?.tempBed ?? '', supplierText: m?.supplierText ?? '', filamentProfileId: m?.filamentProfileId ?? '' });
+  const [v, setV] = useState(init);
   const f = (k: string) => (e: React.ChangeEvent<any>) => setV({ ...v, [k]: e.target.type === 'number' ? +e.target.value : e.target.value });
   return (
     <>
-      <span onClick={() => setOpen(true)} className="inline-block">{trigger}</span>
+      <span onClick={() => { setV(init()); setOpen(true); }} className="inline-block">{trigger}</span>
       <Modal open={open} onClose={() => setOpen(false)} title={m ? t('inventory.editMaterial') : t('inventory.newMaterial')} wide>
         <form className="grid sm:grid-cols-3 gap-3" onSubmit={(e) => { e.preventDefault(); run(() => saveMaterialAction({ id: m?.id, ...v }), { ok: t('inventory.materialSaved2'), onOk: () => setOpen(false) }); }}>
           <label className="block"><span className="label">{t('inventory.technology')}</span><select className="input" value={v.tech} onChange={f('tech')}><option value="fdm">{t('inventory.filamentFdm')}</option><option value="resina">{t('inventory.resin')}</option></select></label>
@@ -72,9 +74,10 @@ export function SpoolEditor({ s: sp, machines }: { s: { id: string; location: st
 export function ItemDialog({ item, trigger }: { item?: any; trigger: React.ReactNode }) {
   const t = useT();
   const [open, setOpen] = useState(false); const { run, pending } = useAction();
-  const [v, setV] = useState({ category: item?.category ?? 'insumo', sku: item?.sku ?? '', name: item?.name ?? '', unit: item?.unit ?? 'un', stock: item?.stock ?? 0, minStock: item?.minStock ?? 0, unitCost: item?.unitCost ?? 0, supplierText: item?.supplierText ?? '', location: item?.location ?? '' });
+  const init = () => ({ category: item?.category ?? 'insumo', sku: item?.sku ?? '', name: item?.name ?? '', unit: item?.unit ?? 'un', stock: item?.stock ?? 0, minStock: item?.minStock ?? 0, unitCost: item?.unitCost ?? 0, supplierText: item?.supplierText ?? '', location: item?.location ?? '' });
+  const [v, setV] = useState(init);
   const f = (k: string) => (e: React.ChangeEvent<any>) => setV({ ...v, [k]: e.target.type === 'number' ? +e.target.value : e.target.value });
-  return (<><span onClick={() => setOpen(true)} className="inline-block">{trigger}</span>
+  return (<><span onClick={() => { setV(init()); setOpen(true); }} className="inline-block">{trigger}</span>
     <Modal open={open} onClose={() => setOpen(false)} title={item ? t('inventory.editItem') : t('inventory.newItem')}>
       <form className="grid grid-cols-2 gap-3" onSubmit={(e) => { e.preventDefault(); run(() => saveItemAction({ id: item?.id, ...v }), { ok: t('inventory.saved2'), onOk: () => setOpen(false) }); }}>
         <label className="block col-span-2"><span className="label">{t('common.name2')}</span><input className="input" required value={v.name} onChange={f('name')} /></label>

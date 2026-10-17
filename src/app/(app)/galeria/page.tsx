@@ -17,6 +17,7 @@ import { RemoveButton } from '@/components/remove-button';
 import { Icon } from '@/components/shell';
 
 export async function generateMetadata() { return { title: (await getT())('meta.gallery') }; }
+const LIMIT = 300;
 export default async function GalleryPage({ searchParams }: { searchParams: Promise<{ stage?: string; fav?: string; tag?: string; months?: string; col?: string; subir?: string; cliente?: string }> }) {
   const t = await getT();
   const user = await pagePerm('galeria', 'V'); const sp = await searchParams; const db = await getDb();
@@ -25,7 +26,7 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
   if (sp.tag) conds.push(sql`${s.photos.tags}::text ilike ${'%' + sp.tag + '%'}`);
   if (sp.months) conds.push(gte(s.photos.takenAt, new Date(Date.now() - Number(sp.months) * 30 * 86400_000)));
   if (sp.cliente) conds.push(eq(s.photos.customerId, sp.cliente));
-  const rows = await db.select({ p: s.photos, o: s.orders.number, c: s.customers.name, consent: s.customers.photoConsent }).from(s.photos).leftJoin(s.orders, eq(s.orders.id, s.photos.orderId)).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(...conds)).orderBy(desc(s.photos.featured), desc(s.photos.takenAt)).limit(300);
+  const rows = await db.select({ p: s.photos, o: s.orders.number, c: s.customers.name, consent: s.customers.photoConsent }).from(s.photos).leftJoin(s.orders, eq(s.orders.id, s.photos.orderId)).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(...conds)).orderBy(desc(s.photos.featured), desc(s.photos.takenAt)).limit(LIMIT);
   const cols = await db.select().from(s.collections).where(isNull(s.collections.deletedAt)); const colPhotos = sp.col ? await db.select().from(s.collectionPhotos).where(eq(s.collectionPhotos.collectionId, sp.col)) : [];
   const list = sp.col ? rows.filter((r) => colPhotos.some((c) => c.photoId === r.p.id)) : rows;
   const allTags = [...new Set((await db.select({ t: s.photos.tags }).from(s.photos).where(isNull(s.photos.deletedAt))).flatMap((x) => x.t ?? []))].sort().slice(0, 30);
@@ -41,6 +42,7 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
         {cols.length > 0 && <select name="col" defaultValue={sp.col ?? ''} className="input sm:!w-48" aria-label={t('gallery.collection')}><option value="">{t('gallery.allCollections')}</option>{cols.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}{sp.col && cols.some((c) => c.id === sp.col) && can(user, 'galeria', 'E') && <EditButton kind="collection" id={sp.col} fields={editFields('collection', t)} values={cols.find((c) => c.id === sp.col)!} className="btn-ghost" testId="edit-collection" />}{sp.col && cols.some((c) => c.id === sp.col) && can(user, 'galeria', 'X') && <RemoveButton kind="collection" id={sp.col} name={cols.find((c) => c.id === sp.col)!.name} redirectTo="/galeria" />}
         <label className="flex items-center gap-1.5 text-sm px-1"><input type="checkbox" name="fav" value="1" defaultChecked={!!sp.fav} /> <Icon name="star" className="h-4 w-4 fill-current text-amber-500" />{t('gallery.featured')}</label><button className="btn-ghost" data-testid="gallery-filter">{t('common.filter')}</button>
       </form>
+      {rows.length === LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: LIMIT })}</p>}
       {views.length === 0 ? <Card><Empty title={t('gallery.noPhotosMatchTheseFilters')} hint={t('gallery.takePhotosFromAnOrder')} /></Card> : <PhotoGrid photos={views} stages={Object.fromEntries(STAGE_KEYS.map((k) => [k, t(`gallery.stage.${k}`)]))} canEdit={can(user, 'galeria', 'E')} />}
     </>
   );

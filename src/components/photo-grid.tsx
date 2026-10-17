@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { createCollectionAction, deletePhotoAction, suggestTextAction, updatePhotoAction } from '@/actions/gallery';
-import { Modal, useAction, useToast } from './client';
+import { ConfirmButton, Modal, useAction, useToast } from './client';
 import { Badge } from './ui';
 import { cn, dmy } from '@/lib/format';
 import { Icon } from '@/components/shell';
@@ -54,7 +54,7 @@ function Detail({ p, stages, canEdit, onClose }: { p: PhotoView; stages: Record<
           <div><div className="flex items-center justify-between"><span className="label !mb-0">{t('gallery.suggestedText')}</span><button className="btn-ghost btn-sm" onClick={async () => { const r = await suggestTextAction(p.id); if (r.ok) setTxt(r.data); else toast.push(r.error, 'err'); }}>{t('gallery.suggest')}</button></div><textarea className="input h-24 mt-1" value={txt} onChange={(e) => setTxt(e.target.value)} aria-label={t('gallery.suggestedText')} /></div>
           {canEdit && <div className="flex flex-wrap gap-2"><button className="btn-primary" disabled={pending} onClick={() => run(() => updatePhotoAction(p.id, { stage, tags: tags.split(',').map((tt) => tt.trim()).filter(Boolean), caption: cap || null, publish: Object.fromEntries(Object.entries(pub).filter(([, v]) => v.status)), suggestedText: txt || null }), { ok: t('gallery.saved2'), onOk: onClose })} data-testid="photo-save">{t('common.save')}</button>
             <button className="btn-ghost" disabled={pending} onClick={() => run(() => updatePhotoAction(p.id, { featured: !p.featured }), { ok: p.featured ? t('gallery.removedFromFeatured2') : t('gallery.markedAsFeatured2'), onOk: onClose })} data-testid="photo-feature"><Icon name="star" className={p.featured ? 'h-4 w-4 fill-current' : 'h-4 w-4'} />{p.featured ? t('gallery.unfeature') : t('gallery.feature')}</button>
-            <button className="btn-ghost text-danger" disabled={pending} onClick={() => run(() => deletePhotoAction(p.id), { ok: t('gallery.photoDeleted2'), onOk: onClose })}>{t('common.deleteLabel')}</button></div>}
+            <ConfirmButton className="btn-ghost text-danger" disabled={pending} message={t('gallery.deletePhotoConfirm')} onConfirm={() => run(() => deletePhotoAction(p.id), { ok: t('gallery.photoDeleted2'), onOk: onClose })}>{t('common.deleteLabel')}</ConfirmButton></div>}
           {p.kind === 'foto' && <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-3"><div className="label">{t('gallery.socialMediaFormat')}</div><div className="flex flex-wrap items-center gap-2">{RATIOS.map((r) => <button key={r} className={cn('btn-ghost btn-sm', ratio === r && '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700')} onClick={() => setRatio(r)}>{r}</button>)}<label className="text-xs flex items-center gap-1"><input type="checkbox" checked={wm} onChange={(e) => setWm(e.target.checked)} /> {t('gallery.watermark')}</label><a className="btn-primary btn-sm" href={`/api/photos/${p.id}/export?ratio=${ratio}${wm ? '&wm=1' : ''}`} data-testid="photo-export"><Icon name="download" className="h-4 w-4" />{t('gallery.exportLabel')}</a></div></div>}
         </div>
       </div>

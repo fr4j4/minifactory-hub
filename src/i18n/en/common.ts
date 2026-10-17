@@ -4,6 +4,9 @@ import type { es } from '../es';
 export const common: Shape<typeof es['common']> = {
   language: 'Language',
   close: 'Close',
+  noMatches: 'Nothing matches the search or filters',
+  clearFilters: 'Clear filters',
+  listCapped: 'Showing the first {n}. Use search or filters to find the rest.',
   confirm: 'Confirm',
   cancel: 'Cancel',
   copy: 'Copy',
