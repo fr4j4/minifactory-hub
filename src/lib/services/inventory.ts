@@ -88,17 +88,22 @@ export async function weighSpool(spoolId: string, grossG: number, userId?: strin
 
 export async function consumeFromSpool(o: { spoolId: string; grams: number; kind: 'consumo' | 'falla'; jobId?: string; note?: string; userId?: string | null }, db?: Db) {
   db = db ?? (await getDb());
-  const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, o.spoolId));
+  // descuento en una sola sentencia que también devuelve el saldo previo (con otro consumo simultáneo, `taken` no mezcla los gramos ajenos); la bobina no baja de 0
+  const res = await db.execute(sql`
+    with prev as (select id, remaining_g, unit_cost, material_id from spools where id = ${o.spoolId} for update)
+    update spools set remaining_g = greatest(0, prev.remaining_g - ${o.grams}), updated_at = now(),
+      status = case when prev.remaining_g - ${o.grams} <= 0 then 'agotada' when spools.status = 'nueva' then 'abierta' else spools.status end
+    from prev where spools.id = prev.id
+    returning spools.remaining_g as "left", prev.remaining_g as "before", prev.unit_cost as "unitCost", prev.material_id as "materialId"`);
+  const [sp] = ((res as any).rows ?? res) as Array<{ left: number; before: number; unitCost: number | null; materialId: string }>;
   if (!sp) return null;
-  // descuento en SQL (no se pisa con otro consumo simultáneo); la bobina no baja de 0
-  const [u] = await db.update(s.spools).set({ remainingG: sql`greatest(0, ${s.spools.remainingG} - ${o.grams})`, status: sql`case when ${s.spools.remainingG} - ${o.grams} <= 0 then 'agotada' when ${s.spools.status} = 'nueva' then 'abierta' else ${s.spools.status} end`, updatedAt: new Date() }).where(eq(s.spools.id, o.spoolId)).returning({ left: s.spools.remainingG });
-  const left = u.left, taken = sp.remainingG - left;
+  const left = Number(sp.left), before = Number(sp.before), taken = before - left;
   const mv = { workspaceId: WORKSPACE_ID, kind: o.kind, spoolId: o.spoolId, unitCost: sp.unitCost, jobId: o.jobId ?? null, createdBy: o.userId ?? null };
   await db.insert(s.inventoryMovements).values({ ...mv, qty: -taken, note: o.note ?? null });
   // lo que excede a la bobina también queda registrado: así los movimientos suman lo que gastó el trabajo (el pesaje corrige después)
   if (o.grams > taken) await db.insert(s.inventoryMovements).values({ ...mv, qty: -(o.grams - taken), note: (await getT())('inventory.consumedBeyondSpool', { g: Math.round(o.grams - taken) }) });
   await checkLowStock(sp.materialId);
-  return { before: sp.remainingG, after: left, depleted: left <= 0 };
+  return { before, after: left, depleted: left <= 0 };
 }
 
 /** Alerta de stock bajo (por peso total del material/color). */
