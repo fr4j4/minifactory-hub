@@ -15,10 +15,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ kind: st
   const { kind } = await params; const url = new URL(req.url); const fmt = url.searchParams.get('fmt') ?? 'csv';
   const db = await getDb();
   let header: string[] = [], rows: unknown[][] = [], name = kind;
-  if (kind === 'clientes') {
+  // 'clientes' es también un reporte: la libreta de contactos usa su propio nombre para no saltarse el filtro del reporte
+  if (kind === 'clientes-lista') {
     if (!can(user, 'clientes', 'V')) return NextResponse.json({ error: t('api.noPermission') }, { status: 403 });
     const cs = await db.select().from(s.customers).where(isNull(s.customers.deletedAt));
-    header = ['nombre', 'telefono', 'email', 'rut', 'tipo', 'etiquetas', 'consentimiento_fotos']; rows = cs.map((c) => [c.name, c.phone, c.email, c.taxId, c.type, (c.tags ?? []).join(';'), c.photoConsent]);
+    header = ['nombre', 'telefono', 'email', 'rut', 'tipo', 'etiquetas', 'consentimiento_fotos']; rows = cs.map((c) => [c.name, c.phone, c.email, c.taxId, c.type, (c.tags ?? []).join(';'), c.photoConsent]); name = 'clientes';
   } else if (reportAllowed(user, kind)) {
     if (!can(user, 'reportes', 'V')) return NextResponse.json({ error: t('api.noPermission') }, { status: 403 });
     const from = url.searchParams.get('from') ? new Date(url.searchParams.get('from')!) : new Date(Date.now() - 30 * 86400_000); const to = url.searchParams.get('to') ? new Date(url.searchParams.get('to')! + 'T23:59:59') : new Date();
