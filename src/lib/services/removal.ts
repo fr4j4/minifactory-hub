@@ -159,6 +159,8 @@ export async function removeRecord(kind: RemovableKind, id: string, userId?: str
   if (name == null) throw new LocalizedError('remove.notFound');
   const info = await removalInfo(kind, id, userId);
   if (!info.canDelete) throw new LocalizedError(info.block!.key, info.block!.params);
+  // La máquina se desvincula de su impresora y deja su propia auditoría; va fuera de la transacción porque removeMachine escribe con su propia conexión
+  if (kind === 'machine') { const { removeMachine } = await import('./production'); await removeMachine(id, userId); return; }
   const now = new Date(); const tag = stamp();
   // varias escrituras: todas o ninguna
   await (await getDb()).transaction(async (db) => { switch (kind) {
@@ -189,8 +191,6 @@ export async function removeRecord(kind: RemovableKind, id: string, userId?: str
     case 'contact': await db.update(s.contactLog).set({ deletedAt: now }).where(eq(s.contactLog.id, id)); break;
     case 'file': await db.update(s.modelFiles).set({ deletedAt: now }).where(eq(s.modelFiles.id, id)); break;
     case 'photo': await db.update(s.photos).set({ deletedAt: now }).where(eq(s.photos.id, id)); break;
-    // La máquina se desvincula de su impresora y deja su propia auditoría.
-    case 'machine': { const { removeMachine } = await import('./production'); await removeMachine(id, userId); return; }
     case 'payment': {
       const [p] = await db.select().from(s.payments).where(eq(s.payments.id, id));
       await db.update(s.payments).set({ deletedAt: now }).where(eq(s.payments.id, id));
