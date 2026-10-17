@@ -54,8 +54,8 @@ export async function ingestModel(i: IngestInput) {
   await audit('model_file', modelId, number === 1 ? 'crear' : 'nueva_version', { filename: i.filename, version: number }, i.userId);
   // el análisis va a la cola persistente (reintenta y sobrevive a reinicios); en modo sync se espera su resultado
   const { enqueueJob, runJobNow } = await import('./jobs');
-  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId });
-  if (i.sync) await runJobNow(jobId);
+  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId, claimed: i.sync });
+  if (i.sync) await runJobNow(jobId, { claimed: true });
   return { modelFileId: modelId, versionId: v.id, version: number, duplicateOf: dup && dup.id !== modelId ? dup : null };
 }
 
