@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { createCollectionAction, deletePhotoAction, suggestTextAction, updatePhotoAction } from '@/actions/gallery';
-import { ConfirmButton, Modal, useAction, useToast } from './client';
+import { ConfirmButton, Modal, useAction, useLinger, useToast } from './client';
 import { Badge } from './ui';
 import { cn, dmy } from '@/lib/format';
 import { Icon } from '@/components/shell';
@@ -14,7 +14,7 @@ const PUB = ['pendiente', 'programada', 'publicada'] as const;
 
 export function PhotoGrid({ photos, stages, canEdit }: { photos: PhotoView[]; stages: Record<string, string>; canEdit: boolean }) {
   const t = useT();
-  const [sel, setSel] = useState<string[]>([]); const [open, setOpen] = useState<PhotoView | null>(null); const { run } = useAction(); const toast = useToast(); const [col, setCol] = useState('');
+  const [sel, setSel] = useState<string[]>([]); const [open, setOpen] = useState<PhotoView | null>(null); const { run } = useAction(); const toast = useToast(); const [col, setCol] = useState(''); const shown = useLinger(open);
   const toggle = (id: string) => setSel((x) => (x.includes(id) ? x.filter((y) => y !== id) : [...x, id]));
   return (
     <div>
@@ -33,16 +33,16 @@ export function PhotoGrid({ photos, stages, canEdit }: { photos: PhotoView[]; st
             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[11px] p-1.5 rounded-b-lg">{p.stageLabel}</div>
           </li>))}
       </ul>
-      {open && <Detail p={open} stages={stages} canEdit={canEdit} onClose={() => setOpen(null)} />}
+      {shown && <Detail key={shown.id} p={shown} open={!!open} stages={stages} canEdit={canEdit} onClose={() => setOpen(null)} />}
     </div>
   );
 }
 
-function Detail({ p, stages, canEdit, onClose }: { p: PhotoView; stages: Record<string, string>; canEdit: boolean; onClose: () => void }) {
+function Detail({ p, open, stages, canEdit, onClose }: { p: PhotoView; open: boolean; stages: Record<string, string>; canEdit: boolean; onClose: () => void }) {
   const t = useT();
   const { run, pending } = useAction(); const toast = useToast(); const [stage, setStage] = useState(p.stage); const [tags, setTags] = useState(p.tags.join(', ')); const [cap, setCap] = useState(p.caption ?? ''); const [txt, setTxt] = useState(p.suggestedText ?? ''); const [pub, setPub] = useState(p.publish); const [ratio, setRatio] = useState('1:1'); const [wm, setWm] = useState(false);
   return (
-    <Modal open onClose={onClose} title={t('gallery.photo', { stage: p.stageLabel })} wide>
+    <Modal open={open} onClose={onClose} title={t('gallery.photo', { stage: p.stageLabel })} wide>
       <div className="grid md:grid-cols-2 gap-4">
         <div>{p.kind === 'video' ? <video src={p.large} controls className="w-full rounded-lg" /> : <img src={p.large} alt={p.caption ?? ''} className="w-full rounded-lg" />}<p className="text-xs muted mt-2">{dmy(p.takenAt)}{p.order ? ` · ${p.order}` : ''}{p.customer ? ` · ${p.customer}` : ''}</p>
           {p.internalOnly && <p className="text-xs rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-300 p-2 mt-2">{t('gallery.internalUseOnlyTheCustomer')}</p>}</div>

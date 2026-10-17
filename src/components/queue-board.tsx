@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, GripVertical, Moon, Pause, Play, X } from 'lucide-react';
 import { assignJobAction, cancelJobAction, createTestJobAction, finishJobAction, pauseJobAction, reorderJobAction, resumeJobAction, startJobAction } from '@/actions/production';
-import { Modal, useAction } from './client';
+import { Modal, useAction, useLinger } from './client';
 import { Badge, StatusBadge, Swatch } from './ui';
 import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
@@ -22,7 +22,7 @@ const iconBtn = 'btn-ghost btn-sm !px-1.5';
 
 export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCreate, workStart, workEnd, nowIso }: { jobs: QJob[]; machines: QMachine[]; materials: QMaterial[]; spools: QSpool[]; canEdit: boolean; canCreate: boolean; workStart: number; workEnd: number; nowIso: string }) {
   const t = useT();
-  const { run, pending } = useAction(); const [view, setView] = useState<'tablero' | 'gantt'>('tablero'); const [finish, setFinish] = useState<QJob | null>(null); const [newJob, setNewJob] = useState(false);
+  const { run, pending } = useAction(); const [view, setView] = useState<'tablero' | 'gantt'>('tablero'); const [finish, setFinish] = useState<QJob | null>(null); const finishShown = useLinger(finish); const [newJob, setNewJob] = useState(false);
   const [drag, setDrag] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
   const live = jobs.filter((j) => ['en_cola', 'imprimiendo', 'pausado'].includes(j.status));
   const queued = live.filter((j) => j.status === 'en_cola').sort((a, b) => a.position - b.position);
@@ -143,18 +143,18 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
           <p className="text-xs muted mt-3">{t('queue.eachBarRunsFromThe')} <Moon className="inline h-3.5 w-3.5 -mt-0.5" aria-hidden /> {t('queue.overnightLegend')} {t('queue.projectedBar')}</p>
         </div></div>
       )}
-      {finish && <FinishModal job={finish} materials={materials} spools={spools} onClose={() => setFinish(null)} />}
+      {finishShown && <FinishModal key={finishShown.id} open={!!finish} job={finishShown} materials={materials} spools={spools} onClose={() => setFinish(null)} />}
       <Modal open={newJob} onClose={() => setNewJob(false)} title={t('queue.testOrCalibrationJob')}><NewJob machines={machines} materials={materials} onClose={() => setNewJob(false)} /></Modal>
     </div>
   );
 }
 
-function FinishModal({ job, materials, spools, onClose }: { job: QJob; materials: QMaterial[]; spools: QSpool[]; onClose: () => void }) {
+function FinishModal({ job, open, materials, spools, onClose }: { job: QJob; open: boolean; materials: QMaterial[]; spools: QSpool[]; onClose: () => void }) {
   const t = useT();
   const { run, pending } = useAction(); const [res, setRes] = useState<'exito' | 'falla_parcial' | 'falla_total'>('exito'); const [g, setG] = useState(String(Math.round(job.estG * 10) / 10)); const [h, setH] = useState(''); const [good, setGood] = useState(Math.floor(job.qty / 2)); const [cause, setCause] = useState(''); const [code, setCode] = useState(''); const [charge, setCharge] = useState<'taller' | 'pedido'>('taller'); const [reprint, setReprint] = useState(true); const [spool, setSpool] = useState(job.spoolId ?? '');
   const sp = spools.filter((x) => x.materialId === job.materialId);
   return (
-    <Modal open onClose={onClose} title={t('queue.finish2', { job: job.number })}>
+    <Modal open={open} onClose={onClose} title={t('queue.finish2', { job: job.number })}>
       <div className="space-y-3">
         <div role="radiogroup" aria-label={t('queue.result')} className="grid grid-cols-3 gap-2">{([['exito', t('queue.success')], ['falla_parcial', t('queue.partialFailure')], ['falla_total', t('queue.totalFailure')]] as const).map(([k, l]) => <button key={k} role="radio" aria-checked={res === k} className={cn('btn-ghost', res === k && (k === 'exito' ? '!bg-emerald-600 !text-white !border-emerald-600' : '!bg-red-600 !text-white !border-red-600'))} onClick={() => setRes(k)} data-testid={`res-${k}`}>{l}</button>)}</div>
         <div className="grid grid-cols-2 gap-3"><label className="block"><span className="label">{t('queue.actualGramsUsed')}</span><input type="number" step="0.1" className="input" value={g} onChange={(e) => setG(e.target.value)} data-testid="finish-grams" /></label><label className="block"><span className="label">{t('queue.actualHoursOptional')}</span><input type="number" step="0.01" className="input" value={h} onChange={(e) => setH(e.target.value)} placeholder={t('queue.calculatedSinceTheStart')} data-testid="finish-hours" /></label></div>

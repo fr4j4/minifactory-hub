@@ -6,7 +6,7 @@ import { connectPrinterAction, discoverPrintersAction, removePrinterAction, upda
 import type { LiveRow } from '@/lib/bambu/manager';
 import { MODEL_OPTIONS } from '@/lib/bambu/models';
 import { cn } from '@/lib/format';
-import { ConfirmButton, Modal, useAction, useToast } from './client';
+import { ConfirmButton, Modal, useAction, useLinger, useToast } from './client';
 import { PrinterPill, PrinterStateBadge, usePrinter } from './printer-live';
 import { CloudSection, type CloudAccountRow } from './printer-cloud';
 import { useT } from '@/i18n/client';
@@ -17,7 +17,7 @@ interface Found { serial: string; ip: string; model: string | null; modelName: s
 export interface LinkedRow { id: string; machineId: string; machineName: string; serial: string; host: string | null; mode: string; model: string | null; name: string | null; enabled: boolean; syncQueue: boolean; fingerprint: string | null; lastError: string | null; live: LiveRow | null }
 
 export type DlgInput = Partial<Found> & { manual?: boolean; cloudAccountId?: string };
-function ConnectDialog({ f, machines, onClose }: { f: DlgInput; machines: Array<{ id: string; name: string }>; onClose: () => void }) {
+function ConnectDialog({ f, open, machines, onClose }: { f: DlgInput; open: boolean; machines: Array<{ id: string; name: string }>; onClose: () => void }) {
   const t = useT();
   const router = useRouter(); const toast = useToast();
   const [code, setCode] = useState(''); const [host, setHost] = useState(f.ip ?? ''); const [serial, setSerial] = useState(f.serial ?? ''); const [model, setModel] = useState(f.model ?? MODEL_OPTIONS[0].code);
@@ -32,7 +32,7 @@ function ConnectDialog({ f, machines, onClose }: { f: DlgInput; machines: Array<
     toast.push(t('machines.printerConnected')); onClose(); router.push(`/maquinas/${r.data.machineId}`);
   };
   return (
-    <Modal open onClose={onClose} title={f.manual ? t('machines.connectByIp') : t('machines.connect3', { name: f.name ?? f.serial, v: fromCloud ? t('machines.viaLan') : '' })}>
+    <Modal open={open} onClose={onClose} title={f.manual ? t('machines.connectByIp') : t('machines.connect3', { name: f.name ?? f.serial, v: fromCloud ? t('machines.viaLan') : '' })}>
       <div className="space-y-3">
         {fromCloud ? <div className="rounded-xl bg-slate-50 dark:bg-slate-800/50 p-3 text-sm space-y-1.5" data-testid="cloud-lan-note">
           <p className="font-medium">{t('machines.accessCodeFromBambuCloud')}</p>
@@ -82,7 +82,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
         {canEdit && <button className="btn-ghost btn-sm" onClick={() => setEdit(true)}>{t('common.edit')}</button>}
         {canRemove && <ConfirmButton disabled={pending} className="btn-ghost btn-sm text-danger" message={t('machines.disconnectThisPrinterTheMachine')} onConfirm={() => run(() => removePrinterAction(l.id), { ok: t('machines.printerDisconnected2') })}>{t('machines.disconnect')}</ConfirmButton>}
       </div>}
-      {edit && <Modal open onClose={() => setEdit(false)} title={t('machines.edit', { name: l.machineName })}>
+      <Modal open={edit} onClose={() => setEdit(false)} title={t('machines.edit', { name: l.machineName })}>
         <div className="space-y-3">
           {l.mode !== 'cloud' && <><label className="block"><span className="label">{t('machines.ip')}</span><input className="input" value={host} onChange={(e) => setHost(e.target.value)} /></label>
           <label className="block"><span className="label">{t('machines.newAccessCodeOptional')}</span><input className="input num" value={code} onChange={(e) => setCode(e.target.value.trim())} autoComplete="off" /></label></>}
@@ -93,7 +93,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
             <button className="btn-primary" disabled={pending} onClick={() => run(() => updatePrinterAction(l.id, l.mode === 'cloud' ? {} : { host, ...(code ? { accessCode: code } : {}) }), { ok: t('machines.saved2'), onOk: () => setEdit(false) })}>{t('common.save')}</button>
           </div>
         </div>
-      </Modal>}
+      </Modal>
     </li>
   );
 }
@@ -101,7 +101,7 @@ function LinkedCard({ l, canEdit, canRemove }: { l: LinkedRow; canEdit: boolean;
 export function ConnectorsBoard({ linked, machines, accounts, canCreate, canEdit, canRemove }: { linked: LinkedRow[]; machines: Array<{ id: string; name: string }>; accounts: CloudAccountRow[]; canCreate: boolean; canEdit: boolean; canRemove: boolean }) {
   const t = useT();
   const toast = useToast(); const [scanning, setScanning] = useState(false); const [found, setFound] = useState<Found[] | null>(null); const [info, setInfo] = useState<string | null>(null);
-  const [dlg, setDlg] = useState<DlgInput | null>(null);
+  const [dlg, setDlg] = useState<DlgInput | null>(null); const dlgShown = useLinger(dlg);
   const scan = async () => {
     setScanning(true); setFound(null); setInfo(null);
     const r = await discoverPrintersAction(6); setScanning(false);
@@ -142,7 +142,7 @@ export function ConnectorsBoard({ linked, machines, accounts, canCreate, canEdit
           <li><Rich text={t('machines.sameNetwork', { opt: '`network_mode: host`' })} /></li>
         </ul>
       </section>
-      {dlg && <ConnectDialog f={dlg} machines={machines} onClose={() => setDlg(null)} />}
+      {dlgShown && <ConnectDialog f={dlgShown} open={!!dlg} machines={machines} onClose={() => setDlg(null)} />}
     </div>
   );
 }

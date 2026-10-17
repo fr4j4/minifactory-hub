@@ -5,7 +5,7 @@ import type { LiveRow } from '@/lib/bambu/manager';
 import type { Tray } from '@/lib/bambu/state';
 import { assignTraySpoolAction, printerCommandAction, sendToPrinterAction } from '@/actions/printers';
 import { cn, dur, grams, num } from '@/lib/format';
-import { ConfirmButton, Modal, useAction } from './client';
+import { ConfirmButton, Modal, useAction, useLinger } from './client';
 import { useLocale, useT } from '@/i18n/client';
 import type { MessageKey, TFn } from '@/i18n/translate';
 import { LOCALE_TAG } from '@/i18n/config';
@@ -162,7 +162,7 @@ function SendDialog({ r, runs, jobs, open, onClose }: { r: LiveRow; runs: RunOpt
 /** Panel completo de una impresora conectada (ficha de la máquina). */
 export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSend, spools, runs, jobs }: { initial: LiveRow; cameraKind: string; canControl: boolean; canAssign: boolean; canSend: boolean; spools: SpoolOpt[]; runs: RunOpt[]; jobs: Array<{ id: string; label: string }> }) {
   const t = useT(); const locale = useLocale();
-  const r = usePrinter(initial.id, initial)!; const s = r.status; const { run, pending } = useAction(); const [send, setSend] = useState(false);
+  const r = usePrinter(initial.id, initial)!; const s = r.status; const { run, pending } = useAction(); const [send, setSend] = useState(false); const sendShown = useLinger(send);
   // el estado de la máquina (encabezado, cola) lo cambia el servidor al recibir la transición: se refresca la página
   const router = useRouter(); const prevState = useRef(s.state);
   useEffect(() => { if (prevState.current !== s.state) { prevState.current = s.state; const tt = setTimeout(() => router.refresh(), 600); return () => clearTimeout(tt); } }, [s.state, router]);
@@ -209,7 +209,7 @@ export function PrinterPanel({ initial, cameraKind, canControl, canAssign, canSe
         {trays.length === 0 ? <p className="text-sm muted">{t('machines.thePrinterDidNotReport')}</p> : <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{trays.map((tt) => <TrayCard key={tt.slot} t={tt} linkId={r.id} spools={spools} machineId={r.machineId} canAssign={canAssign} />)}</ul>}
       </div>
       <footer className="px-4 py-2.5 border-t border-[var(--line)] flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-[.1em] muted"><span>{t('machines.firmware')} {s.firmware ?? '—'}</span><span>{t('machines.nozzle')} {s.nozzle.diameter ?? '—'} mm</span><span>{t('machines.updated')} {new Date(s.updatedAt).toLocaleTimeString(LOCALE_TAG[locale])}</span></footer>
-      {send && <SendDialog r={r} runs={runs} jobs={jobs} open={send} onClose={() => setSend(false)} />}
+      {sendShown && <SendDialog r={r} runs={runs} jobs={jobs} open={send} onClose={() => setSend(false)} />}
     </section>
   );
 }

@@ -8,7 +8,7 @@ import { dur, grams, money, num, cn } from '@/lib/format';
 import { enqueueFromRunAction } from '@/actions/production';
 import { setAutoOrientAction } from '@/actions/files';
 import { ensureQualityAction, resolveFilamentAction, sliceAction } from '@/actions/slicer';
-import { useToast } from './client';
+import { useLinger, useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
 import { SliceErrorHelp } from './slice-error-help';
 import { AdvisorPanel } from './advisor-panel';
@@ -67,7 +67,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const filProfiles = ctx.profiles.filter((p) => p.type === 'filament');
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
-  const [advisorOpen, setAdvisorOpen] = useState(false); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(!!defaultOrient); const [extraMats, setExtraMats] = useState<string[]>(() => (amsColors ?? []).slice(1).map(() => '')); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const advisorShown = useLinger(advisorOpen); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(!!defaultOrient); const [extraMats, setExtraMats] = useState<string[]>(() => (amsColors ?? []).slice(1).map(() => '')); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
   useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [setupKey]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
@@ -141,7 +141,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           </div>
         </div>
       )}
-      {advisorOpen && ai && machine?.machineProfileId && fil && <AdvisorPanel target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: fil.id, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
+      {advisorShown && ai && machine?.machineProfileId && fil && <AdvisorPanel open={advisorOpen} target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: fil.id, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
       {showLayers && run?.status === 'done' && <GcodeViewer src={`/api/runs/${run.id}/preview`} />}
     </div>
   );

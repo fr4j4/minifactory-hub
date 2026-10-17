@@ -6,20 +6,21 @@ import { useT } from '@/i18n/client';
 import { ModalDialog } from './ui/kit';
 
 /* ───────── Toasts ───────── */
-type Toast = { id: number; msg: string; tone: 'ok' | 'err' | 'info' };
+type Toast = { id: number; msg: string; tone: 'ok' | 'err' | 'info'; leaving?: boolean };
 const ToastCtx = createContext<{ push: (msg: string, tone?: Toast['tone']) => void }>({ push: () => {} });
 export const useToast = () => useContext(ToastCtx);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Toast[]>([]);
   const push = useCallback((msg: string, tone: Toast['tone'] = 'ok') => {
     const id = Date.now() + Math.random(); setItems((x) => [...x, { id, msg, tone }]);
-    setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), tone === 'err' ? 7000 : 3500);
+    // primero se desvanece y se pliega (150 ms), después se quita: así los de arriba bajan sin salto
+    setTimeout(() => { setItems((x) => x.map((t) => (t.id === id ? { ...t, leaving: true } : t))); setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), 150); }, tone === 'err' ? 7000 : 3500);
   }, []);
   return (
     <ToastCtx.Provider value={{ push }}>
       {children}
-      <div className="fixed z-[100] bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 flex flex-col gap-2 w-[min(92vw,420px)] pointer-events-none" role="status" aria-live="polite">
-        {items.map((t) => <div key={t.id} className={cn('animate-rise rounded-lg px-4 py-3 text-sm shadow-lg pointer-events-auto border', t.tone === 'err' ? 'bg-red-600 text-white border-red-700' : t.tone === 'info' ? 'bg-slate-800 text-white border-slate-700' : 'bg-emerald-600 text-white border-emerald-700')}>{t.msg}</div>)}
+      <div className="fixed z-[100] bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 flex flex-col w-[min(92vw,420px)] pointer-events-none" role="status" aria-live="polite">
+        {items.map((t) => <div key={t.id} className={cn('grid transition-[grid-template-rows,opacity] duration-150 ease-in', t.leaving ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] animate-rise')}><div className="min-h-0"><div className={cn('mt-2 rounded-lg px-4 py-3 text-sm shadow-lg pointer-events-auto border', t.tone === 'err' ? 'bg-red-600 text-white border-red-700' : t.tone === 'info' ? 'bg-slate-800 text-white border-slate-700' : 'bg-emerald-600 text-white border-emerald-700')}>{t.msg}</div></div></div>)}
       </div>
     </ToastCtx.Provider>
   );
@@ -43,6 +44,13 @@ export function useAction() {
 }
 
 /* ───────── Modal ───────── */
+/** Devuelve `v` y, cuando pasa a vacío, sigue devolviendo el último valor `ms` más: así un diálogo montado con `{x && …}` alcanza a animar su salida. */
+export function useLinger<T>(v: T, ms = 160): T {
+  const [shown, setShown] = useState(v);
+  useEffect(() => { if (v) { setShown(v); return; } const id = setTimeout(() => setShown(v), ms); return () => clearTimeout(id); }, [v, ms]);
+  return v || shown;
+}
+
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
   const t = useT();
   return <ModalDialog open={open} onClose={onClose} title={title} wide={wide} closeLabel={t('common.close')}>{children}</ModalDialog>;

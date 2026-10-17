@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addCloudPrinterAction, cloudDevicesAction, cloudLoginAction, cloudLogoutAction, cloudVerifyAction } from '@/actions/printers';
 import { cn } from '@/lib/format';
-import { ConfirmButton, Modal, useAction, useToast } from './client';
+import { ConfirmButton, Modal, useAction, useLinger, useToast } from './client';
 import type { DlgInput } from './printer-connect';
 import { useLocale, useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
@@ -53,7 +53,7 @@ function LoginForm({ email0, region0, onDone }: { email0?: string; region0?: str
 function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: CloudAccountRow; found: Array<{ serial: string; ip: string }> | null; machines: Array<{ id: string; name: string }>; canCreate: boolean; canEdit: boolean; openLan: (d: DlgInput) => void }) {
   const t = useT(); const locale = useLocale();
   const toast = useToast(); const router = useRouter(); const { run, pending } = useAction();
-  const [devs, setDevs] = useState<Dev[] | null>(null); const [loading, setLoading] = useState(false); const [relogin, setRelogin] = useState(false); const [add, setAdd] = useState<Dev | null>(null); const [machineId, setMachineId] = useState('');
+  const [devs, setDevs] = useState<Dev[] | null>(null); const [loading, setLoading] = useState(false); const [relogin, setRelogin] = useState(false); const [add0, setAdd] = useState<Dev | null>(null); const add = useLinger(add0); const [machineId, setMachineId] = useState('');
   const active = a.status === 'activa';
   const load = async () => { setLoading(true); const r = await cloudDevicesAction(a.id); setLoading(false); if (!r.ok) { toast.push(r.error, 'err'); router.refresh(); return; } setDevs(r.data); };
   const exp = a.expiresAt ? new Date(a.expiresAt) : null; const days = exp ? Math.round((exp.getTime() - Date.now()) / 86_400_000) : null;
@@ -79,7 +79,7 @@ function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: C
               {d.hasLanCode && <button className="btn-primary btn-sm" onClick={() => openLan({ serial: d.serial, name: d.name, model: d.model, modelName: d.modelName, ip: lan?.ip, cloudAccountId: a.id })} data-testid="cloud-lan">{t('machines.connectViaLan')}</button>}
             </div>}
           </li>); })}</ul>)}
-      {add && <Modal open onClose={() => setAdd(null)} title={t('machines.addViaCloud2', { name: add.name })}>
+      {add && <Modal open={!!add0} onClose={() => setAdd(null)} title={t('machines.addViaCloud2', { name: add.name })}>
         <div className="space-y-3">
           <ul className="text-sm list-disc pl-5 muted space-y-1"><li>{t('machines.youWillSeeStatusLayer')}</li><li><b>{t('machines.readOnly')}</b> {t('machines.bambuLabDoesNotAllow')}</li><li>{t('machines.theLiveCameraIsNot')}</li><li>{t('machines.toControlItConnectIt')}</li></ul>
           <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} data-testid="cloud-machine"><option value="">{t('machines.createNewMachine')}</option>{machines.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</select></label>
@@ -87,7 +87,7 @@ function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: C
             <button className="btn-primary" disabled={pending} data-testid="cloud-add-confirm" onClick={() => run(() => addCloudPrinterAction({ accountId: a.id, serial: add.serial, name: add.name, machineId: machineId || null }), { ok: t('machines.printerAddedCloudMode2'), onOk: (r) => { setAdd(null); router.push(`/maquinas/${r.machineId}`); } })}>{t('machines.add')}</button></div>
         </div>
       </Modal>}
-      {relogin && <Modal open onClose={() => setRelogin(false)} title={t('machines.signInAgain')}><LoginForm email0={a.email} region0={a.region} onDone={() => setRelogin(false)} /></Modal>}
+      <Modal open={relogin} onClose={() => setRelogin(false)} title={t('machines.signInAgain')}><LoginForm email0={a.email} region0={a.region} onDone={() => setRelogin(false)} /></Modal>
     </li>
   );
 }

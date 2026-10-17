@@ -22,7 +22,7 @@ function Bar({ label, v, base, bad }: { label: string; v: number; base: number; 
 }
 
 /** Asesor de perfiles con IA: propone → lamina de verdad → compara → el usuario decide. */
-export function AdvisorPanel({ target, features, canEdit, canCreate, onClose }: { target: AdvisorTarget; features: { advisor: boolean; diagnose: boolean }; canEdit: boolean; canCreate: boolean; onClose: () => void }) {
+export function AdvisorPanel({ target, open, features, canEdit, canCreate, onClose }: { target: AdvisorTarget; open: boolean; features: { advisor: boolean; diagnose: boolean }; canEdit: boolean; canCreate: boolean; onClose: () => void }) {
   const t = useT(); const toast = useToast();
   const [mode, setMode] = useState<'goal' | 'symptom'>(features.advisor ? 'goal' : 'symptom');
   const [goal, setGoal] = useState<Goal>('equilibrado'); const [text, setText] = useState('');
@@ -57,7 +57,7 @@ export function AdvisorPanel({ target, features, canEdit, canCreate, onClose }: 
   const label = (k: string) => { const d = PARAM_BY_KEY.get(k); return d ? t(d.label) : k; };
 
   return (
-    <Modal open onClose={onClose} title={t('advisor.title')} wide>
+    <Modal open={open} onClose={onClose} title={t('advisor.title')} wide>
       <div className="space-y-4" data-testid="advisor-panel">
         <p className="text-sm muted">{t('advisor.intro')}</p>
         {!sug && (
