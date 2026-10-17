@@ -8,6 +8,7 @@ import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { getT } from '@/i18n/server';
 import { normalizeTemplate } from '../documents';
+import { addDays, ymd } from '../format';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -108,7 +109,7 @@ export async function saveQuote(input: QuoteInput, user: PermUser & { id: string
   if (input.id && !existing) throw new Error(t('quotes.quoteNotFound'));
   if (existing?.frozen) throw new Error(t('quotes.theQuoteHasAlreadyBeen'));
   const adj = await customerPriceAdj(db, input.customerId);
-  const valid = input.validUntil ?? new Date(Date.now() + ctx.settings.quoteValidDays * 86400_000).toISOString().slice(0, 10);
+  const valid = input.validUntil ?? addDays(ymd(), ctx.settings.quoteValidDays);
   const header = {
     customerId: input.customerId ?? null, customerName: input.customerName ?? null, customerPhone: input.customerPhone ?? null, source: input.source ?? null,
     title: input.title ?? null, urgency: input.urgency ?? 'normal', applyTax: input.applyTax ?? (ctx.settings.rates.taxDefault ?? false), discount: Math.max(0, Math.round(input.discount ?? 0)), finalTotal: input.finalTotal ?? null,
@@ -292,7 +293,7 @@ export async function followUpQuotes(now = new Date()) {
 /** Presupuestos enviados o en borrador cuya vigencia ya pasó pasan a "vencido". */
 export async function expireQuotes() {
   const db = await getDb();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd();
   await db.update(s.quotes).set({ status: 'vencido' }).where(and(inArray(s.quotes.status, ['enviado', 'borrador']), sql`${s.quotes.validUntil} < ${today}`, isNull(s.quotes.deletedAt)));
 }
 

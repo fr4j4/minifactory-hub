@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { cn } from '@/lib/format';
+import { cn, ymd } from '@/lib/format';
 import { TONES } from '@/components/badge';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
@@ -54,7 +54,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const vars = { cliente: o.customerName, numero: o.number, seguimiento: o.tracking ?? '' };
   const phone = o.customerPhone ?? cust?.phone;
   const estCost = o.costEstimated; const real = o.costReal; const netTotal = netOfGross(o.total, st.rates, o.taxAmount); const margin = o.total > 0 && netTotal > 0 ? ((netTotal - (real ?? estCost)) / netTotal) * 100 : null;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd();
   return (
     <>
       <PageHeader back={{ href: '/pedidos', label: t('nav.orders') }} title={<span>{o.number} <StatusBadge status={o.status} /> <StatusBadge status={pst} /></span>}

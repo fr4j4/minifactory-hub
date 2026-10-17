@@ -11,6 +11,7 @@ import { machineCostOf } from './quotes';
 import { recomputeOrderStatus } from './orders';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { ymd } from '../format';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -208,7 +209,7 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   const [claimed] = await db.update(s.printJobs).set({ status: 'imprimiendo', machineId, spoolId: spool?.id ?? null, realStart: now, updatedAt: now }).where(and(eq(s.printJobs.id, jobId), eq(s.printJobs.status, 'en_cola'))).returning({ id: s.printJobs.id });
   if (!claimed) throw new Error(t('queue.jobStatusChanged'));
   await db.update(s.machines).set({ status: 'imprimiendo', updatedAt: now }).where(eq(s.machines.id, machineId));
-  if (spool) await db.update(s.spools).set({ status: 'en_uso', machineId, openedAt: spool.openedAt ?? now.toISOString().slice(0, 10), updatedAt: now }).where(eq(s.spools.id, spool.id));
+  if (spool) await db.update(s.spools).set({ status: 'en_uso', machineId, openedAt: spool.openedAt ?? ymd(now), updatedAt: now }).where(eq(s.spools.id, spool.id));
   if (j.productionOrderId) await db.update(s.productionOrders).set({ status: 'imprimiendo' }).where(eq(s.productionOrders.id, j.productionOrderId));
   const items = await db.select().from(s.jobItems).where(eq(s.jobItems.jobId, jobId));
   if (items.length) await db.update(s.orderItems).set({ status: 'imprimiendo' }).where(inArray(s.orderItems.id, items.map((i) => i.orderItemId!).filter(Boolean)));
@@ -419,7 +420,7 @@ export async function completeMaintenance(o: { planId: string; cost?: number; do
   const [p] = await db.select().from(s.maintenancePlans).where(eq(s.maintenancePlans.id, o.planId));
   if (!p) throw new Error(t('queue.planNotFound'));
   const [m] = await db.select().from(s.machines).where(eq(s.machines.id, p.machineId));
-  const today = new Date().toISOString().slice(0, 10);
+  const today = ymd();
   const { moveItem } = await import('./inventory');
   for (const part of o.parts ?? []) await moveItem({ itemId: part.itemId, qty: part.qty, kind: 'consumo', note: t('queue.maintenance', { task: p.task, machine: m.name }), userId: o.userId });
   await db.insert(s.maintenanceLogs).values({ workspaceId: WORKSPACE_ID, machineId: m.id, planId: p.id, task: p.task, doneAt: today, atHours: m.hoursTotal, cost: o.cost ?? 0, downtimeH: o.downtimeH ?? 0, parts: o.parts ?? [], notes: o.notes ?? null, createdBy: o.userId ?? null });

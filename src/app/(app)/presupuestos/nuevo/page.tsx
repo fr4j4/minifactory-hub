@@ -8,6 +8,7 @@ import { getSettings } from '@/lib/settings';
 import { getDb, s } from '@/db';
 import { eq } from 'drizzle-orm';
 import { getT } from '@/i18n/server';
+import { addDays, ymd } from '@/lib/format';
 
 export async function generateMetadata() { return { title: (await getT())('meta.newQuote') }; }
 
@@ -15,7 +16,7 @@ export default async function NewQuote({ searchParams }: { searchParams: Promise
   const t = await getT();
   const user = await pagePerm('presupuestos', 'C'); const sp = await searchParams;
   const { ctx, customers, models, variants } = await loadEditorData(user); const st = await getSettings(); const db = await getDb();
-  const valid = new Date(Date.now() + st.quoteValidDays * 86400_000).toISOString().slice(0, 10);
+  const valid = addDays(ymd(), st.quoteValidDays);
   const items = [] as QuoteState['items'];
   // viene desde el visor/laminador: modelo + resultado del laminado ya cargado
   if (sp.file) {

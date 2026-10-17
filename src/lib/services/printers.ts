@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { startJob } from './production';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { ymd } from '../format';
 
 /** Solo direcciones de la red local (o el propio equipo): el conector no debe usarse para alcanzar internet. */
 export function assertLanHost(host: string) {
@@ -189,7 +190,7 @@ export async function assignTraySpool(linkId: string, slotLabel: string, spoolId
   await db.update(s.spools).set({ slot: null, updatedAt: new Date() }).where(and(eq(s.spools.machineId, l.machineId), eq(s.spools.slot, slotLabel)));
   if (spoolId) {
     const [sp] = await db.select().from(s.spools).where(eq(s.spools.id, spoolId)); if (!sp) throw new Error(t('common.spoolNotFound'));
-    await db.update(s.spools).set({ machineId: l.machineId, slot: slotLabel, status: sp.status === 'nueva' ? 'abierta' : sp.status, openedAt: sp.openedAt ?? new Date().toISOString().slice(0, 10), updatedAt: new Date() }).where(eq(s.spools.id, spoolId));
+    await db.update(s.spools).set({ machineId: l.machineId, slot: slotLabel, status: sp.status === 'nueva' ? 'abierta' : sp.status, openedAt: sp.openedAt ?? ymd(), updatedAt: new Date() }).where(eq(s.spools.id, spoolId));
   }
   await audit('printer_link', linkId, 'asignar_bobina', { slot: slotLabel, spoolId }, userId);
 }

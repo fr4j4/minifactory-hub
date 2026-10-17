@@ -32,7 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang={LOCALE_TAG[locale]} className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head><script dangerouslySetInnerHTML={{ __html: bootScript(shopPalette) }} /></head>
       <body className="min-h-screen antialiased">
-        <style dangerouslySetInnerHTML={{ __html: css }} /><I18nProvider locale={locale} messages={DICTIONARIES[locale]}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
+        <style dangerouslySetInnerHTML={{ __html: css }} /><I18nProvider locale={locale} messages={DICTIONARIES[locale]} timeZone={st?.shop.timezone}><ToastProvider>{children}</ToastProvider></I18nProvider><SwRegister /></body>
     </html>
   );
 }

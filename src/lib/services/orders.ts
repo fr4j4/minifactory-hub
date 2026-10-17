@@ -9,6 +9,7 @@ import { cancelJob, createJob } from './production';
 import { customerPriceAdj, loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
+import { ymd } from '../format';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 type User = PermUser & { id: string };
@@ -287,7 +288,7 @@ export async function addPayment(o: { orderId?: string; saleId?: string; amount:
   const db = await getDb();
   if (o.amount <= 0) throw new Error(t('orders.theAmountMustBeGreater'));
   await db.insert(s.payments).values({
-    workspaceId: WORKSPACE_ID, orderId: o.orderId ?? null, saleId: o.saleId ?? null, amount: Math.round(o.amount), method: o.method, paidAt: o.paidAt ?? new Date().toISOString().slice(0, 10),
+    workspaceId: WORKSPACE_ID, orderId: o.orderId ?? null, saleId: o.saleId ?? null, amount: Math.round(o.amount), method: o.method, paidAt: o.paidAt ?? ymd(),
     note: o.note ?? null, receiptKey: o.receiptKey ?? null, taxDocType: o.taxDocType ?? null, taxDocFolio: o.taxDocFolio ?? null, createdBy: user.id,
   });
   if (o.orderId) {

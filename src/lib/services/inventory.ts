@@ -58,7 +58,7 @@ export async function createSpool(o: { materialId: string; initialG?: number; ta
   const initial = o.initialG ?? 1000;
   const [sp] = await db.insert(s.spools).values({
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,
-    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? new Date().toISOString().slice(0, 10), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
+    unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? ymd(), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
   }).returning();
   await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
   await audit('spool', sp.id, 'entrada', { initialG: initial, unitCost: o.unitCost ?? m.costPerKg }, o.userId);
@@ -179,6 +179,7 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
 
 /* ── Directorio de proveedores (N4b) ────────────────────────────────────── */
 import SUPPLIER_SEED from '../catalog/suppliers.json';
+import { ymd } from '../format';
 /** Siembra el directorio inicial (marcado «sin verificar») si la tabla está vacía. Idempotente. */
 export async function seedSuppliers(db?: Db) {
   db ??= await getDb();
