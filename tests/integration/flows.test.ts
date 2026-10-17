@@ -177,6 +177,8 @@ describe('reportes y dashboard', () => {
     const opR = { ...op, permOverrides: { reportes: 'V' } };
     expect(reportAllowed(opR, 'estimado_real')).toBe(false); expect(reportAllowed(opR, 'embudo')).toBe(true);
     await expect(reportData('estimado_real', r, opR)).rejects.toThrow();
+    const cat = await reportData('catalogo', r, opR);
+    expect(cat.columns.map((c) => c.key)).not.toContain('value'); expect(cat.rows[0]).not.toHaveProperty('margin'); expect(cat.summary).toBeUndefined();
   });
 });
 
