@@ -896,6 +896,15 @@ export const libraryOperations = pgTable('library_operations', {
   ...base(), kind: text('kind').notNull(), status: text('status').notNull().default('planned'),
   input: jsonb('input').$type<Record<string, any>>().notNull(), result: jsonb('result').$type<Record<string, any>>(), error: text('error'),
 });
+/** Personal provider sessions; never serialized as source configuration. */
+export const libraryAccounts = pgTable('library_accounts', {
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  provider: text('provider').notNull(),
+  secret: text('secret').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.workspaceId, t.userId, t.provider] })]);
 export const libraryCollections = pgTable('library_collections', {
   ...base(), name: text('name').notNull(),
 }, t => [uniqueIndex('library_collection_name').on(t.workspaceId, t.name)]);

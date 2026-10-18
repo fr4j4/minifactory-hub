@@ -91,4 +91,10 @@ Benchmark reproducible: `scripts/library-benchmark.ts`, ejecutado exclusivamente
 
 MakerWorld mantiene URL, metadatos recuperables y asociación del archivo subido manualmente. La falta de un mecanismo autorizado verificado para descargar originales se resuelve con ese flujo previsto por la spec, no con evasión de controles.
 
-Prueba real del 18 de octubre de 2026: al importar `3317662-pumpkin-patch-pal`, el worker recuperó «Pumpkin Patch Pal», autor «Zesty 3D by Art» y «Standard Digital File License»; la app lo presenta como `awaiting_file` y permite asociar el archivo subido manualmente. La página del sitio respondió HTTP 403 con desafío Cloudflare desde este entorno, así que el original 3D no se descargó. Se conserva `profileId-3766961` en el enlace para volver a la placa elegida. No se ejecutó una descarga por un endpoint no verificado.
+Prueba inicial del 18 de octubre de 2026: al importar `3317662-pumpkin-patch-pal`, el worker recuperó «Pumpkin Patch Pal», autor «Zesty 3D by Art» y «Standard Digital File License»; la app lo presentó como `awaiting_file`. La página del sitio respondió HTTP 403 con desafío Cloudflare desde este entorno y el original 3D no se descargó. Se conservó `profileId-3766961` en el enlace para volver al perfil elegido.
+
+### Ampliación: conector MakerWorld y diálogo de importación
+
+El usuario aportó el endpoint `instance/3766961/f3mf`. La ruta equivalente en la API de Bambu respondió explícitamente que requiere iniciar sesión; el bloqueo de la página no explica por sí solo la imposibilidad de descarga sin cuenta. Se añadió un conector personal con contraseña, código por correo, 2FA y token existente, resolución del JSON de descarga y alternativa de pegar JSON/URL temporal. El diálogo permite revisar datos y seleccionar perfil, preparar y confirmar antes de descargar.
+
+Detalle de implementación, alternativas, pruebas y límites: [Conector MakerWorld](conector-makerworld.md). Las pruebas de integración usan respuestas autenticadas simuladas. La descarga autenticada real del modelo queda pendiente de conectar una cuenta autorizada desde la interfaz de pruebas.

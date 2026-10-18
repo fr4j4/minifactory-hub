@@ -102,9 +102,9 @@ export function parseOpenGraph(html: string): SourceMeta {
 /** Respuesta JSON de `design-service/design/{id}` (sin documentación oficial: se leen los campos conocidos y se ignora el resto). */
 export function parseMakerworldDesign(json: any): SourceMeta {
   const m = empty(); const d = json?.design ?? json; if (!d || typeof d !== 'object') return m;
-  m.title = d.title ?? d.name ?? null; m.description = typeof d.summary === 'string' ? d.summary : typeof d.description === 'string' ? d.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : null;
+  m.title = d.title ?? d.name ?? null; const description = d.summary ?? d.description; m.description = typeof description === 'string' ? description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : null;
   const c = d.designCreator ?? d.creator ?? {}; m.authorName = c.name ?? null; m.authorUid = c.uid != null ? String(c.uid) : null; m.authorUrl = c.uid != null ? `https://makerworld.com/en/@${c.name ?? c.uid}` : null;
-  const imgs = [d.cover, ...(Array.isArray(d.designExtension?.design_pictures) ? d.designExtension.design_pictures.map((p: any) => p?.url) : []), ...(Array.isArray(d.images) ? d.images.map((p: any) => (typeof p === 'string' ? p : p?.url)) : [])];
+  const imgs = [d.coverUrl ?? d.cover, ...(Array.isArray(d.designExtension?.design_pictures) ? d.designExtension.design_pictures.map((p: any) => p?.url) : []), ...(Array.isArray(d.images) ? d.images.map((p: any) => (typeof p === 'string' ? p : p?.url)) : [])];
   m.imageUrls = [...new Set(imgs.filter((x: unknown): x is string => typeof x === 'string' && /^https?:\/\//.test(x)))].slice(0, 12);
   m.tags = (Array.isArray(d.tags) ? d.tags : []).map((t: any) => String(typeof t === 'string' ? t : t?.name ?? '')).filter(Boolean).slice(0, 20);
   m.licenseText = d.license ?? d.licenseCode ?? d.designExtension?.license ?? null;

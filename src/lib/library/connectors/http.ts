@@ -40,6 +40,7 @@ export async function request(url: string, o: {
             delete headers.authorization;
             delete headers.Authorization;
             delete headers.cookie;
+            delete headers.Cookie;
         }
         return request(next.toString(), { ...o, headers, redirects: (o.redirects || 0) + 1 });
     }
