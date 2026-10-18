@@ -5,17 +5,38 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm, loginThrottled, loginFailed, loginOk } from '@/lib/auth';
 import { seal, unseal } from '@/lib/secret';
 import { ensureJobWorker } from '@/lib/jobs';
-import { safe } from './common';
-import { accountWhere, makerworldAccount, makerworldLogin, makerworldTfa, checkMakerworld, storeMakerworldToken, inspectMakerworld, makerworldReference, parseDownloadResponse, resolveMakerworld } from '@/lib/library/makerworld';
+import { safe as baseSafe } from './common';
+import {MakerworldError} from '@/lib/library/makerworld-http';
+import { accountWhere, makerworldAccount, makerworldLogin, makerworldEmailCode, makerworldTfa, checkMakerworld, storeMakerworldToken, inspectMakerworld, makerworldReference, parseDownloadResponse, resolveMakerworld } from '@/lib/library/makerworld';
 import {fetchSourceMeta,parseSourceUrl} from '@/lib/library/source';
 import { MODEL_EXT } from '@/lib/files';
 import { extOf } from '@/lib/mesh/parse';
 const urlSchema = z.string().url().max(16384).refine(v=>{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password;},'Use HTTPS sin credenciales');
 async function user() {const u=await requirePerm('archivos','C');if(u.workspaceId!==WORKSPACE_ID)throw new Error('Taller inválido');return u;}
-export async function makerworldConnection() {return safe(async()=>{const u=await user(),row=await makerworldAccount(u.id);return {connected:!!row,expired:!!row?.expiresAt&&row.expiresAt.getTime()<=Date.now(),expiresAt:row?.expiresAt?.toISOString()||null};});}
+async function safe<T>(fn:()=>Promise<T>){
+  let code='request_failed',retryAfter=0;
+  const result=await baseSafe(async()=>{try{return await fn();}catch(e){if(e instanceof MakerworldError){code=e.code;retryAfter=e.retryAfter;}throw e;}});
+  return result.ok?result:{...result,code,retryAfter};
+}
+export async function makerworldConnection() {return safe(async()=>{
+  const u=await user(),row=await makerworldAccount(u.id);
+  if(!row)return {connected:false,status:'disconnected',expiresAt:null};
+  if(row.expiresAt&&row.expiresAt.getTime()<=Date.now())return {connected:false,status:'expired',expiresAt:row.expiresAt.toISOString()};
+  try{await checkMakerworld(u.id);return {connected:true,status:'verified',expiresAt:row.expiresAt?.toISOString()||null};}
+  catch(e){return {connected:false,status:e instanceof MakerworldError&&e.code==='authentication'?'expired':'unavailable',expiresAt:row.expiresAt?.toISOString()||null};}
+});}
+const sentCodes=new Map<string,number>();
+export async function resendMakerworldCode(account:string){return safe(async()=>{
+  const u=await user(),email=z.email().parse(account.trim()),last=sentCodes.get(u.id)||0;
+  if(Date.now()-last<60_000)throw new MakerworldError('rate_limit','Espera un minuto antes de solicitar otro código.',60);
+  if(loginThrottled(`makerworld:${u.id}`))throw new MakerworldError('rate_limit','Demasiados intentos. Espera 15 minutos.',900);
+  sentCodes.set(u.id,Date.now());loginFailed(`makerworld:${u.id}`);
+  for(const [key,time]of sentCodes)if(Date.now()-time>900_000)sentCodes.delete(key);
+  await makerworldEmailCode(email);return {sent:true};
+});}
 export async function connectMakerworld(input:unknown) {return safe(async()=>{
   const u=await user(),key=`makerworld:${u.id}`;
-  if(loginThrottled(key))throw new Error('Demasiados intentos. Espera 15 minutos.');
+  if(loginThrottled(key))throw new MakerworldError('rate_limit','Demasiados intentos. Espera 15 minutos.',900);
   const p=z.object({method:z.enum(['password','code','token','tfa']),account:z.string().max(254).optional(),credential:z.string().min(1).max(16000),challenge:z.string().max(16000).optional()}).parse(input);
   loginFailed(key);
   if(p.method==='token'){await storeMakerworldToken(u.id,p.credential.trim());loginOk(key);return {kind:'connected' as const};}
@@ -25,11 +46,11 @@ export async function connectMakerworld(input:unknown) {return safe(async()=>{
     if(challenge.userId!==u.id||challenge.expires<Date.now())throw new Error('El segundo factor caducó. Inicia sesión de nuevo.');
     await storeMakerworldToken(u.id,await makerworldTfa(challenge.key,p.credential));loginOk(key);return {kind:'connected' as const};
   }
-  const account=z.email().parse(p.account);
+  const account=z.email().parse(p.account?.trim());
   if(p.method==='code')z.string().regex(/^\d{6}$/).parse(p.credential);
   const result=await makerworldLogin(account,p.method==='code'?{code:p.credential}:{password:p.credential});
   if(result.kind==='tfa')return {kind:'tfa' as const,challenge:seal(JSON.stringify({key:result.tfaKey,userId:u.id,expires:Date.now()+5*60_000}))};
-  if(result.kind!=='token')return result;
+  if(result.kind!=='token'){if(result.kind==='code')sentCodes.set(u.id,Date.now());return result;}
   await storeMakerworldToken(u.id,result.token,result.expiresIn);loginOk(key);return {kind:'connected' as const};
 });}
 export async function disconnectMakerworld(){return safe(async()=>{const u=await user();await(await getDb()).delete(s.libraryAccounts).where(accountWhere(u.id));});}

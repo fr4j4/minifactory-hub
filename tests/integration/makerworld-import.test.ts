@@ -6,16 +6,47 @@ const state=vi.hoisted(()=>({userId:'00000000-0000-4000-8000-000000000010'}));
 vi.mock('@/lib/auth',()=>({requirePerm:async()=>({id:state.userId,workspaceId:'00000000-0000-4000-8000-000000000001'}),loginThrottled:()=>false,loginFailed:()=>{},loginOk:()=>{}}));
 vi.mock('@/actions/common',()=>({safe:async(fn:()=>Promise<any>)=>{try{return{ok:true,data:await fn()};}catch(e){return{ok:false,error:(e as Error).message};}}}));
 vi.mock('@/lib/library/connectors/http',()=>({json:vi.fn(),request:vi.fn()}));
+vi.mock('@/lib/library/makerworld-http',async original=>({...await original<typeof import('@/lib/library/makerworld-http')>(),makerworldJson:vi.fn()}));
 import {getDb,s,WORKSPACE_ID} from '@/db';
-import {json,request} from '@/lib/library/connectors/http';
+import {request} from '@/lib/library/connectors/http';
+import {makerworldJson as json,MakerworldError} from '@/lib/library/makerworld-http';
 import {storeMakerworldToken,makerworldAccount,makerworldToken,resolveMakerworld} from '@/lib/library/makerworld';
-import {prepareLibraryImport,confirmLibraryImport,libraryImportStatus,disconnectMakerworld} from '@/actions/library-import';
+import {prepareLibraryImport,confirmLibraryImport,libraryImportStatus,disconnectMakerworld,connectMakerworld,makerworldConnection} from '@/actions/library-import';
 import {executeImport} from '@/lib/library/url-import';
 const owner=state.userId,other='00000000-0000-4000-8000-000000000011';
 const signed='https://cdn.example.com/file.3mf?signature=do-not-expose';
 const design={id:3317662,title:'Pumpkin Test',designCreator:{name:'Author'},license:'Standard Digital File License',instances:[{id:3766961,profileId:1004749352,extention:{modelInfo:{f3mf:{size:100},plates:[{}],compatibility:{devModelName:'BL-P001'}}}}]};
 beforeAll(async()=>{process.env.MF_EXTERNAL_WORKER='1';process.env.SESSION_SECRET='isolated-makerworld-test-secret-long-enough';const db=await getDb();for(const id of[owner,other])await db.insert(s.users).values({id,workspaceId:WORKSPACE_ID,email:id+'@test.local',name:'Test',passwordHash:'test'});});
 beforeEach(()=>{state.userId=owner;vi.mocked(json).mockReset();vi.mocked(request).mockReset();});
+it('returns actionable login errors through the server action',async()=>{
+  vi.mocked(json).mockRejectedValue(new MakerworldError('credentials','Revisa el correo y la contraseña.'));
+  expect(await connectMakerworld({method:'password',account:'test@example.com',credential:'not-a-real-password'})).toMatchObject({ok:false,code:'credentials',error:'Revisa el correo y la contraseña.'});
+});
+it('completes login, validates the token and verifies connection on the provider',async()=>{
+  vi.mocked(json).mockResolvedValueOnce({accessToken:'new-private-token',expiresIn:60}).mockResolvedValue({uid:123});
+  expect(await connectMakerworld({method:'password',account:' test@example.com ',credential:'not-a-real-password'})).toMatchObject({ok:true,data:{kind:'connected'}});
+  expect(await makerworldConnection()).toMatchObject({ok:true,data:{connected:true,status:'verified'}});
+  vi.mocked(json).mockRejectedValue(new MakerworldError('authentication','Expired'));
+  expect(await makerworldConnection()).toMatchObject({ok:true,data:{connected:false,status:'expired'}});
+  await disconnectMakerworld();
+});
+it('returns an email challenge instead of claiming a connected account',async()=>{
+  vi.mocked(json).mockResolvedValueOnce({loginType:'verifyCode'}).mockResolvedValueOnce({code:0});
+  expect(await connectMakerworld({method:'password',account:'test@example.com',credential:'not-a-real-password'})).toMatchObject({ok:true,data:{kind:'code'}});
+  expect(await makerworldAccount(owner)).toBeUndefined();
+});
+it('seals the 2FA challenge and refuses its use by another user',async()=>{
+  vi.mocked(json).mockResolvedValueOnce({loginType:'tfa',tfaKey:'private-challenge-key'});
+  const r=await connectMakerworld({method:'password',account:'test@example.com',credential:'not-a-real-password'});
+  expect(r).toMatchObject({ok:true,data:{kind:'tfa'}});expect(JSON.stringify(r)).not.toContain('private-challenge-key');
+  if(!r.ok||r.data.kind!=='tfa')throw new Error('Expected challenge');
+  state.userId=other;
+  expect(await connectMakerworld({method:'tfa',credential:'123456',challenge:r.data.challenge})).toMatchObject({ok:false});
+});
+it('normalizes a pasted Bearer token without saving the prefix',async()=>{
+  vi.mocked(json).mockResolvedValue({uid:123});await storeMakerworldToken(owner,'Bearer pasted-session');
+  expect(await makerworldToken(owner)).toBe('pasted-session');await disconnectMakerworld();
+});
 it('encrypts personal sessions, verifies them and isolates users',async()=>{
   vi.mocked(json).mockResolvedValue({uid:123});
   await storeMakerworldToken(owner,'private-token',60);

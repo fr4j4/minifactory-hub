@@ -69,3 +69,34 @@ Ejecución real aprobada: «Pumpkin Patch Pal», «Zesty 3D by Art», «Standard
 ## Despliegue
 
 `bash scripts/library-test.sh up` construye la imagen `minifactory-library-test:feature` y actualiza únicamente el proyecto de pruebas. La base y los volúmenes productivos no intervienen. La migración se ejecuta al abrir la base aislada; no requiere modificar ni reiniciar producción.
+
+## Revisión del conector y de la experiencia de importación
+
+El usuario informó que introducir correo y contraseña no producía una reacción visible. La revisión encontró dos problemas concretos: el aviso se mostraba al final de una ficha larga, lejos del formulario, y el transporte HTTP descartaba el cuerpo de las respuestas de error antes de que el conector pudiera interpretar el siguiente paso. No se dispone de las credenciales ni de la respuesta del intento original del usuario, por lo que no se atribuye su fallo a una contraseña incorrecta o a un CAPTCHA específico.
+
+### Cambios del backend
+
+- Transporte propio para las respuestas de Bambu con lectura acotada y espera de 15 segundos por petición. Clasifica errores de credenciales, códigos, sesión caducada, bloqueo web, permisos, disponibilidad y límite de intentos; no devuelve el texto crudo del proveedor ni datos de cuenta.
+- Conserva los pasos `verifyCode` y `tfa` cuando llegan dentro de HTTP 400. Los errores de aplicación recibidos con HTTP 200 también se interpretan.
+- La conexión se comprueba con el proveedor antes de mostrarse como verificada. Tener un token guardado ya no basta para mostrar una cuenta conectada.
+- Reenvío de código con espera de un minuto y límite de intentos. Se recorta el espacio exterior del correo y se aceptan los prefijos habituales al pegar un token.
+- El segundo factor conserva la cookie de sesión de una respuesta de redirección, sin seguir esa redirección y perder el token.
+- Las acciones devuelven códigos de error seguros para orientar la recuperación en la interfaz.
+
+### Cambios del frontend
+
+- Proceso guiado: enlace, revisión del modelo y acceso/importación. Una acción principal por pantalla; se muestran las alternativas cuando son necesarias.
+- Ficha visual con portada, perfil, tamaño, placas e impresora. Descripción plegable y licencia resumida; no se mezcla la ficha con el formulario de cuenta.
+- Pantalla de acceso dedicada con estado «Conectando con Bambu…», contraseña visible opcionalmente y verificación por código cuando corresponde. El error aparece junto al formulario y recibe foco para evitar que quede fuera de vista.
+- Tras conectar se prepara la descarga automáticamente y se muestra una confirmación. No hay que adivinar qué botón pulsar después de iniciar sesión.
+- El acceso mediante navegador tiene instrucciones y enlaces al sitio y al endpoint del perfil. El token queda como opción avanzada; no es el primer campo mostrado.
+- Seguimiento con estados comprensibles, recuperación de errores, prevención de envíos dobles y fin del sondeo en estados terminales. Cerrar la ventana descarta respuestas antiguas del formulario y limpia los secretos locales.
+- Diseño adaptable a móvil con los componentes, paleta e iconos existentes; no se agregan dependencias de interfaz.
+
+### Validación de esta revisión
+
+**30 pruebas aprobadas** en cinco archivos: transporte, parser/metadatos, límites HTTP e integración. La integración verifica también las acciones reales de inicio de sesión, la respuesta de código de correo, la sesión verificada y su expiración, el aislamiento del desafío 2FA y la normalización de tokens, con el proveedor simulado. Se comprueba la conservación del token devuelto en una redirección del segundo factor.
+
+Se hizo además una solicitud real de login con campos vacíos, sin una cuenta ni contraseña de usuario: Bambu respondió HTTP 400 y el conector devolvió el error de credenciales interpretado. Esto acredita la ruta de error, no un inicio de sesión real satisfactorio.
+
+El script de navegador se amplió y pasó para revisar escritorio y móvil, simular una caída de la acción al enviar el formulario (sin enviar credenciales al proveedor), comprobar el indicador de espera, el error visible y enfocado, el botón de reintento y la alternativa por navegador. Capturas: `data/library-test-evidence/makerworld-dialog.png`, `makerworld-mobile.png` y `makerworld-login-error.png`. La autenticación y descarga real con la cuenta del usuario siguen pendientes de su acceso desde la interfaz.

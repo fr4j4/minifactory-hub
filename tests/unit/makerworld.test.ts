@@ -1,10 +1,18 @@
 import {beforeEach,describe,expect,it,vi} from 'vitest';
-vi.mock('@/lib/library/connectors/http',()=>({json:vi.fn()}));
-import {json} from '@/lib/library/connectors/http';
-import {inspectMakerworld,makerworldLogin,makerworldProfiles,makerworldReference,parseDownloadResponse} from '@/lib/library/makerworld';
+import {Readable} from 'node:stream';
+vi.mock('@/lib/library/connectors/http',async original=>({...await original<typeof import('@/lib/library/connectors/http')>(),request:vi.fn()}));
+import {request} from '@/lib/library/connectors/http';
+vi.mock('@/lib/library/makerworld-http',async original=>({...await original<typeof import('@/lib/library/makerworld-http')>(),makerworldJson:vi.fn()}));
+import {makerworldJson as json} from '@/lib/library/makerworld-http';
+import {inspectMakerworld,makerworldLogin,makerworldTfa,makerworldProfiles,makerworldReference,parseDownloadResponse} from '@/lib/library/makerworld';
 const mock=vi.mocked(json);
-beforeEach(()=>mock.mockReset());
+beforeEach(()=>{mock.mockReset();vi.mocked(request).mockReset();});
 describe('MakerWorld custom connector',()=>{
+  it('keeps the session cookie returned by a 2FA redirect',async()=>{
+    vi.mocked(request).mockResolvedValueOnce(Object.assign(Readable.from(['{}']),{statusCode:200,headers:{'set-cookie':['bbl_csrf_token=csrf; Path=/']}}) as any).mockResolvedValueOnce(Object.assign(Readable.from(['']),{statusCode:302,headers:{'set-cookie':['token=private-session; Path=/'],location:'/'}}) as any);
+    expect(await makerworldTfa('challenge','123456')).toBe('private-session');
+    expect(request).toHaveBeenLastCalledWith('https://bambulab.com/api/sign-in/tfa',expect.objectContaining({noRedirect:true,timeoutMs:15000,headers:expect.objectContaining({Cookie:'bbl_csrf_token=csrf'})}));
+  });
   it('uses instance id, not the internal profile id',()=>{
     expect(makerworldReference('https://makerworld.com/es/models/3317662-pumpkin#profileId-3766961')).toEqual({designId:'3317662',instanceId:'3766961'});
     expect(makerworldReference('https://makerworld.com/api/v1/design-service/instance/3766961/f3mf?type=download')).toEqual({designId:undefined,instanceId:'3766961'});
