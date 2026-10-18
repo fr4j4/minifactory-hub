@@ -1,0 +1,33 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+const access=await fs.readFile(new URL('../data/library-test-access.txt',import.meta.url),'utf8');
+const password=access.match(/^Password: (.+)$/m)?.[1];if(!password)throw new Error('Missing isolated test credentials');
+const browserRoot=path.join(os.homedir(),'.cache/ms-playwright');const installed=(await fs.readdir(browserRoot)).filter(n=>n.startsWith('chromium_headless_shell-')).sort().at(-1);
+const executablePath=process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || (installed?path.join(browserRoot,installed,'chrome-headless-shell-linux64/chrome-headless-shell'):undefined);
+const browser=await chromium.launch({executablePath,headless:true,args:['--no-sandbox']});const context=await browser.newContext({baseURL:'http://127.0.0.1:3011',viewport:{width:1440,height:1000}});const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+try{
+ await page.goto('http://127.0.0.1:3011/login');await page.locator('input[name=email]').fill('biblioteca-test@minifactory.local');await page.locator('input[name=password]').fill(password);await page.locator('button[type=submit],form button').first().click();await page.waitForURL(url=>!url.pathname.startsWith('/login'),{timeout:30000});
+ await page.goto('http://127.0.0.1:3011/archivos');await page.getByRole('status').filter({hasText:'PRUEBAS'}).waitFor();await page.getByText('cubo-prueba',{exact:false}).first().waitFor({timeout:30000});
+ await fs.mkdir('test-results/library',{recursive:true});await page.screenshot({path:'test-results/library/catalog.png',fullPage:true});
+ await page.getByText('cubo-prueba',{exact:false}).first().click();await page.waitForURL(/\/archivos\/[0-9a-f-]+$/);
+ const raw=page.locator('[data-testid=download-file]');const response=await context.request.get(await raw.getAttribute('href'));if(response.status()!==200)throw new Error('Original download failed '+response.status());
+ const gif=page.getByRole('link',{name:'Exportar GIF'});await gif.waitFor({timeout:30000});const gifResponse=await context.request.get(await gif.getAttribute('href'));if(gifResponse.status()!==200)throw new Error('GIF export failed');if((await gifResponse.body()).length>1048576)throw new Error('GIF exceeds budget');
+ const photo=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aV1sAAAAASUVORK5CYII=','base64');
+ const photoResponse=page.waitForResponse(r=>/\/api\/uploads\/[^/]+\/complete$/.test(new URL(r.url()).pathname));
+ await page.locator('[data-testid=photo-input]').setInputFiles({name:'foto-real-prueba.png',mimeType:'image/png',buffer:photo});
+ const photoResult=await photoResponse;if(photoResult.status()!==200)throw new Error('Photo upload failed '+await photoResult.text());
+ const photoId=(await photoResult.json()).photoId;if(!photoId)throw new Error('Missing photo ID');
+ await page.locator('img[src*="/api/media/photos/"]').first().waitFor({timeout:15000});
+ const repeated=await context.request.post('/api/uploads',{data:{filename:'foto-real-prueba.png',size:photo.length}});const uploadId=(await repeated.json()).id;
+ await context.request.put(`/api/uploads/${uploadId}?offset=0`,{data:photo});
+ const repeatedResult=await context.request.post(`/api/uploads/${uploadId}/complete`,{data:{intent:'photo',photoId}});if((await repeatedResult.json()).photoId!==photoId)throw new Error('Photo retry was not idempotent');
+ await page.screenshot({path:'test-results/library/model.png',fullPage:true});
+ await page.goto('http://127.0.0.1:3011/archivos/fuentes');await page.getByRole('heading',{name:/Entrada de pruebas/}).first().waitFor();await page.screenshot({path:'test-results/library/sources.png',fullPage:true});
+ await page.goto('http://127.0.0.1:3011/archivos?format=stl&view=table');await page.locator('table').waitFor();
+ const backup=await context.request.get('/api/backup?archivos=0');if(backup.status()!==200)throw new Error('Backup failed');if((await backup.body()).length<1000)throw new Error('Backup unexpectedly empty');
+ const cookies=await context.cookies();if(!cookies.some(c=>c.name==='mf_library_test_session')||cookies.some(c=>c.name==='mf_session'))throw new Error('Session cookie is not isolated');
+ await page.setViewportSize({width:390,height:844});await page.goto('http://127.0.0.1:3011/archivos');await page.screenshot({path:'test-results/library/mobile.png',fullPage:true});
+ if(errors.length)throw new Error(errors.join('\n'));console.log('PASS: login, isolated cookie, catalog, model, raw download, GIF, sources, filters, photo capture/upload and retry, streaming backup, mobile.');
+}catch(e){await fs.mkdir('test-results/library',{recursive:true});await page.screenshot({path:'test-results/library/failure.png',fullPage:true});throw e;}finally{await browser.close();}

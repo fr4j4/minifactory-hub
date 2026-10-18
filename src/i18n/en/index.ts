@@ -1,3 +1,4 @@
+import { library } from './library';
 import type { Shape } from '../translate';
 import type { es as esDict } from '../es';
 import { common } from './common';
@@ -48,4 +49,4 @@ import { documents } from './documents';
 import { studio } from './studio';
 import { theme } from './theme';
 
-export const en: Shape<typeof esDict> = { common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents, studio, theme };
+export const en: Shape<typeof esDict> = { library, common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents, studio, theme };

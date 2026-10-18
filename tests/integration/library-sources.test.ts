@@ -1,0 +1,33 @@
+import { beforeAll,afterAll,describe,it,expect } from 'vitest';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
+import { and,eq } from 'drizzle-orm';
+import { getDb,s,WORKSPACE_ID } from '@/db';
+import { saveSource,startScan,scanSource } from '@/lib/library/catalog';
+import { ensureVersionLocal,byteLimit } from '@/lib/library/content';
+import { localConnector } from '@/lib/library/connectors/local';
+import { planOperation,executeOperation } from '@/lib/library/operations';
+import { getBuffer } from '@/lib/storage';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+let root:string,source:string,dest:string,db:Awaited<ReturnType<typeof getDb>>;
+const user=crypto.randomUUID();
+const stl='solid triangle\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 10 0 0\nvertex 0 10 0\nendloop\nendfacet\nendsolid triangle';
+beforeAll(async()=>{process.env.MF_EXTERNAL_WORKER='1';db=await getDb();root=await fs.mkdtemp(path.join(os.tmpdir(),'mf-library-test-'));process.env.LIBRARY_LOCAL_ROOTS=root;await fs.mkdir(path.join(root,'a'));await fs.mkdir(path.join(root,'b'));await fs.writeFile(path.join(root,'a','part.stl'),stl);source=await saveSource({name:'A',kind:'local',config:{root:path.join(root,'a')},writable:true},user);dest=await saveSource({name:'B',kind:'local',config:{root:path.join(root,'b')},writable:true},user);});
+afterAll(async()=>{await fs.rm(root,{recursive:true,force:true});delete process.env.LIBRARY_LOCAL_ROOTS;delete process.env.MF_EXTERNAL_WORKER;});
+const entries=()=>db.select().from(s.libraryEntries).where(eq(s.libraryEntries.sourceId,source));
+async function scan(){const id=await startScan(source,user);await scanSource(id);return id;}
+describe('external library',()=>{
+ it('indexes without copying and rescans idempotently',async()=>{await scan();const [e]=await entries();expect(e.name).toBe('part.stl');const [v]=await db.select().from(s.fileVersions).where(eq(s.fileVersions.id,e.versionId!));expect(v.storageKey).toBe('');await scan();expect(await entries()).toHaveLength(1);expect(await db.select().from(s.fileVersions).where(eq(s.fileVersions.modelFileId,e.modelId!))).toHaveLength(1);});
+ it('materializes a verified immutable snapshot',async()=>{const [e]=await entries();const [a,b]=await Promise.all([ensureVersionLocal(e.versionId!),ensureVersionLocal(e.versionId!)]);expect(a).toBe(b);expect((await getBuffer(a)).toString()).toBe(stl);});
+ it('creates a new revision after external modification and retains old bytes',async()=>{const [old]=await entries();await fs.writeFile(path.join(root,'a','part.stl'),stl+'\n');await scan();const [next]=await entries();expect(next.modelId).toBe(old.modelId);expect(next.versionId).not.toBe(old.versionId);expect((await getBuffer(await ensureVersionLocal(old.versionId!))).toString()).toBe(stl);});
+ it('refuses content changed after scan',async()=>{const [e]=await entries();await fs.writeFile(path.join(root,'a','part.stl'),stl+'\n\n');await expect(ensureVersionLocal(e.versionId!)).rejects.toThrow('cambió');await scan();});
+ it('rejects a stale rename plan',async()=>{const [e]=await entries();const op=await planOperation({kind:'rename',sourceId:source,entryId:e.id,name:'renamed.stl'},user);await fs.writeFile(path.join(root,'a','part.stl'),stl+'\n\n\n');await expect(executeOperation(op.id)).rejects.toThrow('Conflicto');expect(await fs.readFile(path.join(root,'a','part.stl'),'utf8')).toContain('solid triangle');await scan();});
+ it('copies and verifies before completing without deleting the source',async()=>{const [e]=await entries();const op=await planOperation({kind:'copy',sourceId:source,entryId:e.id,destinationId:dest,parent:'',name:'copy.stl'},user);await executeOperation(op.id);expect(await fs.readFile(path.join(root,'b','copy.stl'),'utf8')).toBe(await fs.readFile(path.join(root,'a','part.stl'),'utf8'));await executeOperation(op.id);expect(await fs.readdir(path.join(root,'b'))).toEqual(['copy.stl']);});
+ it('does not infer deletion on a failed scan',async()=>{await fs.rename(path.join(root,'a'),path.join(root,'offline'));const id=await startScan(source,user);await expect(scanSource(id)).rejects.toThrow();expect((await entries())[0].state).toBe('available');await fs.rename(path.join(root,'offline'),path.join(root,'a'));});
+ it('marks a missing location only on a successful complete scan',async()=>{await fs.unlink(path.join(root,'a','part.stl'));await scan();expect((await entries())[0].state).toBe('missing');});
+ it('prevents root escape, symlinks and overwrites',async()=>{const c=await localConnector(path.join(root,'b'));await expect(c.read('../a/x')).rejects.toThrow();await fs.symlink('/etc/passwd',path.join(root,'b','outside.stl'));expect((await c.list('')).entries.some(e=>e.name==='outside.stl')).toBe(false);await expect(c.read('outside.stl')).rejects.toThrow();await expect(c.upload!('','copy.stl',path.join(root,'b','copy.stl'))).rejects.toThrow('existe');await c.close();});
+ it('enforces byte limits while streaming',async()=>{await expect(pipeline(Readable.from([Buffer.alloc(6),Buffer.alloc(6)]),byteLimit(10),async source=>{for await(const _ of source){}})).rejects.toThrow('límite');});
+});

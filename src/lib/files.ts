@@ -65,8 +65,9 @@ export async function processVersion(versionId: string) {
   const db = await getDb();
   const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId));
   if (!v) return;
-  const ext = v.format; const buf = new Uint8Array(await getBuffer(v.storageKey));
-  const meta: Record<string, any> = { status: 'ready', kind: kindOfExt(ext) };
+  const localKey = await (await import('./library/content')).ensureVersionLocal(versionId);
+  const ext = v.format; const buf = new Uint8Array(await getBuffer(localKey));
+  const meta: Record<string, any> = { ...(v.meta ?? {}), status: 'ready', kind: kindOfExt(ext) }; delete meta.error;
   const t0 = Date.now();
   let thumbKey: string | null = null;
   const mfUpdate: Partial<typeof s.modelFiles.$inferInsert> = {};
@@ -80,7 +81,7 @@ export async function processVersion(versionId: string) {
     meta.previewKey = await putBuffer(newKey('preview', 'mfm'), toPreviewBin(dec, { origTriangles: origTri, decimated: dec !== ix }));
     meta.decimated = dec !== ix;
     thumbKey = await putBuffer(newKey('thumbs', 'webp'), await renderThumbnail(mesh, { format: 'webp' }));
-    if (mesh.positions.length / 9 <= 400_000) { const turn = await renderTurntable(mesh); if (turn) meta.turnKey = await putBuffer(newKey('thumbs', 'webp'), turn); }
+    { const light = decimate(ix, 60_000); const positions = new Float32Array(light.indices.length * 3); for (let i=0;i<light.indices.length;i++) positions.set(light.vertices.subarray(light.indices[i]*3,light.indices[i]*3+3),i*3); const turn = await renderTurntable({ positions }); if (turn) meta.turnKey = await putBuffer(newKey('thumbs', 'webp'), turn); }
     if (ext === '3mf') {
       const ams = parseAms(buf); if (ams) meta.ams = ams;
       const sm = parse3mfSliceMeta(buf);

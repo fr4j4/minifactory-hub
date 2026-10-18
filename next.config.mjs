@@ -2,7 +2,7 @@
 const nextConfig = {
   output: process.env.MF_STANDALONE ? 'standalone' : undefined, // solo para los paquetes de release (packaging/build.mjs); Docker usa next start
   outputFileTracingRoot: import.meta.dirname, // sin esto Next puede tomar como raíz una carpeta superior con otro lockfile
-  serverExternalPackages: ['@electric-sql/pglite', 'sharp', 'pg', '@node-rs/argon2', 'playwright', 'exceljs'],
+  serverExternalPackages: ['@electric-sql/pglite', 'sharp', 'pg', '@node-rs/argon2', 'playwright', 'exceljs', 'ssh2-sftp-client', 'ssh2', '@aws-sdk/client-s3'],
   experimental: { serverActions: { bodySizeLimit: '50mb' } },
   poweredByHeader: false,
   // Marca para que el lanzador reconozca su propio servidor en el puerto (packaging/launcher.mjs).

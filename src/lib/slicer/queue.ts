@@ -105,7 +105,7 @@ async function execute(runId: string) {
       if (bed) proc.curr_bed_type = bed;
     }
     const ctl = new AbortController(); aborts().set(runId, ctl);
-    const r = await runOrca({ inputPath: absPath(fv.storageKey), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, orient: !!(run.inputs as any)?.orient, signal: ctl.signal,
+    const r = await runOrca({ inputPath: absPath(await (await import('../library/content')).ensureVersionLocal(fv.id)), ext: extOf(fv.storageKey) || fv.format, machine, process: proc, filament: fil, copies: run.copies, orient: !!(run.inputs as any)?.orient, signal: ctl.signal,
       // OrcaSlicer falla (-100) si dos filamentos cargados no se distinguen por color: cada extrusor extra recibe uno distinto
       extraFilaments: extraIds.filter((id) => P[id]).map((id, k) => buildCliProfile('filament', { name: P[id].name, vendor: P[id].vendor ?? undefined, baseName: P[id].baseName, changes: { filament_colour: [EXTRA_COLOURS[k % EXTRA_COLOURS.length]], ...P[id].changes }, machineName: m.name })),
       onProgress: (() => { let last = 0; let lastPct = -1; return (p: { pct: number; message: string }) => {

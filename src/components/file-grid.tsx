@@ -7,6 +7,7 @@ import { useT } from '@/i18n/client';
 import { useToast } from './client';
 import { Badge } from './badge';
 import { Icon } from '@/components/shell';
+import { collectionModels } from '@/actions/library';
 import { FavButton } from './file-bits';
 
 export interface FileCard { id: string; name: string; format: string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean }
@@ -16,7 +17,7 @@ export interface FileCard { id: string; name: string; format: string; versionId:
 function CardThumb({ versionId, hasTurn, alt }: { versionId: string; hasTurn: boolean; alt: string }) {
   const [spin, setSpin] = useState(false);
   /* eslint-disable-next-line @next/next/no-img-element */
-  return <img src={`/api/files/v/${versionId}/${spin && hasTurn ? 'turn' : 'thumb'}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onMouseEnter={() => setSpin(true)} onMouseLeave={() => setSpin(false)} data-turn={hasTurn ? '1' : undefined} />;
+  return <img src={`/api/files/v/${versionId}/${spin && hasTurn ? 'turn' : 'thumb'}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onMouseEnter={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !(navigator as any).connection?.saveData) setSpin(true); }} onMouseLeave={() => setSpin(false)} tabIndex={hasTurn ? 0 : undefined} onFocus={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setSpin(true); }} onBlur={() => setSpin(false)} onKeyDown={e=>{if(e.key==='Enter')setSpin(v=>!v);}} data-turn={hasTurn ? '1' : undefined} />;
 }
 
 export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards: FileCard[]; canEdit: boolean; vocabulary: Array<{ tag: string; n: number }>; tagColors?: Record<string, string> }) {
@@ -29,7 +30,7 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
   return (
     <div>
       {canEdit && sel.size > 0 && (
-        <div className="sticky top-2 z-20 card p-2.5 mb-3 flex flex-wrap items-center gap-2 shadow-md" role="toolbar" aria-label={t('files.bulkBar')} data-testid="bulk-bar">
+        <div className="sticky top-2 z-20 card p-2.5 mb-3 flex flex-wrap items-center gap-2 shadow-md" role="toolbar" aria-label={t('files.bulkBar')} data-testid="bulk-bar"><button className="btn-ghost btn-sm" disabled={busy} onClick={async()=>{const name=window.prompt(t('library.collection'));if(!name)return;setBusy(true);const r=await collectionModels(name,[...sel]);setBusy(false);if(!r.ok)toast.push(r.error,'err');else router.refresh();}}>{t('library.addCollection')}</button>
           <b className="text-sm px-1">{t('files.selected', { n: sel.size })}</b>
           <input className="input !w-40 !min-h-[36px]" placeholder={t('files.bulkTagsPlaceholder')} value={tagText} onChange={(e) => setTagText(e.target.value)} list="vocab-tags" aria-label={t('files.bulkTagsPlaceholder')} data-testid="bulk-tags" />
           <button className="btn-ghost btn-sm" disabled={busy || !tagText.trim()} onClick={() => run({ kind: 'addTags', tags: tagText.split(',').map((x) => x.trim()).filter(Boolean) }, t('files.bulkDone'))} data-testid="bulk-add-tags">{t('files.bulkAddTags')}</button>

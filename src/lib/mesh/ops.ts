@@ -147,7 +147,8 @@ export async function renderTurntable(mesh: Mesh, o: { frames?: number; w?: numb
     const sharp = (await import('sharp')).default;
     const frames: Buffer[] = [];
     for (let i = 0; i < n; i++) frames.push(await renderThumbnail(mesh, { w, h, format: 'webp', az: -35 + (360 / n) * i }));
-    return await sharp(frames, { join: { animated: true } }).webp({ loop: 0, delay: Array(n).fill(o.delayMs ?? 110), quality: 70 }).toBuffer();
+    const result = await sharp(frames, { join: { animated: true } }).webp({ loop: 0, delay: Array(n).fill(o.delayMs ?? 150), quality: 65 }).toBuffer();
+    return result.length <= 300 * 1024 ? result : null;
   } catch { return null; }
 }
 

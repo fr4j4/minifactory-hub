@@ -29,7 +29,7 @@ export function normalizeLicense(text: string | null | undefined): { code: Licen
     return { code, commercial: nc ? 'no' : 'si' };
   }
   if (/commercial.*(licen|member)|membres/.test(t)) return { code: 'makerworld-comercial', commercial: 'requiere_membresia' };
-  if (/propia|own|standard-digital-file|personal/.test(t)) return { code: 'propia', commercial: 'desconocido' };
+  if (/^(propia|own)$/.test(t)) return { code: 'propia', commercial: 'desconocido' };
   return { code: 'desconocida', commercial: 'desconocido' };
 }
 
@@ -50,6 +50,7 @@ export function isPrivateIp(ip: string): boolean {
 export type Fetcher = (url: string, init?: { headers?: Record<string, string>; signal?: AbortSignal; redirect?: 'manual' }) => Promise<{ status: number; headers: { get(k: string): string | null }; text(): Promise<string> }>;
 /** GET a una URL pública: solo http(s), sin IP privadas (también tras redirecciones), con tope de tiempo y de tamaño. */
 export async function safeGet(url: string, opts: { fetcher?: Fetcher; resolve?: (host: string) => Promise<string[]>; maxBytes?: number; timeoutMs?: number; headers?: Record<string, string> } = {}): Promise<{ status: number; body: string; finalUrl: string; contentType: string }> {
+  if (!opts.fetcher && !opts.resolve) { const h = await import('./connectors/http'); const res = await h.request(url, {headers: opts.headers}); return {status: res.statusCode || 200, body: await h.body(res, opts.maxBytes ?? 2_000_000), finalUrl: url, contentType: String(res.headers['content-type'] || '')}; }
   const fetcher = opts.fetcher ?? (fetch as unknown as Fetcher);
   const resolve = opts.resolve ?? (async (h: string) => (net.isIP(h) ? [h] : (await dns.lookup(h, { all: true })).map((r) => r.address)));
   let cur = url;

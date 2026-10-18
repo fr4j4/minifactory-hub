@@ -1,6 +1,8 @@
+import { PhotoCapture } from '@/components/photo-capture';
+import { LibraryProcess, LibraryPhotoAssociate, LibraryMetadata, LibraryDuplicates } from '@/components/library-manager';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, ne, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
@@ -42,9 +44,12 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const photos = await db.select().from(s.photos).where(eq(s.photos.modelFileId, id)).orderBy(desc(s.photos.takenAt)).limit(12);
   const slicedRuns = cur ? await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.fileVersionId, cur.id)).orderBy(desc(s.sliceRuns.createdAt)).limit(8) : [];
   const processing = meta.status === 'processing';
+  const galleryPhotos = await db.select({id:s.photos.id,caption:s.photos.caption}).from(s.photos).where(and(eq(s.photos.workspaceId,user.workspaceId),isNull(s.photos.deletedAt),isNull(s.photos.modelFileId))).limit(100);
+  const locations = await db.select({entry:s.libraryEntries,source:s.librarySources.name}).from(s.libraryEntries).innerJoin(s.librarySources,eq(s.librarySources.id,s.libraryEntries.sourceId)).where(eq(s.libraryEntries.modelId,id));
   const tabs = [['visor', t('files.n3dViewer')], ['laminar', t('files.sliceQuote')], ['versiones', t('files.versions', { versions: versions.length })], ['vinculos', t('files.linksReferences')]];
   const color = '#ff6a2b';
   const [srcRow] = f.sourceId ? await db.select().from(s.modelSources).where(eq(s.modelSources.id, f.sourceId)) : [];
+  const duplicates = f.hash ? await db.select({id:s.modelFiles.id,name:s.modelFiles.name}).from(s.modelFiles).where(and(eq(s.modelFiles.workspaceId,user.workspaceId),eq(s.modelFiles.hash,f.hash),ne(s.modelFiles.id,f.id),isNull(s.modelFiles.deletedAt))).limit(20) : [];
   const aiTagsOk = await (await import('@/lib/ai')).aiAvailableFor(user, 'files.tag');
   const viewerMats = (await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.tech, 'fdm')))).map((m) => ({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, hex: m.hex }));
   return (
@@ -52,6 +57,13 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       <PageHeader back={{ href: '/archivos', label: t('nav.files') }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>{t('files.license')} {f.license}</span>}</span>}
         actions={<>{cur && <a className="btn-ghost" href={`/api/files/v/${cur.id}/raw`} data-testid="download-file"><Icon name="download" className="h-4 w-4" />{t('files.download')}</a>}{can(user, 'archivos', 'X') && <DeleteFileButton id={f.id} />}</>} />
       <AutoRefresh active={processing} />
+      {meta.libraryDescription && <Card><p>{String(meta.libraryDescription)}</p></Card>}
+      {aiTagsOk && can(user,'archivos','E') && <LibraryMetadata modelId={id}/>}
+      {duplicates.length>0 && can(user,'archivos','E') && <LibraryDuplicates modelId={id} duplicates={duplicates}/>}
+      {cur && !cur.storageKey && !processing && can(user,'archivos','E') && <LibraryProcess id={cur.id}/>}
+      {locations.length>0 && <Card title={t('library.source')}><ul className="text-sm space-y-1">{locations.map(l=><li key={l.entry.id}>{l.source} · {l.entry.path} · {l.entry.state}</li>)}</ul></Card>}
+      {can(user,'galeria','C')&&<Card title={t('library.photos')}><PhotoCapture intent={{intent:'photo',modelFileId:id}}/>{galleryPhotos.length>0&&can(user,'galeria','E')&&<LibraryPhotoAssociate modelId={id} photos={galleryPhotos}/>}</Card>}
+      {cur?.thumbKey && <div className="flex gap-2 my-3"><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=gif`}>{t('library.gif')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=views`}>{t('library.views')}</a></div>}
       {meta.status === 'error' && <div className="rounded-lg box-danger p-3 text-sm text-red-800 dark:text-red-200 mb-4" role="alert">{t('files.theFileCouldNotBe')} {meta.error}</div>}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4" aria-label={t('files.fileSections')}>
         {tabs.map(([k, l]) => <Link key={k} href={`/archivos/${id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined} className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] flex items-center ${tab === k ? 'border-[var(--accent)] text-[var(--accent-ink)] font-medium' : 'border-transparent muted'}`}>{l}</Link>)}
@@ -60,10 +72,10 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       {tab === 'visor' && (
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2 min-w-0 space-y-4">
-            {!processing && cur && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} materials={viewerMats} analysis={a} />}
+            {!processing && cur && !!meta.previewKey && kind === 'malla' && meta.previewKey && <ModelViewer key={cur.id} versionId={cur.id} machines={machines} color={color} materials={viewerMats} analysis={a} />}
             {!processing && f.format === '3mf' && can(user, 'laminador', 'C') && cur && <div className="mt-3"><ImportProjectButton versionId={cur.id} /><p className="text-xs muted mt-1">{t('files.importProjectHint')}</p></div>}
             {!processing && (meta as any).ams?.multicolor && <div className="card p-3 mt-3 text-sm" data-testid="ams-card"><div className="font-medium mb-1.5">{t('files.amsTitle', { n: (meta as any).ams.filaments.filter((x: any) => x.used).length })}</div><ul className="flex flex-wrap gap-2">{(meta as any).ams.filaments.filter((x: any) => x.used).map((x: any) => <li key={x.index} className="badge border-[var(--line)]"><span className="inline-block h-3.5 w-3.5 rounded-full border border-black/20" style={{ background: x.color }} aria-hidden />{t('files.amsSlot', { n: x.index })}{x.type ? ` · ${x.type}` : ''}</li>)}</ul>{(meta as any).ams.painted && <p className="muted text-xs mt-1.5">{t('files.amsPainted')}</p>}<p className="muted text-xs mt-1.5">{t('files.amsHint')}</p></div>}
-            {!processing && cur && kind === 'malla' && meta.gcodePreviewKey && <Card title={t('files.toolpathsFromTheGCode')}><GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /></Card>}
+            {!processing && cur && !!meta.previewKey && kind === 'malla' && meta.gcodePreviewKey && <Card title={t('files.toolpathsFromTheGCode')}><GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /></Card>}
             {!processing && cur && kind === 'gcode' && (meta.gcodePreviewKey ? <GcodeViewer key={cur.id} src={`/api/files/v/${cur.id}/gcode`} /> : <Card><Empty title={t('files.noLayerPreview')} hint={sm?.notes?.[0] ?? t('files.thisGCodeCannotBe')} /></Card>)}
             {!processing && cur && kind === 'imagen' && (f.format === 'pdf' ? <iframe src={`/api/files/v/${cur.id}/raw`} className="w-full h-[70vh] card" title={f.name} /> : <img src={`/api/files/v/${cur.id}/thumb`} alt={f.name} className="card w-full" />)}
             {photos.length > 0 && <Card title={t('files.photosOfWhatWasMade')}><div className="grid grid-cols-3 sm:grid-cols-6 gap-2">{photos.map((p) => <img key={p.id} src={`/api/media/${p.variants?.['320'] ?? p.storageKey}`} alt={p.caption ?? t('files.photo')} className="rounded aspect-square object-cover" />)}</div></Card>}

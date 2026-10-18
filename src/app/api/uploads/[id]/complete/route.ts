@@ -18,13 +18,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params; const body = await req.json().catch(() => ({}));
   const db = await getDb();
   const [u] = await db.select().from(s.uploadSessions).where(eq(s.uploadSessions.id, id));
-  if (!u) return NextResponse.json({ error: t('api.uploadNotFound') }, { status: 404 });
+  if (!u || u.workspaceId !== user.workspaceId || (u.createdBy && u.createdBy !== user.id)) return NextResponse.json({ error: t('api.uploadNotFound') }, { status: 404 });
   if (u.received !== u.size) return NextResponse.json({ error: t('api.incompleteUpload'), received: u.received }, { status: 409 });
   try {
     let result: any;
     if (body.intent === 'photo') {
       if (!can(user, 'galeria', 'C')) throw new Error(t('api.noPermission'));
-      const p = await ingestPhoto({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, stage: body.stage, orderId: body.orderId, jobId: body.jobId, modelFileId: body.modelFileId, customerId: body.customerId, productId: body.productId, materialId: body.materialId, machineId: body.machineId, caption: body.caption });
+      const p = await ingestPhoto({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, photoId: body.photoId, stage: body.stage, orderId: body.orderId, jobId: body.jobId, modelFileId: body.modelFileId, customerId: body.customerId, productId: body.productId, materialId: body.materialId, machineId: body.machineId, caption: body.caption });
       result = { photoId: p.id };
     } else if (body.intent === 'attachment') {
       const ext = u.filename.split('.').pop() ?? 'bin';

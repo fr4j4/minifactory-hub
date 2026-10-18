@@ -360,7 +360,7 @@ export async function importFromVersionAction(versionId: string) {
     const u = await requirePerm('laminador', 'C');
     const db = await getDb(); const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId)); if (!v || v.format !== '3mf') throw new Error('3mf');
     const { getBuffer } = await import('@/lib/storage'); const { parsePresetFiles } = await import('@/lib/slicer/import'); const t = await getT();
-    const cands = parsePresetFiles([{ name: 'proyecto.3mf', data: new Uint8Array(await getBuffer(v.storageKey)) }], t).filter((c) => c.ok && c.baseName);
+    const cands = parsePresetFiles([{ name: 'proyecto.3mf', data: new Uint8Array(await getBuffer(await (await import('@/lib/library/content')).ensureVersionLocal(v.id))) }], t).filter((c) => c.ok && c.baseName);
     if (!cands.length) throw new Error(t('slicer.import3mfNoConfig', { source: 'proyecto.3mf' }));
     return saveCandidates(cands, u.id);
   }, ['/laminador', '/laminador/configurar']);

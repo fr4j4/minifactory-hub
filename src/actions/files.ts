@@ -25,14 +25,15 @@ export async function deleteFileAction(id: string) {
 export async function setCurrentVersionAction(modelFileId: string, versionId: string) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
-    const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId));
+    const [v] = await db.select().from(s.fileVersions).where(and(eq(s.fileVersions.id, versionId), eq(s.fileVersions.modelFileId, modelFileId)));
+    if (!v) throw new Error('Versión no pertenece al modelo');
     const meta: any = v?.meta ?? {};
     await db.update(s.modelFiles).set({ currentVersionId: versionId, dimX: meta.analysis?.dimX ?? null, dimY: meta.analysis?.dimY ?? null, dimZ: meta.analysis?.dimZ ?? null, volumeCm3: meta.analysis?.volumeCm3 ?? null, areaCm2: meta.analysis?.areaCm2 ?? null, triangles: meta.analysis?.triangles ?? null, closed: meta.analysis?.closed ?? null, hash: v?.sha256 ?? null }).where(eq(s.modelFiles.id, modelFileId));
     await audit('model_file', modelFileId, 'version_actual', { versionId }, u.id);
   }, [`/archivos/${modelFileId}`]);
 }
 export async function reprocessVersionAction(versionId: string) {
-  return safe(async () => { await requirePerm('archivos', 'E'); await processVersion(versionId); return true; });
+  return safe(async () => { await requirePerm('archivos', 'E'); await (await import('@/lib/jobs')).enqueueJob('file.process', {versionId}); return true; });
 }
 
 /** Registra el origen del modelo a partir de un enlace (trae metadatos públicos, normaliza licencia). */
@@ -55,6 +56,7 @@ export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
     const input = { name: f.name, folder: f.folder, origin: f.origin, sourceTags: src?.tags ?? [], geom: { dimX: f.dimX, dimY: f.dimY, dimZ: f.dimZ, volumeCm3: f.volumeCm3, closed: f.closed } };
     let cands = ruleCandidates(input);
     if (withAi) {
+      await (await import('@/lib/library/metadata')).assertSourceAi(modelFileId);
       const { aiAvailableFor } = await import('@/lib/ai'); const { getLocale } = await import('@/i18n/server');
       if (await aiAvailableFor(u, 'files.tag')) {
         const { suggestTagsAi } = await import('@/lib/ai/features/file-tags');

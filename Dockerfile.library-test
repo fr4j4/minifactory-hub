@@ -1,0 +1,12 @@
+# Reuse installed system tools from the existing image without its containers or data.
+FROM minifactory-hub-app AS library-test
+USER root
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --include=dev --ignore-scripts
+COPY . .
+RUN SESSION_SECRET=library-test-build-only-not-a-runtime-secret npm run build
+ENV NODE_ENV=production
+RUN mkdir -p /data /sources && chown -R app:app /app/.next /sources
+ENTRYPOINT ["sh", "/app/scripts/docker-entrypoint.sh"]
+CMD ["sh", "-c", "npx tsx scripts/seed.ts --bootstrap-only && npx next start -p 3000"]
