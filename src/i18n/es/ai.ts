@@ -93,6 +93,10 @@ export const ai = {
     genericAnthropic: { label: 'Genérico · compatible con Anthropic', note: 'Cualquier servicio con la API Messages de Anthropic (pasarelas o proxies propios).' },
   },
   features: {
+    librarySearch: {label: 'Búsqueda natural', desc: 'Propuestas revisables; no modifica modelos automáticamente.'},
+    libraryOrganize: {label: 'Organización de biblioteca', desc: 'Propuestas revisables; no modifica modelos automáticamente.'},
+    librarySimilarity: {label: 'Similitud y fotos', desc: 'Propuestas revisables; no modifica modelos automáticamente.'},
+
     profileAdvisor: { label: 'Asesor de perfiles de impresión', desc: 'Propone candidatos de perfil, los lamina y los compara.' },
     profileDiagnose: { label: 'Diagnóstico de problemas de impresión', desc: 'Causas probables y cambios de parámetros desde texto o foto.' },
     slicerExplain: { label: 'Explicar errores de laminado', desc: 'Traduce errores del laminador a acciones concretas.' },

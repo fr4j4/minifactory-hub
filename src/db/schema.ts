@@ -888,7 +888,7 @@ export const libraryEntries = pgTable('library_entries', {
 export const libraryScans = pgTable('library_scans', {
   ...base(), sourceId: uuid('source_id').notNull().references(() => librarySources.id),
   status: text('status').notNull().default('queued'),
-  checkpoint: jsonb('checkpoint').$type<{ queue: Array<{ id: string; path: string; cursor?: string }>; visited: string[] }>().notNull(),
+  checkpoint: jsonb('checkpoint').$type<{ queue: Array<{ id: string; path: string; cursor?: string }>; visited: string[]; incremental?:boolean; changeCursor?:string }>().notNull(),
   count: integer('count').notNull().default(0), error: text('error'),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
 });
@@ -903,3 +903,29 @@ export const libraryCollectionModels = pgTable('library_collection_models', {
   collectionId: uuid('collection_id').notNull().references(() => libraryCollections.id),
   modelId: uuid('model_id').notNull().references(() => modelFiles.id),
 }, t => [primaryKey({ columns: [t.collectionId, t.modelId] })]);
+
+/** User metadata is independent of a changing remote revision. */
+export const libraryDetails = pgTable('library_details', {
+  modelId: uuid('model_id').primaryKey().references(() => modelFiles.id),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const libraryAssets = pgTable('library_assets', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  versionId: uuid('version_id'), role: text('role').notNull(), name: text('name').notNull(),
+  storageKey: text('storage_key'), entryId: uuid('entry_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [index('library_asset_model').on(t.modelId)]);
+export const libraryPhotoLinks = pgTable('library_photo_links', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  photoId: uuid('photo_id').notNull().references(() => photos.id), versionId: uuid('version_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [uniqueIndex('library_photo_link').on(t.modelId,t.photoId)]);
+export const libraryCache = pgTable('library_cache', {
+  versionId: uuid('version_id').primaryKey().references(() => fileVersions.id),
+  sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  storageKey: text('storage_key').notNull(), bytes: doublePrecision('bytes').notNull(),
+  pinned: boolean('pinned').notNull().default(false), durable: boolean('durable').notNull().default(false),
+  accessedAt: timestamp('accessed_at',{withTimezone:true}).notNull().defaultNow(),
+  leaseUntil: timestamp('lease_until',{withTimezone:true}),
+});

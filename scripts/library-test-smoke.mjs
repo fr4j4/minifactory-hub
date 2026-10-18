@@ -19,7 +19,7 @@ try{
  await page.locator('[data-testid=photo-input]').setInputFiles({name:'foto-real-prueba.png',mimeType:'image/png',buffer:photo});
  const photoResult=await photoResponse;if(photoResult.status()!==200)throw new Error('Photo upload failed '+await photoResult.text());
  const photoId=(await photoResult.json()).photoId;if(!photoId)throw new Error('Missing photo ID');
- await page.locator('img[src*="/api/media/photos/"]').first().waitFor({timeout:15000});
+ await page.locator('img[src*="/api/media/photos/"]:visible').first().waitFor({timeout:15000});
  const repeated=await context.request.post('/api/uploads',{data:{filename:'foto-real-prueba.png',size:photo.length}});const uploadId=(await repeated.json()).id;
  await context.request.put(`/api/uploads/${uploadId}?offset=0`,{data:photo});
  const repeatedResult=await context.request.post(`/api/uploads/${uploadId}/complete`,{data:{intent:'photo',photoId}});if((await repeatedResult.json()).photoId!==photoId)throw new Error('Photo retry was not idempotent');

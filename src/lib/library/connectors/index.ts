@@ -2,6 +2,7 @@ import { localConnector } from './local';
 import type { Connector, SourceKind } from './types';
 export async function connector(kind: SourceKind, config: Record<string, any>, secret: Record<string, any>): Promise<Connector> {
     switch (kind) {
+        case 'managed-local': return (await import('./managed')).managedConnector();
         case 'local': return localConnector(config.root);
         case 'ftp':
         case 'ftps':

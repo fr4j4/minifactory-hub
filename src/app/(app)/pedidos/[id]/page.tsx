@@ -1,3 +1,4 @@
+import {modelAccess,photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { cn, ymd } from '@/lib/format';
 import { TONES } from '@/components/badge';
@@ -32,7 +33,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const [o] = await db.select().from(s.orders).where(eq(s.orders.id, id)); if (!o || o.deletedAt) notFound();
   const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, id)).orderBy(asc(s.orderItems.position));
   const iids = items.map((i) => i.id).concat(['00000000-0000-0000-0000-000000000000']);
-  const models = await db.select({ qm: s.quoteItemModels, name: s.modelFiles.name }).from(s.quoteItemModels).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.quoteItemModels.modelFileId)).where(inArray(s.quoteItemModels.orderItemId, iids));
+  const models = await db.select({ qm: s.quoteItemModels, name: s.modelFiles.name }).from(s.quoteItemModels).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.quoteItemModels.modelFileId)).where(and(modelAccess(user),inArray(s.quoteItemModels.orderItemId, iids)));
   const links = await db.select().from(s.referenceLinks).where(and(inArray(s.referenceLinks.ownerType, ['order', 'order_item']), inArray(s.referenceLinks.ownerId, [id, ...iids])));
   const jobs = await db.select({ j: s.printJobs, m: s.machines.name }).from(s.printJobs).leftJoin(s.machines, eq(s.machines.id, s.printJobs.machineId)).where(and(eq(s.printJobs.orderId, id), isNull(s.printJobs.deletedAt))).orderBy(asc(s.printJobs.createdAt));
   const jis = jobs.length ? await db.select().from(s.jobItems).where(inArray(s.jobItems.jobId, jobs.map((x) => x.j.id))) : [];

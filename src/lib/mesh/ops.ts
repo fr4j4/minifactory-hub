@@ -146,13 +146,18 @@ export async function renderTurntable(mesh: Mesh, o: { frames?: number; w?: numb
   try {
     const sharp = (await import('sharp')).default;
     const frames: Buffer[] = [];
-    for (let i = 0; i < n; i++) frames.push(await renderThumbnail(mesh, { w, h, format: 'webp', az: -35 + (360 / n) * i }));
+    let min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+    for(let i=0;i<mesh.positions.length;i++) {const a=i%3;min[a]=Math.min(min[a],mesh.positions[i]);max[a]=Math.max(max[a],mesh.positions[i]);}
+    const center=min.map((v,i)=>(v+max[i])/2) as [number,number,number];
+    const radius=Math.hypot(...max.map((v,i)=>(v-min[i])/2));
+    const frame={center,radius};
+    for (let i = 0; i < n; i++) frames.push(await renderThumbnail(mesh, { w, h, format: 'webp', az: -35 + (360 / n) * i, frame }));
     const result = await sharp(frames, { join: { animated: true } }).webp({ loop: 0, delay: Array(n).fill(o.delayMs ?? 150), quality: 65 }).toBuffer();
     return result.length <= 300 * 1024 ? result : null;
   } catch { return null; }
 }
 
-export async function renderThumbnail(mesh: Mesh, o: { w?: number; h?: number; color?: [number, number, number]; format?: 'png' | 'webp'; az?: number; el?: number } = {}): Promise<Buffer> {
+export async function renderThumbnail(mesh: Mesh, o: { w?: number; h?: number; color?: [number, number, number]; format?: 'png' | 'webp'; az?: number; el?: number; frame?:{center:[number,number,number];radius:number} } = {}): Promise<Buffer> {
   const W = o.w ?? 480, H = o.h ?? 360;
   const [cr, cg, cb] = o.color ?? [0.25, 0.5, 0.95];
   const az = ((o.az ?? -35) * Math.PI) / 180, el = ((o.el ?? 28) * Math.PI) / 180;
@@ -169,6 +174,7 @@ export async function renderThumbnail(mesh: Mesh, o: { w?: number; h?: number; c
     sxA[i] = sx; syA[i] = sy; dA[i] = d;
     if (sx < minx) minx = sx; if (sx > maxx) maxx = sx; if (sy < miny) miny = sy; if (sy > maxy) maxy = sy;
   }
+  if(o.frame){const [x,y,z]=o.frame.center;const cx=x*ca-y*sa,cy=z*ce+(x*sa+y*ca)*se;minx=cx-o.frame.radius;maxx=cx+o.frame.radius;miny=cy-o.frame.radius;maxy=cy+o.frame.radius;}
   const pad = 0.1;
   const scale = Math.min((W * (1 - 2 * pad)) / (maxx - minx || 1), (H * (1 - 2 * pad)) / (maxy - miny || 1));
   const ox = W / 2 - ((minx + maxx) / 2) * scale, oy = H / 2 + ((miny + maxy) / 2) * scale;
@@ -212,7 +218,9 @@ export async function renderThumbnail(mesh: Mesh, o: { w?: number; h?: number; c
     }
   }
   const s = sharp(Buffer.from(img.buffer), { raw: { width: W, height: H, channels: 4 } });
-  return o.format === 'webp' ? s.webp({ quality: 82 }).toBuffer() : s.png().toBuffer();
+  if(o.format!=='webp')return s.png().toBuffer();
+  const image=await s.webp({quality:75}).toBuffer();
+  return image.length<=80*1024?image:sharp(image).resize(320,240,{fit:'inside'}).webp({quality:50}).toBuffer();
 }
 const norm3 = (v: number[]) => { const l = Math.hypot(v[0], v[1], v[2]); return [v[0] / l, v[1] / l, v[2] / l]; };
 

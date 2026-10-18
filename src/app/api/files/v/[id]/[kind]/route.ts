@@ -1,3 +1,4 @@
+import { assertVersionAccess } from '@/lib/library/access';
 import { NextResponse } from 'next/server';
 import { and, eq } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
@@ -17,6 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const db = await getDb();
   const [v] = await db.select().from(s.fileVersions).where(and(eq(s.fileVersions.id, id), eq(s.fileVersions.workspaceId, WORKSPACE_ID)));
   if (!v) return NextResponse.json({ error: t('common.notFound') }, { status: 404 });
+  try { await assertVersionAccess(user,id); } catch { return new Response('Not found',{status:404}); }
   const meta = (v.meta ?? {}) as Record<string, any>;
   let key: string | null | undefined; let type = 'application/octet-stream'; let name: string | null = null;
   if (kind === 'raw') {
@@ -29,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   else if (kind === 'turn') { key = meta.turnKey; type = 'image/webp'; }
   if (!key || !(await exists(key))) return NextResponse.json({ error: t('api.notAvailable') }, { status: kind === 'raw' ? 404 : 202 });
   const st = await stat(key);
-  const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, max-age=3600', 'content-length': String(st.size) };
+  const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'content-length': String(st.size) };
   if (name) headers['content-disposition'] = `attachment; filename="${encodeURIComponent(name)}"`;
   return new Response(webStream(key), { headers });
 }

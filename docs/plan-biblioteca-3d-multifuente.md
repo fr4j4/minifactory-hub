@@ -4,7 +4,9 @@ Rama: `feature/biblioteca-3d-multifuente`. Base: `3d70f49`. Spec: [biblioteca mu
 
 ## Estado de ejecución
 
-Núcleo implementado y desplegado en la instancia independiente del puerto 3011. Suite completa: 416 pruebas aprobadas. El [informe de entrega](entrega-biblioteca-3d-multifuente.md) detalla capacidades reales, aislamiento, acceso, validación y trabajo pendiente; la spec completa todavía incluye extensiones no implementadas.
+Implementación ampliada: ver [matriz de cobertura y validación](validacion-spec-biblioteca-3d.md).
+
+Primera entrega: núcleo implementado y desplegado en la instancia independiente del puerto 3011. Suite completa: 416 pruebas aprobadas. El [informe de entrega](entrega-biblioteca-3d-multifuente.md) detalla capacidades reales, aislamiento, acceso, validación y trabajo pendiente; la spec completa todavía incluye extensiones no implementadas.
 
 ## Aislamiento obligatorio
 
@@ -25,4 +27,4 @@ Proyecto Compose `minifactory-library-test`, puerto 3011, red bridge propia, Pos
 
 Cada proveedor se prueba con fixtures y conector local cuando sea posible. La aceptación con Google Drive, OneDrive, Dropbox o un bucket real requiere una cuenta autorizada aportada al nuevo despliegue. MakerWorld mantiene URL + metadatos + subida manual mientras no exista un mecanismo de descarga autorizado verificado. No se simula éxito de integraciones sin credenciales.
 
-El agente de escritorio, conectores CAD y reconstrucción fotogramétrica no forman parte de esta implementación: son extensiones opcionales P4 de la spec. Las capacidades implementadas y las pendientes se registrarán en el informe de entrega con sus pruebas, sin presentar la existencia de una interfaz como validación del proveedor.
+La ampliación incluye un agente Python de solo lectura validado en Linux. Instaladores de escritorio para otros sistemas, conectores CAD propietarios y reconstrucción fotogramétrica continúan como extensiones condicionadas P4. La matriz de validación registra capacidades reales, límites y evidencia; la existencia de un adaptador no equivale a aceptación con cuentas reales.

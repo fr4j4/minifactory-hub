@@ -18,6 +18,7 @@ export async function request(url: string, o: {
     const addresses = net.isIP(host) ? [{ address: host, family: net.isIP(host) }] : await dns.lookup(host, { all: true });
     if (!addresses.length || addresses.some(x => (!o.privateNetwork && isPrivateIp(x.address)) || x.address.startsWith('169.254.') || x.address === '100.100.100.200'))
         throw new Error('Destino de red no permitido');
+    if(!o.privateNetwork&&u.port&&u.port!=='443')throw new Error('Puerto público no permitido');
     if (!o.privateNetwork && u.protocol !== 'https:')
         throw new Error('Use HTTPS');
     const a = addresses[0];
@@ -35,6 +36,7 @@ export async function request(url: string, o: {
         const next = new URL(res.headers.location, u);
         const headers = { ...o.headers };
         if (next.origin !== u.origin) {
+            if(o.body)throw new Error('No se reenvían credenciales o contenido a otro servidor');
             delete headers.authorization;
             delete headers.Authorization;
             delete headers.cookie;
@@ -43,7 +45,7 @@ export async function request(url: string, o: {
     }
     if ((res.statusCode || 500) >= 400) {
         res.resume();
-        throw new Error(`Proveedor HTTP ${res.statusCode}${res.statusCode === 429 ? ' · reintente después' : ''}`);
+        const raw=res.headers['retry-after'];const seconds=raw&&/^\d+$/.test(raw)?Number(raw):raw?Math.max(0,(Date.parse(raw)-Date.now())/1000):0;throw Object.assign(new Error(`Proveedor HTTP ${res.statusCode}`),{status:res.statusCode,code:res.statusCode===401?'authentication':res.statusCode===403?'permission':res.statusCode===404?'not_found':res.statusCode===409||res.statusCode===412?'conflict':res.statusCode===429?'rate_limit':'temporary',retryAfterMs:Math.min(86400000,Number.isFinite(seconds)?seconds*1000:0)});
     }
     return res;
 }

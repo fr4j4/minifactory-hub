@@ -176,6 +176,20 @@
       "when": 1792240000000,
       "tag": "0024_upload_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792287127069,
+      "tag": "0025_library_completion",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792288526535,
+      "tag": "0026_library_cache_snapshots",
+      "breakpoints": true
     }
   ]
 }

@@ -1,3 +1,4 @@
+import {assertModelAccess} from '@/lib/library/access';
 import fs from 'node:fs/promises';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
@@ -21,6 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!u || u.workspaceId !== user.workspaceId || (u.createdBy && u.createdBy !== user.id)) return NextResponse.json({ error: t('api.uploadNotFound') }, { status: 404 });
   if (u.received !== u.size) return NextResponse.json({ error: t('api.incompleteUpload'), received: u.received }, { status: 409 });
   try {
+    if(body.modelFileId)await assertModelAccess(user,body.modelFileId);
     let result: any;
     if (body.intent === 'photo') {
       if (!can(user, 'galeria', 'C')) throw new Error(t('api.noPermission'));

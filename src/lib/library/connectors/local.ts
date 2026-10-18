@@ -32,11 +32,13 @@ export async function localConnector(rootInput: string): Promise<Connector> {
         },
         async read(id) { return fs.createReadStream(await resolve(id)); },
         async rename(id, name) { const src = await resolve(id); const dest = await target(path.posix.dirname(id) === '.' ? '' : path.posix.dirname(id), name); await fsp.rename(src, dest); return path.relative(root, dest).split(path.sep).join('/'); },
+        async move(id,parent,name){const src=await resolve(id),dest=await target(parent,name);if(dest.startsWith(src+path.sep))throw new Error('No se mueve una carpeta dentro de sí misma');await fsp.rename(src,dest);return path.relative(root,dest).split(path.sep).join('/');},
         async mkdir(parent, name) { const dest = await target(parent, name); await fsp.mkdir(dest); return path.relative(root, dest).split(path.sep).join('/'); },
         async upload(parent, name, source) { const dest = await target(parent, name); await fsp.copyFile(source, dest, fs.constants.COPYFILE_EXCL); return path.relative(root, dest).split(path.sep).join('/'); },
-        async trash(id) { if (!id)
+        async trash(id, token) { if (!id)
             throw new Error('No se elimina la raíz'); const src = await resolve(id); const trash = path.join(root, '.mf-trash'); await fsp.mkdir(trash, { recursive: true }); const real = await fsp.realpath(trash); if (real !== trash)
-            throw new Error('Papelera inválida'); await fsp.rename(src, path.join(trash, `${crypto.randomUUID()}-${path.basename(id)}`)); },
+            throw new Error('Papelera inválida'); const key=`.mf-trash/${token||crypto.randomUUID()}-${path.basename(id)}`;await fsp.rename(src,path.join(root,key));return key; },
+        async restore(id,parent,name){if(!id.startsWith('.mf-trash/'))throw new Error('Papelera inválida');const src=await resolve(id);const dest=await target(parent,name);await fsp.rename(src,dest);return path.relative(root,dest).split(path.sep).join('/');},
         async close() { },
     };
 }

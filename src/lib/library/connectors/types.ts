@@ -1,5 +1,5 @@
 import type { Readable } from 'node:stream';
-export type SourceKind = 'local' | 'drive' | 'ftp' | 'ftps' | 'sftp' | 'webdav' | 's3' | 'onedrive' | 'dropbox';
+export type SourceKind = 'managed-local' | 'local' | 'drive' | 'ftp' | 'ftps' | 'sftp' | 'webdav' | 's3' | 'onedrive' | 'dropbox';
 export interface RemoteEntry {
     id: string;
     name: string;
@@ -22,10 +22,13 @@ export interface Connector {
     }>;
     stat(id: string): Promise<RemoteEntry>;
     read(id: string): Promise<Readable>;
+    move?(id:string,parent:string,name:string):Promise<string>;
     rename?(id: string, name: string): Promise<string>;
     mkdir?(parent: string, name: string): Promise<string>;
     upload?(parent: string, name: string, localPath: string): Promise<string>;
-    trash?(id: string): Promise<void>;
+    trash?(id: string, token?: string): Promise<string | void>;
+    restore?(id:string,parent:string,name:string):Promise<string>;
+    changes?(cursor?:string):Promise<{cursor:string;changed:boolean}>;
     close(): Promise<void>;
 }
 export function safeName(name: string) {

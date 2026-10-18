@@ -96,6 +96,10 @@ export const ai: Shape<typeof es> = {
     genericAnthropic: { label: 'Generic · Anthropic-compatible', note: 'Any service with the Anthropic Messages API (gateways or your own proxies).' },
   },
   features: {
+    librarySearch: {label: 'Natural search', desc: 'Reviewable suggestions; never edits models automatically.'},
+    libraryOrganize: {label: 'Library organization', desc: 'Reviewable suggestions; never edits models automatically.'},
+    librarySimilarity: {label: 'Similarity and photos', desc: 'Reviewable suggestions; never edits models automatically.'},
+
     profileAdvisor: { label: 'Print profile advisor', desc: 'Suggests profile candidates, slices them and compares them.' },
     profileDiagnose: { label: 'Print problem diagnosis', desc: 'Likely causes and parameter changes from text or a photo.' },
     slicerExplain: { label: 'Explain slicing errors', desc: 'Turns slicer errors into concrete actions.' },

@@ -1,6 +1,6 @@
 # Reporte y spec: biblioteca 3D con múltiples fuentes
 
-**Estado:** propuesta para implementación; no implementada.  
+**Estado original:** propuesta de diseño del 17 de octubre. Implementación y evidencia posteriores: [validación de la spec](validacion-spec-biblioteca-3d.md).
 **Fecha:** 17 de octubre de 2026.  
 **Base revisada:** commit `3d70f495df5cf846564d56f606e882ecfbafebad`.  
 **Método:** lectura estática del código y documentación del repositorio, más consulta de documentación oficial de proveedores. No se ejecutó la aplicación ni se probaron cuentas externas. Los objetivos de rendimiento son propuestas que deberán medirse.

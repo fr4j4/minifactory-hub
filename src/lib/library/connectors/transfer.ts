@@ -34,6 +34,7 @@ export async function transferConnector(kind: 'ftp' | 'ftps' | 'sftp', c: Record
             await ssh.rename(full(id), full(dest));
         else
             await ftp!.rename(full(id), full(dest)); return dest; },
+        async move(id,parent,name){const dest=await absent(parent,name);if(dest.startsWith(id+'/'))throw new Error('Destino dentro del origen');if(ssh)await ssh.rename(full(id),full(dest));else await ftp!.rename(full(id),full(dest));return dest;},
         async mkdir(parent, name) { const dest = await absent(parent, name); if (ssh)
             await ssh.mkdir(full(dest));
         else

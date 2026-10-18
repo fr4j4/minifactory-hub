@@ -7,11 +7,12 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
  * Cola persistente de trabajos en segundo plano. Un trabajo vive en la base: sobrevive a reinicios (los «running» vuelven a la cola),
  * se reintenta con espera creciente y, agotados los intentos, queda en «error» para reintentarlo a mano.
  */
-export type JobKind = 'file.process' | 'source.scan' | 'library.operation' | 'url.import';
+export type JobKind = 'file.process' | 'source.scan' | 'library.operation' | 'url.import' | 'metadata.suggest';
 type Handler = (payload: Record<string, any>) => Promise<void>;
 type FailHook = (payload: Record<string, any>, error: Error) => Promise<void>;
 
 const handlers: Record<JobKind, { run: Handler; onFail?: FailHook }> = {
+ 'metadata.suggest':{run:async p=>{const db=await getDb();const [u]=await db.select().from(s.users).where(and(eq(s.users.id,String(p.userId)),eq(s.users.active,true)));if(!u)return;const user={...u,role:u.role as import('./perm').Role,permOverrides:u.permOverrides||{},notifPrefs:u.notifPrefs||{},calcLevel:u.calcLevel as 'basico'|'avanzado'};if(!await(await import('./ai')).aiAvailableFor(user,'files.tag'))return;await(await import('./library/access')).assertModelAccess(user,String(p.modelId));await(await import('./library/metadata')).proposeMetadata(String(p.modelId),user);}},
   'source.scan': { run: async p => (await import('./library/catalog')).scanSource(String(p.scanId)), onFail: async (p,e) => { const db=await getDb(); await db.update(s.libraryScans).set({status:'error',error:e.message}).where(eq(s.libraryScans.id,String(p.scanId))); } },
   'library.operation': { run: async p => (await import('./library/operations')).executeOperation(String(p.operationId)) },
   'url.import': { run: async p => (await import('./library/url-import')).executeImport(String(p.operationId)) },
@@ -26,7 +27,7 @@ const handlers: Record<JobKind, { run: Handler; onFail?: FailHook }> = {
 };
 
 const g = globalThis as unknown as { __jobWorker?: { timer?: ReturnType<typeof setInterval>; running: number } };
-const CONCURRENCY = 2;
+const CONCURRENCY = 1;
 const BOOT = new Date();
 const OWNER = crypto.randomUUID();
 const lease = () => new Date(Date.now() + 120_000);
@@ -65,7 +66,7 @@ async function finish(db: Db, job: Job): Promise<'done' | 'error' | 'retry'> {
   } catch (e) {
     const err = e as Error;
     if (job.attempts < job.maxAttempts) {
-      await db.update(s.jobs).set({ status: 'queued', error: err.message, runAfter: new Date(Date.now() + backoffMs(job.attempts)), updatedAt: new Date() }).where(eq(s.jobs.id, id));
+      await db.update(s.jobs).set({ status: 'queued', error: err.message, runAfter: new Date(Date.now() + Math.max(backoffMs(job.attempts)+Math.random()*1000,Number((err as any).retryAfterMs)||0)), updatedAt: new Date() }).where(eq(s.jobs.id, id));
       return 'retry';
     }
     await db.update(s.jobs).set({ status: 'error', error: err.message, finishedAt: new Date(), updatedAt: new Date() }).where(eq(s.jobs.id, id));
@@ -102,7 +103,7 @@ async function tick() {
   await (await import('./library/catalog')).scheduleScans();
   const w = g.__jobWorker!; if (w.running >= CONCURRENCY) return;
   const db = await getDb();
-  const rows = await db.select({ id: s.jobs.id }).from(s.jobs).where(and(eq(s.jobs.status, 'queued'), lte(s.jobs.runAfter, new Date()))).orderBy(asc(s.jobs.runAfter)).limit(CONCURRENCY - w.running);
+  const rows = await db.select({ id: s.jobs.id }).from(s.jobs).where(and(eq(s.jobs.status, 'queued'), lte(s.jobs.runAfter, new Date()))).orderBy(sql`case when ${s.jobs.kind}='source.scan' then 2 when ${s.jobs.kind}='metadata.suggest' then 3 else 1 end`,asc(s.jobs.runAfter)).limit(CONCURRENCY - w.running);
   for (const r of rows) { w.running++; execute(r.id).catch(() => {}).finally(() => { w.running--; }); }
 }
 

@@ -1,3 +1,4 @@
+import {modelAccess,photoAccess} from '@/lib/library/access';
 import { NextResponse } from 'next/server';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
@@ -11,6 +12,6 @@ export async function GET(req: Request) {
   const hash = new URL(req.url).searchParams.get('hash') ?? '';
   if (!/^[0-9a-f]{64}$/.test(hash)) return NextResponse.json({ error: t('api.invalidData') }, { status: 400 });
   const db = await getDb();
-  const [dup] = await db.select({ id: s.modelFiles.id, name: s.modelFiles.name }).from(s.modelFiles).where(and(eq(s.modelFiles.hash, hash), isNull(s.modelFiles.deletedAt))).limit(1);
+  const [dup] = await db.select({ id: s.modelFiles.id, name: s.modelFiles.name }).from(s.modelFiles).where(and(modelAccess(user),eq(s.modelFiles.hash, hash), isNull(s.modelFiles.deletedAt))).limit(1);
   return NextResponse.json({ duplicate: dup ?? null });
 }

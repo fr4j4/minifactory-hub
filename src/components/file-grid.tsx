@@ -1,5 +1,6 @@
 'use client';
-import { useState } from 'react';
+import { BatchPlan } from './library-advanced';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { bulkFilesAction, renameTagAction, type BulkOp } from '@/actions/files';
@@ -10,25 +11,30 @@ import { Icon } from '@/components/shell';
 import { collectionModels } from '@/actions/library';
 import { FavButton } from './file-bits';
 
-export interface FileCard { id: string; name: string; format: string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean }
+export interface FileCard { id: string; name: string; format: string; cover?:string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean }
 
 /** Rejilla de la biblioteca con selección múltiple y acciones masivas (etiquetar, mover, favorito). */
 /** Miniatura que gira al pasar el mouse (o al enfocar) si la versión tiene la animación. */
 function CardThumb({ versionId, hasTurn, alt }: { versionId: string; hasTurn: boolean; alt: string }) {
-  const [spin, setSpin] = useState(false);
+  const [spin,setSpin]=useState(false);
+  useEffect(()=>{const listener=(e:Event)=>{if((e as CustomEvent).detail!==versionId)setSpin(false);};window.addEventListener('library-spin',listener);return()=>window.removeEventListener('library-spin',listener);},[versionId]);
+  const play=()=>{window.dispatchEvent(new CustomEvent('library-spin',{detail:versionId}));setSpin(true);};
   /* eslint-disable-next-line @next/next/no-img-element */
-  return <img src={`/api/files/v/${versionId}/${spin && hasTurn ? 'turn' : 'thumb'}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onMouseEnter={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !(navigator as any).connection?.saveData) setSpin(true); }} onMouseLeave={() => setSpin(false)} tabIndex={hasTurn ? 0 : undefined} onFocus={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches) setSpin(true); }} onBlur={() => setSpin(false)} onKeyDown={e=>{if(e.key==='Enter')setSpin(v=>!v);}} data-turn={hasTurn ? '1' : undefined} />;
+  return <img src={`/api/files/v/${versionId}/${spin && hasTurn ? 'turn' : 'thumb'}`} alt={alt} className="w-full h-full object-cover" loading="lazy" onMouseEnter={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches && !(navigator as any).connection?.saveData) play(); }} onMouseLeave={() => setSpin(false)} tabIndex={hasTurn ? 0 : undefined} onFocus={() => { if (!matchMedia('(prefers-reduced-motion: reduce)').matches) play(); }} onBlur={() => setSpin(false)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();spin?setSpin(false):play();}}} data-turn={hasTurn ? '1' : undefined} />;
 }
 
-export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards: FileCard[]; canEdit: boolean; vocabulary: Array<{ tag: string; n: number }>; tagColors?: Record<string, string> }) {
+export function FileGrid({ cards, canEdit, vocabulary, tagColors = {}, scope = "" }: { scope?:string; cards: FileCard[]; canEdit: boolean; vocabulary: Array<{ tag: string; n: number }>; tagColors?: Record<string, string> }) {
   const t = useT(); const toast = useToast(); const router = useRouter();
-  const [sel, setSel] = useState<Set<string>>(new Set()); const [tagText, setTagText] = useState(''); const [folder, setFolder] = useState(''); const [busy, setBusy] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  useEffect(()=>{try{setSel(new Set(JSON.parse(sessionStorage.getItem('library-selection:'+scope)||'[]')));}catch{}},[scope]);
+  const updateSel=(next:Set<string>)=>{setSel(next);sessionStorage.setItem('library-selection:'+scope,JSON.stringify([...next]));}; const [tagText, setTagText] = useState(''); const [folder, setFolder] = useState(''); const [busy, setBusy] = useState(false);
   const [from, setFrom] = useState(''); const [to, setTo] = useState('');
-  const toggle = (id: string) => setSel((o) => { const n = new Set(o); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const run = async (op: BulkOp, ok: string) => { setBusy(true); const r = await bulkFilesAction([...sel], op); setBusy(false); if (!r.ok) { toast.push(r.error, 'err'); return; } toast.push(ok); setSel(new Set()); setTagText(''); router.refresh(); };
+  const toggle=(id:string)=>{const n=new Set(sel);n.has(id)?n.delete(id):n.add(id);updateSel(n);};
+  const run = async (op: BulkOp, ok: string) => { setBusy(true); const r = await bulkFilesAction([...sel], op); setBusy(false); if (!r.ok) { toast.push(r.error, 'err'); return; } toast.push(ok); updateSel(new Set()); setTagText(''); router.refresh(); };
   const rename = async () => { setBusy(true); const r = await renameTagAction(from, to); setBusy(false); if (!r.ok) { toast.push(r.error, 'err'); return; } toast.push(t('files.tagRenamed', { n: r.data })); setFrom(''); setTo(''); router.refresh(); };
   return (
     <div>
+      {canEdit&&<><button className="btn-ghost mb-2" onClick={()=>updateSel(new Set([...sel,...cards.map(c=>c.id)]))}>{t('library.selectPage')}</button><button className="btn-ghost" onClick={async()=>{const r=await(await import('@/actions/library-advanced')).snapshotLibrarySelection(Object.fromEntries([...new Set(new URLSearchParams(location.search).keys())].map(k=>[k,new URLSearchParams(location.search).getAll(k).join(',')])));if(r.ok)updateSel(new Set(r.data));else toast.push(r.error,'err');}}>{t('library.selectResults')}</button><BatchPlan ids={[...sel]} onClear={()=>updateSel(new Set())}/></>}
       {canEdit && sel.size > 0 && (
         <div className="sticky top-2 z-20 card p-2.5 mb-3 flex flex-wrap items-center gap-2 shadow-md" role="toolbar" aria-label={t('files.bulkBar')} data-testid="bulk-bar"><button className="btn-ghost btn-sm" disabled={busy} onClick={async()=>{const name=window.prompt(t('library.collection'));if(!name)return;setBusy(true);const r=await collectionModels(name,[...sel]);setBusy(false);if(!r.ok)toast.push(r.error,'err');else router.refresh();}}>{t('library.addCollection')}</button>
           <b className="text-sm px-1">{t('files.selected', { n: sel.size })}</b>
@@ -37,7 +43,7 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
           <input className="input !w-36 !min-h-[36px]" placeholder={t('files.folder')} value={folder} onChange={(e) => setFolder(e.target.value)} aria-label={t('files.folder')} />
           <button className="btn-ghost btn-sm" disabled={busy} onClick={() => run({ kind: 'folder', folder: folder || null }, t('files.bulkDone'))}>{t('files.bulkMove')}</button>
           <button className="btn-ghost btn-sm" disabled={busy} onClick={() => run({ kind: 'favorite', value: true }, t('files.bulkDone'))} data-testid="bulk-favorite"><Icon name="star" className="h-4 w-4" /> {t('files.markAsFavorite')}</button>
-          <button className="btn-ghost btn-sm ml-auto" onClick={() => setSel(new Set())}>{t('common.cancel')}</button>
+          <button className="btn-ghost btn-sm ml-auto" onClick={() => updateSel(new Set())}>{t('common.cancel')}</button>
         </div>)}
       <datalist id="vocab-tags">{vocabulary.map((v) => <option key={v.tag} value={v.tag} />)}</datalist>
       <ul className={`grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-5 ${sel.size ? 'selecting' : ''}`} data-testid="file-grid">
@@ -45,7 +51,7 @@ export function FileGrid({ cards, canEdit, vocabulary, tagColors = {} }: { cards
           <li key={c.id} className={`group card overflow-hidden flex flex-col relative ${sel.has(c.id) ? 'ring-2 ring-[var(--accent)]' : ''}`}>
             {canEdit && <label className="tile-check absolute right-1.5 top-1.5 z-10 bg-white/90 dark:bg-slate-900/80 rounded-md p-1 cursor-pointer"><input type="checkbox" className="h-4 w-4" checked={sel.has(c.id)} onChange={() => toggle(c.id)} aria-label={t('files.selectFile', { name: c.name })} data-testid="file-select" /></label>}
             <Link href={`/archivos/${c.id}`} className="block aspect-[4/3] bg-slate-100 dark:bg-slate-800 relative" aria-label={t('files.open', { name: c.name })}>
-              {c.hasThumb && c.versionId ? <CardThumb versionId={c.versionId} hasTurn={!!c.hasTurn} alt={t('files.thumbnailOf', { name: c.name })} /> : <div className="w-full h-full grid place-items-center text-slate-400 text-sm">{c.format}</div>}
+              {c.cover ? <img src={`/api/media/${c.cover}`} alt={c.name} className="w-full h-full object-cover" loading="lazy"/> : c.hasThumb && c.versionId ? <CardThumb versionId={c.versionId} hasTurn={!!c.hasTurn} alt={t('files.thumbnailOf', { name: c.name })} /> : <div className="w-full h-full grid place-items-center text-slate-400 text-sm">{c.format}</div>}
               <span className="absolute left-1.5 top-1.5 badge bg-white/90 dark:bg-slate-900/80 border-transparent">{c.format}</span>
             </Link>
             <div className="p-3 flex-1 flex flex-col gap-1.5">

@@ -1,8 +1,10 @@
+import { ModelDetails,RelatedModels,PhotoLinks } from '@/components/library-advanced';
+import { modelAccess,photoAccess,assetAccess } from '@/lib/library/access';
 import { PhotoCapture } from '@/components/photo-capture';
 import { LibraryProcess, LibraryPhotoAssociate, LibraryMetadata, LibraryDuplicates } from '@/components/library-manager';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { and, asc, desc, eq, ne, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, ne, sql, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
@@ -31,7 +33,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const t = await getT();
   const user = await pagePerm('archivos', 'V'); const { id } = await params; const { tab = 'visor' } = await searchParams;
   const db = await getDb();
-  const [f] = await db.select().from(s.modelFiles).where(and(eq(s.modelFiles.id, id), isNull(s.modelFiles.deletedAt)));
+  const [f] = await db.select().from(s.modelFiles).where(and(modelAccess(user),eq(s.modelFiles.id, id), isNull(s.modelFiles.deletedAt)));
   if (!f) notFound();
   const versions = await db.select().from(s.fileVersions).where(eq(s.fileVersions.modelFileId, id)).orderBy(desc(s.fileVersions.number));
   const cur = versions.find((v) => v.id === f.currentVersionId) ?? versions[0];
@@ -41,15 +43,19 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const customers = await db.select({ id: s.customers.id, name: s.customers.name }).from(s.customers).where(isNull(s.customers.deletedAt)).orderBy(asc(s.customers.name));
   const links = await db.select().from(s.referenceLinks).where(and(eq(s.referenceLinks.ownerType, 'model_file'), eq(s.referenceLinks.ownerId, id)));
   const used = await db.select({ q: s.quotes }).from(s.quoteItemModels).innerJoin(s.quoteItems, eq(s.quoteItems.id, s.quoteItemModels.quoteItemId)).innerJoin(s.quotes, eq(s.quotes.id, s.quoteItems.quoteId)).where(eq(s.quoteItemModels.modelFileId, id)).limit(20);
-  const photos = await db.select().from(s.photos).where(eq(s.photos.modelFileId, id)).orderBy(desc(s.photos.takenAt)).limit(12);
+  const photos = await db.select().from(s.photos).where(and(photoAccess(user),eq(s.photos.modelFileId, id),isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(12);
   const slicedRuns = cur ? await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.fileVersionId, cur.id)).orderBy(desc(s.sliceRuns.createdAt)).limit(8) : [];
   const processing = meta.status === 'processing';
-  const galleryPhotos = await db.select({id:s.photos.id,caption:s.photos.caption}).from(s.photos).where(and(eq(s.photos.workspaceId,user.workspaceId),isNull(s.photos.deletedAt),isNull(s.photos.modelFileId))).limit(100);
+  const galleryPhotos = await db.select({id:s.photos.id,caption:s.photos.caption,variants:s.photos.variants}).from(s.photos).where(and(photoAccess(user),eq(s.photos.workspaceId,user.workspaceId),isNull(s.photos.deletedAt))).limit(100);
   const locations = await db.select({entry:s.libraryEntries,source:s.librarySources.name}).from(s.libraryEntries).innerJoin(s.librarySources,eq(s.librarySources.id,s.libraryEntries.sourceId)).where(eq(s.libraryEntries.modelId,id));
+  const [details]=await db.select().from(s.libraryDetails).where(eq(s.libraryDetails.modelId,id));
+  const photoLinks=await db.select().from(s.libraryPhotoLinks).where(and(eq(s.libraryPhotoLinks.modelId,id),sql`exists(select 1 from photos where photos.id=${s.libraryPhotoLinks.photoId} and ${photoAccess(user)})`));
+  const assets=await db.select().from(s.libraryAssets).where(and(eq(s.libraryAssets.modelId,id),assetAccess(user)));
   const tabs = [['visor', t('files.n3dViewer')], ['laminar', t('files.sliceQuote')], ['versiones', t('files.versions', { versions: versions.length })], ['vinculos', t('files.linksReferences')]];
   const color = '#ff6a2b';
   const [srcRow] = f.sourceId ? await db.select().from(s.modelSources).where(eq(s.modelSources.id, f.sourceId)) : [];
-  const duplicates = f.hash ? await db.select({id:s.modelFiles.id,name:s.modelFiles.name}).from(s.modelFiles).where(and(eq(s.modelFiles.workspaceId,user.workspaceId),eq(s.modelFiles.hash,f.hash),ne(s.modelFiles.id,f.id),isNull(s.modelFiles.deletedAt))).limit(20) : [];
+  const duplicates = f.hash ? await db.select({id:s.modelFiles.id,name:s.modelFiles.name}).from(s.modelFiles).where(and(modelAccess(user),eq(s.modelFiles.workspaceId,user.workspaceId),eq(s.modelFiles.hash,f.hash),ne(s.modelFiles.id,f.id),isNull(s.modelFiles.deletedAt))).limit(20) : [];
+  const aiSimilarityOk=await (await import('@/lib/ai')).aiAvailableFor(user,'library.similarity');
   const aiTagsOk = await (await import('@/lib/ai')).aiAvailableFor(user, 'files.tag');
   const viewerMats = (await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.tech, 'fdm')))).map((m) => ({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, hex: m.hex }));
   return (
@@ -57,13 +63,16 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       <PageHeader back={{ href: '/archivos', label: t('nav.files') }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>{t('files.license')} {f.license}</span>}</span>}
         actions={<>{cur && <a className="btn-ghost" href={`/api/files/v/${cur.id}/raw`} data-testid="download-file"><Icon name="download" className="h-4 w-4" />{t('files.download')}</a>}{can(user, 'archivos', 'X') && <DeleteFileButton id={f.id} />}</>} />
       <AutoRefresh active={processing} />
-      {meta.libraryDescription && <Card><p>{String(meta.libraryDescription)}</p></Card>}
+      {can(user,'archivos','E')&&<ModelDetails modelId={id} data={details?.data} versionId={cur?.id} assets={assets}/>}
+      {(details?.data.description||meta.libraryDescription)&&<Card><p>{String(details?.data.description||meta.libraryDescription)}</p></Card>}
+      {aiSimilarityOk && can(user,'archivos','E') && <RelatedModels modelId={id}/>}
       {aiTagsOk && can(user,'archivos','E') && <LibraryMetadata modelId={id}/>}
       {duplicates.length>0 && can(user,'archivos','E') && <LibraryDuplicates modelId={id} duplicates={duplicates}/>}
       {cur && !cur.storageKey && !processing && can(user,'archivos','E') && <LibraryProcess id={cur.id}/>}
       {locations.length>0 && <Card title={t('library.source')}><ul className="text-sm space-y-1">{locations.map(l=><li key={l.entry.id}>{l.source} · {l.entry.path} · {l.entry.state}</li>)}</ul></Card>}
       {can(user,'galeria','C')&&<Card title={t('library.photos')}><PhotoCapture intent={{intent:'photo',modelFileId:id}}/>{galleryPhotos.length>0&&can(user,'galeria','E')&&<LibraryPhotoAssociate modelId={id} photos={galleryPhotos}/>}</Card>}
-      {cur?.thumbKey && <div className="flex gap-2 my-3"><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=gif`}>{t('library.gif')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=views`}>{t('library.views')}</a></div>}
+      {can(user,'galeria','E')&&<PhotoLinks modelId={id} photos={[...new Map([...photos,...galleryPhotos].map(p=>[p.id,p])).values()]} links={photoLinks} versions={versions}/>}
+      {cur?.thumbKey && <div className="flex gap-2 my-3"><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=gif`}>{t('library.gif')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=views`}>{t('library.views')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=technical`}>{t('library.technicalViews')}</a></div>}
       {meta.status === 'error' && <div className="rounded-lg box-danger p-3 text-sm text-red-800 dark:text-red-200 mb-4" role="alert">{t('files.theFileCouldNotBe')} {meta.error}</div>}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4" aria-label={t('files.fileSections')}>
         {tabs.map(([k, l]) => <Link key={k} href={`/archivos/${id}?tab=${k}`} aria-current={tab === k ? 'page' : undefined} className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] flex items-center ${tab === k ? 'border-[var(--accent)] text-[var(--accent-ink)] font-medium' : 'border-transparent muted'}`}>{l}</Link>)}
@@ -137,7 +146,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
         <div className="grid gap-4 xl:grid-cols-3">
           <Card title={t('files.versionHistory')} className="xl:col-span-2" pad={false}>
             <Table><thead><tr><th className="th">{t('files.version')}</th><th className="th">{t('common.date')}</th><th className="th">{t('files.size')}</th><th className="th">{t('files.comment')}</th><th className="th" /></tr></thead>
-              <tbody>{versions.map((v) => <tr key={v.id}><td className="td font-medium">v{v.number} {v.id === cur?.id && <Badge tone="green">{t('files.current')}</Badge>}</td><td className="td tabular">{dmy(v.createdAt)}</td><td className="td tabular">{num(v.size / 1024, 0)} KB</td><td className="td">{v.comment ?? '—'}</td><td className="td text-right whitespace-nowrap"><a className="btn-ghost btn-sm" href={`/api/files/v/${v.id}/raw`} aria-label={t('files.download')} title={t('files.download')}><Icon name="download" className="h-4 w-4" /></a> {v.id !== cur?.id && can(user, 'archivos', 'E') && <SetVersionButton modelId={f.id} versionId={v.id} />}</td></tr>)}</tbody></Table>
+              <tbody>{versions.map((v) => <tr key={v.id}><td className="td font-medium">{v.thumbKey&&<img className="w-24" src={`/api/files/v/${v.id}/thumb`} alt={`v${v.number}`}/>}v{v.number} {v.id === cur?.id && <Badge tone="green">{t('files.current')}</Badge>}</td><td className="td tabular">{dmy(v.createdAt)}</td><td className="td tabular">{num(v.size / 1024, 0)} KB</td><td className="td">{v.comment ?? '—'}<p className="text-xs break-all">{v.sha256}</p><p>{v.meta?.analysis?.dimX ?? '—'} × {v.meta?.analysis?.dimY ?? '—'} × {v.meta?.analysis?.dimZ ?? '—'} mm</p></td><td className="td text-right whitespace-nowrap"><a className="btn-ghost btn-sm" href={`/api/files/v/${v.id}/raw`} aria-label={t('files.download')} title={t('files.download')}><Icon name="download" className="h-4 w-4" /></a> {v.id !== cur?.id && can(user, 'archivos', 'E') && <SetVersionButton modelId={f.id} versionId={v.id} />}</td></tr>)}</tbody></Table>
           </Card>
           {can(user, 'archivos', 'C') && <Card title={t('files.uploadANewVersion')}><Uploader intent={{ intent: 'model', modelFileId: f.id }} multiple={false} accept=".stl,.3mf,.obj,.ply,.amf,.glb,.step,.stp,.gcode" label={t('files.dropTheUpdatedFile')} hint={t('files.itIsSavedAsV2')} /></Card>}
         </div>

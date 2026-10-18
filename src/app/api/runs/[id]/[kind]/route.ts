@@ -1,5 +1,6 @@
+import {runAccess} from '@/lib/library/access';
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
@@ -13,7 +14,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
   const user = await getSession();
   if (!user || !can(user, 'laminador', 'V')) return NextResponse.json({ error: t('common.unauthorized') }, { status: 401 });
   const { id, kind } = await params; const db = await getDb();
-  const [r] = await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.id, id));
+  const [r] = await db.select().from(s.sliceRuns).where(and(eq(s.sliceRuns.id, id),runAccess(user)));
   if (!r || r.status !== 'done') return NextResponse.json({ error: t('api.sliceNotAvailable') }, { status: 404 });
   const res = (r.result ?? {}) as Record<string, any>;
   if (kind === 'preview') {
@@ -21,7 +22,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ id: string
     if (!key || !(await exists(key))) {
       if (!r.gcodeKey) return NextResponse.json({ error: t('api.noGCode') }, { status: 404 });
       key = await putBuffer(newKey('preview', 'mfg'), gcodePreviewToBin(buildGcodePreview((await getBuffer(r.gcodeKey)).toString('utf8'))));
-      await db.update(s.sliceRuns).set({ result: { ...res, previewKey: key } }).where(eq(s.sliceRuns.id, id));
+      await db.update(s.sliceRuns).set({ result: { ...res, previewKey: key } }).where(and(eq(s.sliceRuns.id, id),runAccess(user)));
     }
     return new Response(webStream(key), { headers: { 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=3600', 'content-length': String((await stat(key)).size) } });
   }

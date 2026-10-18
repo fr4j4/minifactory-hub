@@ -1,4 +1,6 @@
-# Entrega de la biblioteca 3D multifuente — entorno de pruebas
+# Primera entrega de la biblioteca 3D multifuente — entorno de pruebas
+
+> Documento histórico de la primera entrega. El estado posterior está en [implementación y validación de la spec](validacion-spec-biblioteca-3d.md).
 
 Fecha de trabajo: 17–18 de octubre de 2026 (UTC).
 

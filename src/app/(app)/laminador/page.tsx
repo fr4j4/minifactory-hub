@@ -1,3 +1,4 @@
+import {modelAccess,photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { and, desc, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
@@ -22,8 +23,8 @@ export default async function SlicerPage({ searchParams }: { searchParams: Promi
   const user = await pagePerm('laminador', 'V'); const { tab = 'perfiles', file, nozzle: nozzleFilter, own } = await searchParams; const db = await getDb();
   const ctx = await getCalcContext(); const engine = await engineVersion();
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)).orderBy(s.slicerProfiles.type, s.slicerProfiles.name);
-  const runs = tab === 'laminados' ? await db.select({ r: s.sliceRuns, f: s.modelFiles.name }).from(s.sliceRuns).innerJoin(s.fileVersions, eq(s.fileVersions.id, s.sliceRuns.fileVersionId)).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.fileVersions.modelFileId)).orderBy(desc(s.sliceRuns.createdAt)).limit(60) : [];
-  const files = tab === 'comparar' ? (await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).innerJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(isNull(s.modelFiles.deletedAt)).orderBy(s.modelFiles.name)).filter((x) => !['gcode', 'gco', 'bgcode', 'png', 'jpg', 'jpeg', 'webp', 'pdf', 'svg', 'step', 'stp'].includes(x.v.format)).map((x) => ({ id: x.f.id, name: x.f.name, versionId: x.v.id })) : [];
+  const runs = tab === 'laminados' ? await db.select({ r: s.sliceRuns, f: s.modelFiles.name }).from(s.sliceRuns).innerJoin(s.fileVersions, eq(s.fileVersions.id, s.sliceRuns.fileVersionId)).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.fileVersions.modelFileId)).where(modelAccess(user)).orderBy(desc(s.sliceRuns.createdAt)).limit(60) : [];
+  const files = tab === 'comparar' ? (await db.select({ f: s.modelFiles, v: s.fileVersions }).from(s.modelFiles).innerJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(and(modelAccess(user),isNull(s.modelFiles.deletedAt))).orderBy(s.modelFiles.name)).filter((x) => !['gcode', 'gco', 'bgcode', 'png', 'jpg', 'jpeg', 'webp', 'pdf', 'svg', 'step', 'stp'].includes(x.v.format)).map((x) => ({ id: x.f.id, name: x.f.name, versionId: x.v.id })) : [];
   const ready = tab === 'perfiles' ? await slicingReadiness() : null;
   const nz = new Map(profs.map((p) => [p.id, p.type === 'filament' ? null : rowNozzle(p)] as const));
   const machineProfiles = profs.filter((p) => p.type === 'machine').map((p) => ({ id: p.id, name: p.name, baseName: p.baseName, nozzle: nz.get(p.id) ?? null }));
