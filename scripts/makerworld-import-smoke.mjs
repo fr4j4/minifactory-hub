@@ -14,7 +14,7 @@ const root=path.join(os.homedir(),'.cache/ms-playwright');
 const installed=(await fs.readdir(root)).filter(n=>n.startsWith('chromium_headless_shell-')).sort().at(-1);
 const browser=await chromium.launch({executablePath:path.join(root,installed,'chrome-headless-shell-linux64/chrome-headless-shell'),headless:true,args:['--no-sandbox']});
 try{
- const page=await browser.newPage({baseURL,viewport:{width:1280,height:1000}});
+ const page=await browser.newPage({baseURL,locale:'es-CL',viewport:{width:1280,height:1000}});
  await page.goto('/login');await page.locator('input[name=email]').fill('biblioteca-test@minifactory.local');await page.locator('input[name=password]').fill(password);await page.locator('form button').first().click();await page.waitForURL(u=>!u.pathname.includes('/login'));
  await page.goto('/archivos');await page.getByRole('button',{name:'Importar por URL',exact:true}).click();
  const dialog=page.getByTestId('url-import-dialog');await dialog.getByLabel('URL',{exact:true}).fill('https://makerworld.com/es/models/3317662-pumpkin-patch-pal?from=recommend#profileId-3766961');
@@ -32,8 +32,12 @@ try{
  await page.setViewportSize({width:1280,height:1000});
  if(await dialog.getByText('Cuenta MakerWorld verificada',{exact:true}).count()){
    await dialog.getByRole('button',{name:'Continuar',exact:true}).click();
-   await Promise.race([dialog.getByRole('heading',{name:'Todo listo para importar',exact:true}).waitFor({timeout:60000}),dialog.getByRole('alert').waitFor({timeout:60000})]);
-   if(await dialog.getByRole('alert').isVisible()){
+   await Promise.race([dialog.getByRole('heading',{name:'Todo listo para importar',exact:true}).waitFor({timeout:60000}),dialog.getByRole('alert').waitFor({timeout:60000}),dialog.getByTestId('makerworld-browser').waitFor({timeout:60000})]);
+   if(await dialog.getByTestId('makerworld-browser').isVisible()){
+     assert(await dialog.getByRole('button',{name:'Resolver en el navegador',exact:true}).isVisible());
+     await page.screenshot({path:'data/library-test-evidence/makerworld-provider-challenge.png',animations:'disabled'});
+     console.log(JSON.stringify({ok:true,authentication:'existing session validated against Bambu',download:'human verification required; original binary not imported',recovery:'server browser and automatic ingestion available'}));
+   }else if(await dialog.getByRole('alert').isVisible()){
      const message=await dialog.getByRole('alert').innerText();
      if(!/verificar esta red|verificación en su web/.test(message))throw new Error(message);
      await dialog.getByRole('button',{name:'Revisar acceso',exact:true}).click();

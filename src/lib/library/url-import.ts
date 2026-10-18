@@ -11,7 +11,7 @@ import { byteLimit } from './content';
 import { parseSourceUrl, fetchSourceMeta, normalizeLicense } from './source';
 import { MODEL_EXT, ingestModel, ingestZip } from '../files';
 import { extOf } from '../mesh/parse';
-async function saveImportSource(modelId: string, op: typeof s.libraryOperations.$inferSelect) {
+export async function saveImportSource(modelId: string, op: typeof s.libraryOperations.$inferSelect) {
     const preview = op.input.preview;
     if (!preview?.profile) return;
     const db = await getDb();

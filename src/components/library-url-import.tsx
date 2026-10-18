@@ -4,13 +4,14 @@ import Link from 'next/link';
 import {ArrowLeft,ArrowRight,Check,CheckCircle2,ExternalLink,Eye,EyeOff,FileBox,Globe2,Link2,LoaderCircle,LockKeyhole,ShieldCheck,TriangleAlert} from 'lucide-react';
 import {Modal} from './client';
 import {BambuAccountForm} from './bambu-account';
+import {MakerworldBrowser} from './makerworld-browser';
 import {useLocale,useT} from '@/i18n/client';
-import {makerworldConnection,disconnectMakerworld,inspectLibraryImport,prepareLibraryImport,confirmLibraryImport,libraryImportStatus} from '@/actions/library-import';
+import {makerworldConnection,disconnectMakerworld,inspectLibraryImport,prepareLibraryImport,confirmLibraryImport,libraryImportStatus,resumeBrowserImport} from '@/actions/library-import';
 
 type Failure={ok:false;error:string;code?:string;retryAfter?:number};
 type Preview=Extract<Awaited<ReturnType<typeof inspectLibraryImport>>,{ok:true}>['data'];
 type Plan=Extract<Awaited<ReturnType<typeof prepareLibraryImport>>,{ok:true}>['data'];
-type Screen='link'|'review'|'access'|'ready'|'progress';
+type Screen='link'|'review'|'access'|'ready'|'progress'|'browser';
 type Access='password'|'code'|'tfa'|'browser'|'token';
 
 export function LibraryUrlImport(){
@@ -24,6 +25,8 @@ export function LibraryUrlImport(){
   const generation=useRef(0),locked=useRef(false),errorRef=useRef<HTMLDivElement>(null);
   const selected=preview?.profiles.find(p=>p.id===profile),makerworld=!!preview?.profiles.length;
   const step=screen==='link'?0:screen==='review'?1:2;
+
+  useEffect(()=>{const id=new URL(window.location.href).searchParams.get('browserImport');if(!id)return;let cancelled=false;resumeBrowserImport(id).then(r=>{if(!cancelled&&r.ok){setPlan(r.data);setOpen(true);setScreen('browser');}});return()=>{cancelled=true;};},[]);
 
   useEffect(()=>{if(issue)errorRef.current?.focus();},[issue]);
   useEffect(()=>{if(!open)return;let cancelled=false;setConnection(null);makerworldConnection().then(r=>{if(!cancelled)setConnection(r.ok?r.data:{connected:false,status:'unavailable'});}).catch(()=>{if(!cancelled)setConnection({connected:false,status:'unavailable'});});return()=>{cancelled=true;};},[open]);
@@ -46,7 +49,7 @@ export function LibraryUrlImport(){
   function close(){generation.current++;locked.current=false;setBusy('');setOpen(false);setDownload('');}
   function startOver(){setPreview(null);setPlan(null);setOperation('');setStatus(null);setProfile('');setDownload('');move('link');}
   async function inspect(){const result=await run(text('Buscando el modelo…','Finding your model…'),()=>inspectLibraryImport(url.trim()));if(result){setPreview(result);setProfile(result.selected);setPlan(null);move('review');}}
-  async function prepare(manual=''){const result=await run(text('Obteniendo el archivo…','Resolving your file…'),()=>prepareLibraryImport({url:url.trim(),instanceId:profile,download:manual}));if(result){setPlan(result);setDownload('');move('ready');}}
+  async function prepare(manual='',browser=false){const result=await run(text('Obteniendo el archivo…','Resolving your file…'),()=>prepareLibraryImport({url:url.trim(),instanceId:profile,download:manual,browser}));if(result){setPlan(result);setDownload('');move(result.browserRequired?'browser':'ready');}}
   const primary=(label:string,fn:()=>void,disabled=false)=><button type="button" className="btn-primary gap-2 w-full sm:w-auto justify-center" disabled={!!busy||disabled} onClick={fn}>{busy?<><LoaderCircle size={17} className="animate-spin"/>{busy}</>:<>{label}<ArrowRight size={17}/></>}</button>;
   const back=(next:Screen)=><button type="button" className="btn-ghost gap-2" disabled={!!busy} onClick={()=>move(next)}><ArrowLeft size={16}/>{text('Volver','Back')}</button>;
   const errorBox=issue&&<div ref={errorRef} tabIndex={-1} role="alert" className="box-danger rounded-xl p-4 text-sm focus:outline-none"><p className="font-medium flex gap-2 items-center"><TriangleAlert size={16}/>{text('No se pudo continuar','Could not continue')}</p><p className="mt-1">{issue.error}</p>{issue.code==='rate_limit'&&cooldown>0&&<p className="mt-1">{text(`Reintenta en ${cooldown} s.`,`Try again in ${cooldown}s.`)}</p>}{screen!=='access'&&makerworld&&['authentication','permission','browser_required'].includes(issue.code||'')&&<button className="btn-ghost mt-3" onClick={()=>{setAccess(issue.code==='authentication'?'password':'browser');move('access');}}>{text('Revisar acceso','Review access')}</button>}</div>;
@@ -72,7 +75,9 @@ export function LibraryUrlImport(){
         {connection?.connected&&<details className="text-xs muted"><summary className="cursor-pointer">{text('Cuenta conectada','Connected account')}</summary><button className="underline mt-2" disabled={!!busy} onClick={async()=>{const r=await run(text('Desconectando…','Disconnecting…'),()=>disconnectMakerworld());if(r!==null){setConnection({connected:false,status:'disconnected'});setPlan(null);}}}>{text('Desconectar MakerWorld','Disconnect MakerWorld')}</button></details>}
       </>}
 
+      {screen==='browser'&&plan&&<MakerworldBrowser id={plan.id} url={plan.url} title={plan.title} profile={plan.profile?.title||''} onDone={id=>{setOperation(plan.id);setStatus({status:'done',error:null,modelId:id});move('progress');}}/>}
       {screen==='access'&&<div className="space-y-5">
+        <div className="rounded-xl bg-[var(--accent-soft)] p-4"><p className="text-sm mb-3">{text('Si Bambu pide una verificación web, puedes iniciar sesión en el navegador del servidor y dejar que la app descargue el modelo.','If Bambu requests web verification, sign in using the server browser and let the app download the model.')}</p>{primary(text('Continuar en el navegador','Continue in browser'),()=>void prepare('',true))}</div>
         <BambuAccountForm onDone={()=>{setConnection({connected:true,status:'verified'});move('review');void prepare();}}/>
         <p className="text-center text-xs muted"><Link href="/configuracion?tab=integraciones" target="_blank" className="underline">{text('Gestionar cuentas en Configuración → Integraciones','Manage accounts in Settings → Integrations')}</Link></p>
         <details className="border-t border-[var(--line)] pt-4" open={access==='browser'?true:undefined}><summary className="cursor-pointer text-sm muted">{text('Importar solo este archivo desde el navegador','Import only this file from your browser')}</summary><div className="space-y-3 mt-3"><p className="text-xs muted">{text('Esta alternativa importa el archivo sin asociar tu cuenta. Abre la descarga en MakerWorld y pega la respuesta JSON.','This alternative imports the file without linking your account. Open the download on MakerWorld and paste its JSON response.')}</p><a className="btn-ghost gap-2" href={browserUrl} target="_blank" rel="noreferrer"><ExternalLink size={16}/>{text('Abrir descarga en MakerWorld','Open download on MakerWorld')}</a><label className="block"><span className="label">{text('Respuesta o enlace de descarga','Download response or link')}</span><textarea className="input" rows={3} value={download} disabled={!!busy} onChange={e=>setDownload(e.target.value)}/></label>{primary(text('Revisar descarga','Review download'),()=>void prepare(download),!download.trim())}</div></details>

@@ -10,6 +10,10 @@ if [ ! -f "$envfile" ]; then
     echo "LIBRARY_TEST_SESSION_SECRET=$(openssl rand -hex 48)"
   } > "$envfile"
 fi
+if ! rg -q '^LIBRARY_TEST_BROWSER_KEY=' "$envfile"; then
+  umask 077
+  echo "LIBRARY_TEST_BROWSER_KEY=$(openssl rand -hex 32)" >> "$envfile"
+fi
 if ! rg -q '^LIBRARY_TEST_ADMIN_PASSWORD=' "$envfile"; then
   umask 077
   test_password=$(openssl rand -hex 16)

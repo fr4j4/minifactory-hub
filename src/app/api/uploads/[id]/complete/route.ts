@@ -10,6 +10,7 @@ import { ingestPhoto } from '@/lib/photos';
 import { newKey, putFile } from '@/lib/storage';
 import { getT } from '@/i18n/server';
 import { errorText } from '@/i18n/errors';
+import {completeBrowserImport} from '@/lib/library/browser-import';
 
 /** Cierra la subida y crea lo que corresponda: modelo 3D (nuevo o versión), foto/video o adjunto. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -24,7 +25,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     if(body.modelFileId)await assertModelAccess(user,body.modelFileId);
     let result: any;
-    if (body.intent === 'photo') {
+    if (body.intent === 'library.import') {
+      if (!can(user, 'archivos', 'C')) throw new Error(t('api.noPermission'));
+      result=await completeBrowserImport(body.operationId,user,u.tmpPath,u.filename);
+      await fs.rm(u.tmpPath,{force:true});
+    } else if (body.intent === 'photo') {
       if (!can(user, 'galeria', 'C')) throw new Error(t('api.noPermission'));
       const p = await ingestPhoto({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, photoId: body.photoId, stage: body.stage, orderId: body.orderId, jobId: body.jobId, modelFileId: body.modelFileId, customerId: body.customerId, productId: body.productId, materialId: body.materialId, machineId: body.machineId, caption: body.caption });
       result = { photoId: p.id };

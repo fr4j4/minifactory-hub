@@ -72,8 +72,8 @@ export async function inspectLibraryImport(raw:string){return safe(async()=>{
   return {url:new URL(url).origin+new URL(url).pathname,title:meta?.title||filename,author:meta?.authorName||null,license:meta?.licenseText||null,description:meta?.description||null,image:meta?.imageUrls[0]||null,imageUrls:meta?.imageUrls||[],profiles:[],selected:'',manualRequired:!direct};
 });}
 export async function prepareLibraryImport(input:unknown){return safe(async()=>{
-  const u=await user();const p=z.object({url:urlSchema,instanceId:z.string().regex(/^\d*$/).max(30),download:z.string().max(65536).optional()}).parse(input);
-  let filename=decodeURIComponent(new URL(p.url).pathname.split('/').at(-1)||'archivo'),download=p.url;
+  const u=await user();const p=z.object({url:urlSchema,instanceId:z.string().regex(/^\d*$/).max(30),download:z.string().max(65536).optional(),browser:z.boolean().optional()}).parse(input);
+  let filename=decodeURIComponent(new URL(p.url).pathname.split('/').at(-1)||'archivo'),download=p.url,browserRequired=false;
   let preview:any={title:filename,author:null,license:null};let origin=new URL(p.url).origin+new URL(p.url).pathname;
   const ref=makerworldReference(p.url);
   if(ref){
@@ -81,14 +81,20 @@ export async function prepareLibraryImport(input:unknown){return safe(async()=>{
     const profile=preview.profiles.find((v:any)=>v.id===(p.instanceId||preview.selected));
     if(!profile)throw new Error('Selecciona un perfil disponible');
     if(profile.size&&profile.size>500*1024*1024)throw new Error('El perfil supera el límite de 500 MiB');
-    const resolved=p.download?.trim()?parseDownloadResponse(p.download,`makerworld-${profile.id}.3mf`):await resolveMakerworld(profile.id,profile.devModelName,u.id);
-    download=resolved.url;filename=resolved.filename;
+    try {
+      if(p.browser)throw new MakerworldError('browser_required','Verifica el acceso en el navegador');
+      const resolved=p.download?.trim()?parseDownloadResponse(p.download,`makerworld-${profile.id}.3mf`):await resolveMakerworld(profile.id,profile.devModelName,u.id);
+      download=resolved.url;filename=resolved.filename;
+    } catch(e) {
+      if(!(e instanceof MakerworldError)||e.code!=='browser_required')throw e;
+      browserRequired=true;filename=`makerworld-${profile.id}.3mf`;
+    }
     origin=ref.designId?`https://makerworld.com/models/${ref.designId}#profileId-${profile.id}`:preview.url;
     preview={...preview,profile,selected:profile.id};
   } else if(p.download?.trim())throw new Error('El JSON de descarga se admite para modelos MakerWorld');
   const direct=MODEL_EXT.includes(extOf(filename))||extOf(filename)==='zip';
-  const result={...preview,url:origin,filename,downloadHost:new URL(download).hostname,manualRequired:!direct};
-  const [op]=await(await getDb()).insert(s.libraryOperations).values({workspaceId:WORKSPACE_ID,createdBy:u.id,kind:'url.import',status:'planned',input:{url:origin,secretUrl:seal(download),filename,prepared:direct,preview:result},result}).returning();
+  const result={...preview,url:origin,filename,downloadHost:new URL(download).hostname,manualRequired:!direct,browserRequired};
+  const [op]=await(await getDb()).insert(s.libraryOperations).values({workspaceId:WORKSPACE_ID,createdBy:u.id,kind:'url.import',status:browserRequired?'awaiting_file':'planned',input:{url:origin,...(!browserRequired?{secretUrl:seal(download)}:{}),filename,prepared:direct,browserRequired,preview:result},result}).returning();
   return {id:op.id,...result};
 });}
 export async function confirmLibraryImport(id:string){return safe(async()=>{
@@ -101,3 +107,4 @@ export async function confirmLibraryImport(id:string){return safe(async()=>{
   });ensureJobWorker();return id;
 });}
 export async function libraryImportStatus(id:string){return safe(async()=>{const u=await user();z.uuid().parse(id);const[op]=await(await getDb()).select().from(s.libraryOperations).where(and(eq(s.libraryOperations.id,id),eq(s.libraryOperations.workspaceId,WORKSPACE_ID),eq(s.libraryOperations.createdBy,u.id),eq(s.libraryOperations.kind,'url.import')));if(!op)throw new Error('Importación no encontrada');return {status:op.status,error:op.error,modelId:op.result?.modelId||null};});}
+export async function resumeBrowserImport(id:string){return safe(async()=>{const u=await user(),op=await(await import('@/lib/library/browser-import')).browserOperation(id,u);return {id:op.id,...op.input.preview};});}
