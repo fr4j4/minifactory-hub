@@ -61,7 +61,7 @@ export async function inspectLibraryImport(raw:string){return safe(async()=>{
   const filename=decodeURIComponent(new URL(url).pathname.split('/').at(-1)||'archivo');
   const direct=MODEL_EXT.includes(extOf(filename))||extOf(filename)==='zip';
   const meta=direct?null:await fetchSourceMeta(parseSourceUrl(url)!);
-  return {url:new URL(url).origin+new URL(url).pathname,title:meta?.title||filename,author:meta?.authorName||null,license:meta?.licenseText||null,description:meta?.description||null,image:meta?.imageUrls[0]||null,profiles:[],selected:'',manualRequired:!direct};
+  return {url:new URL(url).origin+new URL(url).pathname,title:meta?.title||filename,author:meta?.authorName||null,license:meta?.licenseText||null,description:meta?.description||null,image:meta?.imageUrls[0]||null,imageUrls:meta?.imageUrls||[],profiles:[],selected:'',manualRequired:!direct};
 });}
 export async function prepareLibraryImport(input:unknown){return safe(async()=>{
   const u=await user();const p=z.object({url:urlSchema,instanceId:z.string().regex(/^\d*$/).max(30),download:z.string().max(65536).optional()}).parse(input);

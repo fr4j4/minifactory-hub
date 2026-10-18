@@ -7,11 +7,12 @@ import { getDb, s, WORKSPACE_ID } from '@/db';
  * Cola persistente de trabajos en segundo plano. Un trabajo vive en la base: sobrevive a reinicios (los «running» vuelven a la cola),
  * se reintenta con espera creciente y, agotados los intentos, queda en «error» para reintentarlo a mano.
  */
-export type JobKind = 'file.process' | 'source.scan' | 'library.operation' | 'url.import' | 'metadata.suggest';
+export type JobKind = 'file.process' | 'source.scan' | 'library.operation' | 'url.import' | 'source.images' | 'metadata.suggest';
 type Handler = (payload: Record<string, any>) => Promise<void>;
 type FailHook = (payload: Record<string, any>, error: Error) => Promise<void>;
 
 const handlers: Record<JobKind, { run: Handler; onFail?: FailHook }> = {
+  'source.images': { run: async p => (await import('./library/source-images')).importSourceImages(String(p.modelId), String(p.sourceId)) },
  'metadata.suggest':{run:async p=>{const db=await getDb();const [u]=await db.select().from(s.users).where(and(eq(s.users.id,String(p.userId)),eq(s.users.active,true)));if(!u)return;const user={...u,role:u.role as import('./perm').Role,permOverrides:u.permOverrides||{},notifPrefs:u.notifPrefs||{},calcLevel:u.calcLevel as 'basico'|'avanzado'};if(!await(await import('./ai')).aiAvailableFor(user,'files.tag'))return;await(await import('./library/access')).assertModelAccess(user,String(p.modelId));await(await import('./library/metadata')).proposeMetadata(String(p.modelId),user);}},
   'source.scan': { run: async p => (await import('./library/catalog')).scanSource(String(p.scanId)), onFail: async (p,e) => { const db=await getDb(); await db.update(s.libraryScans).set({status:'error',error:e.message}).where(eq(s.libraryScans.id,String(p.scanId))); } },
   'library.operation': { run: async p => (await import('./library/operations')).executeOperation(String(p.operationId)) },

@@ -85,7 +85,11 @@ export function parseOpenGraph(html: string): SourceMeta {
   const meta = (k: string) => { const r = new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${k}["']`, 'i').exec(html); return r ? decode(r[1] ?? r[2] ?? '').trim() || null : null; };
   m.title = meta('og:title') ?? (/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] ? decode(/<title[^>]*>([^<]*)<\/title>/i.exec(html)![1]).trim() : null);
   m.description = meta('og:description') ?? meta('description');
-  const img = meta('og:image'); if (img) m.imageUrls.push(img);
+  for (const tag of html.matchAll(/<meta\b[^>]*>/gi)) {
+    if (!/(?:property|name)=["'](?:og:image(?::url)?|twitter:image)["']/i.test(tag[0])) continue;
+    const image = /content=["']([^"']+)["']/i.exec(tag[0]);
+    if (image) m.imageUrls.push(decode(image[1]));
+  }
   m.authorName = meta('author') ?? meta('article:author');
   const kw = meta('keywords'); if (kw) m.tags = kw.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20);
   for (const blk of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -93,8 +97,13 @@ export function parseOpenGraph(html: string): SourceMeta {
       const j = JSON.parse(blk[1]); const node = Array.isArray(j) ? j[0] : j;
       if (node?.license) m.licenseText = String(typeof node.license === 'string' ? node.license : node.license?.url ?? '');
       if (!m.authorName && node?.author) m.authorName = String(node.author?.name ?? node.author);
+      for (const image of Array.isArray(node?.image) ? node.image : [node?.image]) {
+        const url = typeof image === 'string' ? image : image?.contentUrl ?? image?.url;
+        if (typeof url === 'string') m.imageUrls.push(url);
+      }
     } catch { /* JSON-LD inválido */ }
   }
+  m.imageUrls = [...new Set(m.imageUrls.filter(url => /^https:\/\//i.test(url)))].slice(0, 12);
   m.status = m.title ? (m.description || m.imageUrls.length ? 'ok' : 'parcial') : 'error';
   return m;
 }

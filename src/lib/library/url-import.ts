@@ -11,6 +11,19 @@ import { byteLimit } from './content';
 import { parseSourceUrl, fetchSourceMeta, normalizeLicense } from './source';
 import { MODEL_EXT, ingestModel, ingestZip } from '../files';
 import { extOf } from '../mesh/parse';
+async function saveImportSource(modelId: string, op: typeof s.libraryOperations.$inferSelect) {
+    const preview = op.input.preview;
+    if (!preview?.profile) return;
+    const db = await getDb();
+    await db.transaction(async tx => {
+        const [model] = await tx.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelId)).for('update');
+        if (!model || model.sourceId) return;
+        const images = (Array.isArray(preview.imageUrls) ? preview.imageUrls : preview.image ? [preview.image] : []).filter((url: unknown) => typeof url === 'string').slice(0, 12).map((url: string) => ({ url }));
+        const [source] = await tx.insert(s.modelSources).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,provider:'makerworld',url:op.input.url,title:preview.title,authorName:preview.author,description:preview.description,images,licenseText:preview.license,licenseCode:normalizeLicense(preview.license).code,commercialUse:normalizeLicense(preview.license).commercial,fetchStatus:'ok',fetchedAt:new Date()}).returning();
+        await tx.update(s.modelFiles).set({sourceId:source.id}).where(eq(s.modelFiles.id,modelId));
+        if (images.length) await tx.insert(s.jobs).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,kind:'source.images',payload:{modelId,sourceId:source.id}});
+    });
+}
 export async function executeImport(id: string) {
     const db = await getDb();
     const [op] = await db.select().from(s.libraryOperations).where(and(eq(s.libraryOperations.id, id), eq(s.libraryOperations.workspaceId, WORKSPACE_ID)));
@@ -33,6 +46,7 @@ export async function executeImport(id: string) {
         }
         const [existing] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.modelFileId, id));
         if (existing) {
+            await saveImportSource(id, op);
             await db.update(s.libraryOperations).set({ status: 'done', result: { modelId: id } }).where(eq(s.libraryOperations.id, id));
             return;
         }
@@ -52,15 +66,13 @@ export async function executeImport(id: string) {
         if(current?.status==='cancelled')return;
         if(extOf(filename)==='zip'){
           const result=await ingestZip({tmpPath:file,filename,userId:op.createdBy,importId:id});
+          for (const model of result.models) await saveImportSource(model.modelFileId, op);
           await db.update(s.libraryOperations).set({status:result.failed.length?'partial':'done',result:{...result,modelId:result.modelFileId},updatedAt:new Date()}).where(eq(s.libraryOperations.id,id));return;
         }
         const preview=op.input.preview;
         await db.insert(s.modelFiles).values({ id, workspaceId: WORKSPACE_ID, name: preview?.title || filename.replace(/\.[^.]+$/, ''), author:preview?.author||null, format: extOf(filename), origin: op.input.url, license: normalizeLicense(preview?.license).code, createdBy: op.createdBy }).onConflictDoNothing();
         await ingestModel({ tmpPath: file, filename, modelFileId: id, userId: op.createdBy });
-        if(preview?.profile){
-            const [source]=await db.insert(s.modelSources).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,provider:'makerworld',url:op.input.url,title:preview.title,authorName:preview.author,description:preview.description,licenseText:preview.license,licenseCode:normalizeLicense(preview.license).code,commercialUse:normalizeLicense(preview.license).commercial,fetchStatus:'ok',fetchedAt:new Date()}).returning();
-            await db.update(s.modelFiles).set({sourceId:source.id}).where(eq(s.modelFiles.id,id));
-        }
+        await saveImportSource(id, op);
         await db.update(s.libraryOperations).set({ status: 'done', result: { modelId: id }, updatedAt: new Date() }).where(eq(s.libraryOperations.id, id));
     }
     catch (e) {

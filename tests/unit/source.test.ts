@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { fetchSourceMeta, isPrivateIp, normalizeLicense, parseMakerworldDesign, parseOpenGraph, parseSourceUrl, safeGet } from '@/lib/library/source';
 
 describe('origen del modelo (N3)', () => {
+  it('recoge varias imágenes públicas sin duplicados desde OpenGraph y JSON-LD', () => {
+    const meta = parseOpenGraph(`<title>Modelo</title><meta property="og:image" content="https://cdn.example/a.jpg"><meta content="https://cdn.example/b.jpg" property="og:image"><script type="application/ld+json">{"image":["https://cdn.example/a.jpg",{"contentUrl":"https://cdn.example/c.jpg"}]}</script>`);
+    expect(meta.imageUrls).toEqual(['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg', 'https://cdn.example/c.jpg']);
+  });
   it('reconoce el sitio y el id', () => {
     expect(parseSourceUrl('https://makerworld.com/es/models/123456-soporte-celular?from=x')).toEqual({ provider: 'makerworld', externalId: '123456', url: 'https://makerworld.com/models/123456' });
     expect(parseSourceUrl('https://makerworld.com/es/models/3317662-pumpkin-patch-pal?from=recommend#profileId-3766961')).toEqual({ provider: 'makerworld', externalId: '3317662', url: 'https://makerworld.com/models/3317662#profileId-3766961' });

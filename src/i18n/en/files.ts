@@ -52,7 +52,7 @@ export const files: Shape<typeof es['files']> = {
   toolpathsFromTheGCode: 'Toolpaths from the G-code included in the 3MF',
   noLayerPreview: 'No layer preview',
   thisGCodeCannotBe: 'This G-code cannot be previewed.',
-  photosOfWhatWasMade: 'Photos of what was made with this model',
+  photosOfWhatWasMade: 'Model images and printed results',
   photo: 'Photo',
   automaticAnalysis: 'Automatic analysis',
   dimensions: 'Dimensions',

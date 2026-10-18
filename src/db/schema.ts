@@ -285,7 +285,7 @@ export const modelSources = pgTable('model_sources', {
   licenseText: text('license_text'),
   commercialUse: text('commercial_use').notNull().default('desconocido'), // si | no | requiere_membresia | desconocido
   tags: jsonb('tags').$type<string[]>().default([]),
-  images: jsonb('images').$type<Array<{ url: string }>>().default([]),
+  images: jsonb('images').$type<Array<{ url: string; photoId?: string; storageKey?: string; error?: string }>>().default([]),
   plates: jsonb('plates').$type<Array<Record<string, unknown>>>().default([]),
   stats: jsonb('stats').$type<Record<string, number>>().default({}),
   remoteCreatedAt: text('remote_created_at'),

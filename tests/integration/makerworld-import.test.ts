@@ -15,7 +15,7 @@ import {prepareLibraryImport,confirmLibraryImport,libraryImportStatus,disconnect
 import {executeImport} from '@/lib/library/url-import';
 const owner=state.userId,other='00000000-0000-4000-8000-000000000011';
 const signed='https://cdn.example.com/file.3mf?signature=do-not-expose';
-const design={id:3317662,title:'Pumpkin Test',designCreator:{name:'Author'},license:'Standard Digital File License',instances:[{id:3766961,profileId:1004749352,extention:{modelInfo:{f3mf:{size:100},plates:[{}],compatibility:{devModelName:'BL-P001'}}}}]};
+const design={id:3317662,title:'Pumpkin Test',coverUrl:'https://cdn.example.com/cover.jpg',designCreator:{name:'Author'},license:'Standard Digital File License',instances:[{id:3766961,profileId:1004749352,extention:{modelInfo:{f3mf:{size:100},plates:[{}],compatibility:{devModelName:'BL-P001'}}}}]};
 beforeAll(async()=>{process.env.MF_EXTERNAL_WORKER='1';process.env.SESSION_SECRET='isolated-makerworld-test-secret-long-enough';const db=await getDb();for(const id of[owner,other])await db.insert(s.users).values({id,workspaceId:WORKSPACE_ID,email:id+'@test.local',name:'Test',passwordHash:'test'});});
 beforeEach(()=>{state.userId=owner;vi.mocked(json).mockReset();vi.mocked(request).mockReset();});
 it('returns actionable login errors through the server action',async()=>{
@@ -81,6 +81,10 @@ it('prepares privately, confirms once, downloads without forwarding tokens and p
   expect((await libraryImportStatus(id))).toMatchObject({ok:true,data:{status:'done',modelId:id}});
   const [model]=await db.select().from(s.modelFiles).where(eq(s.modelFiles.id,id));expect(model).toMatchObject({name:'Pumpkin Test',author:'Author',license:'desconocida'});expect(model.sourceId).toBeTruthy();
   await executeImport(id);expect(request).toHaveBeenCalledTimes(1);
+  const imageJobs=await db.select().from(s.jobs).where(eq(s.jobs.kind,'source.images'));
+  expect(imageJobs.filter(j=>j.payload.modelId===id)).toHaveLength(1);
+  const [source]=await db.select().from(s.modelSources).where(eq(s.modelSources.id,model.sourceId!));
+  expect(source.images).toEqual([{url:'https://cdn.example.com/cover.jpg'}]);
 });
 it('rejects HTML masquerading as a 3MF',async()=>{
   vi.mocked(json).mockResolvedValue(design);

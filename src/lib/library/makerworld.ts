@@ -86,12 +86,12 @@ export function makerworldProfiles(d: any):MakerworldProfile[] {
 export async function inspectMakerworld(raw: string) {
   const ref = makerworldReference(raw);
   if (!ref) throw new Error('URL de MakerWorld inválida');
-  if (!ref.designId) return { title:`MakerWorld · ${ref.instanceId}`,author:null,license:null,description:null,image:null,profiles:[{id:ref.instanceId!,title:ref.instanceId!,size:null,plates:0,printer:'',devModelName:'BL-P001'}],selected:ref.instanceId!,url:`https://makerworld.com/api/v1/design-service/instance/${ref.instanceId}/f3mf?type=download&fileType=&devModelName=BL-P001` };
+  if (!ref.designId) return { title:`MakerWorld · ${ref.instanceId}`,author:null,license:null,description:null,image:null,imageUrls:[] as string[],profiles:[{id:ref.instanceId!,title:ref.instanceId!,size:null,plates:0,printer:'',devModelName:'BL-P001'}],selected:ref.instanceId!,url:`https://makerworld.com/api/v1/design-service/instance/${ref.instanceId}/f3mf?type=download&fileType=&devModelName=BL-P001` };
   const data = await json(`${API}/design-service/design/${ref.designId}`);
   const d = data.design || data, meta = parseMakerworldDesign(d), profiles = makerworldProfiles(d);
   const selected = ref.instanceId || String(d.defaultInstanceId || profiles[0]?.id || '');
   if (ref.instanceId && !profiles.some((p:any)=>p.id===ref.instanceId)) throw new Error('El perfil solicitado no pertenece a este modelo o ya no está disponible');
-  return {title:meta.title,author:meta.authorName,license:meta.licenseText,description:meta.description,image:meta.imageUrls[0]||null,profiles,selected,url:`https://makerworld.com/models/${ref.designId}#profileId-${selected}`};
+  return {title:meta.title,author:meta.authorName,license:meta.licenseText,description:meta.description,image:meta.imageUrls[0]||null,imageUrls:meta.imageUrls,profiles,selected,url:`https://makerworld.com/models/${ref.designId}#profileId-${selected}`};
 }
 /** Accept explicit download fields only; never scrape arbitrary URLs from provider text. */
 export function parseDownloadResponse(input: string | Record<string, any>, fallback = 'modelo.3mf') {
