@@ -11,6 +11,7 @@ import { accountWhere, makerworldAccount, makerworldLogin, makerworldEmailCode, 
 import {fetchSourceMeta,parseSourceUrl} from '@/lib/library/source';
 import { MODEL_EXT } from '@/lib/files';
 import { extOf } from '@/lib/mesh/parse';
+import { integrationUser } from '@/lib/integrations-access';
 const urlSchema = z.string().url().max(16384).refine(v=>{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password;},'Use HTTPS sin credenciales');
 async function user() {const u=await requirePerm('archivos','C');if(u.workspaceId!==WORKSPACE_ID)throw new Error('Taller inválido');return u;}
 async function safe<T>(fn:()=>Promise<T>){
@@ -19,23 +20,30 @@ async function safe<T>(fn:()=>Promise<T>){
   return result.ok?result:{...result,code,retryAfter};
 }
 export async function makerworldConnection() {return safe(async()=>{
-  const u=await user(),row=await makerworldAccount(u.id);
+  const u=await integrationUser(),row=await makerworldAccount(u.id);
   if(!row)return {connected:false,status:'disconnected',expiresAt:null};
   if(row.expiresAt&&row.expiresAt.getTime()<=Date.now())return {connected:false,status:'expired',expiresAt:row.expiresAt.toISOString()};
   try{await checkMakerworld(u.id);return {connected:true,status:'verified',expiresAt:row.expiresAt?.toISOString()||null};}
   catch(e){return {connected:false,status:e instanceof MakerworldError&&e.code==='authentication'?'expired':'unavailable',expiresAt:row.expiresAt?.toISOString()||null};}
 });}
 const sentCodes=new Map<string,number>();
+const blockedAuth=new Map<string,number>();
+async function authRequest<T>(id:string,fn:()=>Promise<T>) {
+  const remaining=Math.ceil(((blockedAuth.get(id)||0)-Date.now())/1000);
+  if(remaining>0)throw new MakerworldError('browser_required','Bambu pidió verificar esta red. Asocia una sesión del navegador o espera antes de volver a solicitar acceso.',remaining);
+  for(const [key,deadline] of blockedAuth)if(deadline<Date.now())blockedAuth.delete(key);
+  try{return await fn();}catch(e){if(e instanceof MakerworldError&&e.code==='browser_required')blockedAuth.set(id,Date.now()+300_000);throw e;}
+}
 export async function resendMakerworldCode(account:string){return safe(async()=>{
-  const u=await user(),email=z.email().parse(account.trim()),last=sentCodes.get(u.id)||0;
+  const u=await integrationUser(),email=z.email().parse(account.trim()),last=sentCodes.get(u.id)||0;
   if(Date.now()-last<60_000)throw new MakerworldError('rate_limit','Espera un minuto antes de solicitar otro código.',60);
   if(loginThrottled(`makerworld:${u.id}`))throw new MakerworldError('rate_limit','Demasiados intentos. Espera 15 minutos.',900);
   sentCodes.set(u.id,Date.now());loginFailed(`makerworld:${u.id}`);
   for(const [key,time]of sentCodes)if(Date.now()-time>900_000)sentCodes.delete(key);
-  await makerworldEmailCode(email);return {sent:true};
+  await authRequest(u.id,()=>makerworldEmailCode(email));return {sent:true};
 });}
 export async function connectMakerworld(input:unknown) {return safe(async()=>{
-  const u=await user(),key=`makerworld:${u.id}`;
+  const u=await integrationUser(),key=`makerworld:${u.id}`;
   if(loginThrottled(key))throw new MakerworldError('rate_limit','Demasiados intentos. Espera 15 minutos.',900);
   const p=z.object({method:z.enum(['password','code','token','tfa']),account:z.string().max(254).optional(),credential:z.string().min(1).max(16000),challenge:z.string().max(16000).optional()}).parse(input);
   loginFailed(key);
@@ -48,13 +56,13 @@ export async function connectMakerworld(input:unknown) {return safe(async()=>{
   }
   const account=z.email().parse(p.account?.trim());
   if(p.method==='code')z.string().regex(/^\d{6}$/).parse(p.credential);
-  const result=await makerworldLogin(account,p.method==='code'?{code:p.credential}:{password:p.credential});
+  const result=await authRequest(u.id,()=>makerworldLogin(account,p.method==='code'?{code:p.credential}:{password:p.credential}));
   if(result.kind==='tfa')return {kind:'tfa' as const,challenge:seal(JSON.stringify({key:result.tfaKey,userId:u.id,expires:Date.now()+5*60_000}))};
-  if(result.kind!=='token'){if(result.kind==='code')sentCodes.set(u.id,Date.now());return result;}
+  if(result.kind!=='token')return result;
   await storeMakerworldToken(u.id,result.token,result.expiresIn);loginOk(key);return {kind:'connected' as const};
 });}
-export async function disconnectMakerworld(){return safe(async()=>{const u=await user();await(await getDb()).delete(s.libraryAccounts).where(accountWhere(u.id));});}
-export async function testMakerworldConnection(){return safe(async()=>{const u=await user();await checkMakerworld(u.id);return true;});}
+export async function disconnectMakerworld(){return safe(async()=>{const u=await integrationUser();await(await getDb()).delete(s.libraryAccounts).where(accountWhere(u.id));});}
+export async function testMakerworldConnection(){return safe(async()=>{const u=await integrationUser();await checkMakerworld(u.id);return true;});}
 export async function inspectLibraryImport(raw:string){return safe(async()=>{
   await user();const url=urlSchema.parse(raw);
   if(makerworldReference(url))return inspectMakerworld(url);

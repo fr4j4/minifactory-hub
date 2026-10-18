@@ -30,30 +30,46 @@ try{
  assert(await page.getByRole('dialog').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
  await page.screenshot({path:'data/library-test-evidence/makerworld-mobile.png',animations:'disabled'});
  await page.setViewportSize({width:1280,height:1000});
+ if(await dialog.getByText('Cuenta MakerWorld verificada',{exact:true}).count()){
+   await dialog.getByRole('button',{name:'Continuar',exact:true}).click();
+   await Promise.race([dialog.getByRole('heading',{name:'Todo listo para importar',exact:true}).waitFor({timeout:60000}),dialog.getByRole('alert').waitFor({timeout:60000})]);
+   if(await dialog.getByRole('alert').isVisible()){
+     const message=await dialog.getByRole('alert').innerText();
+     if(!/verificar esta red|verificación en su web/.test(message))throw new Error(message);
+     await dialog.getByRole('button',{name:'Revisar acceso',exact:true}).click();
+     await dialog.getByTestId('bambu-account-form').waitFor();
+     assert(await dialog.getByLabel('Respuesta o enlace de descarga').isVisible());
+     await page.screenshot({path:'data/library-test-evidence/makerworld-provider-challenge.png',animations:'disabled'});
+     console.log(JSON.stringify({ok:true,authentication:'existing session validated against Bambu',download:'blocked by real provider browser challenge; no binary imported',recovery:'shared account modal and manual download alternative visible'}));
+   }else{
+     await page.screenshot({path:'data/library-test-evidence/makerworld-authorized-download.png',animations:'disabled'});
+     console.log(JSON.stringify({ok:true,authentication:'existing session validated against Bambu',download:'real signed download resolved; no duplicate binary imported',model:'Pumpkin Patch Pal',instanceId:'3766961'}));
+   }
+ }else{
  await dialog.getByRole('button',{name:'Conectar y continuar',exact:true}).click();
  await dialog.getByLabel('Correo de tu cuenta Bambu').fill('ui-test@example.invalid');
  await dialog.getByLabel('Contraseña',{exact:true}).fill('not-a-real-password');
- await dialog.getByRole('button',{name:'Mostrar contraseña',exact:true}).click();
  // Simulate an action/network failure without sending any credentials to Bambu.
  let intercepted=0;
- const failLogin=async route=>{if(route.request().method()==='POST'&&route.request().headers()['next-action']){intercepted++;await new Promise(resolve=>setTimeout(resolve,1200));await route.fulfill({status:503,contentType:'text/plain',body:'Simulated unavailable server'});}else await route.continue();};
+ const failLogin=async route=>{if(route.request().method()==='POST'&&route.request().headers()['next-action']&&route.request().postData()?.includes('not-a-real-password')){intercepted++;await new Promise(resolve=>setTimeout(resolve,1200));await route.fulfill({status:503,contentType:'text/plain',body:'Simulated unavailable server'});}else await route.continue();};
  await page.route('**/archivos',failLogin);
- await dialog.getByRole('button',{name:'Conectar y continuar',exact:true}).click();
+ await dialog.getByRole('button',{name:'Asociar cuenta',exact:true}).click();
  await dialog.getByRole('button',{name:'Conectando con Bambu…',exact:true}).waitFor();
  const alert=dialog.getByRole('alert');await alert.waitFor();
- assert.match(await alert.innerText(),/No se pudo completar/);
+ assert.match(await alert.innerText(),/No se pudo contactar/);
  assert.equal(intercepted,1);assert.equal(await dialog.getByLabel('Contraseña',{exact:true}).inputValue(),'');
  const bounds=await alert.boundingBox();assert(bounds&&bounds.y>=0&&bounds.y+bounds.height<=1000);
  assert(await alert.evaluate(el=>document.activeElement===el));
- assert(await dialog.getByRole('button',{name:'Conectar y continuar',exact:true}).isEnabled());
+ assert(await dialog.getByRole('button',{name:'Asociar cuenta',exact:true}).isEnabled());
  await page.screenshot({path:'data/library-test-evidence/makerworld-login-error.png',animations:'disabled'});
  await page.unroute('**/archivos',failLogin);
- await dialog.getByRole('button',{name:'Acceder desde el navegador',exact:true}).click();
+ await dialog.getByText('Importar solo este archivo desde el navegador',{exact:true}).click();
  assert.match(await dialog.getByRole('link',{name:'Abrir descarga en MakerWorld'}).getAttribute('href'),/instance\/3766961\/f3mf/);
  await dialog.getByLabel('Respuesta o enlace de descarga').fill('{"url":');
  await dialog.getByRole('button',{name:'Revisar descarga'}).click();
  await dialog.getByRole('alert').filter({hasText:'JSON de descarga inválido'}).waitFor({timeout:60000});
- await dialog.getByRole('button',{name:'Tengo un token de sesión',exact:true}).click();
+ await dialog.getByRole('button',{name:'Sesión del navegador',exact:true}).click();
  assert.equal(await dialog.getByLabel('Token de sesión',{exact:true}).getAttribute('type'),'password');
  console.log(JSON.stringify({ok:true,environment:'library-test',model:'Pumpkin Patch Pal',instanceId:'3766961',sizeMiB:15.61,checks:['public metadata','desktop/mobile review','visible login pending','visible login failure and focus','retry enabled','browser alternative','invalid JSON'],authentication:'failure simulated; no real Bambu credentials sent',download:'no binary imported',screenshots:'data/library-test-evidence/makerworld-*.png'}));
-}finally{await browser.close();}
+ }
+}catch(error){for(const context of browser.contexts())for(const page of context.pages())await page.screenshot({path:'data/library-test-evidence/makerworld-smoke-failure.png',animations:'disabled'}).catch(()=>{});throw error;}finally{await browser.close();}

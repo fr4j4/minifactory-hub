@@ -33,10 +33,13 @@ export async function storeMakerworldToken(userId: string, token: string, expire
   await (await getDb()).insert(s.libraryAccounts).values({ workspaceId: WORKSPACE_ID, userId, provider: 'makerworld', ...values }).onConflictDoUpdate({ target: [s.libraryAccounts.workspaceId, s.libraryAccounts.userId, s.libraryAccounts.provider], set: values });
 }
 export async function makerworldLogin(account: string, credential: {password: string} | {code: string}) {
-  const result = await json(`${API}/user-service/user/login`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({account,...credential}) });
+  const result = await json(`${API}/user-service/user/login`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({account,...credential,apiError:''}) }).catch(error=>{
+    if('code' in credential && error instanceof MakerworldError && error.code==='credentials')throw new MakerworldError('invalid_code','El código no es válido o caducó. Revisa el último código recibido o solicita otro.');
+    throw error;
+  });
   if (result.accessToken) return { kind: 'token' as const, token: String(result.accessToken), expiresIn: Number(result.expiresIn) || null };
   if (result.loginType === 'verifyCode') {
-    await makerworldEmailCode(account);
+    if ('code' in credential) throw new MakerworldError('invalid_code','El código no es válido o caducó. Revisa el último código recibido o solicita otro.');
     return {kind:'code' as const};
   }
   if (result.loginType === 'tfa' && result.tfaKey) return {kind:'tfa' as const,tfaKey:String(result.tfaKey)};

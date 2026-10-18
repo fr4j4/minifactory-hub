@@ -1,4 +1,5 @@
 export const settings = {
+  tabIntegrations: 'Integraciones',
   tabQualities: 'Calidades',
   presetsHint: 'Las calidades (Borrador, Estándar, Fino…) se definen una sola vez y sirven para cualquier boquilla: la altura de capa es un porcentaje del diámetro. Al elegirlas en el laminador se crea el perfil de esa impresora.',
   presetLoops: 'paredes',

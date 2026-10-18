@@ -2,6 +2,7 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const settings: Shape<typeof es['settings']> = {
+  tabIntegrations: 'Integrations',
   tabQualities: 'Qualities',
   presetsHint: 'Qualities (Draft, Standard, Fine…) are defined once and work for any nozzle: layer height is a percentage of the diameter. Picking one in the slicer creates that printer’s profile.',
   presetLoops: 'walls',

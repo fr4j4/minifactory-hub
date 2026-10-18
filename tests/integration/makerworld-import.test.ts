@@ -3,7 +3,7 @@ import {Readable} from 'node:stream';
 import {zipSync,strToU8} from 'fflate';
 import {eq} from 'drizzle-orm';
 const state=vi.hoisted(()=>({userId:'00000000-0000-4000-8000-000000000010'}));
-vi.mock('@/lib/auth',()=>({requirePerm:async()=>({id:state.userId,workspaceId:'00000000-0000-4000-8000-000000000001'}),loginThrottled:()=>false,loginFailed:()=>{},loginOk:()=>{}}));
+vi.mock('@/lib/auth',()=>({requireUser:async()=>({id:state.userId,role:'admin',workspaceId:'00000000-0000-4000-8000-000000000001'}),requirePerm:async()=>({id:state.userId,workspaceId:'00000000-0000-4000-8000-000000000001'}),loginThrottled:()=>false,loginFailed:()=>{},loginOk:()=>{}}));
 vi.mock('@/actions/common',()=>({safe:async(fn:()=>Promise<any>)=>{try{return{ok:true,data:await fn()};}catch(e){return{ok:false,error:(e as Error).message};}}}));
 vi.mock('@/lib/library/connectors/http',()=>({json:vi.fn(),request:vi.fn()}));
 vi.mock('@/lib/library/makerworld-http',async original=>({...await original<typeof import('@/lib/library/makerworld-http')>(),makerworldJson:vi.fn()}));
@@ -34,6 +34,13 @@ it('returns an email challenge instead of claiming a connected account',async()=
   vi.mocked(json).mockResolvedValueOnce({loginType:'verifyCode'}).mockResolvedValueOnce({code:0});
   expect(await connectMakerworld({method:'password',account:'test@example.com',credential:'not-a-real-password'})).toMatchObject({ok:true,data:{kind:'code'}});
   expect(await makerworldAccount(owner)).toBeUndefined();
+  expect(json).toHaveBeenCalledTimes(1);
+});
+it('completes email verification and stores a validated session',async()=>{
+  vi.mocked(json).mockResolvedValueOnce({accessToken:'email-verified-session',expiresIn:60}).mockResolvedValueOnce({uid:123});
+  expect(await connectMakerworld({method:'code',account:'test@example.com',credential:'123456'})).toMatchObject({ok:true,data:{kind:'connected'}});
+  expect(await makerworldToken(owner)).toBe('email-verified-session');
+  await disconnectMakerworld();
 });
 it('seals the 2FA challenge and refuses its use by another user',async()=>{
   vi.mocked(json).mockResolvedValueOnce({loginType:'tfa',tfaKey:'private-challenge-key'});
@@ -93,4 +100,14 @@ it('rejects HTML masquerading as a 3MF',async()=>{
   vi.mocked(request).mockResolvedValue(Object.assign(Readable.from(['<html>login</html>']),{headers:{'content-type':'text/html'}}) as any);
   await expect(executeImport(p.data.id)).rejects.toThrow('página/JSON');
   expect(await libraryImportStatus(p.data.id)).toMatchObject({ok:true,data:{status:'error'}});
+});
+it('pauses repeated password requests after a real challenge while allowing session association',async()=>{
+  state.userId=other;
+  vi.mocked(json).mockRejectedValue(new MakerworldError('browser_required','Browser verification',300));
+  const input={method:'password',account:'test@example.com',credential:'not-a-real-password'};
+  expect(await connectMakerworld(input)).toMatchObject({ok:false,code:'browser_required'});
+  expect(await connectMakerworld(input)).toMatchObject({ok:false,code:'browser_required'});
+  expect(json).toHaveBeenCalledTimes(1);
+  vi.mocked(json).mockResolvedValue({uid:456});
+  expect(await connectMakerworld({method:'token',credential:'browser-session'})).toMatchObject({ok:true,data:{kind:'connected'}});
 });

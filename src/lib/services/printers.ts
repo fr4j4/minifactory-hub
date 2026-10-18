@@ -213,15 +213,16 @@ export async function cloudStartLogin(i: { region: Region; account: string; pass
   return { state: r.kind, pendingId: id };
 }
 /** Paso 2: código del correo o de la app autenticadora. */
-export async function cloudFinishLogin(i: { pendingId: string; code: string }) {
+export async function cloudFinishLogin(i: { pendingId: string; code: string; userId?: string }) {
   const t = await getT();
   const p = pending().get(i.pendingId); if (!p || p.exp < Date.now()) throw new Error(t('machines.theSignInExpiredStart'));
+  if (i.userId && p.userId !== i.userId) throw new Error(t('machines.theSignInExpiredStart'));
   const code = i.code.replace(/\s/g, ''); if (!/^\d{4,8}$/.test(code)) throw new Error(t('machines.theCodeHas6Digits'));
   const tt = p.kind === 'tfa' ? await loginWithTfa(p.region, p.tfaKey!, code) : await loginWithCode(p.region, p.account, code);
   pending().delete(i.pendingId);
   return { accountId: await saveCloudAccount(p.region, p.account, tt.token, tt.expiresIn, p.userId) };
 }
-async function saveCloudAccount(region: Region, email: string, token: string, expiresIn: number | null, userId?: string | null) {
+export async function saveCloudAccount(region: Region, email: string, token: string, expiresIn: number | null, userId?: string | null) {
   const db = await getDb(); const who = await cloudUsername(region, token); const exp = tokenExpiry(token, expiresIn);
   const [prev] = await db.select().from(s.cloudAccounts).where(and(eq(s.cloudAccounts.email, email), eq(s.cloudAccounts.region, region), isNull(s.cloudAccounts.deletedAt)));
   const values = { tokenEnc: seal(token), tokenExpiresAt: exp, uid: who.uid, username: who.username, displayName: who.name, status: 'activa', lastError: null, updatedAt: new Date() };

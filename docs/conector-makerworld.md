@@ -3,7 +3,21 @@
 Fecha: 2026-10-18. Rama: `feature/biblioteca-3d-multifuente`.
 Destino exclusivo: `minifactory-library-test`, puerto 3011, base `library_test`.
 
-## Hallazgo y decisión
+## Configuración unificada y verificación de correo
+
+`Configuración → Integraciones` concentra MakerWorld y Bambu Lab. El importador y el alta global de impresoras reutilizan el mismo formulario de asociación. La sesión personal puede reutilizar una cuenta de impresoras creada por ese usuario, o compartirse explícitamente con el conector del taller tras validarla. No se incorporan impresoras automáticamente; la configuración LAN y las cuentas de China conservan su flujo existente. Desconectar MakerWorld no corta las sesiones de las impresoras.
+
+Se eliminaron las solicitudes automáticas adicionales de correo al recibir `verifyCode`: la interfaz pide el código y ofrece reenviarlo bajo demanda, sin afirmar que se envió un correo que no se confirmó. Un código rechazado no reinicia el acceso ni genera otro envío. Se corrigió la detección demasiado amplia de CAPTCHA sobre el JSON completo: un campo `captchaId` vacío en un error de código ya no se interpreta como bloqueo web. Los desafíos HTTP 418 reales reciben una recuperación explícita y una pausa de cinco minutos para las solicitudes de acceso de ese usuario en el proceso actual. Las contraseñas se descartan y solo se guardan tokens cifrados y verificados.
+
+Un CAPTCHA auténtico no se resuelve automáticamente desde el servidor. La opción «Sesión del navegador» explica cómo completar el acceso oficial y asociar el token. No se presenta abrir una pestaña como una conexión automática, ni pegar el JSON de un archivo como asociar una cuenta. La descarga manual sigue siendo una alternativa independiente en el importador. La verificación con app autenticadora permite solicitar un código por correo cuando la verificación web no está disponible.
+
+Se contrastó el flujo de códigos y desafíos con el [código del conector ha-bambulab](https://github.com/greghesp/ha-bambulab/blob/main/custom_components/bambu_lab/pybambu/bambu_cloud.py) y la [implementación de Bambu Cloud de Bambuddy](https://github.com/maziggy/bambuddy/blob/main/backend/app/services/bambu_cloud.py). Son implementaciones de terceros, no contratos oficiales. El mensaje comunicado por el usuario no incluye la respuesta HTTP del proveedor; estas correcciones no permiten afirmar cuál de esos casos ocurrió en su cuenta.
+
+Las pruebas del acceso con contraseña y correo usan respuestas simuladas: no se dispone de contraseña ni código de correo para certificar ese inicio de sesión real. Pasaron 34 pruebas en cuatro archivos (transporte, conector, importación e integraciones). El script `scripts/integrations-browser-smoke.mjs` verifica el modal, el paso de correo, errores enfocados, recuperación ante CAPTCHA y vista móvil sin enviar credenciales al proveedor.
+
+Comprobación real adicional: la sesión ya guardada en pruebas se verificó correctamente contra Bambu. La descarga autenticada del perfil 3766961 devolvió un desafío web desde la API; la ruta alternativa en `makerworld.com/api/v1/design-service/instance/3766961/f3mf`, usando esa sesión mediante cookie, respondió HTTP 403 con HTML de Cloudflare. Por tanto, no se certifica una descarga automática real ni la eliminación del bloqueo externo. El importador conserva una alternativa manual independiente, sin desconectar la sesión válida. Solo se desplegó el proyecto Docker de pruebas (puerto 3011); producción y su base no se modificaron.
+
+## Hallazgo y decisión inicial
 
 El endpoint aportado por el usuario, `/api/v1/design-service/instance/3766961/f3mf?type=download&fileType=&devModelName=BL-P001`, resuelve un enlace de archivo mediante JSON. El servidor recibió HTTP 403 con desafío web desde makerworld.com. La ruta equivalente en api.bambulab.com respondió HTTP 403 con `Please log in to download models.`. Son dos condiciones diferentes: protección de la web y autenticación de la descarga. La sesión del navegador no se transfiere al servidor de MiniFactory.
 

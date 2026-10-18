@@ -43,11 +43,16 @@ describe('MakerWorld custom connector',()=>{
     expect(await makerworldLogin('test@example.com',{password:'test'})).toEqual({kind:'token',token:'token',expiresIn:60});
     expect(mock.mock.calls[0][0]).toBe('https://api.bambulab.com/v1/user-service/user/login');
   });
-  it('requests the email verification code and handles second factor fallback',async()=>{
-    mock.mockResolvedValueOnce({loginType:'verifyCode'}).mockResolvedValueOnce({});
+  it('preserves email verification without requesting another code and handles second factor fallback',async()=>{
+    mock.mockResolvedValueOnce({loginType:'verifyCode'});
     expect(await makerworldLogin('test@example.com',{password:'test'})).toEqual({kind:'code'});
-    expect(mock.mock.calls[1][0]).toContain('/sendemail/code');
+    expect(mock).toHaveBeenCalledTimes(1);
     mock.mockResolvedValueOnce({loginType:'tfa'});
     expect(await makerworldLogin('test@example.com',{password:'test'})).toEqual({kind:'browser'});
+  });
+  it('does not resend or restart login when an email code is rejected',async()=>{
+    mock.mockResolvedValue({loginType:'verifyCode'});
+    await expect(makerworldLogin('test@example.com',{code:'123456'})).rejects.toMatchObject({code:'invalid_code'});
+    expect(mock).toHaveBeenCalledTimes(1);
   });
 });

@@ -97,6 +97,7 @@ async function syncAccount(accountId: string) {
   } catch (err) { if ((err as { code?: string }).code === 'unauthorized' && !acc.notified) { acc.notified = true; await expireAccount(accountId, (err as Error).message); } }
 }
 export async function reloadAccount(accountId: string) {
+  if (process.env.BAMBU_DISABLED === '1') return;
   const m = mgr(); const acc = m.accounts.get(accountId);
   if (acc) { clearInterval(acc.timer); acc.session.removeAllListeners(); acc.session.close(); m.accounts.delete(accountId); }
   const db = await getDb();
