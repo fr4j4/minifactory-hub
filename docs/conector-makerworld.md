@@ -145,6 +145,20 @@ La página real de Gnome Mushroom abrió correctamente, reconoció la cuenta gua
 
 Producción conservó sus arranques: app `2026-10-17T17:08:34.635386732Z`, worker `2026-10-17T17:08:34.619597903Z` y base `2026-10-16T23:48:31.790702187Z`. No se cambió su composición, imagen en ejecución ni base de datos.
 
+## Corrección de descarga detenida después del CAPTCHA (2026-10-18)
+
+Se observó la sesión real de la operación `922562b8-c0a3-4342-ac53-d8835c4ebd84`: después de la verificación humana, el endpoint del perfil AMS `3769534` devolvió HTTP 200 con nombre y URL autorizada. Chromium notificó `suggestedFilename: "download"`. El servicio anterior exigía que ese nombre terminara en `.3mf`, cancelaba el archivo y mantenía el mensaje de descarga indefinidamente.
+
+- Se acepta únicamente la URL autorizada del perfil seleccionado y sus redirecciones HTTPS observadas. El nombre se toma de los metadatos del proveedor; hay un nombre `.3mf` de respaldo cuando Chromium entrega uno genérico. La ingestión sigue comprobando la estructura real del archivo, además del límite de tamaño.
+- `requesting_download` distingue autorización de transferencia efectiva. `downloading` comienza con el evento real de Chromium; la interfaz muestra bytes recibidos y total cuando se conoce. Si no empieza en 20 segundos o no recibe datos durante 90 segundos, muestra un error y permite reintentar. También se informa cancelación o exceso de tamaño.
+- La interfaz vuelve a consultar el estado si la petición de captura falla justo cuando el worker termina la importación, evitando mostrar un error después del éxito.
+- Se recuperó el enlace autorizado desde la sesión ya verificada, sin guardarlo en archivos ni registros, y se descargó el original mediante HTTP desde el backend. `completeBrowserImport` validó e incorporó **13.624.215 bytes**, con estado de procesamiento `ready`. Esta recuperación puntual se distingue de la prueba del flujo automático corregido con proveedor simulado.
+- El modelo real conserva siete imágenes, con **2.244.172 bytes en las 21 variantes WebP**, sin EXIF y con lado mayor máximo de 1600 px. Se verificaron su acceso local, galería, portada y panel de origen en el navegador. Se corrigieron permisos de una carpeta del volumen de pruebas que habían dejado diagnósticos anteriores ejecutados como root; las comprobaciones de almacenamiento deben ejecutarse con `docker exec -u app`.
+
+Evidencia real: `/archivos/922562b8-c0a3-4342-ac53-d8835c4ebd84` en el puerto 3011. Regresión: `tests/unit/browser-download-state.test.ts` cubre nombre genérico, URL autorizada, bytes, cancelación, tamaño y plazos; el conjunto del conector suma 49 pruebas aprobadas. `scripts/makerworld-browser-download-smoke.mjs` reproduce un recurso `.bin` con nombre de descarga `download` y nombre Unicode `.3mf` en los metadatos. `scripts/makerworld-progress-smoke.mjs <operación>` comprueba estados simulados de la interfaz, progreso, reintento, móvil y finalización durante una petición de captura.
+
+Resultado sobre Docker actualizado: compilación Next y tipos aprobados, salud `library-test` correcta. La descarga sintética de 589 bytes mediante Chromium real y el worker terminó automáticamente con el importador cerrado: modelo `577fefbf-c9fb-4b51-989d-c3e774232e04`. La comprobación de interfaz también pasó en sus cinco escenarios. La descarga original se acreditó mediante la recuperación descrita arriba; esta regresión automatizada utiliza un proveedor simulado. Producción conservó las mismas fechas de arranque de app, worker y PostgreSQL indicadas en la sección anterior.
+
 ## Despliegue
 
 `bash scripts/library-test.sh up` construye la imagen `minifactory-library-test:feature` y actualiza únicamente el proyecto de pruebas. La base y los volúmenes productivos no intervienen. La migración se ejecuta al abrir la base aislada; no requiere modificar ni reiniciar producción.

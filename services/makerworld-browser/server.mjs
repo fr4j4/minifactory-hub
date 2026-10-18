@@ -4,6 +4,7 @@ import {createReadStream} from 'node:fs';
 import {spawn} from 'node:child_process';
 import {timingSafeEqual} from 'node:crypto';
 import {setTimeout as delay} from 'node:timers/promises';
+import {modelFilename,failDownload,beginDownload,progressDownload,stalledDownload,downloadProgress} from './download-state.mjs';
 
 const key=process.env.BROWSER_SERVICE_KEY;
 if(!key||key.length<32)throw Error('Missing browser service key');
@@ -19,13 +20,15 @@ class CDP {
   send(method,params={}){return new Promise((resolve,reject)=>{const id=++this.next;const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Browser timeout'));},15000);this.pending.set(id,{resolve,reject,timer});this.ws.send(JSON.stringify({id,method,params}));});}
   close(){this.ws.close();}
 }
-function safeFilename(name){return String(name).split(/[\\/]/).at(-1).replace(/[\x00-\x1f]/g,'').slice(0,240);}
 async function destroy(id){const s=sessions.get(id);if(!s)return;sessions.delete(id);s.closed=true;s.page?.close();s.browser?.close();try{if(s.process?.pid)process.kill(-s.process.pid,'SIGKILL');}catch{}await fs.rm(s.dir,{recursive:true,force:true,maxRetries:3}).catch(()=>{});}
 async function attachPage(s,target){
   if(s.pageTarget===target.id)return;s.page?.close();s.page=await CDP.open(target.webSocketDebuggerUrl);s.pageTarget=target.id;
   const cdp=s.page;await cdp.send('Network.enable');await cdp.send('Page.enable');
   const responses=new Set();
   cdp.listeners.push(m=>{
+    if(m.method==='Network.requestWillBeSent'&&s.downloadUrls?.has(m.params.redirectResponse?.url)){
+      try{const next=new URL(m.params.request.url);if(next.protocol==='https:'&&!next.username&&!next.password)s.downloadUrls.add(next.toString());}catch{}
+    }
     if(m.method==='Page.loadEventFired'){s.clicked=false;s.autoAttempts=0;s.lastAttempt=Date.now();}
     if(m.method==='Network.responseReceived'){
       const r=m.params.response;
@@ -33,19 +36,21 @@ async function attachPage(s,target){
       try{const u=new URL(r.url);if(['makerworld.com','api.bambulab.com'].includes(u.hostname)&&u.pathname.endsWith(`/instance/${s.profile}/f3mf`)&&u.searchParams.get('type')==='download'&&r.status===200)responses.add(m.params.requestId);}catch{}
     }
     if(m.method==='Network.loadingFinished'&&responses.delete(m.params.requestId))void(async()=>{
-      try{const body=await cdp.send('Network.getResponseBody',{requestId:m.params.requestId});if(body.body.length>65536)return;const j=JSON.parse(body.base64Encoded?Buffer.from(body.body,'base64').toString():body.body);const result=j.data||j;await followDownload(s,result.url);}catch{}
+      try{const body=await cdp.send('Network.getResponseBody',{requestId:m.params.requestId});if(body.body.length>65536)return;const j=JSON.parse(body.base64Encoded?Buffer.from(body.body,'base64').toString():body.body);const result=j.data||j;await followDownload(s,result.url,result.name||result.fileName);}catch{}
     })();
   });
 }
-async function followDownload(s,raw){
+async function followDownload(s,raw,name){
   if(s.startedDownload||!raw)return;
   const url=new URL(raw);if(url.protocol!=='https:'||url.username||url.password)return;
-  s.startedDownload=true;s.downloadStartedAt=Date.now();s.phase='downloading';
+  s.startedDownload=true;s.downloadStartedAt=Date.now();s.phase='requesting_download';s.error=null;
+  s.downloadFilename=modelFilename(name,s.profile);s.downloadUrls=new Set([url.toString()]);
   // Chrome itself downloads on the server, preserving its network and cookies.
-  await s.page.send('Page.navigate',{url:url.toString()}).catch(()=>{s.startedDownload=false;});
+  try{const r=await s.page.send('Page.navigate',{url:url.toString()});if(r.errorText&&r.errorText!=='net::ERR_ABORTED')failDownload(s,'No se pudo abrir la descarga autorizada. Reintenta.');}
+  catch{if(!s.downloads.size)failDownload(s,'El navegador no pudo iniciar la transferencia. Reintenta.');}
 }
 async function attempt(s){
-  if(s.startedDownload||s.closed||s.attempting)return;s.attempting=true;
+  if(s.startedDownload||s.closed||s.attempting||s.phase==='download_error')return;s.attempting=true;
   try{
     const history=await s.page.send('Page.getNavigationHistory'),url=history.entries[history.currentIndex]?.url||'';
     if(!url.startsWith('https://makerworld.com/'))return;
@@ -54,9 +59,9 @@ async function attempt(s){
     if(challenge.result?.value){s.phase='verification';return;}
     // Normal site UI triggers its own official CAPTCHA widget. No challenge answer is automated.
     // Once the human completes it, Network.responseReceived handles the provider's response.
-    const result=await s.page.send('Runtime.evaluate',{expression:`(async()=>{const token=document.cookie.split('; ').find(c=>c.startsWith('token='))?.slice(6);const r=await fetch(${JSON.stringify(`/api/v1/design-service/instance/${s.profile}/f3mf`)}+'?'+new URLSearchParams({type:'download',fileType:'',devModelName:${JSON.stringify(s.device)}}),{headers:token?{Authorization:'Bearer '+decodeURIComponent(token)}:{}});const j=await r.json().catch(()=>null);return {status:r.status,url:r.ok?(j?.url||j?.data?.url):null};})()`,awaitPromise:true,returnByValue:true});
+    const result=await s.page.send('Runtime.evaluate',{expression:`(async()=>{const token=document.cookie.split('; ').find(c=>c.startsWith('token='))?.slice(6);const r=await fetch(${JSON.stringify(`/api/v1/design-service/instance/${s.profile}/f3mf`)}+'?'+new URLSearchParams({type:'download',fileType:'',devModelName:${JSON.stringify(s.device)}}),{headers:token?{Authorization:'Bearer '+decodeURIComponent(token)}:{}});const j=await r.json().catch(()=>null);return {status:r.status,url:r.ok?(j?.url||j?.data?.url):null,name:j?.name||j?.data?.name||j?.fileName||j?.data?.fileName};})()`,awaitPromise:true,returnByValue:true});
     const value=result.result?.value;
-    if(value?.url){await followDownload(s,value.url);return;}
+    if(value?.url){await followDownload(s,value.url,value.name);return;}
     s.phase='verification';
     if(!s.clicked){
       const clicked=await s.page.send('Runtime.evaluate',{expression:`(async()=>{const find=()=>[...document.querySelectorAll('button,a,div,[role="menuitem"]')].find(e=>e.getClientRects().length&&/^(download 3mf|descargar 3mf)$/i.test(e.textContent.trim()));let b=find();if(!b){const primary=[...document.querySelectorAll('.primaryButton')].find(e=>e.getClientRects().length&&/bambu studio/i.test(e.textContent));primary?.parentElement.querySelector('.icon-box')?.click();await new Promise(r=>setTimeout(r,300));b=find();}if(b){b.click();return true;}return false;})()`,awaitPromise:true,returnByValue:true});
@@ -81,14 +86,10 @@ async function create(id,p){
     await s.browser.send('Browser.setDownloadBehavior',{behavior:'allowAndName',downloadPath:`${dir}/downloads`,eventsEnabled:true});
     s.browser.listeners.push(m=>{
       if(m.method==='Browser.downloadWillBegin'){
-        const p=m.params;if(!s.startedDownload||!/\.3mf$/i.test(p.suggestedFilename)||s.downloads.size){void s.browser.send('Browser.cancelDownload',{guid:p.guid}).catch(()=>{});return;}
-        s.downloads.set(p.guid,{id:p.guid,filename:safeFilename(p.suggestedFilename),size:0,state:'inProgress'});s.phase='downloading';
+        const p=m.params;if(!beginDownload(s,p))void s.browser.send('Browser.cancelDownload',{guid:p.guid}).catch(()=>{});
       }
       if(m.method==='Browser.downloadProgress'){
-        const p=m.params,d=s.downloads.get(p.guid);if(!d)return;d.size=p.receivedBytes;d.state=p.state;
-        if(p.receivedBytes>maxBytes||p.totalBytes>maxBytes){void s.browser.send('Browser.cancelDownload',{guid:p.guid}).catch(()=>{});s.error='El archivo supera 500 MiB';}
-        if(p.state==='completed'){s.phase='downloaded';s.file=d;}
-        if(p.state==='canceled'){s.phase='verification';s.error||='La descarga se interrumpió. Vuelve a intentarlo.';s.downloads.delete(p.guid);s.startedDownload=false;}
+        const p=m.params;if(progressDownload(s,p,maxBytes)==='cancel')void s.browser.send('Browser.cancelDownload',{guid:p.guid}).catch(()=>{});
       }
     });
     const targets=await fetch(`http://127.0.0.1:${port}/json/list`).then(r=>r.json());await attachPage(s,targets.find(t=>t.type==='page'));
@@ -97,7 +98,7 @@ async function create(id,p){
     await s.page.send('Page.navigate',{url:url.toString()});s.phase='verification';return s;
   }catch(e){await destroy(id);throw e;}
 }
-function view(s){return {phase:s.phase,expiresAt:new Date(s.expires).toISOString(),file:s.file?{filename:s.file.filename,size:s.file.size}:null,error:s.error||null};}
+function view(s){return {phase:s.phase,expiresAt:new Date(s.expires).toISOString(),file:s.file?{filename:s.file.filename,size:s.file.size}:null,progress:downloadProgress(s),error:s.error||null};}
 async function readJson(req){let n=0,chunks=[];for await(const c of req){n+=c.length;if(n>32768)throw Error('Solicitud demasiado grande');chunks.push(c);}return JSON.parse(Buffer.concat(chunks).toString()||'{}');}
 const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');
@@ -136,7 +137,7 @@ const server=http.createServer(async(req,res)=>{
       // Limit automatic retries, even while the user types or drags a challenge.
       if(Date.now()-(s.lastHumanRetry||0)>15000){s.lastHumanRetry=Date.now();s.autoAttempts=Math.min(s.autoAttempts||0,2);}
     }
-    if(req.method==='POST'&&action==='retry'){s.clicked=false;s.error=null;await attempt(s);}
+    if(req.method==='POST'&&action==='retry'){s.clicked=false;s.error=null;if(s.phase==='download_error')s.phase='verification';await attempt(s);}
     if(req.method==='GET'&&action==='status'){
       const history=await s.page.send('Page.getNavigationHistory');
       // Display origin only: query strings can contain authentication challenges.
@@ -145,7 +146,11 @@ const server=http.createServer(async(req,res)=>{
     res.setHeader('Content-Type','application/json');res.end(JSON.stringify({...view(s),origin:s.origin||'https://makerworld.com'}));
   }catch(e){if(!res.headersSent){res.writeHead(400,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message?.startsWith('Browser')?'El navegador no respondió. Vuelve a abrirlo.':e.message}));}else res.destroy();}
 });
-setInterval(()=>{for(const [id,s]of sessions){if(s.expires<Date.now())void destroy(id);else if(!s.startedDownload&&(s.autoAttempts||0)<3&&Date.now()-(s.lastAttempt||0)>30000){s.lastAttempt=Date.now();s.autoAttempts=(s.autoAttempts||0)+1;void attempt(s);}}},5000).unref();
+setInterval(()=>{for(const [id,s]of sessions){
+  if(s.expires<Date.now()){void destroy(id);continue;}
+  const stalled=stalledDownload(s);if(stalled){for(const d of s.downloads.values())void s.browser.send('Browser.cancelDownload',{guid:d.id}).catch(()=>{});failDownload(s,stalled);}
+  else if(!s.startedDownload&&s.phase!=='download_error'&&(s.autoAttempts||0)<3&&Date.now()-(s.lastAttempt||0)>30000){s.lastAttempt=Date.now();s.autoAttempts=(s.autoAttempts||0)+1;void attempt(s);}
+}},5000).unref();
 server.listen(3002,'0.0.0.0');
 async function stop(){server.close();await Promise.all([...sessions.keys()].map(destroy));xvfb.kill();process.exit(0);}
 process.on('SIGTERM',stop);process.on('SIGINT',stop);
