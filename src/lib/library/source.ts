@@ -12,7 +12,9 @@ export function parseSourceUrl(input: string): ParsedUrl | null {
   if (!/^https?:$/.test(u.protocol)) return null;
   const host = u.hostname.toLowerCase().replace(/^www\./, '');
   if (host === 'makerworld.com' || host.endsWith('.makerworld.com')) {
-    const m = u.pathname.match(/\/models\/(\d+)/); return { provider: 'makerworld', externalId: m?.[1] ?? null, url: m ? `https://makerworld.com/models/${m[1]}` : u.toString() };
+    const m = u.pathname.match(/\/models\/(\d+)/);
+    const profileId = u.hash.match(/^#profileId-(\d+)$/i)?.[1];
+    return { provider: 'makerworld', externalId: m?.[1] ?? null, url: m ? `https://makerworld.com/models/${m[1]}${profileId ? `#profileId-${profileId}` : ''}` : u.toString() };
   }
   if (host === 'printables.com') { const m = u.pathname.match(/\/model\/(\d+)/); return { provider: 'printables', externalId: m?.[1] ?? null, url: u.toString() }; }
   if (host === 'thingiverse.com') { const m = u.pathname.match(/thing:(\d+)/); return { provider: 'thingiverse', externalId: m?.[1] ?? null, url: m ? `https://www.thingiverse.com/thing:${m[1]}` : u.toString() }; }

@@ -4,6 +4,7 @@ import { fetchSourceMeta, isPrivateIp, normalizeLicense, parseMakerworldDesign, 
 describe('origen del modelo (N3)', () => {
   it('reconoce el sitio y el id', () => {
     expect(parseSourceUrl('https://makerworld.com/es/models/123456-soporte-celular?from=x')).toEqual({ provider: 'makerworld', externalId: '123456', url: 'https://makerworld.com/models/123456' });
+    expect(parseSourceUrl('https://makerworld.com/es/models/3317662-pumpkin-patch-pal?from=recommend#profileId-3766961')).toEqual({ provider: 'makerworld', externalId: '3317662', url: 'https://makerworld.com/models/3317662#profileId-3766961' });
     expect(parseSourceUrl('https://www.printables.com/model/987-llavero')).toMatchObject({ provider: 'printables', externalId: '987' });
     expect(parseSourceUrl('https://www.thingiverse.com/thing:555')).toMatchObject({ provider: 'thingiverse', externalId: '555' });
     expect(parseSourceUrl('https://ejemplo.cl/pieza')).toMatchObject({ provider: 'otro', externalId: null });

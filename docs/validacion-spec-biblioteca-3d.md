@@ -90,3 +90,5 @@ Benchmark reproducible: `scripts/library-benchmark.ts`, ejecutado exclusivamente
 - [Dropbox HTTP API](https://www.dropbox.com/developers/documentation/http/documentation).
 
 MakerWorld mantiene URL, metadatos recuperables y asociación del archivo subido manualmente. La falta de un mecanismo autorizado verificado para descargar originales se resuelve con ese flujo previsto por la spec, no con evasión de controles.
+
+Prueba real del 18 de octubre de 2026: al importar `3317662-pumpkin-patch-pal`, el worker recuperó «Pumpkin Patch Pal», autor «Zesty 3D by Art» y «Standard Digital File License»; la app lo presenta como `awaiting_file` y permite asociar el archivo subido manualmente. La página del sitio respondió HTTP 403 con desafío Cloudflare desde este entorno, así que el original 3D no se descargó. Se conserva `profileId-3766961` en el enlace para volver a la placa elegida. No se ejecutó una descarga por un endpoint no verificado.
