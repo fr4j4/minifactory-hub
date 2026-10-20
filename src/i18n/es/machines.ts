@@ -1,4 +1,5 @@
 export const machines = {
+  plate: 'Placa',
   testJob: 'Trabajo de prueba',
   theMachineNeedsAName: 'La máquina necesita un nombre',
   enterTheTaskAndIts: 'Indica la tarea y su intervalo (horas o días)',

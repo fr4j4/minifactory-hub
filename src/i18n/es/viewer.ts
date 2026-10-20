@@ -1,4 +1,6 @@
 export const viewer = {
+  plate: 'Placa',
+  allPlates: 'Todas las placas',
   travelStats: '{n} retracciones · {m} m de movimientos en vacío (actívalos con «Viajes»)',
   travel: 'Viajes',
   mode_ventilador: 'Ventilador',
@@ -79,4 +81,5 @@ export const viewer = {
   mode_tiempoCapa: 'Tiempo de capa',
   slowLayers: 'capas lentas',
   fastLayers: 'capas rápidas',
+  platesCount: '{n} placas',
 };

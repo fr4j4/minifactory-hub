@@ -1,4 +1,10 @@
 export const slicer = {
+  plateN: 'Placa {n}',
+  copiesNotInMultiPlate: 'Las copias no están disponibles en proyectos de varias placas: lamina cada placa por separado.',
+  platesOfTheProject: 'Placas del proyecto',
+  downloadPlateGCode: 'Descargar G-code',
+  viewPlateLayers: 'Ver capas',
+  plateSentToPrinter: 'Placa enviada',
   multicolorTitle: 'Multicolor: {n} extrusores',
   multicolorHint: 'El proyecto trae el extrusor de cada pieza. Elige el material de cada uno.',
   extruderN: 'Extrusor {n}',

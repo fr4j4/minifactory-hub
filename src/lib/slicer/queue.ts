@@ -115,7 +115,7 @@ async function execute(runId: string) {
     tmpDir = r.tmpDir;
     if (r.errorCode === 'cancelled') { await db.update(s.sliceRuns).set({ status: 'cancelado', error: null, result: { errorCode: 'cancelled' }, durationMs: r.durationMs, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId)); return; }
     if (!r.ok) {
-      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(stillRunning(runId));
+      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other', ...(r.logTail ? { log: r.logTail } : {}) }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(stillRunning(runId));
       return;
     }
     // sumar todas las placas (si las copias no caben en una)
@@ -130,7 +130,7 @@ async function execute(runId: string) {
     const done = await db.update(s.sliceRuns).set({
       status: 'done', timeS, filament: Object.values(fil2).map((x) => ({ g: +x.g.toFixed(2), mm: +x.mm.toFixed(1), cm3: +x.cm3.toFixed(2) })),
       layers, plates: r.plates.length, durationMs: r.durationMs, engineVersion: r.engine, gcodeKey: gcodeKeys[0], threemfKey,
-      result: { gcodeKeys, slicer: r.plates[0].meta.slicer }, error: null, updatedAt: new Date(),
+      result: { gcodeKeys, slicer: r.plates[0].meta.slicer, platesInfo: r.plates.map((pl) => ({ index: pl.index, timeS: pl.meta.timeS, layers: pl.meta.layers, filament: pl.meta.filaments.map((f) => ({ g: f.g ?? 0, mm: f.mm ?? 0 })) })) }, error: null, updatedAt: new Date(),
     }).where(stillRunning(runId)).returning({ id: s.sliceRuns.id });
     // cancelado mientras se guardaban los archivos: nadie los referencia, se borran
     if (!done.length) for (const k of [...gcodeKeys, threemfKey]) if (k) await remove(k).catch(() => {});

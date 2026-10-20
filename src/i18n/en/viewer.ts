@@ -2,6 +2,8 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const viewer: Shape<typeof es['viewer']> = {
+  plate: 'Plate',
+  allPlates: 'All plates',
   travelStats: '{n} retractions · {m} m of travel moves (turn them on with “Travel moves”)',
   travel: 'Travel moves',
   mode_ventilador: 'Fan',
@@ -82,4 +84,5 @@ export const viewer: Shape<typeof es['viewer']> = {
   mode_tiempoCapa: 'Layer time',
   slowLayers: 'slow layers',
   fastLayers: 'fast layers',
+  platesCount: '{n} plates',
 };

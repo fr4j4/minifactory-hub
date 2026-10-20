@@ -5,6 +5,7 @@ import {unzipSync} from 'fflate';
 import {parseAms} from '../src/lib/mesh/threemf-ams';
 import {parse3mfSliceMeta,hasSlicedData,buildGcodePreview,gcodePreviewToBin} from '../src/lib/gcode';
 import {parseMesh} from '../src/lib/mesh/parse';
+import {listPlates} from '../src/lib/mesh/threemf-plates';
 import {analyze,weld,decimate,toPreviewBin,renderThumbnail,renderTurntable} from '../src/lib/mesh/ops';
 async function main(){
 const [input,ext,out]=process.argv.slice(2);if(!input||!out)throw new Error('Missing worker paths');
@@ -16,7 +17,15 @@ const positions=new Float32Array(light.indices.length*3);for(let i=0;i<light.ind
 await fs.writeFile(path.join(out,'preview.mfm'),toPreviewBin(dec,{origTriangles:ix.indices.length/3,decimated:dec!==ix}));
 await fs.writeFile(path.join(out,'thumb.webp'),await renderThumbnail({positions},{format:'webp'}));const turn=await renderTurntable({positions});if(turn)await fs.writeFile(path.join(out,'turn.webp'),turn);
 let extra:any={};if(ext==='3mf'){extra.ams=parseAms(buf);extra.sliced=parse3mfSliceMeta(buf);extra.hasSlicedData=extra.sliced?hasSlicedData(extra.sliced):false;const files=unzipSync(buf,{filter:f=>/plate_1\.gcode$/i.test(f.name)&&f.originalSize<=256*1024*1024});const gcode=Object.values(files)[0];if(gcode)await fs.writeFile(path.join(out,'gcode.mfg'),gcodePreviewToBin(buildGcodePreview(new TextDecoder().decode(gcode))));}
-await fs.writeFile(path.join(out,'result.json'),JSON.stringify({extra,analysis,decimated:dec!==ix,render:{version:2,triangles:light.indices.length/3,simplified:light!==ix,frames:12,width:240,height:180,format:'webp',turnBytes:turn?.length||0}}));
+// 3MF con varias placas: una vista previa por placa (la vista general sigue mostrando todo el proyecto)
+let plates:any[]|undefined;
+if(ext==='3mf'){const list=listPlates(buf);if(list.length>1){plates=[];for(const p of list){
+  const pm=await parseMesh(buf,ext,{plate:p.index});if(!pm.positions.length)continue;
+  const pa=analyze(pm),pix=weld(pm),pdec=decimate(pix,1_500_000);
+  const file=`plate-${p.index}.mfm`;await fs.writeFile(path.join(out,file),toPreviewBin(pdec,{origTriangles:pix.indices.length/3,decimated:pdec!==pix}));
+  plates.push({index:p.index,name:p.name,file,...(pm.bedCenter?{centerX:pm.bedCenter.x,centerY:pm.bedCenter.y}:{}),triangles:pa.triangles,dimX:pa.dimX,dimY:pa.dimY,dimZ:pa.dimZ,volumeCm3:pa.volumeCm3});
+}}}
+await fs.writeFile(path.join(out,'result.json'),JSON.stringify({extra,analysis,plates,decimated:dec!==ix,render:{version:2,triangles:light.indices.length/3,simplified:light!==ix,frames:12,width:240,height:180,format:'webp',turnBytes:turn?.length||0}}));
 
 }
 main().catch(error=>{console.error(error.message);process.exitCode=1;});

@@ -181,7 +181,7 @@ export async function sendToPrinter(i: SendInput) {
 /** Laminados con 3MF listos para enviar (los más recientes primero). */
 export async function sendableRuns(limit = 30) {
   const db = await getDb();
-  return db.select({ id: s.sliceRuns.id, label: s.sliceRuns.label, timeS: s.sliceRuns.timeS, filament: s.sliceRuns.filament, createdAt: s.sliceRuns.createdAt, profileVersions: s.sliceRuns.profileVersions })
+  return db.select({ id: s.sliceRuns.id, label: s.sliceRuns.label, timeS: s.sliceRuns.timeS, filament: s.sliceRuns.filament, createdAt: s.sliceRuns.createdAt, profileVersions: s.sliceRuns.profileVersions, result: s.sliceRuns.result })
     .from(s.sliceRuns).where(and(eq(s.sliceRuns.status, 'done'), isNotNull(s.sliceRuns.threemfKey))).orderBy(desc(s.sliceRuns.createdAt)).limit(limit);
 }
 

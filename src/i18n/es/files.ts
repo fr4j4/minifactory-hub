@@ -234,4 +234,5 @@ export const files = {
   zipTooBig: 'El ZIP descomprimido es demasiado grande.',
   zipEmpty: 'El ZIP no trae modelos compatibles.',
   zipDone: 'ZIP importado: {n} modelo(s).',
+  detectingPlates: 'Detectando las placas del proyecto…',
 };

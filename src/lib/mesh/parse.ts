@@ -3,9 +3,12 @@ import { XMLParser } from 'fast-xml-parser';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
 import { parseAms } from './threemf-ams';
+import { listPlates, type PlateInfo } from './threemf-plates';
 
 /** Malla como "sopa de triángulos": 9 floats por triángulo. colors (opcional) = 9 floats RGB 0..1 por triángulo. */
 export interface Mesh {
+  /** solo placas de un 3MF Bambu/Orca: centro de las piezas medido desde la esquina de su cama (mm), si el proyecto declara el tamaño de cama */
+  bedCenter?: { x: number; y: number };
   positions: Float32Array;
   colors?: Float32Array;
 }
@@ -209,7 +212,11 @@ export function paintState(code: string): number {
 
 interface ObjDef { mesh?: { v: Float32Array; t: Uint32Array; tri: Array<{ pid?: string; p1?: number; paint?: string }> }; comps?: Array<{ id: string; path?: string; m: Mat }>; pid?: string; pindex?: number }
 
-export function parse3MF(buf: Uint8Array): Mesh {
+/**
+ * Geometría de un 3MF. Sin `plate` devuelve todo el proyecto tal como está en la cama de Bambu/Orca (todas las placas juntas).
+ * Con `plate` (1…n) solo las piezas de esa placa, recentradas en XY para que queden sobre el origen de la cama.
+ */
+export function parse3MF(buf: Uint8Array, opts?: { plate?: number }): Mesh {
   const files = unzipSync(buf);
   const xp = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: false, removeNSPrefix: true, isArray: (n) => ['object', 'vertex', 'triangle', 'component', 'item', 'base', 'basematerials', 'color', 'colorgroup'].includes(n) });
   const rootName = Object.keys(files).find((n) => n.toLowerCase() === '3d/3dmodel.model');
@@ -242,6 +249,16 @@ export function parse3MF(buf: Uint8Array): Mesh {
   };
   const root = loadModel(rootName);
   const cache: Record<string, ReturnType<typeof loadModel>> = { [rootName]: root };
+  // selección de placa: una instancia (objeto + nº de copia dentro del objeto) pertenece a la placa que la lista en model_settings
+  const plates = opts?.plate !== undefined ? listPlates(buf) : [];
+  const plate: PlateInfo | undefined = plates.find((p) => p.index === opts?.plate);
+  if (opts?.plate !== undefined && plates.length && !plate) throw new LocalizedError('parse.mf3NoPlate', { plate: opts.plate });
+  if (opts?.plate !== undefined && !plates.length && opts.plate !== 1) throw new LocalizedError('parse.mf3NoPlate', { plate: opts.plate });
+  const seen = new Map<string, number>();
+  const items = root.items.filter((it) => {
+    const k = seen.get(it.id) ?? 0; seen.set(it.id, k + 1);
+    return !plate || plate.instances.some((x) => x.objectId === it.id && x.instanceId === k);
+  });
   const pos: number[] = []; const col: number[] = [];
   let anyColor = false;
   // color por extrusor (Bambu/Orca): cada objeto de la placa toma el color de su filamento si el 3MF no trae paleta propia
@@ -278,10 +295,46 @@ export function parse3MF(buf: Uint8Array): Mesh {
       walk(target, c.id, mulMat(c.m, m), depth + 1);
     }
   };
-  if (root.items.length) for (const it of root.items) { rootColor = extColor.get(it.id); walk(root, it.id, it.m); }
+  if (root.items.length) for (const it of items) { rootColor = extColor.get(it.id); walk(root, it.id, it.m); }
   else for (const id of Object.keys(root.objs)) { rootColor = extColor.get(id); walk(root, id, IDENT); }
   if (!pos.length) throw new LocalizedError('parse.mf3NoGeometry');
-  return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined };
+  let bedCenter: { x: number; y: number } | undefined;
+  if (plate) {
+    bedCenter = plateBedCenter(pos, plate.index, plates.length, projectBed(files));
+    recenterXY(pos);
+  }
+  return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined, ...(bedCenter ? { bedCenter } : {}) };
+}
+/** Tamaño de la cama del proyecto (`printable_area` de Metadata/project_settings.config), o null si no lo declara. */
+export function projectBed(files: Record<string, Uint8Array>): { w: number; h: number } | null {
+  const key = Object.keys(files).find((n) => /^metadata\/project_settings\.config$/i.test(n)); if (!key) return null;
+  try {
+    const area = JSON.parse(strFromU8(files[key])).printable_area; if (!Array.isArray(area)) return null;
+    const pts = area.map((p: unknown) => String(p).split('x').map(Number)).filter((p: number[]) => p.length === 2 && p.every(Number.isFinite));
+    if (pts.length < 3) return null;
+    const xs = pts.map((p: number[]) => p[0]), ys = pts.map((p: number[]) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+    return w > 0 && h > 0 ? { w, h } : null;
+  } catch { return null; }
+}
+/**
+ * Bambu Studio / OrcaSlicer disponen las placas de un proyecto en una grilla de ceil(√n) columnas, con una separación del 20 % de la cama
+ * y la primera placa en el origen (la siguiente fila va hacia −Y). Con eso se recupera dónde están las piezas dentro de su cama.
+ */
+export function plateBedCenter(pos: number[], index: number, count: number, bed: { w: number; h: number } | null): { x: number; y: number } | undefined {
+  if (!bed || !pos.length || count < 1) return undefined;
+  let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+  for (let i = 0; i < pos.length; i += 3) { minx = Math.min(minx, pos[i]); maxx = Math.max(maxx, pos[i]); miny = Math.min(miny, pos[i + 1]); maxy = Math.max(maxy, pos[i + 1]); }
+  const cols = Math.max(1, Math.ceil(Math.sqrt(count))), k = index - 1;
+  const ox = (k % cols) * bed.w * 1.2, oy = -Math.floor(k / cols) * bed.h * 1.2;
+  return { x: (minx + maxx) / 2 - ox, y: (miny + maxy) / 2 - oy };
+}
+/** Centra en XY la geometría de una placa: la placa queda sobre el origen aunque en el proyecto esté desplazada. */
+function recenterXY(pos: number[]) {
+  let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+  for (let i = 0; i < pos.length; i += 3) { minx = Math.min(minx, pos[i]); maxx = Math.max(maxx, pos[i]); miny = Math.min(miny, pos[i + 1]); maxy = Math.max(maxy, pos[i + 1]); }
+  const cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+  for (let i = 0; i < pos.length; i += 3) { pos[i] -= cx; pos[i + 1] -= cy; }
 }
 function hexToRgb(h?: string): [number, number, number] {
   if (!h) return [0.8, 0.8, 0.8];
@@ -377,12 +430,12 @@ export async function parseSTEP(buf: Uint8Array): Promise<Mesh> {
   return { positions: Float32Array.from(pos) };
 }
 
-export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: string }): Promise<Mesh> {
+export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: string; plate?: number }): Promise<Mesh> {
   const t = await getT();
   switch (ext) {
     case 'stl': return parseSTL(buf);
     case 'obj': return parseOBJ(buf, extra?.mtl);
-    case '3mf': return parse3MF(buf);
+    case '3mf': return parse3MF(buf, extra?.plate !== undefined ? { plate: extra.plate } : undefined);
     case 'ply': return parsePLY(buf);
     case 'amf': return parseAMF(buf);
     case 'glb': return parseGLB(buf);

@@ -237,4 +237,5 @@ export const files: Shape<typeof es['files']> = {
   zipTooBig: 'The unzipped ZIP is too large.',
   zipEmpty: 'The ZIP has no supported models.',
   zipDone: 'ZIP imported: {n} model(s).',
+  detectingPlates: 'Detecting the project plates…',
 };
