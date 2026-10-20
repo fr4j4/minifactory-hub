@@ -59,7 +59,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
             {search(t('inventory.searchMaterials'), filter !== 'todos' ? { f: filter } : undefined)}
           </div>)}
         {all.length === 0 ? (
-          <Card><Empty title={t('buy.emptyTitle')} hint={t('buy.emptyHint')} action={<span className="flex flex-wrap justify-center gap-2">{create && <Link className="btn-primary" href="/inventario/biblioteca">{t('buy.addFilament')}</Link>}{create && <Link className="btn-ghost" href="/inventario/compras/nueva">{t('buy.registerPurchase')}</Link>}</span>} /></Card>
+          <Card><Empty title={t('buy.emptyTitle')} hint={t('buy.emptyHint')} action={<span className="flex flex-wrap justify-center gap-2">{create && <Link className="btn-primary" href="/filamentos">{t('buy.addFilament')}</Link>}{create && <Link className="btn-ghost" href="/inventario/compras/nueva">{t('buy.registerPurchase')}</Link>}</span>} /></Card>
         ) : (
           <FilamentStock mats={shownMats} stock={stock} spools={spools} costMap={costMap} canEdit={edit} canBuy={create} canRemove={can(user, 'inventario', 'X')} profiles={profs} linkMap={linkMap} lineSpecs={lineSpecs} filter={filter} replaceOptions={all.map((x) => ({ id: x.id, label: `${x.type} ${x.colorName}` }))} />)}
       </>);
@@ -106,7 +106,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     <>
       <PageHeader title={t('inventory.inventory')} subtitle={t('buy.subtitle')} actions={<>
         {create && <Link className="btn-primary" href="/inventario/compras/nueva" data-testid="new-purchase">{t('buy.registerPurchase')}</Link>}
-        {create && <Link className="btn-ghost" href="/inventario/biblioteca" data-testid="lib-open">{t('buy.addFilament')}</Link>}
+        {create && <Link className="btn-ghost" href="/filamentos" data-testid="lib-open">{t('buy.addFilament')}</Link>}
         <Link className="btn-ghost" href="/inventario/escanear"><Icon name="qr" className="h-4 w-4" />{t('inventory.scanQr2')}</Link>
         <details className="relative">
           <summary className="btn-ghost list-none cursor-pointer [&::-webkit-details-marker]:hidden" data-testid="inv-more">{t('buy.more')} ▾</summary>

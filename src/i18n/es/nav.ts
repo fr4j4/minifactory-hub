@@ -8,6 +8,7 @@ export const nav = {
   slicer: 'Laminador',
   catalog: 'Catálogo',
   sales: 'Ventas',
+  filaments: 'Biblioteca de filamentos',
   inventory: 'Inventario',
   machines: 'Máquinas',
   queue: 'Cola',
@@ -28,6 +29,7 @@ export const nav = {
   crumbSpools: 'Bobinas',
   crumbScan: 'Escanear',
   crumbLabels: 'Etiquetas',
+  crumbEdit: 'Editar',
   crumbDetail: 'Detalle',
   tagline: 'taller · 3D',
 };
