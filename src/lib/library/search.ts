@@ -60,8 +60,15 @@ export function libraryFilters(user:SessionUser,sp:Record<string,string|undefine
     for(const [key,field,comparison]of [['trianglesMin',s.modelFiles.triangles,'>='],['trianglesMax',s.modelFiles.triangles,'<='],['volumeMin',s.modelFiles.volumeCm3,'>='],['volumeMax',s.modelFiles.volumeCm3,'<='],['dimX',s.modelFiles.dimX,'<='],['dimY',s.modelFiles.dimY,'<='],['dimZ',s.modelFiles.dimZ,'<=']] as const){const n=number(key);if(n!==undefined)conds.push(sql`${field} ${sql.raw(comparison)} ${n}`);}
     if(sp.used)conds.push(sql`exists(select 1 from quote_item_models qm where qm.model_file_id=${s.modelFiles.id})`);
     if(sp.multicolor)conds.push(sql`${s.fileVersions.meta}->'ams'->>'multicolor'='true'`);
+    if(sp.fits&&z.uuid().safeParse(sp.fits).success)conds.push(fitsMachine(sql`${sp.fits}::uuid`));
     if(sp.author)conds.push(ilike(s.modelFiles.author,'%'+sp.author+'%'));
     if(sp.customer&&z.uuid().safeParse(sp.customer).success)conds.push(eq(s.modelFiles.customerId,sp.customer));
     if(sp.physical)conds.push(sql`exists(select 1 from library_entries le where le.model_id=${s.modelFiles.id} and le.path like ${sp.physical+'%'})`);
     return conds;
+}
+
+/** El modelo cabe en la máquina (compara las medidas ordenadas de mayor a menor, así que admite rotarlo). Los G-code quedan fuera: ya están laminados para una máquina. */
+export function fitsMachine(machineId: ReturnType<typeof sql>) {
+    const x = s.modelFiles.dimX, y = s.modelFiles.dimY, z = s.modelFiles.dimZ;
+    return sql`(${x} is not null and ${y} is not null and ${z} is not null and coalesce(${s.modelFiles.format},'') not in ('gcode','bgcode','gco') and exists(select 1 from machines fm where fm.id=${machineId} and greatest(${x},${y},${z})<=greatest(fm.vol_x,fm.vol_y,fm.vol_z) and least(${x},${y},${z})<=least(fm.vol_x,fm.vol_y,fm.vol_z) and (${x}+${y}+${z}-greatest(${x},${y},${z})-least(${x},${y},${z}))<=(fm.vol_x+fm.vol_y+fm.vol_z-greatest(fm.vol_x,fm.vol_y,fm.vol_z)-least(fm.vol_x,fm.vol_y,fm.vol_z))))`;
 }
