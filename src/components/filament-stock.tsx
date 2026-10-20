@@ -46,7 +46,7 @@ export async function FilamentStock({ mats, stock, spools, costMap, canEdit, can
                 const s = state(m); const pack = m.packG && m.packG > 0 ? m.packG : 1000;
                 return (
                   <li key={m.id} data-testid="material-row" className={cn('rounded-xl border bg-[var(--card)] p-3 flex gap-3 min-w-0', s === 'bajo' ? 'border-amber-400/70' : s === 'sin' ? 'border-dashed border-[var(--line)]' : 'border-[var(--line)]')}>
-                    <SpoolIcon hex={m.hex} label={m.tech === 'resina' ? 'RES' : m.type} fill={(x?.physicalG ?? 0) / Math.max(pack, x?.physicalG ?? 0, 1)} resin={m.tech === 'resina'} size={52} className={cn(s === 'sin' && 'opacity-45 saturate-50')} />
+                    <SpoolIcon hex={m.hex} label={m.tech === 'resina' ? 'RES' : m.type} fill={(x?.physicalG ?? 0) / Math.max(pack, x?.physicalG ?? 0, 1)} resin={m.tech === 'resina'} size={52} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0"><div className="font-medium truncate">{m.colorName}</div>

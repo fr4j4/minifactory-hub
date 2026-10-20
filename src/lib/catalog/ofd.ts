@@ -8,7 +8,7 @@ import { readdir, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface CatalogRoots { ofd: string; local: string | null }
-export const defaultRoots = (): CatalogRoots => ({ ofd: process.env.CATALOG_DIR || join(process.cwd(), 'vendor', 'open-filament-database'), local: process.env.CATALOG_LOCAL_DIR || join(process.cwd(), 'vendor', 'catalog-local') });
+export const defaultRoots = (): CatalogRoots => ({ ofd: process.env.CATALOG_DIR || join(process.cwd(), 'vendor', 'open-filament-database'), local: process.env.CATALOG_LOCAL_DIR || (process.env.DATA_DIR ? join(process.env.DATA_DIR, 'catalog-local') : join(process.cwd(), 'vendor', 'catalog-local')) });
 
 export interface CatalogSize { weight: number; diameter: number | null; gtin: string | null; articleNumber: string | null; emptySpoolWeight: number | null; refill: boolean; discontinued: boolean; links: Array<{ store: string; url: string }> }
 export interface CatalogVariant { id: string; name: string; hex: string; hexes: string[]; traits: string[]; discontinued: boolean; standards: Record<string, string>; sizes: CatalogSize[] }
@@ -21,7 +21,7 @@ export interface CatalogFilament {
 }
 export interface CatalogMeta { source: string; license: string; commit: string; commitDate: string; brands: number; filaments: number; variants: number; localBrands: number; cover: Record<string, number> }
 
-interface Index { brands: CatalogBrand[]; brandById: Map<string, CatalogBrand>; filaments: CatalogFilament[]; byKey: Map<string, CatalogFilament>; meta: CatalogMeta; stamp: string; roots: CatalogRoots }
+interface Index { /** claves ocultas por el taller (filamentos de OFD que no quiere ver) */ hidden: string[]; brands: CatalogBrand[]; brandById: Map<string, CatalogBrand>; filaments: CatalogFilament[]; byKey: Map<string, CatalogFilament>; meta: CatalogMeta; stamp: string; roots: CatalogRoots }
 
 export const norm = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
 
@@ -90,6 +90,8 @@ async function build(roots: CatalogRoots, stamp: string): Promise<Index> {
   const brands = new Map<string, CatalogBrand>(); const fils = new Map<string, CatalogFilament>();
   await loadRoot(roots.ofd, false, brands, fils);
   if (roots.local) await loadRoot(roots.local, true, brands, fils);
+  const hidden: string[] = roots.local ? ((await readJson<unknown>(join(roots.local, 'hidden.json'))) as string[] | null)?.filter((k) => typeof k === 'string') ?? [] : [];
+  for (const k of hidden) fils.delete(k);
   const filaments = [...fils.values()].sort((a, b) => a.brandName.localeCompare(b.brandName) || a.material.localeCompare(b.material) || a.name.localeCompare(b.name));
   for (const b of brands.values()) { b.filaments = 0; b.colors = 0; }
   for (const f of filaments) { const b = brands.get(f.brandId); if (b) { b.filaments++; b.colors += f.colorCount; } }
@@ -101,12 +103,14 @@ async function build(roots: CatalogRoots, stamp: string): Promise<Index> {
     brands: list.length, filaments: filaments.length, variants: filaments.reduce((n, f) => n + f.colorCount, 0), localBrands: list.filter((b) => b.local).length,
     cover: { printTemps: cov((f) => f.tempMax !== null), bedTemps: cov((f) => f.bedMax !== null), dryTemp: cov((f) => f.dryMax !== null), datasheet: cov((f) => !!f.datasheetUrl), slicerProfile: cov((f) => Object.keys(f.slicers).length > 0) },
   };
-  return { brands: list, brandById: new Map(list.map((b) => [b.id, b])), filaments, byKey: new Map(filaments.map((f) => [f.key, f])), meta, stamp, roots };
+  return { hidden, brands: list, brandById: new Map(list.map((b) => [b.id, b])), filaments, byKey: new Map(filaments.map((f) => [f.key, f])), meta, stamp, roots };
 }
 
 let cache: Promise<Index> | null = null; let cacheKey = '';
+let gtinCache: Promise<Map<string, { filament: string; variant: string }>> | null = null; let gtinKey = '';
+
 async function stampOf(roots: CatalogRoots) {
-  const m = async (p: string) => { try { return String((await stat(p)).mtimeMs); } catch { return '0'; } };
+  const m = async (p: string) => { try { const x = await stat(p); return `${x.mtimeMs}:${x.size}`; } catch { return '0'; } };
   return `${roots.ofd}|${roots.local}|${await m(join(roots.ofd, 'SYNC.json'))}|${roots.local ? await m(join(roots.local, 'SYNC.json')) : ''}`;
 }
 export async function getIndex(roots: CatalogRoots = defaultRoots()): Promise<Index> {
@@ -114,7 +118,7 @@ export async function getIndex(roots: CatalogRoots = defaultRoots()): Promise<In
   if (!cache || key !== cacheKey) { cacheKey = key; cache = build(roots, key).catch((e) => { cache = null; throw e; }); }
   return cache;
 }
-export function resetCatalogCache() { cache = null; cacheKey = ''; }
+export function resetCatalogCache() { cache = null; cacheKey = ''; gtinCache = null; gtinKey = ''; }
 
 export interface Page<T> { items: T[]; page: number; pageSize: number; total: number; nextPage: number | null }
 export function paginate<T>(all: T[], page?: number, pageSize?: number, max = 200): Page<T> {
@@ -128,13 +132,13 @@ export async function listBrands(o: { q?: string; origin?: string; page?: number
   return paginate(ix.brands.filter((b) => (!q || norm(b.name).includes(q) || b.id.includes(q)) && (!o.origin || b.origin === o.origin)), o.page, o.pageSize);
 }
 
-export interface FilamentQuery { q?: string; brand?: string; material?: string; trait?: string; hasTemps?: boolean; sort?: 'brand' | 'name' | 'colors' | 'density'; page?: number; pageSize?: number }
+export interface FilamentQuery { q?: string; brand?: string; material?: string; trait?: string; hasTemps?: boolean; /** solo los propios o editados por el taller */ local?: boolean; sort?: 'brand' | 'name' | 'colors' | 'density'; page?: number; pageSize?: number }
 export async function listFilaments(o: FilamentQuery = {}, roots?: CatalogRoots) {
   const ix = await getIndex(roots); const q = norm(o.q ?? ''); const mat = o.material?.toUpperCase();
   const words = q.split(/\s+/).filter(Boolean);
   let list = ix.filaments.filter((f) => {
     if (o.brand && f.brandId !== o.brand) return false; if (mat && f.material.toUpperCase() !== mat) return false;
-    if (o.trait && !f.traits.includes(o.trait)) return false; if (o.hasTemps && f.tempMax === null) return false;
+    if (o.trait && !f.traits.includes(o.trait)) return false; if (o.hasTemps && f.tempMax === null) return false; if (o.local && !f.local) return false;
     if (!words.length) return true; const hay = norm(`${f.brandName} ${f.material} ${f.name}`); return words.every((w) => hay.includes(w));
   });
   if (o.sort === 'name') list = [...list].sort((a, b) => a.name.localeCompare(b.name)); else if (o.sort === 'colors') list = [...list].sort((a, b) => b.colorCount - a.colorCount); else if (o.sort === 'density') list = [...list].sort((a, b) => a.density - b.density);
@@ -164,7 +168,6 @@ export async function getVariant(key: string, variantId: string, roots?: Catalog
 }
 
 /** GTIN/EAN → color del catálogo. Se arma una vez (lee los `sizes.json`) y se invalida junto con el índice. */
-let gtinCache: Promise<Map<string, { filament: string; variant: string }>> | null = null; let gtinKey = '';
 export async function lookupGtin(code: string, roots?: CatalogRoots): Promise<{ filament: string; variant: string } | null> {
   const digits = code.replace(/\D/g, ''); if (digits.length < 8) return null;
   const ix = await getIndex(roots);

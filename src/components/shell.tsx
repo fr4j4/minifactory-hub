@@ -28,12 +28,12 @@ export function Icon({ name, className = 'h-5 w-5' }: { name: IconName; classNam
 const SECTIONS: Array<{ t: 'nav.shop' | 'nav.sectionProduction' | 'nav.sectionStock' | 'nav.sectionSystem'; hrefs: string[] }> = [
   { t: 'nav.shop', hrefs: ['/', '/pedidos', '/presupuestos', '/clientes', '/calculadora'] },
   { t: 'nav.sectionProduction', hrefs: ['/archivos', '/laminador', '/cola', '/maquinas'] },
-  { t: 'nav.sectionStock', hrefs: ['/inventario', '/catalogo', '/ventas'] },
+  { t: 'nav.sectionStock', hrefs: ['/inventario', '/filamentos', '/catalogo', '/ventas'] },
   { t: 'nav.sectionSystem', hrefs: ['/galeria', '/reportes', '/configuracion'] },
 ];
 // secciones que no están en el menú lateral
 const OFF_NAV = { notificaciones: 'shell.notifications' } as const;
-const CRUMB = { nuevo: 'nav.crumbNew', nueva: 'nav.crumbNewF', perfil: 'nav.crumbProfile', perfiles: 'nav.crumbProfiles', bobinas: 'nav.crumbSpools', escanear: 'nav.crumbScan', etiquetas: 'nav.crumbLabels' } as const;
+const CRUMB = { nuevo: 'nav.crumbNew', nueva: 'nav.crumbNewF', perfil: 'nav.crumbProfile', perfiles: 'nav.crumbProfiles', bobinas: 'nav.crumbSpools', escanear: 'nav.crumbScan', etiquetas: 'nav.crumbLabels', editar: 'nav.crumbEdit' } as const;
 
 /** Marca: capas apiladas bajo una boquilla. */
 export function Mark({ className = 'h-8 w-8' }: { className?: string }) {

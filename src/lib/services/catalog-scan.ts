@@ -16,5 +16,5 @@ export async function resolveScan(raw: string): Promise<ScanResult> {
   // un filamento que ya tengo: lo habitual al recibir un pedido es registrar la compra
   if (mat) return { kind: 'material', href: `/inventario/compras/nueva?material=${mat.id}` };
   const hit = await lookupGtin(digits);
-  return hit ? { kind: 'catalog', href: `/inventario/biblioteca/${hit.filament.split('/').map(encodeURIComponent).join('/')}?variant=${encodeURIComponent(hit.variant)}` } : null;
+  return hit ? { kind: 'catalog', href: `/filamentos/${hit.filament.split('/').map(encodeURIComponent).join('/')}?variant=${encodeURIComponent(hit.variant)}` } : null;
 }

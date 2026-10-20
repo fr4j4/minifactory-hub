@@ -17,7 +17,7 @@ export async function voidPurchaseAction(id: string) {
 }
 /** «Tengo este color»: lo agrega a Mis filamentos sin stock. */
 export async function addCatalogColorsAction(key: string, variantIds: string[]) {
-  return safe(async () => { const u = await requirePerm('inventario', 'C'); return addCatalogColors(key, variantIds, u.id); }, ['/inventario', '/inventario/biblioteca']);
+  return safe(async () => { const u = await requirePerm('inventario', 'C'); return addCatalogColors(key, variantIds, u.id); }, ['/inventario', '/filamentos']);
 }
 export async function saveSupplyRuleAction(i: { itemId: string; qtyPerOrder: number; active?: boolean }) {
   return safe(async () => { const u = await requirePerm('inventario', 'E'); await saveSupplyRule(i, u.id); }, ['/inventario']);

@@ -11,6 +11,7 @@ export const nav: Shape<typeof es['nav']> = {
   slicer: 'Slicer',
   catalog: 'Catalog',
   sales: 'Sales',
+  filaments: 'Filament library',
   inventory: 'Inventory',
   machines: 'Machines',
   queue: 'Queue',
@@ -31,6 +32,7 @@ export const nav: Shape<typeof es['nav']> = {
   crumbSpools: 'Spools',
   crumbScan: 'Scan',
   crumbLabels: 'Labels',
+  crumbEdit: 'Edit',
   crumbDetail: 'Details',
   tagline: 'workshop · 3D',
 };

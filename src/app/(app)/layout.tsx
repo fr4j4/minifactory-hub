@@ -23,6 +23,7 @@ const NAV = [
   { href: '/catalogo', label: 'nav.catalog', icon: 'bag', group: 'more', mod: 'catalogo' },
   { href: '/ventas', label: 'nav.sales', icon: 'cart', group: 'more', mod: 'ventas' },
   { href: '/inventario', label: 'nav.inventory', icon: 'box', group: 'main', mod: 'inventario' },
+  { href: '/filamentos', label: 'nav.filaments', icon: 'tag', group: 'more', mod: 'inventario' },
   { href: '/maquinas', label: 'nav.machines', icon: 'printer', group: 'more', mod: 'maquinas' },
   { href: '/cola', label: 'nav.queue', icon: 'queue', group: 'main', mod: 'cola' },
   { href: '/galeria', label: 'nav.gallery', icon: 'image', group: 'more', mod: 'galeria' },

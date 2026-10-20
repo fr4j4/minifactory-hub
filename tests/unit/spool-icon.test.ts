@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inkFor, luma, rollRadius } from '@/lib/spool-geometry';
+import { inkFor, luma, rollRadius, rollRadiusShown } from '@/lib/spool-geometry';
 import { matOptionLabel, stockTag } from '@/lib/material-label';
 import { createT } from '@/i18n/translate';
 
@@ -20,5 +20,12 @@ describe('etiqueta de stock en los selectores', () => {
     expect(stockTag({ generic: false, stockG: 0 }, t)).toBe('sin stock');
     expect(stockTag({ generic: false, stockG: 2300 }, t)).toContain('2.300');
     expect(matOptionLabel({ label: 'PLA Negro', generic: false, stockG: 0 }, t)).toBe('PLA Negro · sin stock');
+  });
+});
+
+describe('rollo visible', () => {
+  it('un carrete casi vacío se dibuja con un rollo mínimo para no perder su color', () => {
+    expect(rollRadiusShown(0)).toBe(11); expect(rollRadiusShown(0.2)).toBe(11);
+    expect(rollRadiusShown(1)).toBe(19); expect(rollRadiusShown(0.7)).toBeCloseTo(rollRadius(0.7), 6);
   });
 });
