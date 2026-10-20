@@ -10,16 +10,19 @@ import { Badge } from './badge';
 import { Icon } from '@/components/shell';
 import { collectionModels } from '@/actions/library';
 import { FavButton } from './file-bits';
+import { Loading3D } from './loading-3d';
 import { ModalDialog } from './ui/kit';
 import { AlertTriangle, Check, Eye, FileText, Layers, Palette } from 'lucide-react';
 
-export interface FileCard { id: string; name: string; format: string; cover?:string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean; size?: number | null; updatedAt?: string; author?: string | null; license?: string | null; remote?: boolean }
+export interface FileCard { id: string; name: string; format: string; cover?:string; versionId: string | null; hasThumb: boolean; hasTurn?: boolean; dims: string; tags: string[]; favorite: boolean; closed: boolean | null; version: number; fits: string[]; slices: number; quotes: number; multicolor: boolean; processing?: boolean; size?: number | null; updatedAt?: string; author?: string | null; license?: string | null; remote?: boolean }
 
 const bytes = (n?: number | null) => n == null ? '—' : n < 1048576 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(n < 104857600 ? 1 : 0)} MB`;
 
 /** Imagen principal de un modelo: portada, miniatura con giro o, si no hay, el formato. */
 function Preview({ c, alt }: { c: FileCard; alt: string }) {
+  const t = useT();
   /* eslint-disable-next-line @next/next/no-img-element */
+  if (!c.cover && !c.hasThumb && c.processing) return <Loading3D label={t('library.processingModel')} size="sm" className="!gap-1" />;
   return c.cover ? <img src={`/api/media/${c.cover}`} alt={c.name} className="w-full h-full object-cover" loading="lazy"/> : c.hasThumb && c.versionId ? <CardThumb versionId={c.versionId} hasTurn={!!c.hasTurn} alt={alt} /> : <div className="w-full h-full grid place-items-center text-slate-400 text-sm font-mono">{c.format}</div>;
 }
 

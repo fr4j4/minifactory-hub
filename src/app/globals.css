@@ -141,3 +141,23 @@ canvas { touch-action: none; }
 @keyframes nozzle { 0%, 100% { transform: translateX(-46px); } 50% { transform: translateX(46px); } }
 /* pestañas desplazables (móvil): el borde derecho se desvanece solo si hay más pestañas fuera de la vista */
 .tabs-scroll[data-overflow="true"] { mask-image: linear-gradient(90deg, #000 calc(100% - 24px), transparent); }
+
+/* ── Loading3D: cubo que gira mientras se «imprime» capa por capa ── */
+.l3d { display: grid; justify-items: center; align-content: center; gap: .9rem; width: 100%; height: 100%; --s: 3.4rem; }
+.l3d-sm { --s: 1.6rem; gap: .4rem; }
+.l3d-stage { position: relative; width: calc(var(--s) * 1.9); height: calc(var(--s) * 1.9); display: grid; place-items: center; perspective: calc(var(--s) * 7); }
+.l3d-cube { position: relative; width: var(--s); height: var(--s); transform-style: preserve-3d; transform: rotateX(-24deg) rotateY(35deg); animation: l3d-spin 6s linear infinite; }
+.l3d-face { position: absolute; inset: 0; overflow: hidden; border: 1.5px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); box-shadow: inset 0 0 calc(var(--s) * .3) color-mix(in srgb, var(--accent) 22%, transparent); backface-visibility: visible; }
+.l3d-front { transform: translateZ(calc(var(--s) / 2)); } .l3d-back { transform: rotateY(180deg) translateZ(calc(var(--s) / 2)); }
+.l3d-right { transform: rotateY(90deg) translateZ(calc(var(--s) / 2)); } .l3d-left { transform: rotateY(-90deg) translateZ(calc(var(--s) / 2)); }
+.l3d-top { transform: rotateX(90deg) translateZ(calc(var(--s) / 2)); } .l3d-bottom { transform: rotateX(-90deg) translateZ(calc(var(--s) / 2)); }
+/* capas: relleno que sube con rayado de filamento */
+.l3d-layers { position: absolute; inset: 0; background: repeating-linear-gradient(0deg, color-mix(in srgb, var(--accent) 70%, transparent) 0 2px, color-mix(in srgb, var(--accent) 22%, transparent) 2px 5px); animation: l3d-print 2.6s cubic-bezier(.5, 0, .2, 1) infinite; }
+.l3d-shadow { position: absolute; bottom: 4%; width: calc(var(--s) * 1.3); height: calc(var(--s) * .32); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--ink) 28%, transparent), transparent); animation: l3d-shadow 6s linear infinite; }
+.l3d-label { font-size: .78rem; font-weight: 500; letter-spacing: .02em; color: var(--muted); animation: l3d-pulse 2.2s ease-in-out infinite; }
+.l3d-sm .l3d-label { font-size: .72rem; }
+@keyframes l3d-spin { to { transform: rotateX(-24deg) rotateY(395deg); } }
+@keyframes l3d-print { 0% { clip-path: inset(100% 0 0 0); } 70%, 88% { clip-path: inset(0 0 0 0); } 100% { clip-path: inset(0 0 0 0); opacity: 0; } }
+@keyframes l3d-shadow { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(.86); } }
+@keyframes l3d-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .l3d-layers { clip-path: inset(40% 0 0 0); opacity: 1 !important; } }

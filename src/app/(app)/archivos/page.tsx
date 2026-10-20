@@ -1,5 +1,8 @@
 import {libraryFilters} from '@/lib/library/search';
 import {libraryFacets} from '@/lib/library/facets';
+import {libraryLiveState} from '@/lib/library/live';
+import {LibraryLive} from '@/components/library-live';
+import {Loading3D} from '@/components/loading-3d';
 import {NaturalSearch} from '@/components/library-advanced';
 import { modelAccess, sourceAccess } from '@/lib/library/access';
 import Link from 'next/link';
@@ -46,13 +49,14 @@ export default async function FilesPage({ searchParams }: {
     const sources = await db.select({ id: s.librarySources.id, name: s.librarySources.name, status: s.librarySources.status, last: s.librarySources.lastScanAt }).from(s.librarySources).where(and(sourceAccess(user),eq(s.librarySources.workspaceId, WORKSPACE_ID), isNull(s.librarySources.deletedAt)));
     const collections = await db.select().from(s.libraryCollections).where(and(eq(s.libraryCollections.workspaceId, WORKSPACE_ID), isNull(s.libraryCollections.deletedAt)));
     const machines = await db.select({ id: s.machines.id, name: s.machines.name, x: s.machines.volX, y: s.machines.volY, z: s.machines.volZ }).from(s.machines).where(and(eq(s.machines.workspaceId, WORKSPACE_ID), isNull(s.machines.deletedAt)));
+    const live = await libraryLiveState(user, sp);
     const facets = await libraryFacets(db, user, sp, machines.map(m => m.id));
     const versionIds = rows.flatMap(r => r.v ? [r.v.id] : []), modelIds = rows.map(r => r.f.id);
     const sliceCounts = new Map((versionIds.length ? await db.select({ id: s.sliceRuns.fileVersionId, n: sql<number> `count(*)::int` }).from(s.sliceRuns).where(inArray(s.sliceRuns.fileVersionId, versionIds)).groupBy(s.sliceRuns.fileVersionId) : []).map(r => [r.id, r.n]));
     const quoteCounts = new Map((modelIds.length ? await db.select({ id: s.quoteItemModels.modelFileId, n: sql<number> `count(*)::int` }).from(s.quoteItemModels).where(inArray(s.quoteItemModels.modelFileId, modelIds)).groupBy(s.quoteItemModels.modelFileId) : []).map(r => [r.id, r.n]));
     const fits = (f: typeof rows[number]['f']) => [f.dimX, f.dimY, f.dimZ].every(x => x !== null) && !['gcode', 'bgcode', 'gco'].includes(f.format || '') ? machines.filter(m => [f.dimX!, f.dimY!, f.dimZ!].sort((a, b) => b - a).every((n, i) => n <= [m.x, m.y, m.z].sort((a, b) => b - a)[i])).map(m => m.name) : [];
     const coverRows=modelIds.length?await db.select({modelId:s.libraryPhotoLinks.modelId,data:s.libraryPhotoLinks.data,variants:s.photos.variants}).from(s.libraryPhotoLinks).innerJoin(s.photos,eq(s.photos.id,s.libraryPhotoLinks.photoId)).where(and(inArray(s.libraryPhotoLinks.modelId,modelIds),sql`${s.libraryPhotoLinks.data}->>'cover'='true'`,isNull(s.photos.deletedAt))).orderBy(desc(s.libraryPhotoLinks.updatedAt)):[];
-    const cards: FileCard[] = rows.map(({ f, v }) => { const cover = coverRows.find(c=>c.modelId===f.id); return { id: f.id, name: f.name, cover:cover?.data.editedKey||cover?.variants?.['320'],format: formatLabel(f.format || ''), versionId: v?.id || null, hasThumb: !!v?.thumbKey, hasTurn: !!v?.meta?.turnKey, dims: f.dimX !== null ? `${f.dimX.toFixed(1)} × ${f.dimY?.toFixed(1)} × ${f.dimZ?.toFixed(1)} mm` : '—', tags: f.tags || [], favorite: f.favorite, closed: f.closed, version: v?.number || 1, fits: fits(f), slices: v ? sliceCounts.get(v.id) || 0 : 0, quotes: quoteCounts.get(f.id) || 0, multicolor: !!v?.meta?.ams?.multicolor, size: v?.size ?? null, updatedAt: f.updatedAt.toISOString(), author: f.author, license: f.license, remote: !!v && !v.storageKey }; });
+    const cards: FileCard[] = rows.map(({ f, v }) => { const cover = coverRows.find(c=>c.modelId===f.id); return { id: f.id, name: f.name, cover:cover?.data.editedKey||cover?.variants?.['320'],format: formatLabel(f.format || ''), versionId: v?.id || null, hasThumb: !!v?.thumbKey, hasTurn: !!v?.meta?.turnKey, dims: f.dimX !== null ? `${f.dimX.toFixed(1)} × ${f.dimY?.toFixed(1)} × ${f.dimZ?.toFixed(1)} mm` : '—', tags: f.tags || [], favorite: f.favorite, closed: f.closed, version: v?.number || 1, fits: fits(f), slices: v ? sliceCounts.get(v.id) || 0 : 0, quotes: quoteCounts.get(f.id) || 0, multicolor: !!v?.meta?.ams?.multicolor, processing: v?.meta?.status === 'processing', size: v?.size ?? null, updatedAt: f.updatedAt.toISOString(), author: f.author, license: f.license, remote: !!v && !v.storageKey }; });
     // Enlaces: cada clic en una faceta vuelve a la primera página
     const query = (patch: Record<string, string | undefined>) => { const q = new URLSearchParams(); for (const [k, v] of Object.entries({ ...sp, cursor: undefined, ...patch }))
         if (v)
@@ -81,6 +85,8 @@ export default async function FilesPage({ searchParams }: {
     const activeCount = chips.length;
     return <><PageHeader title={t('files.n3dFiles')} subtitle={t('library.results', { n: total })} actions={<>{can(user, 'config', 'E') && <Link className="btn-ghost" href="/archivos/fuentes">{t('library.sources')}</Link>}<Link className="btn-ghost" href="/archivos/revision">{t('library.review')}</Link></>}/>
  {can(user, 'archivos', 'C') && <div className="flex flex-wrap items-center gap-2 mb-4"><AddModelsPanel><Card><Uploader intent={{ intent: 'model' }} accept=".zip,.stl,.3mf,.obj,.ply,.amf,.glb,.gltf,.step,.stp,.gcode,.gco,.bgcode,.png,.jpg,.jpeg,.webp,.pdf" label={t('files.dropYourModelsHereStl')} hint={t('files.upTo500MbPer')}/></Card><LibraryUrlImport /></AddModelsPanel>{sources.length > 0 && <div className="flex gap-1.5 flex-wrap text-xs">{sources.map(src => <span className="badge badge-led" key={src.id} title={src.last ? new Date(src.last).toLocaleString() : t('library.never')}>{src.name} · {src.status}</span>)}</div>}</div>}
+ <LibraryLive signature={live.signature} active={live.active}/>
+ {live.imports.length > 0 && <div className="card p-3 mb-4 flex flex-wrap items-center gap-x-6 gap-y-2" role="status" aria-live="polite">{live.imports.map(i => <div key={i.id} className="flex items-center gap-3 min-w-0"><div className="h-16 w-16 shrink-0"><Loading3D size="sm" hideLabel label={t('library.importingNow', { n: i.title || t('library.importingUntitled') })}/></div><span className="text-sm font-medium truncate">{i.title || t('library.importingUntitled')}</span></div>)}</div>}
  {await (await import('@/lib/ai')).aiAvailableFor(user,'library.search')&&<NaturalSearch/>}
  <div className="grid md:grid-cols-[15rem_minmax(0,1fr)] xl:grid-cols-[16.5rem_minmax(0,1fr)] gap-5 items-start">
  <FiltersPanel active={activeCount}>
