@@ -1,0 +1,17 @@
+{
+  "uuid": "cedf6527-6310-42e7-acf7-fd4433b2b0d1",
+  "id": "clas_ohlson",
+  "name": "Clas Ohlson",
+  "storefront_url": "https://www.clasohlson.com",
+  "logo": "logo.png",
+  "ships_from": [
+    "FI",
+    "NO",
+    "SE"
+  ],
+  "ships_to": [
+    "FI",
+    "NO",
+    "SE"
+  ]
+}

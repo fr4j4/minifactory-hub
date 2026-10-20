@@ -1,0 +1,21 @@
+{
+    "uuid": "f5b5e0ff-a6ca-4dc2-96bc-91f8279d218a",
+    "id": "durapro_asa",
+    "name": "DuraPro ASA",
+    "diameter_tolerance": 0.02,
+    "density": 1.07,
+    "min_print_temperature": 235,
+    "max_print_temperature": 260,
+    "min_bed_temperature": 90,
+    "max_bed_temperature": 110,
+    "data_sheet_url": "https://s3.extrudr.com/extrudr-media/datasheets/tds/tds-en/durapro-asa-TDS-en.pdf",
+    "safety_sheet_url": "https://s3.extrudr.com/extrudr-media/datasheets/msds/msds-en/durapro-asa-MSDS-en.pdf",
+    "slicer_settings": {
+        "prusaslicer": {
+            "profile_name": "Extrudr DuraPro ASA"
+        },
+        "superslicer": {
+            "profile_name": "Extrudr DuraPro ASA"
+        }
+    }
+}

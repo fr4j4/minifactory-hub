@@ -1,0 +1,13 @@
+{
+  "uuid": "d9f65729-8379-4942-939b-8863b6632436",
+  "id": "beehive",
+  "name": "Beehive",
+  "storefront_url": "https://www.beehive.com.br/",
+  "logo": "logo.jpg",
+  "ships_from": [
+    "BR"
+  ],
+  "ships_to": [
+    "BR"
+  ]
+}
