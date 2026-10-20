@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { CalcContext } from '@/lib/context';
 import { cancelRunAction, ensureQualityAction, saveOverridesAsProfileAction, sliceAction, studioBaseAction } from '@/actions/slicer';
 import { useT } from '@/i18n/client';
+import { matOptionLabel } from '@/lib/material-label';
 import { dur, grams, money } from '@/lib/format';
 import { estimateFromMesh } from '@/lib/pricing';
 import { GcodeViewer } from '../gcode-viewer';
@@ -110,7 +111,7 @@ export function Studio({ fileVersionId, fileId, fileName, ctx, defaultMachineId,
         <div className="card p-3 grid sm:grid-cols-4 gap-3">
           <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={setupKey} onChange={(e) => { setSetupKey(e.target.value); const s2 = setups.find((x) => x.key === e.target.value); if (s2?.processProfileId) setProcessId(s2.processProfileId); }} data-testid="studio-machine">{setups.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select></label>
           <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="studio-process"><ProcessOptions profiles={procs} machineNozzle={setup?.nozzle ?? null} compatibleIds={setup?.compatibleProcessIds} /></select></label>
-          <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="studio-material">{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
+          <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="studio-material">{mats.map((m) => <option key={m.id} value={m.id}>{matOptionLabel(m, t)}</option>)}</select></label>
           <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="studio-copies" /></label>
           <div className="sm:col-span-4 flex flex-wrap items-center gap-2" role="group" aria-label={t('slicer.qualityIntent')}><span className="label !mb-0">{t('slicer.qualityIntent')}</span>{qLinks.map((k) => <button key={k} type="button" className="btn-ghost btn-sm" onClick={() => pickQuality(k)} data-testid={`studio-q-${k}`}>{t(`nozzle.tpl.${k}` as 'nozzle.tpl.borrador')}</button>)}</div>
         </div>

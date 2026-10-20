@@ -262,6 +262,8 @@ export async function setOrderStatus(orderId: string, to: 'listo' | 'entregado' 
       if (v.stock <= v.minStock) await notify('stock_bajo', t('orders.lowProductStock', { sku: v.sku }), t('orders.unitsLeftMinimum', { stock: v.stock, min: v.minStock }), '/catalogo');
     }
     await db.update(s.orderItems).set({ status: 'entregado' }).where(eq(s.orderItems.orderId, orderId));
+    // embalaje e insumos de las reglas del taller: salen del inventario y entran al costo real del pedido
+    await (await import('./supplies')).applySupplyRules(orderId, ord.number, user.id);
   }
   await audit('order', orderId, 'estado', { from: ord.status, to, tracking: o.tracking }, user.id);
 }

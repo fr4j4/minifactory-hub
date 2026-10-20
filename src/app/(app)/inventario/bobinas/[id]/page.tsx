@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import QRCode from 'qrcode';
 import { desc, eq, asc } from 'drizzle-orm';
@@ -20,10 +21,12 @@ export default async function SpoolPage({ params }: { params: Promise<{ id: stri
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, sp.materialId));
   const mv = await db.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.spoolId, id)).orderBy(desc(s.inventoryMovements.createdAt)).limit(30);
   const machines = await db.select().from(s.machines).orderBy(asc(s.machines.name));
+  const [buy] = sp.purchaseLineId ? await db.select({ id: s.purchases.id, number: s.purchases.number, supplier: s.purchases.supplierText }).from(s.purchaseLines).innerJoin(s.purchases, eq(s.purchases.id, s.purchaseLines.purchaseId)).where(eq(s.purchaseLines.id, sp.purchaseLineId)) : [];
   const qr = await QRCode.toDataURL(`MF:${sp.code}`, { margin: 1, width: 220 });
   return (
     <>
-      <PageHeader back={{ href: '/inventario?tab=bobinas', label: t('nav.crumbSpools') }} title={<span>{sp.code} · <Swatch hex={m.hex} /> {m.type} {m.colorName} <StatusBadge status={sp.status} /></span>} subtitle={`${m.manufacturer ?? ''} ${m.line ?? ''} · ${t('inventory.lotBought', { lot: sp.lot ?? '—', date: dmy(sp.boughtAt) })}`} actions={<>{can(user, 'inventario', 'E') && <EditButton kind="spool" id={sp.id} fields={editFields('spool', t)} values={sp} className="btn-ghost" testId="edit-spool" />}{can(user, 'inventario', 'X') && <RemoveButton kind="spool" id={sp.id} name={sp.code} redirectTo="/inventario?tab=bobinas" />}</>} />
+      <PageHeader back={{ href: '/inventario', label: t('nav.inventory') }} title={<span>{sp.code} · <Swatch hex={m.hex} /> {m.type} {m.colorName} <StatusBadge status={sp.status} /></span>} subtitle={`${m.manufacturer ?? ''} ${m.line ?? ''} · ${t('inventory.lotBought', { lot: sp.lot ?? '—', date: dmy(sp.boughtAt) })}`} actions={<>{can(user, 'inventario', 'E') && <EditButton kind="spool" id={sp.id} fields={editFields('spool', t)} values={sp} className="btn-ghost" testId="edit-spool" />}{can(user, 'inventario', 'X') && <RemoveButton kind="spool" id={sp.id} name={sp.code} redirectTo="/inventario?tab=bobinas" />}</>} />
+      {buy && <p className="text-sm muted -mt-3 mb-4" data-testid="spool-purchase">{t('buy.fromPurchase')} <Link className="underline underline-offset-2" href={`/inventario/compras/${buy.id}`}>{buy.number}</Link>{buy.supplier ? ` · ${buy.supplier}` : ''}</p>}
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2 min-w-0 space-y-4">
           <Card title={t('inventory.remainingWeight')}><div className="flex items-end justify-between mb-2"><div className="text-3xl font-bold tabular" data-testid="spool-remaining">{grams(sp.remainingG)}</div><div className="muted text-sm">{t('inventory.ofTare', { total: grams(sp.initialG), tare: sp.tareG })}</div></div><Meter value={sp.remainingG} max={sp.initialG} tone={sp.remainingG < sp.initialG * 0.15 ? 'bad' : 'ok'} /></Card>

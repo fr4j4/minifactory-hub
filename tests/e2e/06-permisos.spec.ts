@@ -14,7 +14,7 @@ test.describe('Roles y permisos', () => {
   });
   test('inventario: pesar una bobina', async ({ page, saveAs }) => {
     await login(page); await page.goto('/inventario'); await shot(page, '64-inventario', { full: true });
-    await page.goto('/inventario?tab=bobinas'); await expect(page.getByTestId('spool-row').first()).toBeVisible(); await shot(page, '65-bobinas');
+    await page.locator('details summary').filter({ hasText: /carretes|spools/i }).first().click(); await expect(page.getByTestId('spool-row').first()).toBeVisible(); await shot(page, '65-bobinas');
     saveAs('inventario');
   });
 });

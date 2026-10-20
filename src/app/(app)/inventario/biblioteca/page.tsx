@@ -31,7 +31,7 @@ export default async function LibraryPage({ searchParams }: { searchParams: Prom
           <tbody>{res.items.map((f) => (
             <tr key={f.key} data-testid="lib-row"><td className="td font-medium">{f.brandName}</td><td className="td"><Link className="underline underline-offset-2" href={`/inventario/biblioteca/${f.key.split('/').map(encodeURIComponent).join('/')}`}>{f.name}</Link></td><td className="td">{f.material}</td>
               <td className="td text-xs tabular">{f.tempMax != null ? `${tempRange(f.tempMin, f.tempMax)} °C` : '—'}{f.bedMax != null ? ` · ${tempRange(f.bedMin, f.bedMax)} °C` : ''}</td><td className="td text-right tabular">{f.density}</td><td className="td text-right tabular">{f.colorCount}</td>
-              <td className="td text-right">{can(user, 'inventario', 'C') && <Link className="btn-ghost btn-sm" href={`/inventario/alta-rapida?catalog=${encodeURIComponent(f.key)}`}>{t('inventory.catLibAdd')}</Link>}</td></tr>))}</tbody></table></div>)}
+              <td className="td text-right">{can(user, 'inventario', 'C') && <Link className="btn-ghost btn-sm" href={`/inventario/biblioteca/${f.key.split('/').map(encodeURIComponent).join('/')}`}>{t('buy.pickColors')}</Link>}</td></tr>))}</tbody></table></div>)}
       <nav className="flex items-center justify-between mt-3 text-sm" aria-label="paginación">
         <span className="muted">{t('inventory.catLibPage', { page: res.page, pages, total: res.total })}</span>
         <span className="flex gap-2">{res.page > 1 && <Link className="btn-ghost btn-sm" href={href(res.page - 1)}>{t('inventory.catLibPrev')}</Link>}{res.nextPage && <Link className="btn-ghost btn-sm" href={href(res.nextPage)}>{t('inventory.catLibNext')}</Link>}</span>

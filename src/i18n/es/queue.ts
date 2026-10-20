@@ -1,4 +1,12 @@
 export const queue = {
+  stockShortWarning: 'El material no alcanza: el trabajo necesita {needed} g y hay {available} g disponibles.',
+  stockNoneWarning: 'No hay stock de este material (necesita {needed} g). Regístralo en una compra para que el inventario cuadre.',
+  finishNoSpool: 'No hay carretes de este material en el inventario: el consumo quedará registrado sin carrete y se te avisará para corregir el stock.',
+  noStockForJobTitle: 'Trabajo sin stock: {material}',
+  noStockForJobBody: '{job} necesita {needed} g y hay {available} g disponibles.',
+  consumedWithoutSpool: '{job}: consumo de {material} sin carrete',
+  noSpoolTitle: '{job} cerrado sin carrete',
+  noSpoolBody: 'Se gastaron {grams} g de {material} que no estaban en el inventario. Registra la compra o ajusta el stock.',
   resin: 'Resina',
   productionQueue: 'Cola de producción',
   oneQueueIntro: 'Una sola cola de producción: arrastra los trabajos para ordenarlos y suéltalos sobre una máquina para asignarlos. Si no asignas uno, el sistema sugiere la máquina que lo deje terminando antes.',

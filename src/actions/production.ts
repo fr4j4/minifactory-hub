@@ -13,7 +13,7 @@ import type { MessageKey, TFn } from '@/i18n/translate';
 import { getT } from '@/i18n/server';
 import { ymd } from '@/lib/format';
 
-export async function startJobAction(id: string, o: { machineId?: string; spoolId?: string } = {}) { return safe(async () => { const u = await requirePerm('cola', 'E'); await startJob(id, { ...o, userId: u.id }); }, ['/cola', '/pedidos']); }
+export async function startJobAction(id: string, o: { machineId?: string; spoolId?: string } = {}) { return safe(async () => { const u = await requirePerm('cola', 'E'); return startJob(id, { ...o, userId: u.id }); }, ['/cola', '/pedidos']); }
 export async function pauseJobAction(id: string) { return safe(async () => { await requirePerm('cola', 'E'); await pauseJob(id); }, ['/cola']); }
 export async function resumeJobAction(id: string) { return safe(async () => { await requirePerm('cola', 'E'); await resumeJob(id); }, ['/cola']); }
 /** Vuelve a lanzar un trabajo cancelado (se usa desde el pedido y desde la cola). */

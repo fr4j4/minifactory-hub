@@ -211,6 +211,13 @@
       "when": 1792469012224,
       "tag": "0029_catalogo_filamentos",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792475623340,
+      "tag": "0030_inventario_compras",
+      "breakpoints": true
     }
   ]
 }
