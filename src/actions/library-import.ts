@@ -9,6 +9,7 @@ import { safe as baseSafe } from './common';
 import {MakerworldError} from '@/lib/library/makerworld-http';
 import { accountWhere, makerworldAccount, makerworldLogin, makerworldEmailCode, makerworldTfa, checkMakerworld, storeMakerworldToken, inspectMakerworld, makerworldReference, parseDownloadResponse, resolveMakerworld } from '@/lib/library/makerworld';
 import {fetchSourceMeta,parseSourceUrl} from '@/lib/library/source';
+import {assertSupportedProvider} from '@/lib/library/providers';
 import { MODEL_EXT } from '@/lib/files';
 import { extOf } from '@/lib/mesh/parse';
 import { integrationUser } from '@/lib/integrations-access';
@@ -65,6 +66,7 @@ export async function disconnectMakerworld(){return safe(async()=>{const u=await
 export async function testMakerworldConnection(){return safe(async()=>{const u=await integrationUser();await checkMakerworld(u.id);return true;});}
 export async function inspectLibraryImport(raw:string){return safe(async()=>{
   await user();const url=urlSchema.parse(raw);
+  assertSupportedProvider(url);
   if(makerworldReference(url))return inspectMakerworld(url);
   const filename=decodeURIComponent(new URL(url).pathname.split('/').at(-1)||'archivo');
   const direct=MODEL_EXT.includes(extOf(filename))||extOf(filename)==='zip';
@@ -73,6 +75,7 @@ export async function inspectLibraryImport(raw:string){return safe(async()=>{
 });}
 export async function prepareLibraryImport(input:unknown){return safe(async()=>{
   const u=await user();const p=z.object({url:urlSchema,instanceId:z.string().regex(/^\d*$/).max(30),download:z.string().max(65536).optional(),browser:z.boolean().optional()}).parse(input);
+  assertSupportedProvider(p.url);
   let filename=decodeURIComponent(new URL(p.url).pathname.split('/').at(-1)||'archivo'),download=p.url,browserRequired=false;
   let preview:any={title:filename,author:null,license:null};let origin=new URL(p.url).origin+new URL(p.url).pathname;
   const ref=makerworldReference(p.url);

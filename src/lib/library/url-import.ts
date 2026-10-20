@@ -10,6 +10,7 @@ import { request } from './connectors/http';
 import { byteLimit } from './content';
 import { parseSourceUrl, fetchSourceMeta, normalizeLicense } from './source';
 import { MAX_TAGS, normalizeTag } from './tags';
+import { detectImportProvider, unsupportedMessage } from './providers';
 import { getSettingsRaw } from '../settings';
 import { enqueueJob } from '../jobs';
 import { MODEL_EXT, ingestModel, ingestZip } from '../files';
@@ -42,6 +43,7 @@ export async function executeImport(id: string) {
         return;
     let tmp = '';
     try {
+        if (!detectImportProvider(String(op.input.url))?.supported) throw new Error(unsupportedMessage(detectImportProvider(String(op.input.url))!));
         const downloadUrl = String(op.input.secretUrl?unseal(op.input.secretUrl):op.input.url);
         const parsed = parseSourceUrl(downloadUrl);
         if (!parsed)

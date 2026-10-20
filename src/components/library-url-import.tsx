@@ -6,6 +6,7 @@ import {Modal} from './client';
 import {BambuAccountForm} from './bambu-account';
 import {MakerworldBrowser} from './makerworld-browser';
 import {useLocale,useT} from '@/i18n/client';
+import {detectImportProvider,supportedProviders} from '@/lib/library/providers';
 import {makerworldConnection,disconnectMakerworld,inspectLibraryImport,prepareLibraryImport,confirmLibraryImport,libraryImportStatus,resumeBrowserImport} from '@/actions/library-import';
 
 type Failure={ok:false;error:string;code?:string;retryAfter?:number};
@@ -25,6 +26,7 @@ export function LibraryUrlImport(){
   const generation=useRef(0),locked=useRef(false),errorRef=useRef<HTMLDivElement>(null);
   const selected=preview?.profiles.find(p=>p.id===profile),makerworld=!!preview?.profiles.length;
   const step=screen==='link'?0:screen==='review'?1:2;
+  const detected=url.trim()?detectImportProvider(url):null,blocked=!!detected&&!detected.supported,sites=supportedProviders().map(p=>p.label).join(', ');
 
   useEffect(()=>{const id=new URL(window.location.href).searchParams.get('browserImport');if(!id)return;let cancelled=false;resumeBrowserImport(id).then(r=>{if(!cancelled&&r.ok){setPlan(r.data);setOpen(true);setScreen('browser');}});return()=>{cancelled=true;};},[]);
 
@@ -62,8 +64,9 @@ export function LibraryUrlImport(){
 
       {screen==='link'&&<form onSubmit={e=>{e.preventDefault();void inspect();}} className="space-y-6">
         <div className="rounded-2xl border border-[var(--line)] bg-gradient-to-br from-[var(--accent-soft)] to-[var(--card)] p-6 sm:p-8 text-center"><div className="mx-auto grid place-items-center rounded-2xl bg-[var(--card)] shadow-sm w-14 h-14 mb-4 text-[var(--accent-ink)]"><Globe2 size={28}/></div><h3 className="text-xl font-semibold">{text('Tu próximo modelo, en un enlace','Your next model is a link away')}</h3><p className="muted text-sm mt-2 max-w-md mx-auto">{text('Trae un modelo de MakerWorld o un archivo 3D. Primero revisaremos sus datos; tú decides qué importar.','Bring in a MakerWorld model or a 3D file. Review its details before choosing what to import.')}</p><div className="flex justify-center gap-2 mt-5 text-xs"><span className="badge">MakerWorld</span><span className="badge">3MF · STL · OBJ · ZIP</span></div></div>
-        <label className="block"><span className="label">{text('Enlace del modelo','Model link')}</span><input aria-label="URL" className="input" type="url" required value={url} disabled={!!busy} autoFocus placeholder="https://makerworld.com/…" onChange={e=>{setUrl(e.target.value);setIssue(null);}}/></label>
-        <div className="flex items-center justify-between gap-3"><span className="text-xs muted">{text('Hasta 500 MiB por archivo','Up to 500 MiB per file')}</span><button className="btn-primary gap-2" disabled={!!busy||!url.trim()}>{busy?<><LoaderCircle size={17} className="animate-spin"/>{busy}</>:<>{text('Buscar modelo','Find model')}<ArrowRight size={17}/></>}</button></div>
+        <label className="block"><span className="label">{text('Enlace del modelo','Model link')}</span><input aria-label="URL" className="input" type="url" required value={url} disabled={!!busy} autoFocus placeholder="https://makerworld.com/…" aria-invalid={blocked||undefined} aria-describedby="import-site" onChange={e=>{setUrl(e.target.value);setIssue(null);}}/></label>
+        <p id="import-site" role="status" className={`text-sm flex items-start gap-2 ${blocked?'text-[var(--danger,#b42318)]':'muted'}`}>{blocked?<><TriangleAlert size={16} className="shrink-0 mt-0.5"/><span>{detected.known?text(`${detected.label} todavía no es compatible con la importación. Por ahora solo se puede importar desde: ${sites}.`,`${detected.label} is not supported for import yet. For now you can only import from: ${sites}.`):text(`No reconocemos el sitio ${detected.host}. Por ahora solo se puede importar desde: ${sites}.`,`We do not recognize ${detected.host}. For now you can only import from: ${sites}.`)}</span></>:detected?<><CheckCircle2 size={16} className="shrink-0 mt-0.5 text-emerald-600"/><span>{text('Sitio detectado:','Site detected:')} <b>{detected.label}</b></span></>:<span>{text(`Sitios compatibles: ${sites}.`,`Supported sites: ${sites}.`)}</span>}</p>
+        <div className="flex items-center justify-between gap-3"><span className="text-xs muted">{text('Hasta 500 MiB por archivo','Up to 500 MiB per file')}</span><button className="btn-primary gap-2" disabled={!!busy||!url.trim()||blocked}>{busy?<><LoaderCircle size={17} className="animate-spin"/>{busy}</>:<>{text('Buscar modelo','Find model')}<ArrowRight size={17}/></>}</button></div>
       </form>}
 
       {screen==='review'&&preview&&<>

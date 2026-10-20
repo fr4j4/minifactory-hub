@@ -12,7 +12,7 @@ import {getDb,s,WORKSPACE_ID} from '@/db';
 import {request} from '@/lib/library/connectors/http';
 import {makerworldJson as json,MakerworldError} from '@/lib/library/makerworld-http';
 import {storeMakerworldToken,makerworldAccount,makerworldToken,resolveMakerworld} from '@/lib/library/makerworld';
-import {prepareLibraryImport,confirmLibraryImport,libraryImportStatus,disconnectMakerworld,connectMakerworld,makerworldConnection} from '@/actions/library-import';
+import {inspectLibraryImport,prepareLibraryImport,confirmLibraryImport,libraryImportStatus,disconnectMakerworld,connectMakerworld,makerworldConnection} from '@/actions/library-import';
 import {executeImport} from '@/lib/library/url-import';
 import {browserOperation,completeBrowserImport} from '@/lib/library/browser-import';
 import fs from 'node:fs/promises';
@@ -104,6 +104,15 @@ it('prepares privately, confirms once, downloads without forwarding tokens and p
   expect(source.tags).toEqual(['Halloween','calabaza','Decoración']);expect(source.stats).toMatchObject({likes:42,downloads:900});expect(source.remoteCreatedAt).toBe('2026-01-02T00:00:00Z');
   expect(model.tags).toEqual(expect.arrayContaining(['halloween','calabaza','decoracion']));expect(model.tagMeta?.halloween).toMatchObject({source:'import'});
   const [details]=await db.select().from(s.libraryDetails).where(eq(s.libraryDetails.modelId,id));expect(details.data).toMatchObject({category:'Seasonal'});
+});
+it('refuses links from sites that are not supported, at both inspection and preparation',async()=>{
+  for(const url of['https://www.printables.com/model/987-llavero','https://example.com/pieza.stl','https://makerworld.com.evil.example/models/1']){
+    expect(await inspectLibraryImport(url)).toMatchObject({ok:false});
+    expect(await prepareLibraryImport({url,instanceId:''})).toMatchObject({ok:false});
+  }
+  expect(await inspectLibraryImport('https://www.printables.com/model/987-llavero')).toMatchObject({ok:false,error:expect.stringContaining('Printables')});
+  expect(request).not.toHaveBeenCalled();
+  expect(json).not.toHaveBeenCalled();
 });
 it('rejects HTML masquerading as a 3MF',async()=>{
   vi.mocked(json).mockResolvedValue(design);
