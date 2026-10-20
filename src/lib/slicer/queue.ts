@@ -130,7 +130,7 @@ async function execute(runId: string) {
     const done = await db.update(s.sliceRuns).set({
       status: 'done', timeS, filament: Object.values(fil2).map((x) => ({ g: +x.g.toFixed(2), mm: +x.mm.toFixed(1), cm3: +x.cm3.toFixed(2) })),
       layers, plates: r.plates.length, durationMs: r.durationMs, engineVersion: r.engine, gcodeKey: gcodeKeys[0], threemfKey,
-      result: { gcodeKeys, slicer: r.plates[0].meta.slicer }, error: null, updatedAt: new Date(),
+      result: { gcodeKeys, slicer: r.plates[0].meta.slicer, platesInfo: r.plates.map((pl) => ({ index: pl.index, timeS: pl.meta.timeS, layers: pl.meta.layers, filament: pl.meta.filaments.map((f) => ({ g: f.g ?? 0, mm: f.mm ?? 0 })) })) }, error: null, updatedAt: new Date(),
     }).where(stillRunning(runId)).returning({ id: s.sliceRuns.id });
     // cancelado mientras se guardaban los archivos: nadie los referencia, se borran
     if (!done.length) for (const k of [...gcodeKeys, threemfKey]) if (k) await remove(k).catch(() => {});

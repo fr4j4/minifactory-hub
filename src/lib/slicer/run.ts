@@ -9,10 +9,11 @@ import { parseGcodeMeta, type SliceMeta } from '../gcode';
 import { getT } from '@/i18n/server';
 import type { MessageKey } from '@/i18n/translate';
 import { parse3MF } from '../mesh/parse';
+import { listPlates } from '../mesh/threemf-plates';
 
 export interface CliResult {
   ok: boolean; error?: string; errorCode?: SliceErrorCode; engine: string; durationMs: number;
-  plates: Array<{ gcodePath: string; meta: SliceMeta }>; threemfPath?: string; tmpDir: string;
+  plates: Array<{ index: number; gcodePath: string; meta: SliceMeta }>; threemfPath?: string; tmpDir: string;
 }
 
 let engineVer: string | null = null;
@@ -96,6 +97,9 @@ async function sliceIn(tmpDir: string, o: OrcaInput): Promise<CliResult> {
   if (!fs.existsSync(config.orcaBin)) return { ok: false, errorCode: 'not_installed', error: t('slicer.orcaslicerIsNotInstalledOn'), engine, durationMs: 0, plates: [], tmpDir };
   const outDir = path.join(tmpDir, 'out'); await fsp.mkdir(outDir);
   let ext = o.ext;
+  // un 3MF con varias placas no se reacomoda (se conservan las del autor) y no admite copias
+  const multiPlate = o.ext === '3mf' && listPlates(new Uint8Array(await fsp.readFile(o.inputPath))).length > 1;
+  if (multiPlate && o.copies > 1) return { ok: false, errorCode: 'other', error: t('slicer.copiesNotInMultiPlate'), engine, durationMs: Date.now() - t0, plates: [], tmpDir };
   if (ext === '3mf' && o.copies > 1) {
     ext = 'stl';
     await threemfToStl(o.inputPath, path.join(tmpDir, 'model.stl'));
@@ -108,7 +112,7 @@ async function sliceIn(tmpDir: string, o: OrcaInput): Promise<CliResult> {
   const ffs = [await wr('filament.json', o.filament)]; for (const [i, x] of (o.extraFilaments ?? []).entries()) ffs.push(await wr(`filament${i + 2}.json`, x));
   const ff = ffs.join(';');
   // un proyecto multicolor conserva las posiciones y extrusores del 3MF: no se reacomoda
-  const multi = (o.extraFilaments?.length ?? 0) > 0;
+  const multi = (o.extraFilaments?.length ?? 0) > 0 || multiPlate;
   const args = ['--slice', '0', ...(multi ? [] : ['--arrange', '1']), '--load-settings', `${mf};${pf}`, '--load-filaments', ff, '--outputdir', outDir, '--export-3mf', 'sliced.3mf', '--allow-newer-file'];
   if (o.orient) args.push('--orient', '1');
   if (o.copies > 1) args.push('--clone-objects', String(o.copies));
@@ -148,7 +152,7 @@ async function sliceIn(tmpDir: string, o: OrcaInput): Promise<CliResult> {
   const plates = [];
   for (const f of files) {
     const gp = path.join(outDir, f);
-    plates.push({ gcodePath: gp, meta: parseGcodeMeta(await fsp.readFile(gp, 'utf8')) });
+    plates.push({ index: parseInt(f.slice(6), 10), gcodePath: gp, meta: parseGcodeMeta(await fsp.readFile(gp, 'utf8')) });
   }
   const t3 = path.join(tmpDir, 'sliced.3mf');
   const t3b = path.join(outDir, 'sliced.3mf');

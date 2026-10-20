@@ -16,7 +16,7 @@ import { useT } from '@/i18n/client';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 import { Icon } from '@/components/shell';
 
-export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; progress?: { pct: number; message: string } | null; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]> }
+export interface RunInfo { id: string; status: 'queued' | 'running' | 'done' | 'error' | 'cancelado'; error: string | null; timeS: number | null; filament: Array<{ g: number; mm: number; cm3: number }>; layers: number | null; plates: number | null; durationMs: number | null; engineVersion: string | null; label: string | null; copies: number; cached: boolean; progress?: { pct: number; message: string } | null; hasGcode: boolean; has3mf: boolean; profileVersions: Record<string, [string, number]>; platesInfo?: Array<{ index: number; timeS: number | null; layers: number | null; filament: Array<{ g: number; mm: number }> }> }
 
 export function useRunPolling(ids: string[], onDone?: () => void) {
   const [runs, setRuns] = useState<Record<string, RunInfo>>({});
@@ -67,7 +67,7 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
   const filProfiles = ctx.profiles.filter((p) => p.type === 'filament');
   const [processId, setProcessId] = useState(machine?.defaultProcessProfileId ?? procs[0]?.id ?? '');
   const [materialId, setMaterialId] = useState(mats[0]?.id ?? '');
-  const [advisorOpen, setAdvisorOpen] = useState(false); const advisorShown = useLinger(advisorOpen); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(!!defaultOrient); const [extraMats, setExtraMats] = useState<string[]>(() => (amsColors ?? []).slice(1).map(() => '')); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false);
+  const [advisorOpen, setAdvisorOpen] = useState(false); const advisorShown = useLinger(advisorOpen); const [copies, setCopies] = useState(1); const [orient, setOrient] = useState(!!defaultOrient); const [extraMats, setExtraMats] = useState<string[]>(() => (amsColors ?? []).slice(1).map(() => '')); const [runId, setRunId] = useState<string | null>(null); const [showLayers, setShowLayers] = useState(false); const [layerPlate, setLayerPlate] = useState(0);
   useEffect(() => { if (machine?.defaultProcessProfileId) setProcessId(machine.defaultProcessProfileId); }, [setupKey]); // eslint-disable-line
   const runs = useRunPolling(runId ? [runId] : []);
   const run = runId ? runs[runId] : null;
@@ -129,6 +129,21 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
             <div><div className="label">{t('common.layers')}</div><div className="text-xl font-semibold tabular">{run.layers ?? '—'}</div></div>
             <div><div className="label">{t('common.suggestedPrice')}</div><div className="text-xl font-semibold tabular" data-testid="res-price">{money(bd.suggestedTotal)}</div><div className="text-xs muted">{copies > 1 ? `${money(bd.suggestedUnit)} ${t('calculator.unit')}` : t('slicer.accordingToCurrentRates')}</div></div>
           </div>
+          {(run.platesInfo ?? []).length > 1 && <div className="space-y-2" data-testid="plates-table">
+            <div className="label">{t('slicer.platesOfTheProject')}</div>
+            <table className="w-full text-sm">
+              <tbody>{run.platesInfo!.map((p) => <tr key={p.index} className="border-t border-black/5 dark:border-white/10" data-testid={`plate-row-${p.index}`}>
+                <td className="py-1.5 font-medium">{t('slicer.plateN', { n: p.index })}</td>
+                <td className="py-1.5 tabular">{dur(p.timeS)}</td>
+                <td className="py-1.5 tabular">{p.layers ?? '—'} {t('common.layers').toLowerCase()}</td>
+                <td className="py-1.5 tabular">{grams(p.filament.reduce((a, f) => a + f.g, 0))}</td>
+                <td className="py-1.5 text-right"><span className="inline-flex flex-wrap justify-end gap-2">
+                  {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode?plate=${p.index}`} data-testid={`dl-gcode-${p.index}`}><Icon name="download" className="h-4 w-4" />{t('slicer.downloadPlateGCode')}</a>}
+                  {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => { setLayerPlate(p.index); setShowLayers(true); }}><Icon name="eye" className="h-4 w-4" />{t('slicer.viewPlateLayers')}</button>}
+                </span></td>
+              </tr>)}</tbody>
+            </table>
+          </div>}
           {run.filament.length > 1 && <ul className="text-sm">{run.filament.map((f, i) => <li key={i}>{t('slicer.filamentN', { n: i + 1 })}: <b>{grams(f.g)}</b> · {num(f.mm / 1000, 2)} m</li>)}</ul>}
           <p className="text-xs muted">{t('slicer.sourceLabel')} <b>{t('slicer.serverSlicer')}</b> · OrcaSlicer {run.engineVersion} · {run.cached ? t('slicer.resultFromCache') : t('slicer.slicedInS', { seconds: num((run.durationMs ?? 0) / 1000, 1) })} · {t('slicer.plates', { count: run.plates ?? 1 })}{copies > 1 ? t('slicer.copiesOnTheSamePlate', { copies }) : ''}</p>
           <p className="text-xs muted">{t('slicer.profiles2')} {Object.values(run.profileVersions ?? {}).map(([n, v]) => `${n} v${v}`).join(' · ')}</p>
@@ -136,13 +151,13 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
             {run.hasGcode && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/gcode`} data-testid="dl-gcode"><Icon name="download" className="h-4 w-4" />{t('slicer.gCode')}</a>}
             {run.status === 'done' && <button className="btn-ghost btn-sm" onClick={async () => { const r = await enqueueFromRunAction(run.id, machine?.id ?? null, materialId || null); if (r.ok) toast.push(t('slicer.queued'), 'ok'); else toast.push(r.error, 'err'); }} data-testid="enqueue-run">{t('slicer.addToQueue')}</button>}
             {run.has3mf && <a className="btn-ghost btn-sm" href={`/api/runs/${run.id}/threemf`}><Icon name="download" className="h-4 w-4" />{t('slicer.sliced3mf')}</a>}
-            {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => setShowLayers((v) => !v)} data-testid="show-layers"><Icon name="eye" className="h-4 w-4" />{showLayers ? t('slicer.hideLayers') : t('slicer.viewGCodeLayers')}</button>}
+            {run.hasGcode && <button className="btn-ghost btn-sm" onClick={() => { setLayerPlate(0); setShowLayers((v) => !v); }} data-testid="show-layers"><Icon name="eye" className="h-4 w-4" />{showLayers ? t('slicer.hideLayers') : t('slicer.viewGCodeLayers')}</button>}
             <Link className="btn-primary btn-sm" href={`/presupuestos/nuevo?file=${fileId}&run=${run.id}&machine=${machineId}&material=${materialId}&copies=${copies}`} data-testid="use-in-quote">{t('slicer.useInAQuote')}</Link>
           </div>
         </div>
       )}
       {advisorShown && ai && machine?.machineProfileId && fil && <AdvisorPanel open={advisorOpen} target={{ fileVersionId, machineProfileId: machine.machineProfileId, processProfileId: processId, filamentProfileId: fil.id, copies }} features={ai} canEdit={ai.canEdit} canCreate={ai.canCreate} onClose={() => setAdvisorOpen(false)} />}
-      {showLayers && run?.status === 'done' && <GcodeViewer src={`/api/runs/${run.id}/preview`} />}
+      {showLayers && run?.status === 'done' && <GcodeViewer src={`/api/runs/${run.id}/preview${layerPlate ? `?plate=${layerPlate}` : ''}`} />}
     </div>
   );
 }

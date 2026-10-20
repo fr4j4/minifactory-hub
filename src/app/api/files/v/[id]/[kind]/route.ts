@@ -25,7 +25,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     try { key = await (await import('@/lib/library/content')).ensureVersionLocal(id); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 409 }); } type = MIME[v.format] ?? type;
     const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
     name = `${mf?.name ?? 'archivo'}-v${v.number}.${v.format}`;
-  } else if (kind === 'mesh') { key = meta.previewKey; type = 'application/octet-stream'; }
+  } else if (kind === 'mesh') {
+    // ?plate=N: vista previa de una placa de un 3MF multiplaca; sin parámetro, todo el proyecto
+    const plate = Number(new URL(req.url).searchParams.get('plate') ?? 0);
+    key = plate ? (meta.plates as Array<{ index: number; previewKey: string }> | undefined)?.find((p) => p.index === plate)?.previewKey : meta.previewKey;
+    type = 'application/octet-stream';
+  }
   else if (kind === 'gcode') { key = meta.gcodePreviewKey; type = 'application/octet-stream'; }
   else if (kind === 'thumb') { key = v.thumbKey; type = 'image/webp'; }
   else if (kind === 'turn') { key = meta.turnKey; type = 'image/webp'; }

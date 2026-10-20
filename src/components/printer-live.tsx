@@ -101,7 +101,7 @@ export function CameraView({ id, kind, offline }: { id: string; kind: string; of
 }
 
 export interface SpoolOpt { id: string; code: string; type: string; colorName: string; hex: string; remainingG: number; slot: string | null; machineId: string | null }
-export interface RunOpt { id: string; label: string | null; timeS: number | null; grams: number; createdAt: string; machine: string | null }
+export interface RunOpt { id: string; label: string | null; timeS: number | null; grams: number; createdAt: string; machine: string | null; /** números de placa del proyecto laminado (solo si hay más de una) */ plates?: number[] }
 
 /** Texto de la etapa de impresión que informa la impresora. */
 const stageText = (t: TFn, stage: string | null) => (stage == null ? '' : stage.startsWith('stage:') ? t('machines.stageUnknown', { n: stage.slice(6) }) : t(stage as MessageKey));
@@ -139,11 +139,13 @@ function SendDialog({ r, runs, jobs, open, onClose }: { r: LiveRow; runs: RunOpt
   const { run, pending } = useAction(); const trays = r.status.ams.flatMap((u) => u.trays).filter((tt) => !tt.empty);
   const [runId, setRunId] = useState(runs[0]?.id ?? ''); const [useAms, setUseAms] = useState(trays.length > 0); const [slot, setSlot] = useState(trays.find((tt) => tt.active)?.slot ?? trays[0]?.slot ?? '0');
   const [timelapse, setTimelapse] = useState(false); const [level, setLevel] = useState(true); const [jobId, setJobId] = useState('');
+  const [plate, setPlate] = useState<number | null>(null); const plateNums = runs.find((x) => x.id === runId)?.plates ?? []; const sendPlate = plateNums.length > 1 ? (plate ?? plateNums[0]) : undefined;
   return (
     <Modal open={open} onClose={onClose} title={t('machines.sendTo', { name: r.name })}>
       <div className="space-y-3">
         {runs.length === 0 ? <p className="text-sm muted">{t('machines.thereAreNoSlicedFiles')}</p> : <>
           <label className="block"><span className="label">{t('machines.slicedFile3mf')}</span><select className="input" value={runId} onChange={(e) => setRunId(e.target.value)} data-testid="send-run">{runs.map((x) => <option key={x.id} value={x.id}>{x.label ?? t('machines.slice')} · {x.timeS ? dur(x.timeS) : '—'} · {grams(x.grams)}{x.machine ? ` · ${x.machine}` : ''}</option>)}</select></label>
+          {plateNums.length > 1 && <label className="block"><span className="label">{t('machines.plate')}</span><select className="input" value={sendPlate} onChange={(e) => setPlate(Number(e.target.value))} data-testid="send-plate">{plateNums.map((n) => <option key={n} value={n}>{t('slicer.plateN', { n })}</option>)}</select></label>}
           {trays.length > 0 && <div className="grid grid-cols-2 gap-2">
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={useAms} onChange={(e) => setUseAms(e.target.checked)} /> {t('machines.useTheAms')}</label>
             {useAms && <select className="input" aria-label={t('machines.amsTray')} value={slot} onChange={(e) => setSlot(e.target.value)} data-testid="send-slot">{trays.map((tt) => <option key={tt.slot} value={tt.slot}>{slotLabel(tt, t)} · {tt.type}{tt.remain != null ? ` · ${tt.remain}%` : ''}</option>)}</select>}
@@ -153,7 +155,7 @@ function SendDialog({ r, runs, jobs, open, onClose }: { r: LiveRow; runs: RunOpt
           <p className="text-xs muted">{t('machines.beforeSendingItChecksThat')}</p>
         </>}
         <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={onClose}>{t('common.cancel')}</button>
-          <button className="btn-primary" disabled={pending || !runId} data-testid="send-confirm" onClick={() => run(() => sendToPrinterAction({ linkId: r.id, runId, useAms, amsSlot: Number(slot), timelapse, bedLeveling: level, jobId: jobId || null }), { ok: t('machines.fileSentThePrinterIs2'), onOk: onClose })}>{pending ? t('machines.sending') : t('machines.print')}</button></div>
+          <button className="btn-primary" disabled={pending || !runId} data-testid="send-confirm" onClick={() => run(() => sendToPrinterAction({ linkId: r.id, runId, plate: sendPlate, useAms, amsSlot: Number(slot), timelapse, bedLeveling: level, jobId: jobId || null }), { ok: t('machines.fileSentThePrinterIs2'), onOk: onClose })}>{pending ? t('machines.sending') : t('machines.print')}</button></div>
       </div>
     </Modal>
   );

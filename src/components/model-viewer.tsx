@@ -29,8 +29,8 @@ function parseMesh(buf: ArrayBuffer, t: TFn) {
   return { verts, idx, colors, decimated: !!(flags & 2), origTris };
 }
 
-export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', materials = [], analysis, className, initialMode, onCapture }: {
-  versionId: string; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string; materials?: Array<{ id: string; label: string; hex: string }>;
+export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', materials = [], analysis, plates, className, initialMode, onCapture }: {
+  versionId: string; plates?: Array<{ index: number; name: string; triangles: number; dimX: number; dimY: number; dimZ: number }>; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string; materials?: Array<{ id: string; label: string; hex: string }>;
   analysis?: { dimX: number; dimY: number; dimZ: number; triangles: number } | null; className?: string; initialMode?: Mode;
   onCapture?: (dataUrl: string) => void;
 }) {
@@ -51,6 +51,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
   const [info, setInfo] = useState<{ tris: number; decimated: boolean; orig: number } | null>(null);
   const [panel, setPanel] = useState(true);
   const [matId, setMatId] = useState(''); // color del material del inventario (N1a); '' = color por defecto
+  const [plate, setPlate] = useState(0); // 0 = todo el proyecto; n = placa n de un 3MF multiplaca
   const shownColor = materials.find((m) => m.id === matId)?.hex ?? color;
   const machine = machines.find((m) => m.id === machineId);
 
@@ -97,7 +98,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     loop();
     (async () => {
       try {
-        const res = await fetch(`/api/files/v/${versionId}/mesh`);
+        const res = await fetch(`/api/files/v/${versionId}/mesh${plate ? `?plate=${plate}` : ''}`);
         if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? t('viewer.thePreviewIsStillBeing') : t('viewer.theModelCouldNotBe'));
         const m = parseMesh(await res.arrayBuffer(), t); if (disposed) return;
         const geo = new THREE.BufferGeometry();
@@ -116,7 +117,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     })();
     return () => { disposed = true; st.disposed = true; cancelAnimationFrame(raf); ro.disconnect(); controls.dispose(); renderer.dispose(); st.mesh?.geometry.dispose(); mat.dispose(); renderer.domElement.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [versionId]);
+  }, [versionId, plate]);
 
   /* ───────── efectos de estado → escena ───────── */
   useEffect(() => { S.current.machine = machine; if (S.current.mesh) { drawBed(S.current, machine ?? null); placeOnBed(S.current); } }, [machine, status]);
@@ -234,6 +235,13 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
               </div>
               <p className="text-xs muted mt-1">{tool === 'medir' ? t('viewer.tapTwoPointsOnThe') : tool === 'cara' ? t('viewer.tapTheFaceYouWant') : t('viewer.dragToRotateTwoFingers')}</p>
             </div>
+            {plates && plates.length > 1 && <div>
+              <div className="label">{t('slicer.platesOfTheProject')}</div>
+              <select className="input" value={plate} onChange={(e) => setPlate(Number(e.target.value))} aria-label={t('viewer.plate')} data-testid="plate-select">
+                <option value={0}>{t('viewer.allPlates')}</option>
+                {plates.map((p) => <option key={p.index} value={p.index}>{t('slicer.plateN', { n: p.index })}{p.name ? ` · ${p.name}` : ''} · {f1(p.dimX)}×{f1(p.dimY)}×{f1(p.dimZ)} mm</option>)}
+              </select>
+            </div>}
             <div>
               <div className="label">{t('viewer.machineBuildVolume')}</div>
               <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label={t('viewer.machineToCheckFit')} data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>

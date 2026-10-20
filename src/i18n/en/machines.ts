@@ -2,6 +2,7 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const machines: Shape<typeof es['machines']> = {
+  plate: 'Plate',
   testJob: 'Test job',
   theMachineNeedsAName: 'The machine needs a name',
   enterTheTaskAndIts: 'Enter the task and its interval (hours or days)',

@@ -2,6 +2,12 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const slicer: Shape<typeof es['slicer']> = {
+  plateN: 'Plate {n}',
+  copiesNotInMultiPlate: 'Copies are not available for projects with several plates: slice each plate separately.',
+  platesOfTheProject: 'Project plates',
+  downloadPlateGCode: 'Download G-code',
+  viewPlateLayers: 'View layers',
+  plateSentToPrinter: 'Plate sent',
   multicolorTitle: 'Multicolor: {n} extruders',
   multicolorHint: 'The project carries the extruder of each part. Pick the material for each one.',
   extruderN: 'Extruder {n}',

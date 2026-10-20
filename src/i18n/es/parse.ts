@@ -1,4 +1,5 @@
 export const parse = {
+  mf3NoPlate: 'El 3MF no tiene la placa {plate}',
   stlAscii: 'STL ASCII inválido: número de vértices no múltiplo de 3',
   objNoFaces: 'OBJ sin caras',
   plyNoHeader: 'PLY sin encabezado',
