@@ -1,5 +1,5 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { applyBulkAction, previewBulkAction } from '@/actions/inventory';
 import { useT } from '@/i18n/client';
@@ -13,22 +13,24 @@ interface Row { colorName: string; hex: string; spools: number; lot: string; var
 const mkRow = (colorName = ''): Row => ({ colorName, hex: suggestHex(colorName) ?? '#888888', spools: 1, lot: '' });
 
 /** Alta rápida de filamentos (N4): datos comunes una vez, tabla de colores, vista previa con duplicados y confirmación. */
-export function BulkEntry({ suppliers = [] }: { suppliers?: Array<{ id: string; name: string }> }) {
+export function BulkEntry({ suppliers = [], preset }: { suppliers?: Array<{ id: string; name: string }>; preset?: { line: PickedLine; colors: PickedColor[] } }) {
   const t = useT(); const toast = useToast(); const [pending, start] = useTransition();
   const [c, setC] = useState({ manufacturer: '', line: '', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 15000, netG: 1000, tareG: 200, supplierText: '', catalogId: '' as string, catalogName: '' as string, tempNozzle: '', tempBed: '' });
-  const [rows, setRows] = useState<Row[]>([mkRow('Negro'), mkRow('Blanco')]); const [paste, setPaste] = useState('');
+  const [rows, setRows] = useState<Row[]>(preset ? [] : [mkRow('Negro'), mkRow('Blanco')]); const [paste, setPaste] = useState('');
   const [plan, setPlan] = useState<{ items: Array<{ colorName: string; status: 'new' | 'exists' | 'repeat' }>; newMaterials: number; spools: number } | null>(null);
   const [done, setDone] = useState<{ created: number; spools: number } | null>(null);
   const brand = BRANDS.find((b) => b.name.toLowerCase() === c.manufacturer.trim().toLowerCase());
   /** Escribir a mano marca, línea o tipo suelta el vínculo con el catálogo (los datos del fabricante ya no corresponderían). */
   const setCommon = (p: Partial<typeof c>) => { const edits = 'manufacturer' in p || 'line' in p || 'type' in p; setC((o) => ({ ...o, ...p, ...(edits && !('catalogId' in p) && o.catalogId ? { catalogId: '', catalogName: '' } : {}) })); if (edits && !('catalogId' in p)) setRows((r) => r.map((x) => ({ ...x, variantId: undefined }))); setPlan(null); };
-  const fromCatalog = (f: PickedLine, colors: PickedColor[]) => {
+  const fromCatalog = (f: PickedLine, colors: PickedColor[], spools = 1) => {
     const size = commonSizeOf(colors);
     setC((o) => ({ ...o, manufacturer: f.brandName, line: lineNameOf(f.material, f.name), type: f.material, density: f.density, diameter: size.diameter ?? o.diameter, netG: size.netG ?? o.netG, tareG: size.tareG ?? o.tareG, tempNozzle: tempRange(f.tempMin, f.tempMax), tempBed: tempRange(f.bedMin, f.bedMax), catalogId: f.key, catalogName: `${f.brandName} ${f.name}` }));
-    if (colors.length) setRows((r) => { const keep = r.filter((x) => x.colorName.trim() && !colors.some((c) => c.name.toLowerCase() === x.colorName.trim().toLowerCase())); return [...keep.map((x) => ({ ...x, variantId: undefined })), ...colors.map((c) => ({ colorName: c.name, hex: c.hex, spools: 1, lot: '', variantId: c.id }))]; });
+    if (colors.length) setRows((r) => { const keep = r.filter((x) => x.colorName.trim() && !colors.some((c) => c.name.toLowerCase() === x.colorName.trim().toLowerCase())); return [...keep.map((x) => ({ ...x, variantId: undefined })), ...colors.map((c) => ({ colorName: c.name, hex: c.hex, spools, lot: '', variantId: c.id }))]; });
     setPlan(null);
   };
   const pickLine = (line: string) => { const l = brand?.lines.find((x) => x.line === line); setCommon(l ? { line, type: l.type, density: l.density ?? densityOf(l.type) } : { line }); };
+  useEffect(() => { if (preset) fromCatalog(preset.line, preset.colors, preset.colors.length === 1 ? 1 : 0); // toda la línea: materiales sin bobinas hasta que se indique cuántas hay /* una sola vez: viene de la biblioteca o de un código de barras */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const addNames = (names: string[]) => { setRows((r) => [...r, ...names.filter((n) => !r.some((x) => x.colorName.toLowerCase() === n.toLowerCase())).map(mkRow)]); setPlan(null); };
   const upd = (i: number, p: Partial<Row>) => { setRows((r) => r.map((x, k) => (k === i ? { ...x, ...p } : x))); setPlan(null); };
   const payload = () => ({ ...c, supplierId: suppliers.find((x) => x.name.toLowerCase() === c.supplierText.trim().toLowerCase())?.id ?? null, rows: rows.filter((r) => r.colorName.trim()).map((r) => ({ colorName: r.colorName, hex: r.hex, spools: r.spools, lot: r.lot || undefined, variantId: r.variantId })) });

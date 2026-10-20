@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addSpoolAction, findSpoolByCodeAction, moveItemAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
+import { addSpoolAction, moveItemAction, resolveScanAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
 import { DateInput } from '@/components/date-input';
@@ -105,11 +105,11 @@ export function ItemMove({ id, name, unit }: { id: string; name: string; unit: s
 export function QrScanner() {
   const t = useT();
   const router = useRouter(); const toast = useToast(); const video = useRef<HTMLVideoElement>(null); const [code, setCode] = useState(''); const [cam, setCam] = useState<'idle' | 'on' | 'unsupported'>('idle'); const [busy, setBusy] = useState(false);
-  const go = async (c: string) => { if (busy) return; setBusy(true); const r = await findSpoolByCodeAction(c); setBusy(false); if (r.ok) router.push(`/inventario/bobinas/${r.data}`); else toast.push(r.error, 'err'); };
+  const go = async (c: string) => { if (busy) return; setBusy(true); const r = await resolveScanAction(c); setBusy(false); if (r.ok) router.push((r.data as { href: string }).href); else toast.push(r.error, 'err'); };
   useEffect(() => () => { (video.current?.srcObject as MediaStream | null)?.getTracks().forEach((tt) => tt.stop()); }, []);
   const start = async () => {
     const BD = (window as any).BarcodeDetector; if (!BD || !navigator.mediaDevices) { setCam('unsupported'); return; }
-    try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); video.current!.srcObject = stream; await video.current!.play(); setCam('on'); const det = new BD({ formats: ['qr_code'] });
+    try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); video.current!.srcObject = stream; await video.current!.play(); setCam('on'); const det = new BD({ formats: ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
       const tick = async () => { if (!video.current?.srcObject) return; try { const r = await det.detect(video.current); if (r[0]?.rawValue) { (video.current.srcObject as MediaStream).getTracks().forEach((tt) => tt.stop()); go(r[0].rawValue); return; } } catch { /* sigue */ } requestAnimationFrame(tick); }; tick();
     } catch { setCam('unsupported'); }
   };

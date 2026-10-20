@@ -60,3 +60,12 @@ describe('completar materiales existentes desde el catálogo', () => {
     expect((await previewCatalogFill(db)).some((p) => p.materialId === hit!.materialId)).toBe(false);
   });
 });
+
+import { profileHintsFrom } from '@/lib/services/lines';
+describe('perfil de laminador desde el catálogo', () => {
+  it('toma los nombres de Orca y Bambu Studio, sin repetidos ni vacíos', () => {
+    expect(profileHintsFrom({ slicers: { orcaslicer: 'Bambu PLA Basic', bambustudio: 'Bambu PLA Basic', prusaslicer: 'x' } })).toEqual(['Bambu PLA Basic']);
+    expect(profileHintsFrom({ slicers: { orcaslicer: 'A', bambustudio: 'B' } })).toEqual(['A', 'B']);
+    expect(profileHintsFrom(null)).toEqual([]); expect(profileHintsFrom({})).toEqual([]);
+  });
+});

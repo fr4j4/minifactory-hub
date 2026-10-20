@@ -59,3 +59,13 @@ export async function lineProfileOf(materialId: string, db?: Db): Promise<string
   const [r] = await db.select({ p: s.filamentLines.filamentProfileId }).from(s.materials).innerJoin(s.filamentLines, eq(s.filamentLines.id, s.materials.lineId)).where(eq(s.materials.id, materialId));
   return r?.p ?? null;
 }
+
+/** Nombres de perfil de OrcaSlicer / Bambu Studio que el catálogo indica para la línea de un material (vacío si no hay vínculo). */
+export function profileHintsFrom(specs: { slicers?: Record<string, string> } | null | undefined): string[] {
+  const sl = specs?.slicers ?? {}; return [...new Set([sl.orcaslicer, sl.bambustudio].filter((x): x is string => !!x))];
+}
+export async function profileHintsOf(lineId: string | null | undefined, db?: Db): Promise<string[]> {
+  if (!lineId) return []; db ??= await getDb();
+  const [l] = await db.select({ specs: s.filamentLines.specs }).from(s.filamentLines).where(eq(s.filamentLines.id, lineId));
+  return profileHintsFrom(l?.specs);
+}

@@ -54,6 +54,11 @@ export async function saveItemAction(i: { id?: string; category: string; sku?: s
   }, ['/inventario']);
 }
 export async function moveItemAction(i: { itemId: string; qty: number; kind: 'entrada' | 'consumo' | 'ajuste' | 'descarte'; unitCost?: number; note?: string }) { return safe(async () => { const u = await requirePerm('inventario', 'E'); return moveItem({ ...i, userId: u.id }); }, ['/inventario']); }
+/** Resuelve un código leído (QR de bobina o código de barras del fabricante) a la pantalla que corresponde. */
+export async function resolveScanAction(code: string) {
+  const t = await getT();
+  return safe(async () => { await requirePerm('inventario', 'V'); const { resolveScan } = await import('@/lib/services/catalog-scan'); const r = await resolveScan(code); if (!r) throw new Error(t('inventory.spoolDoesNotExist', { code: code.trim() })); return r; });
+}
 export async function findSpoolByCodeAction(code: string) {
   const t = await getT();
   return safe(async () => { await requirePerm('inventario', 'V'); const db = await getDb(); const c = code.trim().replace(/^MF:/i, '').toUpperCase(); const [sp] = await db.select().from(s.spools).where(eq(s.spools.code, c)); if (!sp) throw new Error(t('inventory.spoolDoesNotExist', { code: c})); return sp.id; });

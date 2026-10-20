@@ -5,6 +5,7 @@ import { entryNozzle, findVendorOf, getIndex, listFactory, profileNozzle, resolv
 import { layerRange, normNozzle, nozzleFromName, numStr, qualityTemplates, scaleSpeeds, standardLayer, type TemplateKey } from './nozzle';
 import { getT } from '@/i18n/server';
 import { LocalizedError, tDefault } from '@/i18n/errors';
+import { profileHintsFrom } from '../services/lines';
 
 /**
  * Configuración guiada del laminado. Para laminar en el sitio hacen falta tres cosas:
@@ -110,8 +111,13 @@ export function filamentsFor(machineBase?: string | null) {
 }
 
 /** Filamento sugerido para un material del inventario (marca + tipo + línea). */
-export function suggestFilamentBase(mat: { type: string; manufacturer: string | null; line: string | null }, machineBase?: string | null): string | null {
-  const all = filamentsFor(machineBase).map((f) => f.name); const type = mat.type.toUpperCase().trim(); const line = (mat.line ?? '').trim().replace(new RegExp(`^${type.replace(/[-+]/g, '\\$&')}\\s*`, 'i'), '');
+export function suggestFilamentBase(mat: { type: string; manufacturer: string | null; line: string | null }, machineBase?: string | null, hints: string[] = []): string | null {
+  const all = filamentsFor(machineBase).map((f) => f.name);
+  // 1) el nombre de perfil que indica el catálogo de filamentos para la línea (OrcaSlicer / Bambu Studio), si existe en la fábrica
+  if (hints.length) {
+    const suffix = machineBase?.match(/^Bambu Lab (.+?) \d\.\d nozzle$/)?.[1];
+    for (const h of hints) for (const n of suffix ? [`${h} @BBL ${suffix}`, h] : [h]) if (all.includes(n)) return n;
+  } const type = mat.type.toUpperCase().trim(); const line = (mat.line ?? '').trim().replace(new RegExp(`^${type.replace(/[-+]/g, '\\$&')}\\s*`, 'i'), '');
   if (/bambu/i.test(mat.manufacturer ?? '') && machineBase) {
     const suffix = machineBase.match(/^Bambu Lab (.+?) \d\.\d nozzle$/)?.[1];
     const tryNames = [`Bambu ${type} ${line || 'Basic'}`, `Bambu ${type} Basic`, `Bambu ${type}`].map((n) => `${n.replace(/\s+/g, ' ')} @BBL ${suffix}`);
@@ -138,6 +144,7 @@ export async function slicingReadiness() {
       processes: base ? processesFor(base) : [], variants: base ? nozzleVariants(base) : [], setups };
   });
   const ref = ms.find((m) => m.machineProfile)?.machineProfile?.baseName ?? ms.find((m) => m.suggestedMachine)?.suggestedMachine ?? null;
+  const lineSpecs = new Map((await db.select({ id: s.filamentLines.id, specs: s.filamentLines.specs }).from(s.filamentLines)).map((l) => [l.id, l.specs]));
   const mats = materials.map((m) => {
     const fp = P(linkMap.get(m.id) ?? null);
     // advertencia si el perfil es de otro tipo (p. ej. un TPU con perfil de PLA: temperaturas y caudal equivocados)
@@ -147,7 +154,7 @@ export async function slicingReadiness() {
     const mismatch = !!(ptype && norm(ptype) !== norm(m.type) && !norm(ptype).startsWith(norm(m.type)));
     const line = m.line && !m.line.toUpperCase().startsWith(m.type.toUpperCase()) ? ` ${m.line}` : '';
     const label = `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.line && m.line.toUpperCase().startsWith(m.type.toUpperCase()) ? m.line : m.type + line} ${m.colorName}`.trim();
-    return { id: m.id, label, type: m.type, hex: m.hex, filamentProfile: fp ? { id: fp.id, name: fp.name } : null, profileType: ptype, mismatch, suggested: fp && !mismatch ? null : suggestFilamentBase(m, ref) };
+    return { id: m.id, label, type: m.type, hex: m.hex, filamentProfile: fp ? { id: fp.id, name: fp.name } : null, profileType: ptype, mismatch, suggested: fp && !mismatch ? null : suggestFilamentBase(m, ref, profileHintsFrom(m.lineId ? lineSpecs.get(m.lineId) : null)) };
   });
   const machineOptions = getIndex().all.filter((e) => e.type === 'machine' && e.instantiation).map((e) => ({ name: e.name, vendor: e.vendor })).sort((a, b) => (a.vendor === 'BBL' ? 0 : 1) - (b.vendor === 'BBL' ? 0 : 1) || a.name.localeCompare(b.name));
   const filamentProfiles = profs.filter((p) => p.type === 'filament').map((p) => ({ id: p.id, name: p.name }));
