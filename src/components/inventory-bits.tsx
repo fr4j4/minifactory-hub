@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addSpoolAction, findSpoolByCodeAction, moveItemAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
+import { addSpoolAction, moveItemAction, resolveScanAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
 import { DateInput } from '@/components/date-input';
 import { Icon } from '@/components/shell';
+import { CatalogInfo } from '@/components/catalog-info';
 
 export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Array<{ id: string; name: string }>; trigger: React.ReactNode }) {
   const t = useT();
@@ -25,6 +26,7 @@ export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Arra
           <label className="block"><span className="label">{t('inventory.color')}</span><input className="input" required value={v.colorName} onChange={f('colorName')} data-testid="mat-color" /></label><label className="block"><span className="label">{t('inventory.swatch')}</span><input type="color" className="input !p-1" value={v.hex} onChange={f('hex')} /></label>
           <label className="block"><span className="label">{t('inventory.densityGCm')}</span><input type="number" step="0.01" className="input" value={v.density} onChange={f('density')} /></label><label className="block"><span className="label">{v.tech === 'resina' ? t('inventory.costPerLiter') : t('inventory.costPerKg')}</span><input type="number" className="input" value={v.costPerKg} onChange={f('costPerKg')} data-testid="mat-cost" /></label><label className="block"><span className="label">{t('inventory.minimumStockG')}</span><input type="number" className="input" value={v.stockMinG} onChange={f('stockMinG')} /></label>
           <label className="block"><span className="label">{t('inventory.nozzleTemp')}</span><input className="input" value={v.tempNozzle} onChange={f('tempNozzle')} placeholder="190–230" /></label><label className="block"><span className="label">{t('inventory.bedTemp')}</span><input className="input" value={v.tempBed} onChange={f('tempBed')} /></label><label className="block"><span className="label">{t('inventory.supplierText')}</span><input className="input" value={v.supplierText} onChange={f('supplierText')} /></label>
+          {m && (m.lineSpecs || m.traits?.length) && <div className="sm:col-span-3"><CatalogInfo specs={m.lineSpecs} traits={m.traits} /></div>}
           <div className="sm:col-span-3 flex justify-end"><button className="btn-primary" disabled={pending} data-testid="mat-save">{t('common.save')}</button></div>
         </form>
       </Modal>
@@ -103,11 +105,11 @@ export function ItemMove({ id, name, unit }: { id: string; name: string; unit: s
 export function QrScanner() {
   const t = useT();
   const router = useRouter(); const toast = useToast(); const video = useRef<HTMLVideoElement>(null); const [code, setCode] = useState(''); const [cam, setCam] = useState<'idle' | 'on' | 'unsupported'>('idle'); const [busy, setBusy] = useState(false);
-  const go = async (c: string) => { if (busy) return; setBusy(true); const r = await findSpoolByCodeAction(c); setBusy(false); if (r.ok) router.push(`/inventario/bobinas/${r.data}`); else toast.push(r.error, 'err'); };
+  const go = async (c: string) => { if (busy) return; setBusy(true); const r = await resolveScanAction(c); setBusy(false); if (r.ok) router.push((r.data as { href: string }).href); else toast.push(r.error, 'err'); };
   useEffect(() => () => { (video.current?.srcObject as MediaStream | null)?.getTracks().forEach((tt) => tt.stop()); }, []);
   const start = async () => {
     const BD = (window as any).BarcodeDetector; if (!BD || !navigator.mediaDevices) { setCam('unsupported'); return; }
-    try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); video.current!.srcObject = stream; await video.current!.play(); setCam('on'); const det = new BD({ formats: ['qr_code'] });
+    try { const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } }); video.current!.srcObject = stream; await video.current!.play(); setCam('on'); const det = new BD({ formats: ['qr_code', 'ean_13', 'ean_8', 'upc_a', 'upc_e'] });
       const tick = async () => { if (!video.current?.srcObject) return; try { const r = await det.detect(video.current); if (r[0]?.rawValue) { (video.current.srcObject as MediaStream).getTracks().forEach((tt) => tt.stop()); go(r[0].rawValue); return; } } catch { /* sigue */ } requestAnimationFrame(tick); }; tick();
     } catch { setCam('unsupported'); }
   };

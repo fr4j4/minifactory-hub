@@ -3,6 +3,8 @@ import { and, eq, inArray, isNull, ne, sql, desc } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit, notify } from '../audit';
 import { getT } from '@/i18n/server';
+import { getFilament, getVariant } from '@/lib/catalog/ofd';
+import { pickSize, tempRange, variantKey } from '@/lib/catalog/map';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -150,18 +152,35 @@ export async function moveItem(o: { itemId: string; qty: number; kind: 'entrada'
 }
 
 /* ── Alta masiva de filamentos (N4) ─────────────────────────────────────── */
-export interface BulkCommon { supplierId?: string | null; manufacturer: string; line: string; type: string; diameter: number; density: number; costPerKg: number; netG: number; tareG: number; stockMinG?: number; supplierText?: string }
-export interface BulkRow { colorName: string; hex: string; spools: number; lot?: string; location?: string }
+/** `catalogId` (marca/material/filamento del catálogo) es opcional: el servidor completa temperaturas y datos del fabricante desde él, no desde lo que mande el cliente. */
+export interface BulkCommon { supplierId?: string | null; manufacturer: string; line: string; type: string; diameter: number; density: number; costPerKg: number; netG: number; tareG: number; stockMinG?: number; supplierText?: string; catalogId?: string | null; tempNozzle?: string; tempBed?: string }
+/** `variantId` (id del color en el catálogo) trae GTIN y rasgos desde el servidor. */
+export interface BulkRow { colorName: string; hex: string; spools: number; lot?: string; location?: string; variantId?: string | null }
 const key = (m: string | null | undefined, l: string | null | undefined, ty: string, c: string) => [m, l, ty, c].map((x) => String(x ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()).join('|');
+
+/** Datos del catálogo para un material nuevo; si el catálogo no tiene la línea o el color, devuelve vacío (el alta sigue con lo escrito a mano). */
+async function catalogFor(common: BulkCommon, variantId: string | null | undefined, t: Awaited<ReturnType<typeof getT>>) {
+  const out = { tempNozzle: '', tempBed: '', gtin: null as string | null, traits: null as string[] | null, variantKey: null as string | null };
+  if (!common.catalogId) return out;
+  const f = await getFilament(common.catalogId); if (!f) throw new Error(t('inventory.catalogLineMissing'));
+  out.tempNozzle = tempRange(f.tempMin, f.tempMax); out.tempBed = tempRange(f.bedMin, f.bedMax);
+  if (variantId) {
+    const v = await getVariant(common.catalogId, variantId);
+    if (v) { out.variantKey = variantKey(common.catalogId, variantId); out.traits = v.traits.length ? v.traits : null; out.gtin = pickSize(v.sizes, common.netG, common.diameter)?.gtin ?? null; }
+  }
+  return out;
+}
 
 /** Vista previa: qué se crearía, qué ya existe (duplicado por marca + línea + tipo + color) y cuántas bobinas se ingresarían. No escribe nada. */
 export async function planBulkMaterials(common: BulkCommon, rows: BulkRow[], db?: Db) {
   db ??= await getDb();
   const existing = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
   const have = new Map(existing.map((m) => [key(m.manufacturer, m.line, m.type, m.colorName), m]));
+  const byVariant = new Map(existing.filter((m) => m.variantId).map((m) => [m.variantId!, m]));
   const seen = new Set<string>(); const items = rows.filter((r) => r.colorName.trim()).map((r) => {
-    const k = key(common.manufacturer, common.line, common.type, r.colorName); const dupInBatch = seen.has(k); seen.add(k);
-    const ex = have.get(k);
+    const vk = common.catalogId && r.variantId ? variantKey(common.catalogId, r.variantId) : null;
+    const k = vk ?? key(common.manufacturer, common.line, common.type, r.colorName); const dupInBatch = seen.has(k); seen.add(k);
+    const ex = (vk && byVariant.get(vk)) || have.get(key(common.manufacturer, common.line, common.type, r.colorName));
     return { ...r, status: dupInBatch ? ('repeat' as const) : ex ? ('exists' as const) : ('new' as const), existingId: ex?.id ?? null };
   });
   return { items, newMaterials: items.filter((i) => i.status === 'new').length, spools: items.filter((i) => i.status !== 'repeat').reduce((a, i) => a + Math.max(0, Math.min(50, i.spools)), 0) };
@@ -176,8 +195,9 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
     if (it.status === 'repeat') continue;
     let id = it.existingId;
     if (!id) {
-      const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null }).returning({ id: s.materials.id });
-      id = m.id; created.push(id); await (await import('./lines')).syncMaterialLine(id, db); await audit('material', id, 'crear', { bulk: true }, userId);
+      const cat = await catalogFor(common, it.variantId, t);
+      const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null, tempNozzle: cat.tempNozzle || common.tempNozzle || null, tempBed: cat.tempBed || common.tempBed || null, variantId: cat.variantKey, gtin: cat.gtin, traits: cat.traits }).returning({ id: s.materials.id });
+      id = m.id; created.push(id); await (await import('./lines')).syncMaterialLine(id, db, common.catalogId); await audit('material', id, 'crear', { bulk: true }, userId);
     }
     for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, supplierId: common.supplierId, userId }, db)).id);
   }

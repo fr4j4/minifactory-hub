@@ -21,7 +21,7 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
         {rows.map((r, i) => (
           <div key={r.sp.id} className="bg-white text-black border border-slate-300 flex items-center gap-1.5 p-1.5" style={thermal ? { width: '40mm', height: '30mm', pageBreakAfter: 'always', breakAfter: 'page' } : { height: '30mm' }}>
             <img src={qrs[i]} alt="" style={{ width: '22mm', height: '22mm' }} />
-            <div className="leading-tight overflow-hidden" style={{ fontSize: '8pt' }}><b style={{ fontSize: '10pt' }}>{r.sp.code}</b><br />{r.m.type}<br />{r.m.colorName}<br />{Math.round(r.sp.initialG)} g</div>
+            <div className="leading-tight overflow-hidden" style={{ fontSize: '8pt' }}><b style={{ fontSize: '10pt' }}>{r.sp.code}</b><br />{r.m.type}<br />{r.m.colorName}<br />{Math.round(r.sp.initialG)} g{r.m.tempNozzle && <><br /><span style={{ fontSize: '6.5pt' }}>{r.m.tempNozzle} °C{r.m.tempBed ? ` · ${r.m.tempBed} °C` : ''}</span></>}</div>
           </div>))}
       </div>
     </>

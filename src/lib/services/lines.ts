@@ -1,25 +1,29 @@
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { audit } from '../audit';
+import { getFilament } from '../catalog/ofd';
+import { specsOf } from '../catalog/map';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
 /** Busca la línea (marca + nombre) o la crea. Devuelve null si el material no tiene nombre de línea. */
-export async function ensureLine(i: { manufacturer?: string | null; line?: string | null; type?: string | null }, db?: Db): Promise<string | null> {
+export async function ensureLine(i: { manufacturer?: string | null; line?: string | null; type?: string | null }, db?: Db, catalogId?: string | null): Promise<string | null> {
   const name = i.line?.trim(); if (!name) return null;
   db ??= await getDb();
   const man = i.manufacturer?.trim() || null;
   const [ex] = await db.select({ id: s.filamentLines.id }).from(s.filamentLines).where(and(isNull(s.filamentLines.deletedAt), eq(s.filamentLines.name, name), man ? eq(s.filamentLines.manufacturer, man) : isNull(s.filamentLines.manufacturer)));
-  if (ex) return ex.id;
-  const [r] = await db.insert(s.filamentLines).values({ workspaceId: WORKSPACE_ID, manufacturer: man, name, type: i.type ?? null }).returning({ id: s.filamentLines.id });
+  const cat = catalogId ? await getFilament(catalogId) : null;
+  const specs = cat ? specsOf(cat) : null;
+  if (ex) { if (cat) await db.update(s.filamentLines).set({ catalogId, specs, updatedAt: new Date() }).where(and(eq(s.filamentLines.id, ex.id), isNull(s.filamentLines.catalogId))); return ex.id; }
+  const [r] = await db.insert(s.filamentLines).values({ workspaceId: WORKSPACE_ID, manufacturer: man, name, type: i.type ?? null, catalogId: cat ? catalogId : null, specs }).returning({ id: s.filamentLines.id });
   return r.id;
 }
 
 /** Enlaza un material con su línea (según marca y línea del propio material). */
-export async function syncMaterialLine(materialId: string, db?: Db) {
+export async function syncMaterialLine(materialId: string, db?: Db, catalogId?: string | null) {
   db ??= await getDb();
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId)); if (!m) return null;
-  const id = await ensureLine({ manufacturer: m.manufacturer, line: m.line, type: m.type }, db);
+  const id = await ensureLine({ manufacturer: m.manufacturer, line: m.line, type: m.type }, db, catalogId);
   if (id !== m.lineId) await db.update(s.materials).set({ lineId: id }).where(eq(s.materials.id, materialId));
   return id;
 }
@@ -54,4 +58,14 @@ export async function lineProfileOf(materialId: string, db?: Db): Promise<string
   db ??= await getDb();
   const [r] = await db.select({ p: s.filamentLines.filamentProfileId }).from(s.materials).innerJoin(s.filamentLines, eq(s.filamentLines.id, s.materials.lineId)).where(eq(s.materials.id, materialId));
   return r?.p ?? null;
+}
+
+/** Nombres de perfil de OrcaSlicer / Bambu Studio que el catálogo indica para la línea de un material (vacío si no hay vínculo). */
+export function profileHintsFrom(specs: { slicers?: Record<string, string> } | null | undefined): string[] {
+  const sl = specs?.slicers ?? {}; return [...new Set([sl.orcaslicer, sl.bambustudio].filter((x): x is string => !!x))];
+}
+export async function profileHintsOf(lineId: string | null | undefined, db?: Db): Promise<string[]> {
+  if (!lineId) return []; db ??= await getDb();
+  const [l] = await db.select({ specs: s.filamentLines.specs }).from(s.filamentLines).where(eq(s.filamentLines.id, lineId));
+  return profileHintsFrom(l?.specs);
 }

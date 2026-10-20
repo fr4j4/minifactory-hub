@@ -54,6 +54,11 @@ export async function saveItemAction(i: { id?: string; category: string; sku?: s
   }, ['/inventario']);
 }
 export async function moveItemAction(i: { itemId: string; qty: number; kind: 'entrada' | 'consumo' | 'ajuste' | 'descarte'; unitCost?: number; note?: string }) { return safe(async () => { const u = await requirePerm('inventario', 'E'); return moveItem({ ...i, userId: u.id }); }, ['/inventario']); }
+/** Resuelve un código leído (QR de bobina o código de barras del fabricante) a la pantalla que corresponde. */
+export async function resolveScanAction(code: string) {
+  const t = await getT();
+  return safe(async () => { await requirePerm('inventario', 'V'); const { resolveScan } = await import('@/lib/services/catalog-scan'); const r = await resolveScan(code); if (!r) throw new Error(t('inventory.spoolDoesNotExist', { code: code.trim() })); return r; });
+}
 export async function findSpoolByCodeAction(code: string) {
   const t = await getT();
   return safe(async () => { await requirePerm('inventario', 'V'); const db = await getDb(); const c = code.trim().replace(/^MF:/i, '').toUpperCase(); const [sp] = await db.select().from(s.spools).where(eq(s.spools.code, c)); if (!sp) throw new Error(t('inventory.spoolDoesNotExist', { code: c})); return sp.id; });
@@ -84,4 +89,12 @@ export async function bulkUpdateLineAction(line: { manufacturer: string | null; 
 /** Edita una línea de filamento: costo y stock mínimo para todos sus colores y el perfil de laminado por defecto de la línea. */
 export async function updateLineAction(id: string, patch: { costPerKg?: number | null; stockMinG?: number | null; filamentProfileId?: string | null }) {
   return safe(async () => { const u = await requirePerm('inventario', 'E'); const { updateLine } = await import('@/lib/services/lines'); return updateLine(id, patch, u.id); }, ['/inventario']);
+}
+
+/** Completar materiales existentes desde el catálogo de filamentos: vista previa (no escribe) y aplicación de lo elegido. */
+export async function previewCatalogFillAction() {
+  return safe(async () => { await requirePerm('inventario', 'E'); return (await import('@/lib/services/catalog-fill')).previewCatalogFill(); });
+}
+export async function applyCatalogFillAction(picks: Array<{ materialId: string; filamentKey: string; variantId: string | null }>) {
+  return safe(async () => { const u = await requirePerm('inventario', 'E'); return (await import('@/lib/services/catalog-fill')).applyCatalogFill(picks, u.id); }, ['/inventario']);
 }

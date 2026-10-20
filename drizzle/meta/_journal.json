@@ -204,6 +204,13 @@
       "when": 1792380000000,
       "tag": "0028_photo_scope",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792469012224,
+      "tag": "0029_catalogo_filamentos",
+      "breakpoints": true
     }
   ]
 }

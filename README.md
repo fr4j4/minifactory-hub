@@ -254,7 +254,7 @@ Está apagada por defecto. Si quieres usarla, se activa dentro de la aplicación
 | Se acabó el espacio en disco | `docker system prune` elimina restos de descargas antiguas (no borra tus datos). |
 | Olvidé la contraseña | Entra con otro administrador y restablécela en *Configuración → Usuarios*. Sin otro administrador, hay que restablecerla directo en la base de datos. |
 
-> **Nota técnica (Linux):** `docker-compose.yml` usa `network_mode: host` para detectar impresoras, por lo que la app escucha directamente en el puerto 3000 del equipo; ahí el puerto no se cambia con `ports`.
+> **Nota técnica (Linux):** `docker-compose.yml` usa `network_mode: host` para detectar impresoras, por lo que la app escucha directamente en el puerto 3000 del equipo; ahí el puerto no se cambia con `ports`, sino con la variable `PORT` (por ejemplo `PORT=3011` en el archivo `.env`).
 
 ¿Sigues con problemas? Copia el resultado de `docker compose logs --tail 100 app` y compártelo con quien administra el proyecto.
 

@@ -1,0 +1,20 @@
+[
+  {
+    "uuid": "a8ddf905-dc32-4f2c-bacb-eb1625612eac",
+    "filament_weight": 1000,
+    "diameter": 1.75,
+    "empty_spool_weight": 140,
+    "gtin": "6922572217287",
+    "article_number": "PETG-Basic175R1P1",
+    "purchase_links": [
+      {
+        "store_id": "esun3d",
+        "url": "https://esun3dstore.com/products/petg-basic"
+      },
+      {
+        "store_id": "3djake",
+        "url": "https://www.3djake.com/esun/petg-basic-red-1"
+      }
+    ]
+  }
+]

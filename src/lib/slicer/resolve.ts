@@ -33,7 +33,7 @@ export async function resolveFilament(i: { materialId?: string | null; explicitP
   const viaLine = await lineProfileOf(mat.id, db);
   if (viaLine) { const p = await load(viaLine); if (p?.type === 'filament') return { profileId: p.id, name: p.name, baseName: p.baseName, source: 'material' }; }
   const machine = i.machineProfileId ? await load(i.machineProfileId) : null;
-  const base = suggestFilamentBase(mat, machine?.baseName ?? null);
+  const base = suggestFilamentBase(mat, machine?.baseName ?? null, await (await import('../services/lines')).profileHintsOf(mat.lineId, db));
   if (!base) throw new LocalizedError('slicer.errNoFilamentForType');
   const id = await ensureProfile('filament', base, base.replace(/ @.*$/, ''), i.userId, db);
   const p = await load(id);
