@@ -6,29 +6,39 @@ import { useT } from '@/i18n/client';
 import { useToast } from './client';
 import { BASIC_COLORS, BRANDS, densityOf } from '@/lib/catalog/filaments';
 import { parseColorList, suggestHex } from '@/lib/catalog/colors';
+import { CatalogPicker, type PickedColor, type PickedLine } from './catalog-picker';
+import { commonSizeOf, lineNameOf, tempRange } from '@/lib/catalog/map';
 
-interface Row { colorName: string; hex: string; spools: number; lot: string }
+interface Row { colorName: string; hex: string; spools: number; lot: string; variantId?: string }
 const mkRow = (colorName = ''): Row => ({ colorName, hex: suggestHex(colorName) ?? '#888888', spools: 1, lot: '' });
 
 /** Alta rápida de filamentos (N4): datos comunes una vez, tabla de colores, vista previa con duplicados y confirmación. */
 export function BulkEntry({ suppliers = [] }: { suppliers?: Array<{ id: string; name: string }> }) {
   const t = useT(); const toast = useToast(); const [pending, start] = useTransition();
-  const [c, setC] = useState({ manufacturer: '', line: '', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 15000, netG: 1000, tareG: 200, supplierText: '' });
+  const [c, setC] = useState({ manufacturer: '', line: '', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 15000, netG: 1000, tareG: 200, supplierText: '', catalogId: '' as string, catalogName: '' as string, tempNozzle: '', tempBed: '' });
   const [rows, setRows] = useState<Row[]>([mkRow('Negro'), mkRow('Blanco')]); const [paste, setPaste] = useState('');
   const [plan, setPlan] = useState<{ items: Array<{ colorName: string; status: 'new' | 'exists' | 'repeat' }>; newMaterials: number; spools: number } | null>(null);
   const [done, setDone] = useState<{ created: number; spools: number } | null>(null);
   const brand = BRANDS.find((b) => b.name.toLowerCase() === c.manufacturer.trim().toLowerCase());
-  const setCommon = (p: Partial<typeof c>) => { setC((o) => ({ ...o, ...p })); setPlan(null); };
+  /** Escribir a mano marca, línea o tipo suelta el vínculo con el catálogo (los datos del fabricante ya no corresponderían). */
+  const setCommon = (p: Partial<typeof c>) => { const edits = 'manufacturer' in p || 'line' in p || 'type' in p; setC((o) => ({ ...o, ...p, ...(edits && !('catalogId' in p) && o.catalogId ? { catalogId: '', catalogName: '' } : {}) })); if (edits && !('catalogId' in p)) setRows((r) => r.map((x) => ({ ...x, variantId: undefined }))); setPlan(null); };
+  const fromCatalog = (f: PickedLine, colors: PickedColor[]) => {
+    const size = commonSizeOf(colors);
+    setC((o) => ({ ...o, manufacturer: f.brandName, line: lineNameOf(f.material, f.name), type: f.material, density: f.density, diameter: size.diameter ?? o.diameter, netG: size.netG ?? o.netG, tareG: size.tareG ?? o.tareG, tempNozzle: tempRange(f.tempMin, f.tempMax), tempBed: tempRange(f.bedMin, f.bedMax), catalogId: f.key, catalogName: `${f.brandName} ${f.name}` }));
+    if (colors.length) setRows((r) => { const keep = r.filter((x) => x.colorName.trim() && !colors.some((c) => c.name.toLowerCase() === x.colorName.trim().toLowerCase())); return [...keep.map((x) => ({ ...x, variantId: undefined })), ...colors.map((c) => ({ colorName: c.name, hex: c.hex, spools: 1, lot: '', variantId: c.id }))]; });
+    setPlan(null);
+  };
   const pickLine = (line: string) => { const l = brand?.lines.find((x) => x.line === line); setCommon(l ? { line, type: l.type, density: l.density ?? densityOf(l.type) } : { line }); };
   const addNames = (names: string[]) => { setRows((r) => [...r, ...names.filter((n) => !r.some((x) => x.colorName.toLowerCase() === n.toLowerCase())).map(mkRow)]); setPlan(null); };
   const upd = (i: number, p: Partial<Row>) => { setRows((r) => r.map((x, k) => (k === i ? { ...x, ...p } : x))); setPlan(null); };
-  const payload = () => ({ ...c, supplierId: suppliers.find((x) => x.name.toLowerCase() === c.supplierText.trim().toLowerCase())?.id ?? null, rows: rows.filter((r) => r.colorName.trim()).map((r) => ({ colorName: r.colorName, hex: r.hex, spools: r.spools, lot: r.lot || undefined })) });
+  const payload = () => ({ ...c, supplierId: suppliers.find((x) => x.name.toLowerCase() === c.supplierText.trim().toLowerCase())?.id ?? null, rows: rows.filter((r) => r.colorName.trim()).map((r) => ({ colorName: r.colorName, hex: r.hex, spools: r.spools, lot: r.lot || undefined, variantId: r.variantId })) });
   const preview = () => start(async () => { const p = payload(); const r = await previewBulkAction({ ...c, supplierId: p.supplierId }, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setPlan(r.data as any); });
   const apply = () => start(async () => { const p = payload(); const r = await applyBulkAction({ ...c, supplierId: p.supplierId }, p.rows); if (!r.ok) toast.push(r.error, 'err'); else setDone(r.data); });
   const num = (k: keyof typeof c) => (e: React.ChangeEvent<HTMLInputElement>) => setCommon({ [k]: e.target.value === '' ? 0 : Number(e.target.value) } as any);
   if (done) return <div className="card p-5" role="status" data-testid="bulk-done"><p className="mb-3">{t('inventory.bulkDone', { created: done.created, spools: done.spools })}</p><Link className="btn-primary" href="/inventario">{t('inventory.bulkGoInventory')}</Link></div>;
   return (
     <div className="space-y-5" data-testid="bulk-entry">
+      <CatalogPicker onApply={fromCatalog} linkedName={c.catalogId ? c.catalogName : null} onUnlink={() => { setC((o) => ({ ...o, catalogId: '', catalogName: '' })); setRows((r) => r.map((x) => ({ ...x, variantId: undefined }))); setPlan(null); }} />
       <section className="card p-4">
         <h2 className="text-sm font-semibold mb-3">{t('inventory.bulkCommon')}</h2>
         <div className="grid sm:grid-cols-3 gap-3">

@@ -23,4 +23,4 @@ RUN useradd -m app && mkdir -p /data && chown -R app:app /data /app/.next
 VOLUME /data
 EXPOSE 3000
 ENTRYPOINT ["sh", "/app/scripts/docker-entrypoint.sh"]
-CMD ["sh", "-c", "npx tsx scripts/seed.ts --bootstrap-only && npx next start -p 3000"]
+CMD ["sh", "-c", "npx tsx scripts/seed.ts --bootstrap-only && npx next start -p ${PORT:-3000}"]

@@ -154,3 +154,11 @@ export async function listVariants(key: string, o: VariantQuery = {}, roots?: Ca
   const all = vs.filter((v): v is CatalogVariant => !!v && (!q || norm(v.name).includes(q))).sort((a, b) => a.name.localeCompare(b.name));
   return paginate(all, o.page, o.pageSize);
 }
+
+/** Un solo color de una línea (lee su carpeta, no todo el filamento). */
+export async function getVariant(key: string, variantId: string, roots?: CatalogRoots): Promise<CatalogVariant | null> {
+  if (!/^[\w.+-]+$/.test(variantId)) return null;
+  const ix = await getIndex(roots); const f = ix.byKey.get(key); if (!f) return null;
+  const dir = join(f.local ? ix.roots.local! : ix.roots.ofd, 'data', f.brandId, f.material, f.id, variantId);
+  const vj = await readJson(join(dir, 'variant.json')); return vj ? parseVariant(variantId, vj, await readJson(join(dir, 'sizes.json'))) : null;
+}

@@ -15,6 +15,7 @@ services:
       SESSION_SECRET_PREVIOUS: ${SESSION_SECRET_PREVIOUS:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@minifactory.cl}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      PORT: ${PORT:-3000} # con network_mode: host la app escucha directo en este puerto del equipo (p. ej. PORT=3011 en .env)
       STORAGE_DIR: /data/storage
       DATA_DIR: /data
       ORCA_CONCURRENCY: 2

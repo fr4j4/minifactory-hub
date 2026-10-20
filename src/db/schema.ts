@@ -111,8 +111,11 @@ export const materials = pgTable('materials', {
   tempBed: text('temp_bed'),
   supplierText: text('supplier_text'),
   lineId: uuid('line_id'), // línea de filamento (marca + línea) a la que pertenece
+  variantId: text('variant_id'), // color del catálogo de filamentos (`marca/material/filamento/color`), para detectar duplicados y completar datos
+  gtin: text('gtin'), // código de barras (GTIN/EAN) del fabricante
+  traits: jsonb('traits').$type<string[]>(), // rasgos del catálogo: silk, matte, abrasive, contains_carbon_fiber…
   notes: text('notes'),
-});
+}, (t) => [index('materials_variant_ix').on(t.workspaceId, t.variantId), index('materials_gtin_ix').on(t.workspaceId, t.gtin)]);
 
 export const spools = pgTable('spools', {
   ...base(),
@@ -845,6 +848,9 @@ export const materialFilamentLinks = pgTable('material_filament_links', {
   machineProfileId: uuid('machine_profile_id'),
 }, (t) => [index('mfl_material_ix').on(t.materialId), index('mfl_profile_ix').on(t.filamentProfileId)]);
 
+/** Datos técnicos del fabricante de una línea (copiados del catálogo; todo opcional). */
+export interface LineSpecs { tempMin?: number | null; tempMax?: number | null; bedMin?: number | null; bedMax?: number | null; dryMax?: number | null; chamber?: number | null; shoreA?: number | null; shoreD?: number | null; datasheetUrl?: string | null; slicers?: Record<string, string>; traits?: string[]; source?: string }
+
 /** Línea de filamento (marca + línea): lleva valores por defecto (costo, stock mínimo) y un perfil de laminado compartidos por sus colores. */
 export const filamentLines = pgTable('filament_lines', {
   ...base(),
@@ -854,6 +860,8 @@ export const filamentLines = pgTable('filament_lines', {
   costPerKg: integer('cost_per_kg'),
   stockMinG: integer('stock_min_g'),
   filamentProfileId: uuid('filament_profile_id'),
+  catalogId: text('catalog_id'), // `marca/material/filamento` del catálogo de filamentos
+  specs: jsonb('specs').$type<LineSpecs>(), // datos del fabricante copiados del catálogo al elegirlo
 }, (t) => [index('filament_lines_ix').on(t.workspaceId, t.manufacturer, t.name)]);
 
 /** Carpetas de la biblioteca de modelos (ruta con «/», p. ej. «Clientes/Ana»). Existen aunque estén vacías; los archivos guardan la ruta en `model_files.folder`. */
