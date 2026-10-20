@@ -1,22 +1,13 @@
-import dns from 'node:dns/promises';
-import net from 'node:net';
+import { LocalizedError } from '@/i18n/errors';
+import { safeGet } from './library/source';
 
 /** Valida un link de referencia: solo http/https. */
 export function normalizeUrl(raw: string): string {
   let u = raw.trim();
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
   const url = new URL(u);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('Solo se aceptan enlaces http/https');
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new LocalizedError('links.onlyHttp');
   return url.toString();
-}
-
-function isPrivateIp(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
-  }
-  const l = ip.toLowerCase();
-  return l === '::1' || l.startsWith('fc') || l.startsWith('fd') || l.startsWith('fe80') || l.startsWith('::ffff:127.') || l === '::';
 }
 
 export const SITE_LABEL: Array<[RegExp, string]> = [
@@ -30,21 +21,14 @@ export async function fetchLinkPreview(rawUrl: string): Promise<{ url: string; t
   const url = normalizeUrl(rawUrl);
   const out = { url, title: null as string | null, image: null as string | null, site: siteLabel(url) };
   try {
-    const host = new URL(url).hostname;
-    if (!net.isIP(host)) {
-      const addrs = await dns.lookup(host, { all: true });
-      if (addrs.some((a) => isPrivateIp(a.address))) return out;
-    } else if (isPrivateIp(host)) return out;
-    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
-    const res = await fetch(url, { signal: ctl.signal, redirect: 'follow', headers: { 'user-agent': 'Mozilla/5.0 (compatible; MiniFactoryBot/1.0)', accept: 'text/html' } });
-    clearTimeout(t);
-    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('html')) return out;
-    const reader = res.body?.getReader(); let html = ''; let n = 0;
-    while (reader && n < 512 * 1024) { const { done, value } = await reader.read(); if (done) break; n += value.length; html += new TextDecoder().decode(value); if (/<\/head>/i.test(html)) break; }
+    // safeGet revisa la IP en cada redirección (una redirección a una IP interna ya no se sigue)
+    const res = await safeGet(url, { maxBytes: 512 * 1024, timeoutMs: 4000, headers: { accept: 'text/html' } });
+    if (res.status < 200 || res.status >= 300 || !res.contentType.includes('html')) return out;
+    const html = res.body;
     const meta = (p: string) => html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${p}["'][^>]+content=["']([^"']+)["']`, 'i'))?.[1] ?? html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${p}["']`, 'i'))?.[1];
     out.title = (meta('og:title') ?? html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] ?? null)?.trim().slice(0, 200) ?? null;
     const img = meta('og:image');
-    if (img) { try { const u = new URL(img, url); if (u.protocol === 'http:' || u.protocol === 'https:') out.image = u.toString(); } catch { /* ignorar */ } }
+    if (img) { try { const u = new URL(img, res.finalUrl); if (u.protocol === 'http:' || u.protocol === 'https:') out.image = u.toString(); } catch { /* ignorar */ } }
   } catch { /* sin vista previa: se guarda la URL tal cual */ }
   return out;
 }

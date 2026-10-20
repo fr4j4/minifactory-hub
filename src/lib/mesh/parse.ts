@@ -1,8 +1,14 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { XMLParser } from 'fast-xml-parser';
+import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
+import { parseAms } from './threemf-ams';
+import { listPlates, type PlateInfo } from './threemf-plates';
 
 /** Malla como "sopa de triángulos": 9 floats por triángulo. colors (opcional) = 9 floats RGB 0..1 por triángulo. */
 export interface Mesh {
+  /** solo placas de un 3MF Bambu/Orca: centro de las piezas medido desde la esquina de su cama (mm), si el proyecto declara el tamaño de cama */
+  bedCenter?: { x: number; y: number };
   positions: Float32Array;
   colors?: Float32Array;
 }
@@ -40,7 +46,7 @@ function parseAsciiSTL(txt: string): Mesh {
   const re = /vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(txt))) out.push(+m[1], +m[2], +m[3]);
-  if (out.length % 9 !== 0) throw new Error('STL ASCII inválido: número de vértices no múltiplo de 3');
+  if (out.length % 9 !== 0) throw new LocalizedError('parse.stlAscii');
   return { positions: Float32Array.from(out) };
 }
 
@@ -66,8 +72,8 @@ export function parseOBJ(buf: Uint8Array, mtl?: string): Mesh {
     if (line.startsWith('v ')) { const p = line.split(/\s+/); v.push(+p[1], +p[2], +p[3]); }
     else if (line.startsWith('usemtl ')) { curMat = mats[line.slice(7).trim()] ?? null; }
     else if (line.startsWith('f ')) {
-      const idx = line.slice(2).trim().split(/\s+/).map((t) => {
-        let i = parseInt(t.split('/')[0], 10);
+      const idx = line.slice(2).trim().split(/\s+/).map((tt) => {
+        let i = parseInt(tt.split('/')[0], 10);
         if (i < 0) i = v.length / 3 + i + 1;
         return i - 1;
       });
@@ -79,14 +85,14 @@ export function parseOBJ(buf: Uint8Array, mtl?: string): Mesh {
       }
     }
   }
-  if (!out.length) throw new Error('OBJ sin caras');
+  if (!out.length) throw new LocalizedError('parse.objNoFaces');
   return { positions: Float32Array.from(out), colors: anyColor ? Float32Array.from(col) : undefined };
 }
 
 /* ───────────────────────── PLY ───────────────────────── */
 export function parsePLY(buf: Uint8Array): Mesh {
   const headEnd = indexOfSeq(buf, new TextEncoder().encode('end_header'));
-  if (headEnd < 0) throw new Error('PLY sin encabezado');
+  if (headEnd < 0) throw new LocalizedError('parse.plyNoHeader');
   let bodyStart = headEnd + 'end_header'.length;
   while (buf[bodyStart] === 13 || buf[bodyStart] === 10) { bodyStart++; if (buf[bodyStart - 1] === 10) break; }
   const header = new TextDecoder().decode(buf.subarray(0, headEnd)).split(/\r?\n/);
@@ -109,13 +115,13 @@ export function parsePLY(buf: Uint8Array): Mesh {
     let li = 0;
     for (const e of elements) {
       for (let i = 0; i < e.count; i++) {
-        const t = lines[li++].trim().split(/\s+/).map(Number);
+        const tt = lines[li++].trim().split(/\s+/).map(Number);
         if (e.name === 'vertex') {
           const px = e.props.findIndex((p) => p.name === 'x');
-          verts.push(t[px], t[px + 1], t[px + 2]);
+          verts.push(tt[px], tt[px + 1], tt[px + 2]);
           const r = e.props.findIndex((p) => p.name === 'red');
-          if (r >= 0) { hasColor = true; vcols.push(t[r] / 255, t[r + 1] / 255, t[r + 2] / 255); } else vcols.push(0.8, 0.8, 0.8);
-        } else if (e.name === 'face') { const n = t[0]; faces.push(t.slice(1, 1 + n)); }
+          if (r >= 0) { hasColor = true; vcols.push(tt[r] / 255, tt[r + 1] / 255, tt[r + 2] / 255); } else vcols.push(0.8, 0.8, 0.8);
+        } else if (e.name === 'face') { const n = tt[0]; faces.push(tt.slice(1, 1 + n)); }
       }
     }
   } else {
@@ -165,9 +171,9 @@ function indexOfSeq(buf: Uint8Array, seq: Uint8Array) {
 /* ───────────────────────── 3MF ───────────────────────── */
 type Mat = number[]; // 4x4 column-major simplificado: usamos 12 valores de 3MF
 const IDENT: Mat = [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0];
-function parseTransform(t?: string): Mat {
-  if (!t) return IDENT;
-  const a = t.trim().split(/\s+/).map(Number);
+function parseTransform(tt?: string): Mat {
+  if (!tt) return IDENT;
+  const a = tt.trim().split(/\s+/).map(Number);
   return a.length === 12 ? a : IDENT;
 }
 function mulMat(a: Mat, b: Mat): Mat { // aplica a y luego b (vectores fila, como define 3MF)
@@ -187,13 +193,34 @@ function applyMat(m: Mat, x: number, y: number, z: number): [number, number, num
 }
 const arr = <T,>(v: T | T[] | undefined): T[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 
-interface ObjDef { mesh?: { v: Float32Array; t: Uint32Array; tri: Array<{ pid?: string; p1?: number }> }; comps?: Array<{ id: string; path?: string; m: Mat }>; pid?: string; pindex?: number }
+/**
+ * Estado (extrusor) de una cara pintada en Bambu Studio / OrcaSlicer. `paint_color` guarda un árbol de subdivisiones en hexadecimal,
+ * leído desde el final: el primer símbolo es la raíz. Una hoja es `estado << 2`; el estado 3 se amplía con el símbolo siguiente (+3).
+ * Si la cara está subdividida (varios colores en un triángulo) se devuelve el de su primera hoja: es una aproximación.
+ * 0 = sin pintura (usa el color del objeto); n ≥ 1 = extrusor n.
+ */
+export function paintState(code: string): number {
+  const nib = (i: number) => parseInt(code[code.length - 1 - i], 16);
+  let i = 0; const guard = code.length;
+  while (i < guard) {
+    const n = nib(i); if (!Number.isFinite(n)) return 0;
+    if ((n & 3) === 0) { const st = n >> 2; if (st === 3) { const m = nib(i + 1); return Number.isFinite(m) ? m + 3 : 0; } return st; }
+    i++; // nodo dividido: se baja a su primer hijo
+  }
+  return 0;
+}
 
-export function parse3MF(buf: Uint8Array): Mesh {
+interface ObjDef { mesh?: { v: Float32Array; t: Uint32Array; tri: Array<{ pid?: string; p1?: number; paint?: string }> }; comps?: Array<{ id: string; path?: string; m: Mat }>; pid?: string; pindex?: number }
+
+/**
+ * Geometría de un 3MF. Sin `plate` devuelve todo el proyecto tal como está en la cama de Bambu/Orca (todas las placas juntas).
+ * Con `plate` (1…n) solo las piezas de esa placa, recentradas en XY para que queden sobre el origen de la cama.
+ */
+export function parse3MF(buf: Uint8Array, opts?: { plate?: number }): Mesh {
   const files = unzipSync(buf);
   const xp = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '@_', parseAttributeValue: false, removeNSPrefix: true, isArray: (n) => ['object', 'vertex', 'triangle', 'component', 'item', 'base', 'basematerials', 'color', 'colorgroup'].includes(n) });
   const rootName = Object.keys(files).find((n) => n.toLowerCase() === '3d/3dmodel.model');
-  if (!rootName) throw new Error('3MF sin 3D/3dmodel.model');
+  if (!rootName) throw new LocalizedError('parse.mf3NoModel');
   const palettes: Record<string, Array<[number, number, number]>> = {};
   const loadModel = (name: string) => {
     const doc = xp.parse(strFromU8(files[name])).model;
@@ -208,11 +235,11 @@ export function parse3MF(buf: Uint8Array): Mesh {
       const def: ObjDef = { pid: o['@_pid'], pindex: o['@_pindex'] !== undefined ? +o['@_pindex'] : undefined };
       if (o.mesh) {
         const vs = arr<any>(o.mesh.vertices?.vertex), ts = arr<any>(o.mesh.triangles?.triangle);
-        const v = new Float32Array(vs.length * 3), t = new Uint32Array(ts.length * 3);
+        const v = new Float32Array(vs.length * 3), tt = new Uint32Array(ts.length * 3);
         vs.forEach((q, i) => { v[i * 3] = +q['@_x']; v[i * 3 + 1] = +q['@_y']; v[i * 3 + 2] = +q['@_z']; });
-        const tri: Array<{ pid?: string; p1?: number }> = [];
-        ts.forEach((q, i) => { t[i * 3] = +q['@_v1']; t[i * 3 + 1] = +q['@_v2']; t[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined }); });
-        def.mesh = { v, t, tri };
+        const tri: Array<{ pid?: string; p1?: number; paint?: string }> = [];
+        ts.forEach((q, i) => { tt[i * 3] = +q['@_v1']; tt[i * 3 + 1] = +q['@_v2']; tt[i * 3 + 2] = +q['@_v3']; tri.push({ pid: q['@_pid'], p1: q['@_p1'] !== undefined ? +q['@_p1'] : undefined, paint: q['@_paint_color'] ? String(q['@_paint_color']) : undefined }); });
+        def.mesh = { v, t: tt, tri };
       }
       if (o.components) def.comps = arr<any>(o.components.component).map((c) => ({ id: c['@_objectid'], path: c['@_path'], m: parseTransform(c['@_transform']) }));
       objs[o['@_id']] = def;
@@ -222,17 +249,35 @@ export function parse3MF(buf: Uint8Array): Mesh {
   };
   const root = loadModel(rootName);
   const cache: Record<string, ReturnType<typeof loadModel>> = { [rootName]: root };
+  // selección de placa: una instancia (objeto + nº de copia dentro del objeto) pertenece a la placa que la lista en model_settings
+  const plates = opts?.plate !== undefined ? listPlates(buf) : [];
+  const plate: PlateInfo | undefined = plates.find((p) => p.index === opts?.plate);
+  if (opts?.plate !== undefined && plates.length && !plate) throw new LocalizedError('parse.mf3NoPlate', { plate: opts.plate });
+  if (opts?.plate !== undefined && !plates.length && opts.plate !== 1) throw new LocalizedError('parse.mf3NoPlate', { plate: opts.plate });
+  const seen = new Map<string, number>();
+  const items = root.items.filter((it) => {
+    const k = seen.get(it.id) ?? 0; seen.set(it.id, k + 1);
+    return !plate || plate.instances.some((x) => x.objectId === it.id && x.instanceId === k);
+  });
   const pos: number[] = []; const col: number[] = [];
   let anyColor = false;
+  // color por extrusor (Bambu/Orca): cada objeto de la placa toma el color de su filamento si el 3MF no trae paleta propia
+  const ams = parseAms(buf); const extColor = new Map<string, [number, number, number]>();
+  if (ams?.multicolor) for (const o of ams.objects) { const f = ams.filaments[o.extruder - 1]; if (f) extColor.set(o.id, hexToRgb(f.color)); }
+  let rootColor: [number, number, number] | undefined;
   const emit = (od: ObjDef, m: Mat) => {
     if (!od.mesh) return;
-    const { v, t, tri } = od.mesh;
-    for (let i = 0; i < t.length / 3; i++) {
-      for (let k = 0; k < 3; k++) { const vi = t[i * 3 + k] * 3; const p = applyMat(m, v[vi], v[vi + 1], v[vi + 2]); pos.push(p[0], p[1], p[2]); }
+    const { v, t: tt, tri } = od.mesh;
+    for (let i = 0; i < tt.length / 3; i++) {
+      for (let k = 0; k < 3; k++) { const vi = tt[i * 3 + k] * 3; const p = applyMat(m, v[vi], v[vi + 1], v[vi + 2]); pos.push(p[0], p[1], p[2]); }
       const pid = tri[i].pid ?? od.pid; const pi = tri[i].p1 ?? od.pindex;
       const c = pid !== undefined && pi !== undefined ? palettes[pid]?.[pi] : undefined;
       if (c) anyColor = true;
-      const cc = c ?? [0.8, 0.8, 0.8];
+      if (!c && rootColor) anyColor = true;
+      // pintura por cara de Bambu Studio/Orca: manda sobre el color del objeto
+      const ps = tri[i].paint ? paintState(tri[i].paint!) : 0; const pf = ps > 0 && ams?.filaments[ps - 1] ? hexToRgb(ams.filaments[ps - 1].color) : undefined;
+      if (pf) anyColor = true;
+      const cc = pf ?? c ?? rootColor ?? [0.8, 0.8, 0.8];
       for (let k = 0; k < 3; k++) col.push(cc[0], cc[1], cc[2]);
     }
   };
@@ -250,10 +295,46 @@ export function parse3MF(buf: Uint8Array): Mesh {
       walk(target, c.id, mulMat(c.m, m), depth + 1);
     }
   };
-  if (root.items.length) for (const it of root.items) walk(root, it.id, it.m);
-  else for (const id of Object.keys(root.objs)) walk(root, id, IDENT);
-  if (!pos.length) throw new Error('3MF sin geometría');
-  return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined };
+  if (root.items.length) for (const it of items) { rootColor = extColor.get(it.id); walk(root, it.id, it.m); }
+  else for (const id of Object.keys(root.objs)) { rootColor = extColor.get(id); walk(root, id, IDENT); }
+  if (!pos.length) throw new LocalizedError('parse.mf3NoGeometry');
+  let bedCenter: { x: number; y: number } | undefined;
+  if (plate) {
+    bedCenter = plateBedCenter(pos, plate.index, plates.length, projectBed(files));
+    recenterXY(pos);
+  }
+  return { positions: Float32Array.from(pos), colors: anyColor ? Float32Array.from(col) : undefined, ...(bedCenter ? { bedCenter } : {}) };
+}
+/** Tamaño de la cama del proyecto (`printable_area` de Metadata/project_settings.config), o null si no lo declara. */
+export function projectBed(files: Record<string, Uint8Array>): { w: number; h: number } | null {
+  const key = Object.keys(files).find((n) => /^metadata\/project_settings\.config$/i.test(n)); if (!key) return null;
+  try {
+    const area = JSON.parse(strFromU8(files[key])).printable_area; if (!Array.isArray(area)) return null;
+    const pts = area.map((p: unknown) => String(p).split('x').map(Number)).filter((p: number[]) => p.length === 2 && p.every(Number.isFinite));
+    if (pts.length < 3) return null;
+    const xs = pts.map((p: number[]) => p[0]), ys = pts.map((p: number[]) => p[1]);
+    const w = Math.max(...xs) - Math.min(...xs), h = Math.max(...ys) - Math.min(...ys);
+    return w > 0 && h > 0 ? { w, h } : null;
+  } catch { return null; }
+}
+/**
+ * Bambu Studio / OrcaSlicer disponen las placas de un proyecto en una grilla de ceil(√n) columnas, con una separación del 20 % de la cama
+ * y la primera placa en el origen (la siguiente fila va hacia −Y). Con eso se recupera dónde están las piezas dentro de su cama.
+ */
+export function plateBedCenter(pos: number[], index: number, count: number, bed: { w: number; h: number } | null): { x: number; y: number } | undefined {
+  if (!bed || !pos.length || count < 1) return undefined;
+  let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+  for (let i = 0; i < pos.length; i += 3) { minx = Math.min(minx, pos[i]); maxx = Math.max(maxx, pos[i]); miny = Math.min(miny, pos[i + 1]); maxy = Math.max(maxy, pos[i + 1]); }
+  const cols = Math.max(1, Math.ceil(Math.sqrt(count))), k = index - 1;
+  const ox = (k % cols) * bed.w * 1.2, oy = -Math.floor(k / cols) * bed.h * 1.2;
+  return { x: (minx + maxx) / 2 - ox, y: (miny + maxy) / 2 - oy };
+}
+/** Centra en XY la geometría de una placa: la placa queda sobre el origen aunque en el proyecto esté desplazada. */
+function recenterXY(pos: number[]) {
+  let minx = Infinity, maxx = -Infinity, miny = Infinity, maxy = -Infinity;
+  for (let i = 0; i < pos.length; i += 3) { minx = Math.min(minx, pos[i]); maxx = Math.max(maxx, pos[i]); miny = Math.min(miny, pos[i + 1]); maxy = Math.max(maxy, pos[i + 1]); }
+  const cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+  for (let i = 0; i < pos.length; i += 3) { pos[i] -= cx; pos[i + 1] -= cy; }
 }
 function hexToRgb(h?: string): [number, number, number] {
   if (!h) return [0.8, 0.8, 0.8];
@@ -264,22 +345,22 @@ function hexToRgb(h?: string): [number, number, number] {
 /* ───────────────────────── AMF ───────────────────────── */
 export function parseAMF(buf: Uint8Array): Mesh {
   let xml: string;
-  if (buf[0] === 0x50 && buf[1] === 0x4b) { const f = unzipSync(buf); const n = Object.keys(f).find((k) => k.toLowerCase().endsWith('.amf')); if (!n) throw new Error('AMF vacío'); xml = strFromU8(f[n]); }
+  if (buf[0] === 0x50 && buf[1] === 0x4b) { const f = unzipSync(buf); const n = Object.keys(f).find((k) => k.toLowerCase().endsWith('.amf')); if (!n) throw new LocalizedError('parse.amfEmpty'); xml = strFromU8(f[n]); }
   else xml = new TextDecoder().decode(buf);
   const doc = new XMLParser({ ignoreAttributes: false, isArray: (n) => ['object', 'vertex', 'triangle', 'volume'].includes(n) }).parse(xml).amf;
   const out: number[] = [];
   for (const o of arr<any>(doc?.object)) {
     const vs = arr<any>(o.mesh?.vertices?.vertex).map((v) => [+v.coordinates.x, +v.coordinates.y, +v.coordinates.z]);
-    for (const vol of arr<any>(o.mesh?.volume)) for (const t of arr<any>(vol.triangle)) for (const k of [t.v1, t.v2, t.v3]) out.push(...vs[+k]);
+    for (const vol of arr<any>(o.mesh?.volume)) for (const tt of arr<any>(vol.triangle)) for (const k of [tt.v1, tt.v2, tt.v3]) out.push(...vs[+k]);
   }
-  if (!out.length) throw new Error('AMF sin geometría');
+  if (!out.length) throw new LocalizedError('parse.amfNoGeometry');
   return { positions: Float32Array.from(out) };
 }
 
 /* ───────────────────────── GLB / glTF (binario) ───────────────────────── */
 export function parseGLB(buf: Uint8Array): Mesh {
   const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
-  if (dv.getUint32(0, true) !== 0x46546c67) throw new Error('GLB inválido (solo se admite .glb binario)');
+  if (dv.getUint32(0, true) !== 0x46546c67) throw new LocalizedError('parse.glbInvalid');
   let o = 12; let json: any; let bin: Uint8Array | undefined;
   while (o < buf.byteLength) {
     const len = dv.getUint32(o, true), type = dv.getUint32(o + 4, true); o += 8;
@@ -287,7 +368,7 @@ export function parseGLB(buf: Uint8Array): Mesh {
     if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(chunk)); else if (type === 0x004e4942) bin = chunk;
     o += len;
   }
-  if (!json || !bin) throw new Error('GLB incompleto');
+  if (!json || !bin) throw new LocalizedError('parse.glbIncomplete');
   const acc = (i: number) => {
     const a = json.accessors[i], bv = json.bufferViews[a.bufferView];
     const comps = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type as string] ?? 1;
@@ -323,7 +404,7 @@ export function parseGLB(buf: Uint8Array): Mesh {
   const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
   const scene = json.scenes?.[json.scene ?? 0];
   for (const ni of scene?.nodes ?? json.nodes.map((_: any, i: number) => i)) visit(ni, I);
-  if (!pos.length) throw new Error('GLB sin triángulos');
+  if (!pos.length) throw new LocalizedError('parse.glbNoTriangles');
   // glTF es Y-arriba; el taller trabaja Z-arriba
   const p2 = new Float32Array(pos.length);
   for (let i = 0; i < pos.length; i += 3) { p2[i] = pos[i]; p2[i + 1] = -pos[i + 2]; p2[i + 2] = pos[i + 1]; }
@@ -332,31 +413,33 @@ export function parseGLB(buf: Uint8Array): Mesh {
 
 /* ───────────────────────── STEP (OpenCascade WASM) ───────────────────────── */
 export async function parseSTEP(buf: Uint8Array): Promise<Mesh> {
+  const t = await getT();
   let occt: any;
   try {
     const mod: any = await import(/* webpackIgnore: true */ 'occt-import-js' as string);
     occt = await (mod.default ?? mod)();
-  } catch (e) { throw new Error('Conversión STEP no disponible (instala occt-import-js): ' + (e as Error).message); }
+  } catch (e) { throw new Error(t('viewer.stepConversionIsNotAvailable') + (e as Error).message); }
   const res = occt.ReadStepFile(buf, { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.001, angularDeflection: 0.5 });
-  if (!res.success) throw new Error('STEP no se pudo leer');
+  if (!res.success) throw new Error(t('viewer.theStepFileCouldNot'));
   const pos: number[] = [];
   for (const m of res.meshes) {
     const P = m.attributes.position.array as number[]; const I = m.index.array as number[];
     for (const i of I) pos.push(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]);
   }
-  if (!pos.length) throw new Error('STEP sin geometría');
+  if (!pos.length) throw new Error(t('viewer.theStepFileHasNo'));
   return { positions: Float32Array.from(pos) };
 }
 
-export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: string }): Promise<Mesh> {
+export async function parseMesh(buf: Uint8Array, ext: string, extra?: { mtl?: string; plate?: number }): Promise<Mesh> {
+  const t = await getT();
   switch (ext) {
     case 'stl': return parseSTL(buf);
     case 'obj': return parseOBJ(buf, extra?.mtl);
-    case '3mf': return parse3MF(buf);
+    case '3mf': return parse3MF(buf, extra?.plate !== undefined ? { plate: extra.plate } : undefined);
     case 'ply': return parsePLY(buf);
     case 'amf': return parseAMF(buf);
     case 'glb': return parseGLB(buf);
     case 'step': case 'stp': return parseSTEP(buf);
-    default: throw new Error(`Formato de modelo no soportado: .${ext}`);
+    default: throw new Error(t('viewer.unsupportedModelFormat', { ext }));
   }
 }

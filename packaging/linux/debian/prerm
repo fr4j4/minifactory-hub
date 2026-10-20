@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+# Se detiene el servicio al desinstalar y al actualizar (postinst lo vuelve a arrancar). Los datos en /var/lib/minifactory-hub se conservan siempre.
+[ -d /run/systemd/system ] || exit 0
+case "$1" in
+  remove) systemctl disable --now minifactory-hub.service >/dev/null 2>&1 || true ;;
+  upgrade|deconfigure|failed-upgrade) systemctl stop minifactory-hub.service >/dev/null 2>&1 || true ;;
+esac

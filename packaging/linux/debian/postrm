@@ -1,0 +1,4 @@
+#!/bin/sh
+set -e
+# systemd olvida la unidad borrada. Los datos en /var/lib/minifactory-hub no se tocan, tampoco con purge.
+if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi

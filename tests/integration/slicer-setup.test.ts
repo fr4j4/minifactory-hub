@@ -71,7 +71,8 @@ describe.skipIf(!orcaAvailable())('filamento personalizado (OrcaSlicer real)', (
     const c = await createCustomFilament({ name: 'Sunlu PETG negro', brand: 'Sunlu', type: 'PETG', values: { nozzle_temperature: '245', filament_density: '1.40', filament_flow_ratio: '0,92', textured_plate_temp: '' }, addToInventory: { colorName: 'Negro', hex: '#111111', costPerKg: 15990 } });
     const [p] = await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, c.profileId));
     expect(p).toMatchObject({ baseName: 'Generic PETG @System', changes: { nozzle_temperature: '245', filament_density: '1.40', filament_flow_ratio: '0.92', filament_vendor: 'Sunlu' } });
-    const [mat] = await db.select().from(s.materials).where(eq(s.materials.id, c.materialId!)); expect(mat).toMatchObject({ type: 'PETG', colorName: 'Negro', costPerKg: 15990, filamentProfileId: c.profileId, density: 1.4 });
+    const [mat] = await db.select().from(s.materials).where(eq(s.materials.id, c.materialId!)); expect(mat).toMatchObject({ type: 'PETG', colorName: 'Negro', costPerKg: 15990, density: 1.4 });
+    expect(await (await import('@/lib/slicer/links')).linkedProfileId(mat.id)).toBe(c.profileId);
     await expect(createCustomFilament({ name: 'malo', type: 'PLA', values: { nozzle_temperature: 'caliente' } })).rejects.toThrow(/debe ser un número/);
     const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((x) => x.name === n)!.id;
     const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo'));

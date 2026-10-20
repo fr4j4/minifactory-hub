@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+  id minifactory >/dev/null 2>&1 || useradd --system --user-group --no-create-home --home-dir /var/lib/minifactory-hub --shell /usr/sbin/nologin minifactory
+  install -d -o minifactory -g minifactory -m 700 /var/lib/minifactory-hub
+  if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload
+    systemctl enable minifactory-hub.service >/dev/null
+    systemctl restart minifactory-hub.service || true
+    echo "MiniFactory Hub en marcha en http://localhost:3000 . Código de configuración inicial: journalctl -u minifactory-hub"
+  fi
+fi

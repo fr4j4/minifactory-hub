@@ -4,8 +4,11 @@ import type { Config } from 'tailwindcss';
  * y un naranja de boquilla caliente como acento. brand-600+ cumple contraste AA con texto blanco.
  */
 export default {
-  darkMode: 'media',
+  // oscuro si el sistema lo pide (y no se eligió claro) o si se eligió oscuro a mano (data-theme en <html>)
+  darkMode: ['variant', ['@media (prefers-color-scheme: dark) { &:not(:is([data-theme="light"] *)) }', '&:is([data-theme="dark"] *)']],
   content: ['./src/**/*.{ts,tsx}'],
+  // hover solo con puntero que lo soporta: en táctil no queda «pegado» tras tocar
+  future: { hoverOnlyWhenSupported: true },
   theme: {
     extend: {
       colors: {
@@ -22,11 +25,15 @@ export default {
       },
       keyframes: {
         rise: { from: { opacity: '0', transform: 'translateY(6px)' }, to: { opacity: '1', transform: 'none' } },
+        pop: { from: { opacity: '0', transform: 'scale(.97)' } },
         print: { '0%': { clipPath: 'inset(100% 0 0 0)' }, '80%,100%': { clipPath: 'inset(0 0 0 0)' } },
         nozzle: { '0%,100%': { transform: 'translateX(-38px)' }, '50%': { transform: 'translateX(38px)' } },
+        fadeIn: { from: { opacity: '0' } },
+        fadeOut: { to: { opacity: '0' } },
+        slideUp: { from: { transform: 'translateY(100%)' }, to: { transform: 'none' } },
         pulseDot: { '0%,100%': { opacity: '1' }, '50%': { opacity: '.35' } },
       },
-      animation: { rise: 'rise .35s cubic-bezier(.2,.7,.2,1) backwards', pulseDot: 'pulseDot 1.6s ease-in-out infinite' },
+      animation: { rise: 'rise .2s cubic-bezier(.23,1,.32,1) backwards', pop: 'pop .16s cubic-bezier(.23,1,.32,1)', pulseDot: 'pulseDot 1.6s ease-in-out infinite', fadeIn: 'fadeIn .2s ease-out', fadeOut: 'fadeOut .15s cubic-bezier(.23,1,.32,1) forwards', slideUp: 'slideUp .28s cubic-bezier(.32,.72,0,1)' },
     },
   },
   plugins: [],

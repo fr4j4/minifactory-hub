@@ -54,3 +54,28 @@ test.describe('Presupuestos con varios modelos', () => {
     saveAs('presupuesto-varios-modelos');
   });
 });
+
+test.describe('Gestor de presupuestos (R3)', () => {
+  test('tablero con KPIs, segmentos, vista tabla recordada y «Ver detalles» por línea', async ({ page }) => {
+    await login(page, 'admin');
+    await page.goto('/presupuestos');
+    await expect(page.getByTestId('quote-kpis')).toBeVisible();
+    await expect(page.getByTestId('quote-rows').locator('li').first()).toBeVisible();
+    await page.getByTestId('view-table').click();
+    await expect(page.getByTestId('quotes-table')).toBeVisible();
+    await page.reload(); // la elección se recuerda en el navegador
+    await expect(page.getByTestId('view-table')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByTestId('view-list').click();
+    // un presupuesto ya enviado: detalle por línea y vista cliente
+    await page.goto('/presupuestos?st=enviado');
+    const first = page.getByTestId('quote-rows').locator('li a').first();
+    if (await first.count()) {
+      await first.click();
+      await page.goto((await page.getByTestId('line-detail-toggle').first().getAttribute('href'))!);
+      await expect(page.getByTestId('line-detail').first()).toBeVisible();
+      await page.goBack();
+      await page.getByTestId('client-view').locator('summary').click();
+      await expect(page.getByTestId('client-view')).toContainText(/Presupuesto|Quote/);
+    }
+  });
+});

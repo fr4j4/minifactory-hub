@@ -8,9 +8,15 @@ async function main() {
     console.log('Base y archivos locales borrados');
   }
   const { seedDemo, bootstrap } = await import('../src/lib/seed');
-  if (process.argv.includes('--bootstrap-only')) { await bootstrap(); console.log('Taller inicial creado'); return; }
+  if (process.argv.includes('--bootstrap-only')) {
+    await bootstrap({ quietToken: true });
+    const { hasUsers, issueSetupToken } = await import('../src/lib/setup');
+    if (await hasUsers()) console.log('Taller listo');
+    else { await issueSetupToken(); console.log('Sin cuentas: completa la configuración inicial en /bienvenida'); }
+    process.exit(0);
+  }
   const r = await seedDemo();
-  console.log(r.skipped ? 'La base ya tiene datos de demostración' : `Listo. Usuarios: ${r.users?.join(', ')} (contraseñas: admin1234 / taller1234)`);
+  console.log(r.skipped ? 'La base ya tiene datos de demostración' : `Listo. Usuarios: ${r.users?.join(', ')} (contraseñas de demostración: admin1234 / taller1234)`);
   process.exit(0);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

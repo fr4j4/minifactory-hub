@@ -7,3 +7,7 @@ services:
     ports: ["3000:3000"]
     environment:
       DATABASE_URL: postgres://minifactory:minifactory@db:5432/minifactory
+  worker:
+    network_mode: !reset null
+    environment:
+      DATABASE_URL: postgres://minifactory:minifactory@db:5432/minifactory

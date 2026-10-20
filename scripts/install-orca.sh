@@ -19,7 +19,9 @@ echo "Instalado en $DEST/squashfs-root"
 # Librerías de sistema que necesita el binario (Debian/Ubuntu):
 if command -v dpkg >/dev/null; then
   missing=""
-  for p in libopengl0 libglu1-mesa libwebkit2gtk-4.1-0 libgtk-3-0t64 libgl1; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
+  for p in libopengl0 libglu1-mesa libwebkit2gtk-4.1-0 libgtk-3-0t64 libgl1 libmspack0; do dpkg -s "$p" >/dev/null 2>&1 || missing="$missing $p"; done
   [ -n "$missing" ] && echo "Faltan paquetes del sistema:$missing  →  apt-get install -y$missing"
 fi
 "$DEST/squashfs-root/AppRun" --help 2>&1 | head -1
+# Esquema ampliado de parámetros del Estudio (texto de OrcaSlicer, AGPL: se genera aquí y no se versiona). Sin red, se usa el curado.
+(cd "$(dirname "$0")/.." && npx --no-install tsx scripts/gen-orca-schema.ts) || true

@@ -1,0 +1,1 @@
+ALTER TABLE "model_files" ADD COLUMN "auto_orient" boolean DEFAULT false NOT NULL;

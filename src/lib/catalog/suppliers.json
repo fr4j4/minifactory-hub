@@ -1,0 +1,556 @@
+{
+  "version": 1,
+  "generated": "2026-10-15",
+  "verified": false,
+  "note": "Datos de partida para el catálogo inicial de proveedores. Reunidos con búsquedas web, sin acceso directo a los sitios: confirmar nombre, URL, marcas, disponibilidad y precios antes de publicarlos. 'verified' es false en todos los registros.",
+  "suppliers": [
+    {
+      "id": "todotoner",
+      "name": "TodoToner",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Santiago (Centro)",
+      "url": "https://www.todotoner.cl",
+      "channels": [
+        "online",
+        "fisica"
+      ],
+      "brands": [
+        "Bambu Lab",
+        "Creality",
+        "Elegoo",
+        "eSUN",
+        "marca propia"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Tienda con despacho a todo Chile, showroom y estacionamientos en Santiago Centro; catálogo de PLA/PETG de varias marcas (resultados de búsqueda y directorio de terceros).",
+      "notes": "Vende impresoras 3D, filamentos, resinas, tóner y tintas.",
+      "verified": false
+    },
+    {
+      "id": "imperio3d",
+      "name": "Imperio 3D",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Santiago (Las Condes)",
+      "url": "https://imperio3d.com",
+      "channels": [
+        "online",
+        "fisica",
+        "mercadolibre"
+      ],
+      "brands": [
+        "Bambu Lab",
+        "Prusa",
+        "Plast Ar"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Su blog anuncia una tienda nueva en Las Condes; tiene tienda en Mercado Libre Chile con PLA de Plast Ar y líneas Bambu Lab (PLA Lite, PLA Basic).",
+      "notes": "La dirección exacta del showroom no se pudo confirmar.",
+      "verified": false
+    },
+    {
+      "id": "maxi3d",
+      "name": "Maxi3D",
+      "kind": "importador",
+      "country": "CL",
+      "city": "Cerro Navia",
+      "url": "https://www.facebook.com/Maxi3Dcl/",
+      "channels": [
+        "redes"
+      ],
+      "brands": [],
+      "ships_to_chile": "desconocido",
+      "evidence": "Aparece una página de Facebook que dice enfocarse en la importación de insumos y filamentos para impresión 3D, con base en Cerro Navia.",
+      "notes": "No encontré sitio web propio ni más fuentes: confirmar canal de venta, marcas y si vende por mayor.",
+      "verified": false
+    },
+    {
+      "id": "horus3d",
+      "name": "Horus3D",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Santiago",
+      "url": "https://horus3d.cl",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Jamg He"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Tienda de Santiago con categoría de filamentos; un listado muestra Jamg He ECO PLA+ desde $10.000.",
+      "notes": "Datos tomados de resultados de búsqueda; confirmar.",
+      "verified": false
+    },
+    {
+      "id": "designtec",
+      "name": "DesignTec",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Providencia",
+      "url": "https://designtec.cl",
+      "channels": [
+        "online",
+        "fisica"
+      ],
+      "brands": [],
+      "ships_to_chile": "desconocido",
+      "evidence": "Figura en un directorio con impresión 3D y despacho gratis a varias comunas de Santiago.",
+      "notes": "Confirmar si vende filamentos y cuáles.",
+      "verified": false
+    },
+    {
+      "id": "fullcompras",
+      "name": "FullCompras",
+      "kind": "importador",
+      "country": "CL",
+      "city": "Santiago",
+      "url": "https://www.fullcompras.cl/mundo-3d/materiales-filamentos-3d",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "eSUN",
+        "Hatchbox"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Se presenta como importador de materiales de impresión 3D (filamentos eSUN y Hatchbox) en Santiago.",
+      "notes": "",
+      "verified": false
+    },
+    {
+      "id": "evstore",
+      "name": "eVStore",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Temuco",
+      "url": "https://evstore.cl",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "eSUN",
+        "SUNLU"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Despacha a todo Chile desde Temuco; filamentos PLA, PLA+, PETG, TPU; garantía local y soporte técnico.",
+      "notes": "Única tienda del sur observada.",
+      "verified": false
+    },
+    {
+      "id": "tugadget",
+      "name": "Tugadget",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "",
+      "url": "https://tugadget.cl/73-filamentos",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Creality",
+        "Bambu Lab"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Sección de filamentos con stock en Chile y despacho rápido.",
+      "notes": "",
+      "verified": false
+    },
+    {
+      "id": "cimech3d",
+      "name": "Cimech 3D",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.cimech3d.cl",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "eSUN",
+        "PopBit"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "PETG eSUN a $15.990 IVA incluido por kilo (varios colores agotados al momento de la búsqueda); PETG PopBit 1,75 mm 1 kg; ofrece compra de PETG al por mayor.",
+      "notes": "Ofrece venta por mayor: pedir lista.",
+      "verified": false
+    },
+    {
+      "id": "tecnosistec",
+      "name": "Tecnosistec",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "",
+      "url": "https://tecnosistec.cl/es/119-filamento-pla",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "SUNLU"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Categoría de filamento PLA con envíos a todo Chile.",
+      "notes": "",
+      "verified": false
+    },
+    {
+      "id": "makerschile",
+      "name": "MakersChile",
+      "kind": "marketplace_vendedor",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.mercadolibre.cl/pagina/makerschile",
+      "channels": [
+        "mercadolibre"
+      ],
+      "brands": [
+        "Bambu Lab",
+        "Creality",
+        "Macrotec"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Vendedor en Mercado Libre Chile con PLA Basic de Bambu Lab, PLA Wood y TPU; envío gratis y cuotas.",
+      "notes": "",
+      "verified": false
+    },
+    {
+      "id": "sourceshop",
+      "name": "Source Shop",
+      "kind": "marketplace_vendedor",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.mercadolibre.cl/shorts/clips/QEPiCh/filamento-pla-175mm-sunlu-impresion-3d",
+      "channels": [
+        "mercadolibre"
+      ],
+      "brands": [
+        "SUNLU",
+        "eSUN"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Vendedor en Mercado Libre Chile con PLA SUNLU 1,75 mm y PLA+ eSUN.",
+      "notes": "Marketplace: precios y stock cambian.",
+      "verified": false
+    },
+    {
+      "id": "construex-norte3d",
+      "name": "Norte en 3D (Construex)",
+      "kind": "tienda_especializada",
+      "country": "CL",
+      "city": "Norte de Chile",
+      "url": "https://www.construex.cl/exhibidores/norte_en_3_d/producto/filamento_petg_chile",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Grilon3"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Expositor en Construex con PETG; el listado menciona Grilon3.",
+      "notes": "Sin detalle de precio ni stock.",
+      "verified": false
+    },
+    {
+      "id": "uprint3d",
+      "name": "uPrint 3D",
+      "kind": "distribuidor_marca",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.3dnatives.com/es/directorio-impresion-3d/uprint-3d/",
+      "channels": [
+        "directorio"
+      ],
+      "brands": [
+        "PP3DP"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Un directorio indica que representa en Chile a PP3DP (impresoras personales).",
+      "notes": "Más relevante para impresoras que para filamento.",
+      "verified": false
+    },
+    {
+      "id": "cicla3d",
+      "name": "Cicla 3D",
+      "kind": "fabricante",
+      "country": "CL",
+      "city": "Concepción",
+      "url": "https://cicla.cl",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Cicla 3D",
+        "Cicla NANO",
+        "Cicla Wood"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Primera fábrica chilena de filamentos (2019): PLA reciclado y biodegradable, línea antimicrobiana Cicla NANO y Cicla Wood; vende en Chile y exporta.",
+      "notes": "El dominio proviene de una fuente secundaria: confirmar. Catálogo y colores por confirmar.",
+      "verified": false
+    },
+    {
+      "id": "filamaker",
+      "name": "Filamaker",
+      "kind": "fabricante",
+      "country": "CL",
+      "city": "Santiago (Providencia)",
+      "url": "https://www.facebook.com/filamakercl/",
+      "channels": [
+        "redes",
+        "retail"
+      ],
+      "brands": [
+        "Filamaker"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Se presenta como filamento PLA diseñado en Chile; dirección Av. Nueva Los Leones 0203; se vende por Tienda Cargosud.",
+      "notes": "Sin sitio propio encontrado: confirmar canal.",
+      "verified": false
+    },
+    {
+      "id": "mercadolibre-cl",
+      "name": "Mercado Libre Chile",
+      "kind": "marketplace",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.mercadolibre.cl",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "varias"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Marketplace con muchos vendedores de filamento (Bambu Lab, Creality, SUNLU, eSUN, Plast Ar, Macrotec); no encontré tiendas oficiales de SUNLU, eSUN o Elegoo en Chile.",
+      "notes": "Comprobar la insignia «Tienda oficial» en cada publicación.",
+      "verified": false
+    },
+    {
+      "id": "lider",
+      "name": "Líder",
+      "kind": "retail",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.lider.cl",
+      "channels": [
+        "online",
+        "fisica"
+      ],
+      "brands": [
+        "Safe and Sound",
+        "Polymaker (accesorios)"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "PLA Safe and Sound 1,75 mm 1 kg a ≈ $13.000 (vendedor tercero Casa Cortez Chile); accesorios como secadores Polymaker.",
+      "notes": "Marketplace dentro del retail: vendedor tercero.",
+      "verified": false
+    },
+    {
+      "id": "paris",
+      "name": "Paris",
+      "kind": "retail",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.paris.cl/listas/filamento-impresora-3d/",
+      "channels": [
+        "online",
+        "fisica"
+      ],
+      "brands": [
+        "varias"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Categoría de filamento para impresora 3D con ≈ 180 productos.",
+      "notes": "Marcas no confirmadas.",
+      "verified": false
+    },
+    {
+      "id": "falabella",
+      "name": "Falabella",
+      "kind": "retail",
+      "country": "CL",
+      "city": "",
+      "url": "https://www.falabella.com/falabella-cl/shop/filamento-impresora-3d",
+      "channels": [
+        "online",
+        "fisica"
+      ],
+      "brands": [
+        "varias"
+      ],
+      "ships_to_chile": "si",
+      "evidence": "Categoría de filamento para impresora 3D en Falabella Chile.",
+      "notes": "Marcas no confirmadas.",
+      "verified": false
+    },
+    {
+      "id": "mercadolibre-ar",
+      "name": "Mercado Libre Argentina",
+      "kind": "marketplace",
+      "country": "AR",
+      "city": "",
+      "url": "https://www.mercadolibre.com.ar",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Grilon3",
+        "GST3D"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Varios revendedores de Grilon3 (PLA, PETG, Nylon, Flex) y reportes de GST3D entre lo más vendido.",
+      "notes": "No hay evidencia de envío a Chile.",
+      "verified": false
+    },
+    {
+      "id": "mercadolibre-co",
+      "name": "Mercado Libre Colombia (tienda Bambu Lab)",
+      "kind": "marketplace",
+      "country": "CO",
+      "city": "",
+      "url": "https://www.mercadolibre.com.co/tienda/bambu-lab",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Bambu Lab"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Tienda Bambu Lab con PLA y PETG en la versión colombiana.",
+      "notes": "Solo referencia regional.",
+      "verified": false
+    },
+    {
+      "id": "bambu-store",
+      "name": "Bambu Lab Store",
+      "kind": "tienda_marca",
+      "country": "GLOBAL",
+      "city": "",
+      "url": "https://store.bambulab.com",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Bambu Lab"
+      ],
+      "ships_to_chile": "via_courier",
+      "evidence": "Un foro indica tiendas oficiales para EE. UU., Reino Unido, Australia, Japón, UE, Corea del Sur, Canadá y «Global» (Hong Kong, Macao, Malasia, Nueva Zelanda, Taiwán); Latinoamérica no figura. Usuarios de Argentina mencionan compras por courier.",
+      "notes": "Verificar en el selector de país si despacha a Chile; si no, usar revendedor local o casillero.",
+      "verified": false
+    },
+    {
+      "id": "aliexpress",
+      "name": "AliExpress",
+      "kind": "marketplace",
+      "country": "CN",
+      "city": "",
+      "url": "https://www.aliexpress.com",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Geeetech",
+        "Eryone",
+        "Anycubic",
+        "Nexaforge",
+        "(tiendas oficiales de otras marcas por confirmar)"
+      ],
+      "ships_to_chile": "via_courier",
+      "evidence": "Tiendas de varias marcas publican envío desde bodega en EE. UU.; no confirmé tiendas oficiales de Elegoo, SUNLU, eSUN ni Polymaker.",
+      "notes": "Importación: considerar aduana e impuestos.",
+      "verified": false
+    },
+    {
+      "id": "amazon",
+      "name": "Amazon",
+      "kind": "marketplace",
+      "country": "US",
+      "city": "",
+      "url": "https://www.amazon.com",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "eSUN",
+        "SUNLU",
+        "varias"
+      ],
+      "ships_to_chile": "via_courier",
+      "evidence": "Sin evidencia verificada en esta búsqueda; es una vía habitual de importación.",
+      "notes": "Confirmar despacho a Chile y costos de importación.",
+      "verified": false
+    },
+    {
+      "id": "matterhackers",
+      "name": "MatterHackers",
+      "kind": "tienda_internacional",
+      "country": "US",
+      "city": "",
+      "url": "https://www.matterhackers.com",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Bambu Lab",
+        "varias"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Aparece con filamento Bambu Lab; no hay indicación de envío a Chile.",
+      "notes": "Solo referencia.",
+      "verified": false
+    },
+    {
+      "id": "3dprintingusa",
+      "name": "3D Printing USA",
+      "kind": "tienda_internacional",
+      "country": "US",
+      "city": "",
+      "url": "https://3dprintingusa.com",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "varias"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Tienda de EE. UU. con amplio catálogo de filamentos; no confirmé envío a Chile.",
+      "notes": "Solo referencia.",
+      "verified": false
+    },
+    {
+      "id": "pccomponentes",
+      "name": "PcComponentes",
+      "kind": "tienda_internacional",
+      "country": "ES",
+      "city": "",
+      "url": "https://www.pccomponentes.com/marcas/bambulab",
+      "channels": [
+        "online"
+      ],
+      "brands": [
+        "Bambu Lab"
+      ],
+      "ships_to_chile": "desconocido",
+      "evidence": "Vende filamentos Bambu Lab para España; sin indicación de envío a Chile.",
+      "notes": "Solo referencia.",
+      "verified": false
+    },
+    {
+      "id": "forward2me",
+      "name": "Forward2Me",
+      "kind": "servicio_casillero",
+      "country": "GLOBAL",
+      "city": "",
+      "url": "https://www.forward2me.com/retailers/bambu-lab/",
+      "channels": [
+        "online"
+      ],
+      "brands": [],
+      "ships_to_chile": "si",
+      "evidence": "Servicio de reenvío para comprar en tiendas que no despachan al país, mencionado para Bambu Lab.",
+      "notes": "No es proveedor: es una vía logística.",
+      "verified": false
+    }
+  ]
+}

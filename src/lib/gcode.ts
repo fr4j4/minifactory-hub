@@ -48,7 +48,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
   if (tTotal) meta.timeS = parseDuration(tTotal);
   else if (tPrusa) meta.timeS = parseDuration(tPrusa);
   else if (tCura) meta.timeS = +tCura;
-  else if (tModel) { meta.timeS = parseDuration(tModel); meta.notes.push('Tiempo del modelo sin calentamiento ni preparación'); }
+  else if (tModel) { meta.timeS = parseDuration(tModel); meta.notes.push('gcodeNote.modelTimeOnly'); }
 
   // filamento (Orca/Bambu/Prusa)
   const mm = g(/^;\s*filament used \[mm\]\s*=\s*(.+)$/im);
@@ -79,7 +79,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
         const m = part.trim().match(/([\d.]+)\s*m/);
         if (m && +m[1] > 0) { const mmv = +m[1] * 1000; meta.filaments.push({ mm: mmv, cm3: (Math.PI * (dm / 2) ** 2 * mmv) / 1000, g: ((Math.PI * (dm / 2) ** 2 * mmv) / 1000) * d }); }
       }
-      meta.notes.push('Cura informa metros: los gramos se calculan con diámetro y densidad del material');
+      meta.notes.push('gcodeNote.curaMeters');
     }
   }
   const tf = g(/^;\s*total filament used \[g\]\s*=\s*([\d.]+)/im) ?? g(/^;\s*total filament weight \[g\]\s*:\s*([\d.]+)/im);
@@ -91,7 +91,7 @@ export function parseGcodeMeta(text: string, opts: { defaultDensity?: number; de
   meta.machine = g(/^;\s*printer_settings_id\s*=\s*(.+)$/im) ?? g(/^;\s*printer_model\s*=\s*(.+)$/im) ?? null;
   const changes = (hay.match(/^M600|^T[1-9]\s*$|^;\s*CHANGE_LAYER|^;\s*filament change/gim) ?? []).length;
   if (changes > 0 && meta.filaments.length > 1) meta.filamentChanges = changes;
-  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('El G-code no trae resumen del laminador (sin comentarios de tiempo ni filamento)');
+  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('gcodeNote.noSummary');
   return meta;
 }
 
@@ -110,10 +110,10 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
     const hs = hv.find((h: any) => h['@_key'] === 'X-BBL-Client-Version' || h['@_key'] === 'BambuStudio');
     const plates = doc?.config?.plate ?? [];
     meta.plates = plates.length;
-    let t = 0; const fil: Record<string, { g: number; mm: number; color?: string; type?: string }> = {};
+    let tt = 0; const fil: Record<string, { g: number; mm: number; color?: string; type?: string }> = {};
     for (const p of plates) {
       for (const m of p.metadata ?? []) {
-        if (m['@_key'] === 'prediction') t += +m['@_value'];
+        if (m['@_key'] === 'prediction') tt += +m['@_value'];
         if (m['@_key'] === 'printer_model_id') meta.machine = meta.machine ?? m['@_value'];
       }
       for (const f of p.filament ?? []) {
@@ -121,7 +121,7 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
         e.g += +(f['@_used_g'] ?? 0); e.mm += +(f['@_used_m'] ?? 0) * 1000;
       }
     }
-    meta.timeS = t || null;
+    meta.timeS = tt || null;
     meta.filaments = Object.values(fil).map((f) => ({ g: f.g, mm: f.mm, cm3: null, color: f.color, type: f.type }));
     meta.totalG = meta.filaments.reduce((a, f) => a + (f.g ?? 0), 0) || null;
     meta.slicer = hs?.['@_value'] ? `Bambu/Orca ${hs['@_value']}` : 'Bambu Studio / OrcaSlicer';
@@ -133,7 +133,7 @@ export function parse3mfSliceMeta(buf: Uint8Array): SliceMeta | null {
     if (!meta.filaments.length) { meta.filaments = g0.filaments; meta.totalG = g0.totalG; }
     meta.plates = Math.max(meta.plates ?? 0, gcodes.length);
   }
-  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('3MF sin laminar: no trae tiempo ni gramos. Se puede laminar desde el sitio o ingresar los datos a mano');
+  if (meta.timeS == null && !meta.filaments.length) meta.notes.push('gcodeNote.unsliced3mf');
   return meta;
 }
 
@@ -142,7 +142,7 @@ export function hasSlicedData(m: SliceMeta | null): m is SliceMeta {
 }
 
 /* ───────────────────────── Vista previa por capas ───────────────────────── */
-export const GCODE_TYPES = ['perimetro', 'relleno', 'superficie', 'soporte', 'otro'] as const;
+export const GCODE_TYPES = ['perimetro', 'relleno', 'superficie', 'soporte', 'otro', 'viaje'] as const;
 export type GType = (typeof GCODE_TYPES)[number];
 
 function classify(label: string): GType {
@@ -154,18 +154,35 @@ function classify(label: string): GType {
   return 'otro';
 }
 
+export interface PreviewStats {
+  /** tiempo (s) y largo extruido (mm) por tipo, en el orden de GCODE_TYPES */
+  byType: Array<{ timeS: number; mm: number }>;
+  /** tiempo estimado de extrusión de cada capa (s) */
+  layerTimeS: number[];
+  speed: [number, number]; width: [number, number];
+  /** ventilador (%), temperatura de boquilla (°C) y cantidad de herramientas (T0…Tn) */
+  fan?: [number, number]; temp?: [number, number]; tools?: number;
+  /** retracciones (el filamento retrocede) y largo total de movimientos en vacío (mm) */
+  retractions?: number; travelMm?: number;
+}
 export interface GcodePreview {
   bbox: { min: [number, number, number]; max: [number, number, number] };
   layers: Array<{ z: number; t: Array<[number, number, number]> /* tipo, offset, cantidad (en segmentos) */ }>;
   segments: Float32Array; // x1,y1,x2,y2 por segmento
+  /** velocidad (mm/s) y ancho de línea (mm) por segmento, en el mismo orden que `segments` */
+  speeds: Float32Array; widths: Float32Array;
+  /** ventilador (0–100 %), temperatura (°C) y herramienta (0…n) por segmento */
+  fans?: Float32Array; temps?: Float32Array; tools?: Float32Array;
+  stats: PreviewStats;
   total: number;
   sampled: boolean;
 }
 
 export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodePreview {
   let x = 0, y = 0, z = 0, e = 0, relE = false, absPos = true, curType: GType = 'otro';
-  let layerIdx = -1; let curLayerZ = -Infinity;
-  const perLayer: Array<{ z: number; segs: Record<number, number[]> }> = [];
+  let layerIdx = -1; let curLayerZ = -Infinity; let feed = 0; let curWidth = 0.42; let curFan = 0, curTemp = 0, curTool = 0, maxTool = 0; let retractions = 0, travelMm = 0;
+  const perLayer: Array<{ z: number; segs: Record<number, number[]>; spd: Record<number, number[]>; wid: Record<number, number[]>; fan: Record<number, number[]>; tmp: Record<number, number[]>; tol: Record<number, number[]> }> = [];
+  const typeAcc = GCODE_TYPES.map(() => ({ timeS: 0, mm: 0 }));
   let total = 0;
   const min: [number, number, number] = [Infinity, Infinity, Infinity], max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   const lines = text.split('\n');
@@ -176,9 +193,14 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
     const c = line.charCodeAt(0);
     if (c === 59 /* ; */) {
       if (line.startsWith(';TYPE:') || line.startsWith('; FEATURE:')) curType = classify(line.replace(/^;\s*(TYPE|FEATURE):/, ''));
+      else if (line.startsWith('; LINE_WIDTH:')) { const w = parseFloat(line.slice(13)); if (Number.isFinite(w)) curWidth = w; }
       continue;
     }
+    if (c === 84 /* T */) { const m = /^T(\d+)\b/.exec(line); if (m) { curTool = +m[1]; if (curTool > maxTool && curTool < 16) maxTool = curTool; } continue; }
     if (c !== 71 /* G */ && c !== 77 /* M */) continue;
+    if (line.startsWith('M106')) { const m = /S(\d+(?:\.\d+)?)/.exec(line); curFan = m ? Math.round((+m[1] / 255) * 100) : 100; continue; }
+    if (line.startsWith('M107')) { curFan = 0; continue; }
+    if (line.startsWith('M104') || line.startsWith('M109')) { const m = /S(\d+(?:\.\d+)?)/.exec(line); if (m && +m[1] > 0) curTemp = +m[1]; continue; }
     if (line.startsWith('M82')) { relE = false; continue; }
     if (line.startsWith('M83')) { relE = true; continue; }
     if (line.startsWith('G90')) { absPos = true; continue; }
@@ -193,14 +215,23 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
       const v = parseFloat(tok.slice(1)); if (!Number.isFinite(v)) continue;
       if (ch === 'X') nx = absPos ? v : x + v; else if (ch === 'Y') ny = absPos ? v : y + v; else if (ch === 'Z') nz = absPos ? v : z + v;
       else if (ch === 'E') { hasE = true; ne = relE ? e + v : v; }
+      else if (ch === 'F') feed = v / 60;
     }
     const extruding = hasE && ne > e + 1e-6 && (nx !== x || ny !== y);
+    if (!extruding && layerIdx >= 0) {
+      if (hasE && ne < e - 1e-6) retractions++;
+      const tl = Math.hypot(nx - x, ny - y);
+      // movimiento en vacío: se guarda como tipo «viaje» (los muy cortos se omiten para no saturar la vista)
+      if (tl > 2) { travelMm += tl; const ti = GCODE_TYPES.indexOf('viaje'); (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); (perLayer[layerIdx].spd[ti] ??= []).push(feed > 0 ? feed : 60); (perLayer[layerIdx].wid[ti] ??= []).push(0); (perLayer[layerIdx].fan[ti] ??= []).push(curFan); (perLayer[layerIdx].tmp[ti] ??= []).push(curTemp); (perLayer[layerIdx].tol[ti] ??= []).push(curTool); }
+    }
     if (extruding) {
-      if (nz !== curLayerZ || layerIdx < 0) { curLayerZ = nz; layerIdx = perLayer.length; perLayer.push({ z: nz, segs: {} }); }
+      if (nz !== curLayerZ || layerIdx < 0) { curLayerZ = nz; layerIdx = perLayer.length; perLayer.push({ z: nz, segs: {}, spd: {}, wid: {}, fan: {}, tmp: {}, tol: {} }); }
+      const len = Math.hypot(nx - x, ny - y); const spd = feed > 0 ? feed : 60; const ti0 = GCODE_TYPES.indexOf(curType);
+      typeAcc[ti0].mm += len; typeAcc[ti0].timeS += len / spd; (perLayer[layerIdx] as any).t = ((perLayer[layerIdx] as any).t ?? 0) + len / spd;
       const keep = stride === 1 || curType !== 'relleno' || counter++ % stride === 0;
       if (keep) {
         const ti = GCODE_TYPES.indexOf(curType);
-        (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); total++;
+        (perLayer[layerIdx].segs[ti] ??= []).push(x, y, nx, ny); (perLayer[layerIdx].spd[ti] ??= []).push(spd); (perLayer[layerIdx].wid[ti] ??= []).push(curWidth); (perLayer[layerIdx].fan[ti] ??= []).push(curFan); (perLayer[layerIdx].tmp[ti] ??= []).push(curTemp); (perLayer[layerIdx].tol[ti] ??= []).push(curTool); total++;
       }
       if (x < min[0]) min[0] = x; if (nx < min[0]) min[0] = nx; if (x > max[0]) max[0] = x; if (nx > max[0]) max[0] = nx;
       if (y < min[1]) min[1] = y; if (ny < min[1]) min[1] = ny; if (y > max[1]) max[1] = y; if (ny > max[1]) max[1] = ny;
@@ -208,18 +239,22 @@ export function buildGcodePreview(text: string, maxSegments = 1_200_000): GcodeP
     }
     x = nx; y = ny; z = nz; e = ne;
   }
-  const flat: number[] = [];
+  const rs: number[] = [], rw: number[] = []; const flat: number[] = []; const fs: number[] = []; const fw: number[] = []; const ff: number[] = []; const ft: number[] = []; const fo: number[] = [];
   const layers = perLayer.map((l) => {
-    const t: Array<[number, number, number]> = [];
-    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; t.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); }
-    return { z: l.z, t };
+    const tt: Array<[number, number, number]> = [];
+    for (const ti of Object.keys(l.segs).map(Number).sort()) { const arr = l.segs[ti]; const isTravel = ti === GCODE_TYPES.indexOf('viaje'); tt.push([ti, flat.length / 4, arr.length / 4]); for (let i = 0; i < arr.length; i++) flat.push(arr[i]); for (const v of l.spd[ti]) { fs.push(v); if (!isTravel) rs.push(v); } for (const v of l.wid[ti]) { fw.push(v); if (!isTravel) rw.push(v); } for (const v of l.fan[ti]) ff.push(v); for (const v of l.tmp[ti]) ft.push(v); for (const v of l.tol[ti]) fo.push(v); }
+    return { z: l.z, t: tt };
   });
   if (!isFinite(min[0])) { min.fill(0); max.fill(0); }
-  return { bbox: { min, max }, layers, segments: Float32Array.from(flat), total, sampled: stride > 1 };
+  const rng = (a: number[]): [number, number] => (a.length ? [a.reduce((m, v) => Math.min(m, v), Infinity), a.reduce((m, v) => Math.max(m, v), -Infinity)] : [0, 0]);
+  const stats: PreviewStats = { byType: typeAcc.map((x) => ({ timeS: +x.timeS.toFixed(1), mm: +x.mm.toFixed(0) })), layerTimeS: perLayer.map((l) => +(((l as any).t ?? 0) as number).toFixed(1)), speed: rng(rs), width: rng(rw), fan: rng(ff), temp: rng(ft), tools: maxTool + 1, retractions, travelMm: Math.round(travelMm) };
+  return { bbox: { min, max }, layers, segments: Float32Array.from(flat), speeds: Float32Array.from(fs), widths: Float32Array.from(fw), fans: Float32Array.from(ff), temps: Float32Array.from(ft), tools: Float32Array.from(fo), stats, total, sampled: stride > 1 };
 }
 
 export function gcodePreviewToBin(p: GcodePreview): Buffer {
-  const head = Buffer.from(JSON.stringify({ bbox: p.bbox, layers: p.layers, types: GCODE_TYPES, total: p.total, sampled: p.sampled }));
-  const len = Buffer.alloc(8); len.write('MFG1', 0, 'ascii'); len.writeUInt32LE(head.length, 4);
-  return Buffer.concat([len, head, Buffer.from(p.segments.buffer, p.segments.byteOffset, p.segments.byteLength)]);
+  // MFG3: posiciones y luego, por segmento, velocidad, ancho, ventilador, temperatura y herramienta (el visor también lee MFG1 y MFG2)
+  const head = Buffer.from(JSON.stringify({ bbox: p.bbox, layers: p.layers, types: GCODE_TYPES, total: p.total, sampled: p.sampled, stats: p.stats, segCount: p.segments.length / 4 }));
+  const len = Buffer.alloc(8); len.write('MFG3', 0, 'ascii'); len.writeUInt32LE(head.length, 4);
+  const b = (a: Float32Array) => Buffer.from(a.buffer, a.byteOffset, a.byteLength);
+  return Buffer.concat([len, head, b(p.segments), b(p.speeds), b(p.widths), b(p.fans ?? new Float32Array(p.speeds.length)), b(p.temps ?? new Float32Array(p.speeds.length)), b(p.tools ?? new Float32Array(p.speeds.length))]);
 }

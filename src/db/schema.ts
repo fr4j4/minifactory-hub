@@ -28,6 +28,8 @@ export const users = pgTable('users', {
   active: boolean('active').notNull().default(true),
   permOverrides: jsonb('perm_overrides').$type<Record<string, string>>().default({}),
   notifPrefs: jsonb('notif_prefs').$type<Record<string, boolean>>().default({}),
+  /** Nivel de la calculadora que eligió la persona: se recuerda entre sesiones. */
+  calcLevel: text('calc_level').notNull().default('basico'), // basico | avanzado
 }, (t) => [uniqueIndex('users_email_uq').on(t.email)]);
 
 export const sessions = pgTable('sessions', {
@@ -108,9 +110,14 @@ export const materials = pgTable('materials', {
   tempNozzle: text('temp_nozzle'),
   tempBed: text('temp_bed'),
   supplierText: text('supplier_text'),
-  filamentProfileId: uuid('filament_profile_id'),
+  lineId: uuid('line_id'), // línea de filamento (marca + línea) a la que pertenece
+  variantId: text('variant_id'), // color del catálogo de filamentos (`marca/material/filamento/color`), para detectar duplicados y completar datos
+  gtin: text('gtin'), // código de barras (GTIN/EAN) del fabricante
+  traits: jsonb('traits').$type<string[]>(), // rasgos del catálogo: silk, matte, abrasive, contains_carbon_fiber…
+  packG: integer('pack_g'), // peso neto habitual de un carrete/botella de este filamento (compras y lista de compras)
+  generic: boolean('generic').notNull().default(false), // «PLA genérico»: sirve para laminar y cotizar sin color; no es stock
   notes: text('notes'),
-});
+}, (t) => [index('materials_variant_ix').on(t.workspaceId, t.variantId), index('materials_gtin_ix').on(t.workspaceId, t.gtin)]);
 
 export const spools = pgTable('spools', {
   ...base(),
@@ -129,7 +136,28 @@ export const spools = pgTable('spools', {
   machineId: uuid('machine_id'),
   slot: text('slot'),
   lastDriedAt: date('last_dried_at'),
+  supplierId: uuid('supplier_id'), // «dónde compré» (directorio liviano, N4b)
+  purchaseLineId: uuid('purchase_line_id'), // línea de la compra que lo trajo (null: carga inicial o anterior a las compras)
 }, (t) => [uniqueIndex('spools_code_uq').on(t.workspaceId, t.code)]);
+
+/** Directorio liviano de proveedores y tiendas (N4b): solo para elegir «dónde compré». */
+export const suppliers = pgTable('suppliers', {
+  ...base(),
+  name: text('name').notNull(),
+  kind: text('kind').notNull().default('tienda'), // tienda_especializada | marketplace | fabricante | importacion | minorista
+  country: text('country').notNull().default('CL'),
+  city: text('city'),
+  url: text('url'),
+  channels: jsonb('channels').$type<string[]>().default([]),
+  brands: jsonb('brands').$type<string[]>().default([]),
+  notes: text('notes'),
+  /** Si el taller recupera el IVA de lo que compra aquí (crédito fiscal): entonces el costo del material va sin IVA. */
+  recoversVat: boolean('recovers_vat').notNull().default(false),
+  verified: boolean('verified').notNull().default(false),
+  verifiedAt: timestamp('verified_at', { withTimezone: true }),
+  verifiedBy: uuid('verified_by'),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('suppliers_name_uq').on(t.workspaceId, t.name)]);
 
 export const inventoryItems = pgTable('inventory_items', {
   ...base(),
@@ -153,8 +181,50 @@ export const inventoryMovements = pgTable('inventory_movements', {
   unitCost: integer('unit_cost'),
   jobId: uuid('job_id'),
   saleId: uuid('sale_id'),
+  purchaseId: uuid('purchase_id'),
   note: text('note'),
 });
+
+/** Compra de insumos y filamento: al recibirla crea los carretes y suma los ítems. `total` es lo pagado (líneas + envío − descuento). */
+export const purchases = pgTable('purchases', {
+  ...base(),
+  number: text('number').notNull(),
+  supplierId: uuid('supplier_id'),
+  supplierText: text('supplier_text'),
+  boughtAt: date('bought_at').notNull(),
+  docNumber: text('doc_number'), // boleta / factura / pedido de la tienda
+  shipping: integer('shipping').notNull().default(0),
+  discount: integer('discount').notNull().default(0),
+  total: integer('total').notNull().default(0),
+  recoversVat: boolean('recovers_vat').notNull().default(false), // se guarda tal como estaba al comprar
+  vatPct: doublePrecision('vat_pct').notNull().default(0),
+  notes: text('notes'),
+  status: text('status').notNull().default('recibida'), // recibida | anulada
+}, (t) => [uniqueIndex('purchases_number_uq').on(t.workspaceId, t.number), index('purchases_date_ix').on(t.workspaceId, t.boughtAt)]);
+
+export const purchaseLines = pgTable('purchase_lines', {
+  ...base(),
+  purchaseId: uuid('purchase_id').notNull(),
+  kind: text('kind').notNull().default('filamento'), // filamento | item
+  materialId: uuid('material_id'),
+  itemId: uuid('item_id'),
+  qty: doublePrecision('qty').notNull().default(1), // carretes/botellas o unidades
+  netG: doublePrecision('net_g'), // gramos netos por carrete (solo filamento)
+  tareG: doublePrecision('tare_g'),
+  unitPrice: integer('unit_price').notNull().default(0), // pagado por carrete/unidad (con IVA)
+  unitCost: integer('unit_cost').notNull().default(0), // costo real por carrete/unidad: sin IVA si se recupera, más su parte del envío y menos la del descuento
+  costPerKg: integer('cost_per_kg'), // costo real por kg (solo filamento)
+  lot: text('lot'),
+  location: text('location'),
+}, (t) => [index('purchase_lines_purchase_ix').on(t.purchaseId)]);
+
+/** «Cada pedido entregado gasta N de este ítem» (embalaje, bolsas, etiquetas…): se descuenta al entregar y entra al costo real del pedido. */
+export const supplyRules = pgTable('supply_rules', {
+  ...base(),
+  itemId: uuid('item_id').notNull(),
+  qtyPerOrder: doublePrecision('qty_per_order').notNull().default(1),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('supply_rules_item_uq').on(t.workspaceId, t.itemId)]);
 
 /* ───────────── Máquinas y mantenimiento ───────────── */
 export const machines = pgTable('machines', {
@@ -184,6 +254,8 @@ export const machines = pgTable('machines', {
   simulated: boolean('simulated').notNull().default(false),
   machineProfileId: uuid('machine_profile_id'),
   defaultProcessProfileId: uuid('default_process_profile_id'),
+  /** Por boquilla: qué perfil de impresora y qué calidad por defecto usar cuando esa boquilla está puesta (machineProfileId/defaultProcessProfileId reflejan la boquilla activa). */
+  nozzleSetups: jsonb('nozzle_setups').$type<Record<string, { machineProfileId: string; processProfileId: string | null }>>().default({}),
   feedGph: doublePrecision('feed_gph').notNull().default(25), // g/h típicos para estimar sin laminar
   timeFactor: doublePrecision('time_factor').notNull().default(1), // mediana(tiempo real ÷ estimado) de los últimos 20 trabajos
   connection: jsonb('connection').$type<Record<string, any>>().default({}),
@@ -225,8 +297,12 @@ export const incidents = pgTable('incidents', {
 export const modelFiles = pgTable('model_files', {
   ...base(),
   name: text('name').notNull(),
+  /** Orientación automática al laminar (--orient): se recuerda por modelo. */
+  autoOrient: boolean('auto_orient').notNull().default(false),
   folder: text('folder'),
   tags: jsonb('tags').$type<string[]>().default([]),
+  tagMeta: jsonb('tag_meta').$type<Record<string, { source: string; confidence?: number }>>().default({}), // procedencia de cada etiqueta (manual | ia | import | regla)
+  sourceId: uuid('source_id'),
   favorite: boolean('favorite').notNull().default(false),
   license: text('license').default('propia'),
   origin: text('origin'),
@@ -241,6 +317,31 @@ export const modelFiles = pgTable('model_files', {
   closed: boolean('closed'),
   currentVersionId: uuid('current_version_id'),
 }, (t) => [index('model_files_hash_ix').on(t.hash)]);
+
+/** De dónde salió un modelo (MakerWorld, Printables…): metadatos públicos, licencia y uso comercial (N3). */
+export const modelSources = pgTable('model_sources', {
+  ...base(),
+  provider: text('provider').notNull().default('otro'), // makerworld | printables | thingiverse | otro
+  url: text('url').notNull(),
+  externalId: text('external_id'),
+  title: text('title'),
+  description: text('description'),
+  authorName: text('author_name'),
+  authorUid: text('author_uid'),
+  authorUrl: text('author_url'),
+  licenseCode: text('license_code').notNull().default('desconocida'),
+  licenseText: text('license_text'),
+  commercialUse: text('commercial_use').notNull().default('desconocido'), // si | no | requiere_membresia | desconocido
+  tags: jsonb('tags').$type<string[]>().default([]),
+  images: jsonb('images').$type<Array<{ url: string; photoId?: string; storageKey?: string; error?: string }>>().default([]),
+  plates: jsonb('plates').$type<Array<Record<string, unknown>>>().default([]),
+  stats: jsonb('stats').$type<Record<string, number>>().default({}),
+  remoteCreatedAt: text('remote_created_at'),
+  remoteUpdatedAt: text('remote_updated_at'),
+  raw: jsonb('raw').$type<unknown>(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }),
+  fetchStatus: text('fetch_status').notNull().default('error'), // ok | parcial | error
+}, (t) => [index('model_sources_url_ix').on(t.url)]);
 
 export const fileVersions = pgTable('file_versions', {
   ...base(),
@@ -262,6 +363,7 @@ export const slicerProfiles = pgTable('slicer_profiles', {
   name: text('name').notNull(),
   vendor: text('vendor'),
   baseName: text('base_name').notNull(), // perfil de fábrica de OrcaSlicer
+  nozzle: text('nozzle'), // boquilla (mm) para la que sirve: impresoras y calidades; se deduce de la base si está vacío
   changes: jsonb('changes').$type<Record<string, any>>().notNull().default({}),
   version: integer('version').notNull().default(1),
   simulated: boolean('simulated').notNull().default(false),
@@ -290,7 +392,9 @@ export const sliceRuns = pgTable('slice_runs', {
   cacheKey: text('cache_key'),
   copies: integer('copies').notNull().default(1),
   engineVersion: text('engine_version'),
-  status: text('status').notNull().default('queued'), // queued | running | done | error
+  status: text('status').notNull().default('queued'), // queued | running | done | error | cancelado
+  /** Ajustes de sesión del Estudio: se aplican sobre los perfiles sin crear perfiles nuevos. */
+  inputs: jsonb('inputs').$type<{ overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }>().default({}),
   error: text('error'),
   timeS: integer('time_s'),
   filament: jsonb('filament').$type<Array<{ g: number; mm: number; cm3: number }>>().default([]),
@@ -322,6 +426,9 @@ export const quotes = pgTable('quotes', {
   finalTotal: integer('final_total'), // si el usuario fija el total
   discount: integer('discount').notNull().default(0),
   taxAmount: integer('tax_amount').notNull().default(0),
+  applyTax: boolean('apply_tax').notNull().default(false), // casilla «+ IVA» (modelo de precios 'neto')
+  docTemplate: jsonb('doc_template').$type<Record<string, unknown> | null>(), // plantilla de documento congelada al enviar (N7)
+  pdfKey: text('pdf_key'), // copia del PDF entregada al cliente
   total: integer('total').notNull().default(0),
   costTotal: integer('cost_total').notNull().default(0),
   priceReason: text('price_reason'),
@@ -410,6 +517,7 @@ export const orders = pgTable('orders', {
   dueDate: date('due_date'),
   title: text('title'),
   total: integer('total').notNull().default(0),
+  taxAmount: integer('tax_amount').notNull().default(0), // IVA cobrado dentro del total (modelo 'neto')
   costEstimated: integer('cost_estimated').notNull().default(0),
   costReal: integer('cost_real'),
   paid: integer('paid').notNull().default(0),
@@ -469,7 +577,8 @@ export const printJobs = pgTable('print_jobs', {
   machineId: uuid('machine_id'),
   spoolId: uuid('spool_id'),
   materialId: uuid('material_id'),
-  position: integer('position').notNull().default(0),
+  position: integer('position').notNull().default(0), // orden en la cola GLOBAL (1 = primero); machine_id es solo la asignación
+  dims: jsonb('dims').$type<[number, number, number]>(), // mm de la pieza (para sugerir máquinas donde cabe); null = desconocido
   plannedStart: timestamp('planned_start', { withTimezone: true }),
   plannedEnd: timestamp('planned_end', { withTimezone: true }),
   realStart: timestamp('real_start', { withTimezone: true }),
@@ -479,7 +588,9 @@ export const printJobs = pgTable('print_jobs', {
   estH: doublePrecision('est_h').notNull().default(0),
   realH: doublePrecision('real_h'),
   result: text('result'), // exito | falla_parcial | falla_total
+  qtyGood: integer('qty_good'), // piezas buenas al cerrar (null: trabajo sin cerrar o anterior a este dato)
   failCause: text('fail_cause'),
+  failCode: text('fail_code'), // catálogo cerrado (lib/production/fail-causes.ts); fail_cause guarda el detalle libre
   failCharge: text('fail_charge'), // taller | pedido
   reprintOfId: uuid('reprint_of_id'),
   sliceRunId: uuid('slice_run_id'),
@@ -594,6 +705,8 @@ export const payments = pgTable('payments', {
 export const photos = pgTable('photos', {
   ...base(),
   kind: text('kind').notNull().default('foto'), // foto | video
+  /** job: foto de un trabajo (aparece en Galería) · model: imagen de un modelo 3D (solo en la biblioteca) */
+  scope: text('scope').notNull().default('job'),
   storageKey: text('storage_key').notNull(),
   variants: jsonb('variants').$type<Record<string, string>>().default({}),
   width: integer('width'),
@@ -650,6 +763,7 @@ export const notifications = pgTable('notifications', {
 });
 
 export const uploadSessions = pgTable('upload_sessions', {
+  createdBy: uuid('created_by'),
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
   filename: text('filename').notNull(),
@@ -698,4 +812,184 @@ export const cloudAccounts = pgTable('cloud_accounts', {
   status: text('status').notNull().default('activa'), // activa | expirada | cerrada
   lastError: text('last_error'),
   lastSyncAt: timestamp('last_sync_at', { withTimezone: true }),
+});
+
+/* ───────────── IA opcional (Fase 0) ───────────── */
+/** Propuestas generadas por IA y su ciclo de vida. Nada se aplica sin confirmación humana. */
+export const aiSuggestions = pgTable('ai_suggestions', {
+  ...base(),
+  feature: text('feature').notNull(),
+  subjectType: text('subject_type'),
+  subjectId: uuid('subject_id'),
+  inputHash: text('input_hash').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  promptVersion: text('prompt_version').notNull(),
+  proposal: jsonb('proposal').$type<Record<string, any>>().notNull().default({}),
+  rationale: jsonb('rationale').$type<Record<string, any>>().default({}),
+  status: text('status').notNull().default('proposed'), // proposed | applied | rejected | expired | superseded
+  appliedAt: timestamp('applied_at', { withTimezone: true }),
+  appliedBy: uuid('applied_by'),
+  outcome: jsonb('outcome').$type<Record<string, any>>().default({}),
+}, (t) => [index('ai_suggestions_subject_ix').on(t.subjectType, t.subjectId), index('ai_suggestions_hash_ix').on(t.inputHash)]);
+
+/** Telemetría de uso y costo de cada llamada al proveedor (el contenido solo se guarda si la retención lo permite). */
+export const aiCalls = pgTable('ai_calls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id'),
+  feature: text('feature').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  tier: text('tier').notNull().default('fast'),
+  inTokens: integer('in_tokens').notNull().default(0),
+  outTokens: integer('out_tokens').notNull().default(0),
+  costUsd: doublePrecision('cost_usd').notNull().default(0),
+  latencyMs: integer('latency_ms').notNull().default(0),
+  ok: boolean('ok').notNull().default(true),
+  error: text('error'),
+  cacheHit: boolean('cache_hit').notNull().default(false),
+  promptLog: jsonb('prompt_log').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('ai_calls_created_ix').on(t.createdAt)]);
+
+/** Cola persistente de trabajos en segundo plano (análisis de archivos, etc.): sobrevive a reinicios y reintenta con espera. */
+export const jobs = pgTable('jobs', {
+  ...base(),
+  kind: text('kind').notNull(), // file.process
+  payload: jsonb('payload').$type<Record<string, any>>().notNull().default({}),
+  status: text('status').notNull().default('queued'), // queued | running | done | error
+  attempts: integer('attempts').notNull().default(0),
+  maxAttempts: integer('max_attempts').notNull().default(3),
+  error: text('error'),
+  runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  owner: text('owner'),
+}, (t) => [index('jobs_status_ix').on(t.status, t.runAfter)]);
+
+/** Calidades por intención (borrador, estándar, fino…): definiciones relativas a la boquilla que se materializan como perfiles de proceso. */
+export const qualityPresets = pgTable('quality_presets', {
+  ...base(),
+  key: text('key').notNull(),
+  label: text('label'), // null en las de fábrica: se usa la traducción
+  builtin: boolean('builtin').notNull().default(false),
+  layerFactor: doublePrecision('layer_factor').notNull(), // altura de capa = boquilla × factor
+  wallMm: doublePrecision('wall_mm').notNull(),
+  wallNozzles: doublePrecision('wall_nozzles'), // pared mínima en múltiplos de la boquilla
+  topMm: doublePrecision('top_mm').notNull(),
+  bottomMm: doublePrecision('bottom_mm').notNull(),
+  infill: text('infill').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('quality_presets_key_uq').on(t.workspaceId, t.key)]);
+
+/** Perfil de filamento por defecto de un material (machine_profile_id nulo = para cualquier impresora; con valor = solo para esa). Reemplaza la columna heredada `materials.filament_profile_id`. */
+export const materialFilamentLinks = pgTable('material_filament_links', {
+  ...base(),
+  materialId: uuid('material_id').notNull(),
+  filamentProfileId: uuid('filament_profile_id').notNull(),
+  machineProfileId: uuid('machine_profile_id'),
+}, (t) => [index('mfl_material_ix').on(t.materialId), index('mfl_profile_ix').on(t.filamentProfileId)]);
+
+/** Datos técnicos del fabricante de una línea (copiados del catálogo; todo opcional). */
+export interface LineSpecs { tempMin?: number | null; tempMax?: number | null; bedMin?: number | null; bedMax?: number | null; dryMax?: number | null; chamber?: number | null; shoreA?: number | null; shoreD?: number | null; datasheetUrl?: string | null; slicers?: Record<string, string>; traits?: string[]; source?: string }
+
+/** Línea de filamento (marca + línea): lleva valores por defecto (costo, stock mínimo) y un perfil de laminado compartidos por sus colores. */
+export const filamentLines = pgTable('filament_lines', {
+  ...base(),
+  manufacturer: text('manufacturer'),
+  name: text('name').notNull(),
+  type: text('type'),
+  costPerKg: integer('cost_per_kg'),
+  stockMinG: integer('stock_min_g'),
+  filamentProfileId: uuid('filament_profile_id'),
+  catalogId: text('catalog_id'), // `marca/material/filamento` del catálogo de filamentos
+  specs: jsonb('specs').$type<LineSpecs>(), // datos del fabricante copiados del catálogo al elegirlo
+}, (t) => [index('filament_lines_ix').on(t.workspaceId, t.manufacturer, t.name)]);
+
+/** Carpetas de la biblioteca de modelos (ruta con «/», p. ej. «Clientes/Ana»). Existen aunque estén vacías; los archivos guardan la ruta en `model_files.folder`. */
+export const folders = pgTable('folders', {
+  ...base(),
+  path: text('path').notNull(),
+}, (t) => [uniqueIndex('folders_path_uq').on(t.workspaceId, t.path)]);
+
+/** Etiquetas de la biblioteca con color; los archivos las guardan por nombre en `model_files.tags`. */
+export const tagDefs = pgTable('tag_defs', {
+  ...base(),
+  name: text('name').notNull(),
+  color: text('color'),
+}, (t) => [uniqueIndex('tag_defs_name_uq').on(t.workspaceId, t.name)]);
+
+/** External storage is distinct from model_sources (design provenance). */
+export const librarySources = pgTable('library_sources', {
+  ...base(), name: text('name').notNull(), kind: text('kind').notNull(),
+  config: jsonb('config').$type<Record<string, any>>().notNull().default({}),
+  secret: text('secret'), enabled: boolean('enabled').notNull().default(true),
+  writable: boolean('writable').notNull().default(false),
+  status: text('status').notNull().default('new'), error: text('error'),
+  lastScanAt: timestamp('last_scan_at', { withTimezone: true }),
+});
+export const libraryEntries = pgTable('library_entries', {
+  ...base(), sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  remoteId: text('remote_id').notNull(), parentId: text('parent_id'), path: text('path').notNull(),
+  name: text('name').notNull(), directory: boolean('directory').notNull().default(false),
+  revision: text('revision').notNull(), size: text('size').notNull().default('0'),
+  downloadable: boolean('downloadable').notNull().default(true),
+  modelId: uuid('model_id').references(() => modelFiles.id), versionId: uuid('version_id').references(() => fileVersions.id),
+  state: text('state').notNull().default('available'), seenScanId: uuid('seen_scan_id'),
+}, t => [uniqueIndex('library_entry_identity').on(t.sourceId, t.remoteId), index('library_entry_model').on(t.modelId), index('library_entry_parent').on(t.sourceId, t.parentId)]);
+export const libraryScans = pgTable('library_scans', {
+  ...base(), sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  status: text('status').notNull().default('queued'),
+  checkpoint: jsonb('checkpoint').$type<{ queue: Array<{ id: string; path: string; cursor?: string }>; visited: string[]; incremental?:boolean; changeCursor?:string }>().notNull(),
+  count: integer('count').notNull().default(0), error: text('error'),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+});
+export const libraryOperations = pgTable('library_operations', {
+  ...base(), kind: text('kind').notNull(), status: text('status').notNull().default('planned'),
+  input: jsonb('input').$type<Record<string, any>>().notNull(), result: jsonb('result').$type<Record<string, any>>(), error: text('error'),
+});
+/** Personal provider sessions; never serialized as source configuration. */
+export const libraryAccounts = pgTable('library_accounts', {
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  provider: text('provider').notNull(),
+  secret: text('secret').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.workspaceId, t.userId, t.provider] })]);
+export const libraryCollections = pgTable('library_collections', {
+  ...base(), name: text('name').notNull(),
+}, t => [uniqueIndex('library_collection_name').on(t.workspaceId, t.name)]);
+export const libraryCollectionModels = pgTable('library_collection_models', {
+  collectionId: uuid('collection_id').notNull().references(() => libraryCollections.id),
+  modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+}, t => [primaryKey({ columns: [t.collectionId, t.modelId] })]);
+
+/** User metadata is independent of a changing remote revision. */
+export const libraryDetails = pgTable('library_details', {
+  modelId: uuid('model_id').primaryKey().references(() => modelFiles.id),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const libraryAssets = pgTable('library_assets', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  versionId: uuid('version_id'), role: text('role').notNull(), name: text('name').notNull(),
+  storageKey: text('storage_key'), entryId: uuid('entry_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [index('library_asset_model').on(t.modelId)]);
+export const libraryPhotoLinks = pgTable('library_photo_links', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  photoId: uuid('photo_id').notNull().references(() => photos.id), versionId: uuid('version_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [uniqueIndex('library_photo_link').on(t.modelId,t.photoId)]);
+export const libraryCache = pgTable('library_cache', {
+  versionId: uuid('version_id').primaryKey().references(() => fileVersions.id),
+  sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  storageKey: text('storage_key').notNull(), bytes: doublePrecision('bytes').notNull(),
+  pinned: boolean('pinned').notNull().default(false), durable: boolean('durable').notNull().default(false),
+  accessedAt: timestamp('accessed_at',{withTimezone:true}).notNull().defaultNow(),
+  leaseUntil: timestamp('lease_until',{withTimezone:true}),
 });

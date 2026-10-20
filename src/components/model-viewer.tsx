@@ -1,20 +1,26 @@
 'use client';
+import { isDarkNow } from '@/lib/theme';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { cn } from '@/lib/format';
+import { cn, num } from '@/lib/format';
+import { useT } from '@/i18n/client';
+import type { TFn } from '@/i18n/translate';
+import { Icon } from '@/components/shell';
+
+/** Medidas del visor con decimales fijos (108,0 mm), en el formato del taller. */
+const f1 = (n: number, d = 1) => num(n, d, d);
 
 export interface ViewerMachine { id: string; name: string; volX: number; volY: number; volZ: number }
 type Mode = 'solido' | 'alambrico' | 'rayosx' | 'normales';
 type Tool = 'orbitar' | 'medir' | 'cara';
 
-const f1 = (n: number, d = 1) => n.toFixed(d).replace('.', ',');
 const fits = (d: [number, number, number], v: [number, number, number]) => (d[0] <= v[0] + 0.01 && d[1] <= v[1] + 0.01 && d[2] <= v[2] + 0.01) || (d[1] <= v[0] + 0.01 && d[0] <= v[1] + 0.01 && d[2] <= v[2] + 0.01);
 
-function parseMesh(buf: ArrayBuffer) {
+function parseMesh(buf: ArrayBuffer, t: TFn) {
   const dv = new DataView(buf);
   const magic = String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3));
-  if (magic !== 'MFM1') throw new Error('Formato de vista previa desconocido');
+  if (magic !== 'MFM1') throw new Error(t('viewer.theModelCouldNotBe'));
   const nv = dv.getUint32(4, true), ni = dv.getUint32(8, true), flags = dv.getUint32(12, true), origTris = dv.getUint32(16, true);
   const verts = new Float32Array(buf, 20, nv * 3);
   const idx = new Uint32Array(buf, 20 + nv * 12, ni);
@@ -23,11 +29,12 @@ function parseMesh(buf: ArrayBuffer) {
   return { verts, idx, colors, decimated: !!(flags & 2), origTris };
 }
 
-export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', analysis, className, initialMode, onCapture }: {
-  versionId: string; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string;
+export function ModelViewer({ versionId, machines, defaultMachineId, color = '#ff6a2b', materials = [], analysis, plates, className, initialMode, onCapture }: {
+  versionId: string; plates?: Array<{ index: number; name: string; triangles: number; dimX: number; dimY: number; dimZ: number; centerX?: number; centerY?: number }>; machines: ViewerMachine[]; defaultMachineId?: string | null; color?: string; materials?: Array<{ id: string; label: string; hex: string }>;
   analysis?: { dimX: number; dimY: number; dimZ: number; triangles: number } | null; className?: string; initialMode?: Mode;
   onCapture?: (dataUrl: string) => void;
 }) {
+  const t = useT();
   const host = useRef<HTMLDivElement>(null);
   const S = useRef<any>({}); // estado de three (no reactivo)
   const [status, setStatus] = useState<'cargando' | 'listo' | 'error'>('cargando');
@@ -43,15 +50,20 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
   const [showDims, setShowDims] = useState(true);
   const [info, setInfo] = useState<{ tris: number; decimated: boolean; orig: number } | null>(null);
   const [panel, setPanel] = useState(true);
+  const [matId, setMatId] = useState(''); // color del material del inventario (N1a); '' = color por defecto
+  const [plate, setPlate] = useState(0); // 0 = todo el proyecto; n = placa n de un 3MF multiplaca
+  const multi = plate === 0 && (plates?.length ?? 0) > 1; // «todas las placas»: cada placa con su cama, como en Bambu Studio / OrcaSlicer
+  const shownColor = materials.find((m) => m.id === matId)?.hex ?? color;
   const machine = machines.find((m) => m.id === machineId);
 
   /* ───────── escena ───────── */
   useEffect(() => {
-    const el = host.current!; const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setStatus('cargando'); setErr(''); setInfo(null); setMeasure(null);
+    const el = host.current!; const dark = isDarkNow();
     let disposed = false;
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.localClippingEnabled = true;
-    el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'viewer-canvas'); renderer.domElement.setAttribute('aria-label', 'Visor 3D del modelo'); renderer.domElement.setAttribute('role', 'img');
+    el.appendChild(renderer.domElement); renderer.domElement.setAttribute('data-testid', 'viewer-canvas'); renderer.domElement.setAttribute('aria-label', t('viewer.n3dModelViewer')); renderer.domElement.setAttribute('role', 'img');
     const scene = new THREE.Scene(); scene.background = new THREE.Color(dark ? 0x161615 : 0xe8e5de);
     const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 5000); camera.up.set(0, 0, 1);
     const controls = new OrbitControls(camera, renderer.domElement); controls.enableDamping = true; controls.dampingFactor = 0.12; controls.screenSpacePanning = true;
@@ -72,7 +84,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
         if (uSection > 0.5 && !gl_FrontFacing) diffuseColor.rgb = vec3(0.07, 0.66, 0.72);`);
     };
     const clip = new THREE.Plane(new THREE.Vector3(0, 0, -1), 1000);
-    const st = S.current; Object.assign(st, { renderer, scene, camera, controls, group, overlay, mat, uniforms, clip, mesh: null as THREE.Mesh | null, wire: null, bedGroup: new THREE.Group(), raycaster: new THREE.Raycaster(), disposed: false });
+    const st = S.current; Object.assign(st, { renderer, scene, camera, controls, group, overlay, mat, uniforms, clip, mesh: null as THREE.Mesh | null, wire: null, bedGroup: new THREE.Group(), raycaster: new THREE.Raycaster(), disposed: false, multi: false, offs: null, plateData: null, plateLabel: (n: number) => t('slicer.plateN', { n }) });
     scene.add(st.bedGroup);
     const labels = el.querySelector('[data-dim-labels]') as HTMLElement | null; st.labels = labels;
     const resize = () => { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); };
@@ -87,9 +99,27 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     loop();
     (async () => {
       try {
-        const res = await fetch(`/api/files/v/${versionId}/mesh`);
-        if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? 'La vista previa aún se está generando. Recarga en unos segundos.' : 'No se pudo cargar el modelo');
-        const m = parseMesh(await res.arrayBuffer()); if (disposed) return;
+        if (multi) {
+          // cada placa se pide por separado y se dispone en una grilla de camas
+          const list = plates!; const data: any[] = [];
+          for (let i = 0; i < list.length; i += 3) {
+            const chunk = await Promise.all(list.slice(i, i + 3).map(async (p) => {
+              const r = await fetch(`/api/files/v/${versionId}/mesh?plate=${p.index}`);
+              if (r.status === 202 || !r.ok) throw new Error(r.status === 202 ? t('viewer.thePreviewIsStillBeing') : t('viewer.theModelCouldNotBe'));
+              return { index: p.index, ...parseMesh(await r.arrayBuffer(), t) };
+            }));
+            if (disposed) return; data.push(...chunk);
+          }
+          st.multi = true; st.plateData = data;
+          const mesh = new THREE.Mesh(new THREE.BufferGeometry(), mat); group.add(mesh); st.mesh = mesh;
+          assembleMulti(st, machines.find((x) => x.id === machineId) ?? null, color, plates!);
+          setInfo({ tris: data.reduce((n, d) => n + d.idx.length / 3, 0), decimated: data.some((d) => d.decimated), orig: data.reduce((n, d) => n + d.origTris, 0) });
+          setDims(null); frameCamera(st); setStatus('listo'); return;
+        }
+        st.multi = false;
+        const res = await fetch(`/api/files/v/${versionId}/mesh${plate ? `?plate=${plate}` : ''}`);
+        if (res.status === 202 || !res.ok) throw new Error(res.status === 202 ? t('viewer.thePreviewIsStillBeing') : t('viewer.theModelCouldNotBe'));
+        const m = parseMesh(await res.arrayBuffer(), t); if (disposed) return;
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(m.verts, 3)); geo.setIndex(new THREE.BufferAttribute(m.idx, 1));
         if (m.colors) { geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(Array.from(m.colors, (x) => x / 255)), 3)); mat.vertexColors = true; mat.color.set(0xffffff); }
@@ -106,10 +136,11 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     })();
     return () => { disposed = true; st.disposed = true; cancelAnimationFrame(raf); ro.disconnect(); controls.dispose(); renderer.dispose(); st.mesh?.geometry.dispose(); mat.dispose(); renderer.domElement.remove(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [versionId]);
+  }, [versionId, plate]);
 
   /* ───────── efectos de estado → escena ───────── */
-  useEffect(() => { S.current.machine = machine; if (S.current.mesh) { drawBed(S.current, machine ?? null); placeOnBed(S.current); } }, [machine, status]);
+  useEffect(() => { const st = S.current; st.machine = machine; if (st.multi && st.plateData) { assembleMulti(st, machine ?? null, color, plates ?? []); frameCamera(st); } else if (st.mesh) { drawBed(st, machine ?? null); placeOnBed(st); } }, [machine, status]);
+  useEffect(() => { const st = S.current; if (st.mat && !st.mat.vertexColors) { st.mat.color.set(shownColor); st.mat.needsUpdate = true; } }, [shownColor, status]);
   useEffect(() => {
     const st = S.current; if (!st.mat) return; const m: THREE.MeshStandardMaterial = st.mat;
     m.wireframe = mode === 'alambrico'; m.transparent = mode === 'rayosx'; m.opacity = mode === 'rayosx' ? 0.35 : 1; m.depthWrite = mode !== 'rayosx';
@@ -142,12 +173,19 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     const pu = (e: PointerEvent) => {
       if (!down || !st.mesh) return; const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5; down = null; if (moved) return;
       const r = cv.getBoundingClientRect(); const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1));
-      st.raycaster.setFromCamera(ndc, st.camera); const hit = st.raycaster.intersectObject(st.mesh, false)[0]; if (!hit) return;
+      st.raycaster.setFromCamera(ndc, st.camera); const hit = st.raycaster.intersectObject(st.mesh, false)[0];
+      if (st.multi && tool === 'orbitar') {
+        // clic en una placa (sobre sus piezas o su cama): pasa a verla sola
+        const ray = st.raycaster.ray; const pt = hit ? hit.point : Math.abs(ray.direction.z) > 1e-6 ? ray.at(-ray.origin.z / ray.direction.z, new THREE.Vector3()) : null;
+        const k = pt && (st.offs as Array<{ index: number; cx: number; cy: number }>).find((o) => Math.abs(pt.x - o.cx) <= st.bedW / 2 + st.gap / 2 && Math.abs(pt.y - o.cy) <= st.bedH / 2 + st.gap / 2);
+        if (k) setPlate(k.index); return;
+      }
+      if (!hit) return;
       if (tool === 'medir') {
         st.pts = [...(st.pts ?? []), hit.point.clone()]; if (st.pts.length > 2) st.pts = [hit.point.clone()];
         drawMeasure(st); const p: THREE.Vector3[] = st.pts;
         setMeasure(p.length === 2 ? { mm: p[0].distanceTo(p[1]), dx: Math.abs(p[0].x - p[1].x), dy: Math.abs(p[0].y - p[1].y), dz: Math.abs(p[0].z - p[1].z) } : { mm: null });
-      } else if (tool === 'cara' && hit.face) {
+      } else if (tool === 'cara' && hit.face && !st.multi) {
         const n = hit.face.normal.clone().transformDirection(st.mesh.matrixWorld);
         st.group.quaternion.premultiply(new THREE.Quaternion().setFromUnitVectors(n, new THREE.Vector3(0, 0, -1)));
         st.group.updateMatrixWorld(true); placeOnBed(st); refreshDims(st, setDims); setTool('orbitar');
@@ -165,86 +203,105 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
     const d = new THREE.Vector3(...dir).normalize(); st.camera.position.copy(c).addScaledVector(d, r * 1.6); st.controls.target.copy(c); st.controls.update();
   }, []);
   const rotate = (axis: 'x' | 'y' | 'z', deg: number) => {
-    const st = S.current; if (!st.mesh) return;
+    const st = S.current; if (!st.mesh || st.multi) return;
     const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(axis === 'x' ? 1 : 0, axis === 'y' ? 1 : 0, axis === 'z' ? 1 : 0), (deg * Math.PI) / 180);
     st.group.quaternion.premultiply(q); st.group.updateMatrixWorld(true); placeOnBed(st); refreshDims(st, setDims);
   };
-  const resetOrientation = () => { const st = S.current; st.group.quaternion.identity(); setScale(100); st.group.scale.setScalar(1); st.group.updateMatrixWorld(true); placeOnBed(st); refreshDims(st, setDims); };
+  const resetOrientation = () => { const st = S.current; if (st.multi) return; st.group.quaternion.identity(); setScale(100); st.group.scale.setScalar(1); st.group.updateMatrixWorld(true); placeOnBed(st); refreshDims(st, setDims); };
   const capture = () => { const st = S.current; st.renderer.render(st.scene, st.camera); const url = st.renderer.domElement.toDataURL('image/png'); if (onCapture) onCapture(url); else { const a = document.createElement('a'); a.href = url; a.download = 'captura-visor.png'; a.click(); } };
   const clearMeasure = () => { S.current.pts = []; drawMeasure(S.current); setMeasure(null); };
 
   const fitInfo = useMemo(() => {
+    if (multi) return machines.map((m) => ({ m, ok: plates!.every((p) => fits([p.dimX, p.dimY, p.dimZ], [m.volX, m.volY, m.volZ])) }));
     if (!dims) return null;
     return machines.map((m) => ({ m, ok: fits(dims, [m.volX, m.volY, m.volZ]) }));
-  }, [dims, machines]);
+  }, [dims, machines, multi, plates]);
   const cur = fitInfo?.find((f) => f.m.id === machineId);
   const btn = (active: boolean) => cn('btn-sm rounded-md border px-2.5', active ? 'btn bg-[var(--panel)] border-[var(--panel)] text-[var(--panel-ink)] dark:bg-slate-700' : 'btn-ghost');
 
   return (
     <div className={cn('card overflow-hidden', className)}>
-      <div className="relative bg-slate-100 dark:bg-[#161615]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
+      <div className="relative bg-slate-100 dark:bg-[var(--bg)]" style={{ height: 'min(70vh, 560px)', minHeight: 340 }}>
         <div ref={host} className="absolute inset-0" data-testid="viewer-host"><div data-dim-labels className="pointer-events-none absolute inset-0 overflow-hidden" /></div>
-        {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">Cargando modelo…</div>}
-        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-red-600 dark:text-red-400" role="alert">{err}</div>}
+        {status === 'cargando' && <div className="absolute inset-0 grid place-items-center text-sm muted" role="status">{t('viewer.loadingModel')}</div>}
+        {status === 'error' && <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-danger" role="alert">{err}</div>}
         {status === 'listo' && (
           <>
-            <div className="absolute left-2 top-2 flex flex-wrap gap-1 max-w-[calc(100%-1rem)]" role="toolbar" aria-label="Vistas">
-              {(['frente', 'arriba', 'lado', 'iso'] as const).map((v) => <button key={v} className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view(v)} data-testid={`view-${v}`}>{{ frente: 'Frente', arriba: 'Arriba', lado: 'Lateral', iso: 'Isométrica' }[v]}</button>)}
-              <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">Encuadrar</button>
+            {/* vistas y aviso de calce en una fila que se parte: en móvil el aviso baja en lugar de tapar los botones */}
+            <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1 pointer-events-none">
+            <div className="flex flex-wrap gap-1 pointer-events-auto" role="toolbar" aria-label={t('viewer.views')}>
+              {(['frente', 'arriba', 'lado', 'iso'] as const).map((v) => <button key={v} className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view(v)} data-testid={`view-${v}`}>{{ frente: t('viewer.front'), arriba: t('viewer.top'), lado: t('viewer.side'), iso: t('viewer.isometric') }[v]}</button>)}
+              <button className="btn-ghost btn-sm !bg-white/90 dark:!bg-slate-900/80" onClick={() => view('encuadrar')} data-testid="view-fit">{t('viewer.fitToView')}</button>
             </div>
-            {cur && <div className={cn('absolute right-2 top-2 rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge">{cur.ok ? `✓ Cabe en ${cur.m.name}` : `✕ No cabe en ${cur.m.name}`}</div>}
-            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? 'Elige el segundo punto' : <>Distancia <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
-            {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">Malla simplificada para el visor ({(info.tris / 1000).toFixed(0)}k de {(info.orig / 1000).toFixed(0)}k triángulos)</div>}
+            {cur && <div className={cn('ml-auto pointer-events-auto rounded-lg px-3 py-1.5 text-xs font-medium shadow', cur.ok ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white')} role="status" data-testid="fit-badge"><Icon name={cur.ok ? 'check' : 'x'} className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />{cur.ok ? t('viewer.fitsIn', { m: cur.m.name }) : t('viewer.doesNotFitIn', { m: cur.m.name })}</div>}
+            </div>
+            {plates && plates.length > 1 && <div className="absolute inset-x-2 bottom-2 flex justify-center pointer-events-none"><div className="pointer-events-auto flex gap-1 overflow-x-auto max-w-full rounded-lg bg-white/90 dark:bg-slate-900/80 p-1 shadow" role="group" aria-label={t('slicer.platesOfTheProject')} data-testid="plate-chips">
+              {[0, ...plates.map((p) => p.index)].map((n) => <button key={n} type="button" className={cn('btn-sm rounded-md px-2.5 shrink-0', plate === n ? 'btn bg-[var(--panel)] border-[var(--panel)] text-[var(--panel-ink)]' : 'btn-ghost')} aria-pressed={plate === n} onClick={() => setPlate(n)}>{n === 0 ? t('viewer.allPlates') : n}</button>)}
+            </div></div>}
+            {measure && <div className="absolute left-2 bottom-2 rounded-lg bg-slate-900/85 text-white text-xs px-3 py-2" data-testid="measure-readout">{measure.mm == null ? t('viewer.chooseTheSecondPoint') : <>{t('viewer.distance')} <b>{f1(measure.mm, 2)} mm</b> <span className="opacity-70">(Δx {f1(measure.dx!)} · Δy {f1(measure.dy!)} · Δz {f1(measure.dz!)})</span></>}</div>}
+            {info?.decimated && <div className="absolute right-2 bottom-2 rounded bg-amber-500 text-black text-[11px] px-2 py-1">{t('viewer.simplifiedMesh', { shown: (info.tris / 1000).toFixed(0), total: (info.orig / 1000).toFixed(0) })}</div>}
           </>
         )}
       </div>
       {status === 'listo' && (
         <div className="border-t border-slate-200 dark:border-slate-700">
-          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>Herramientas {panel ? '▾' : '▸'}</button>
+          <button className="md:hidden w-full text-left px-3 py-2 text-sm font-medium" onClick={() => setPanel((p) => !p)} aria-expanded={panel}>{t('viewer.tools')} <Icon name={panel ? 'chevron-down' : 'chevron-right'} className="inline h-4 w-4 -mt-0.5" /></button>
           <div className={cn('p-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm', !panel && 'hidden md:grid')}>
+            {materials.length > 0 && <div>
+              <div className="label">{t('viewer.material')}</div>
+              <div className="flex flex-wrap items-center gap-2"><span className="inline-block h-5 w-5 rounded-full border border-black/20" style={{ background: shownColor }} aria-hidden /><select className="input !min-h-[36px] !py-1 max-w-[220px]" value={matId} onChange={(e) => setMatId(e.target.value)} aria-label={t('viewer.material')} data-testid="viewer-material"><option value="">{t('viewer.materialDefault')}</option>{materials.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></div>
+            </div>}
             <div>
-              <div className="label">Modo de visualización</div>
-              <div className="flex flex-wrap gap-1">{([['solido', 'Sólido'], ['alambrico', 'Alámbrico'], ['rayosx', 'Rayos X'], ['normales', 'Normales']] as const).map(([k, l]) => <button key={k} className={btn(mode === k)} onClick={() => setMode(k)} aria-pressed={mode === k} data-testid={`mode-${k}`}>{l}</button>)}</div>
+              <div className="label">{t('viewer.displayMode')}</div>
+              <div className="flex flex-wrap gap-1">{([['solido', t('viewer.solid')], ['alambrico', t('viewer.wireframe')], ['rayosx', t('viewer.xRay')], ['normales', t('viewer.normals')]] as const).map(([k, l]) => <button key={k} className={btn(mode === k)} onClick={() => setMode(k)} aria-pressed={mode === k} data-testid={`mode-${k}`}>{l}</button>)}</div>
             </div>
             <div>
-              <div className="label">Herramienta</div>
+              <div className="label">{t('viewer.tool')}</div>
               <div className="flex flex-wrap gap-1">
-                <button className={btn(tool === 'orbitar')} onClick={() => setTool('orbitar')} aria-pressed={tool === 'orbitar'}>Orbitar</button>
-                <button className={btn(tool === 'medir')} onClick={() => { setTool('medir'); clearMeasure(); }} aria-pressed={tool === 'medir'} data-testid="tool-measure">Medir</button>
-                <button className={btn(tool === 'cara')} onClick={() => setTool('cara')} aria-pressed={tool === 'cara'} data-testid="tool-face">Cara a la cama</button>
-                {measure && <button className="btn-ghost btn-sm" onClick={clearMeasure}>Borrar medida</button>}
+                <button className={btn(tool === 'orbitar')} onClick={() => setTool('orbitar')} aria-pressed={tool === 'orbitar'}>{t('viewer.orbit')}</button>
+                <button className={btn(tool === 'medir')} onClick={() => { setTool('medir'); clearMeasure(); }} aria-pressed={tool === 'medir'} data-testid="tool-measure">{t('viewer.measure')}</button>
+                <button className={btn(tool === 'cara')} disabled={multi} onClick={() => setTool('cara')} aria-pressed={tool === 'cara'} data-testid="tool-face">{t('viewer.faceOnBed')}</button>
+                {measure && <button className="btn-ghost btn-sm" onClick={clearMeasure}>{t('viewer.clearMeasurement')}</button>}
               </div>
-              <p className="text-xs muted mt-1">{tool === 'medir' ? 'Toca dos puntos sobre la pieza.' : tool === 'cara' ? 'Toca la cara que quieres apoyar en la cama.' : 'Arrastra para girar; dos dedos para desplazar y pellizcar para acercar.'}</p>
+              <p className="text-xs muted mt-1">{tool === 'medir' ? t('viewer.tapTwoPointsOnThe') : tool === 'cara' ? t('viewer.tapTheFaceYouWant') : t('viewer.dragToRotateTwoFingers')}</p>
+            </div>
+            {plates && plates.length > 1 && <div>
+              <div className="label">{t('slicer.platesOfTheProject')}</div>
+              <select className="input" value={plate} onChange={(e) => setPlate(Number(e.target.value))} aria-label={t('viewer.plate')} data-testid="plate-select">
+                <option value={0}>{t('viewer.allPlates')}</option>
+                {plates.map((p) => <option key={p.index} value={p.index}>{t('slicer.plateN', { n: p.index })}{p.name ? ` · ${p.name}` : ''} · {f1(p.dimX)}×{f1(p.dimY)}×{f1(p.dimZ)} mm</option>)}
+              </select>
+            </div>}
+            <div>
+              <div className="label">{t('viewer.machineBuildVolume')}</div>
+              <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label={t('viewer.machineToCheckFit')} data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
+              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label={t('viewer.fitsIn2')}>{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}><Icon name={f.ok ? 'check' : 'x'} className="inline h-3 w-3 mr-0.5 -mt-px" /> <span aria-hidden>{f.m.name}</span><span className="sr-only">{f.ok ? t('viewer.fitsIn', { m: f.m.name }) : t('viewer.doesNotFitIn', { m: f.m.name })}</span></li>)}</ul>}
             </div>
             <div>
-              <div className="label">Máquina (volumen de impresión)</div>
-              <select className="input" value={machineId} onChange={(e) => setMachineId(e.target.value)} aria-label="Máquina para verificar si cabe" data-testid="machine-select">{machines.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.volX}×{m.volY}×{m.volZ}</option>)}</select>
-              {fitInfo && <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs" aria-label="Cabe en">{fitInfo.map((f) => <li key={f.m.id} className={cn('badge', f.ok ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800' : 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950 dark:text-red-200 dark:border-red-800')}>{f.ok ? '✓' : '✕'} {f.m.name}</li>)}</ul>}
+              <div className="label">{t('viewer.dimensions')}</div>
+              <div className="tabular font-medium" data-testid="dims">{multi ? t('viewer.platesCount', { n: plates!.length }) : dims ? `${f1(dims[0])} × ${f1(dims[1])} × ${f1(dims[2])} mm` : '—'}</div>
+              <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> {t('viewer.showDimensionsInTheViewer')}</label>
             </div>
             <div>
-              <div className="label">Dimensiones</div>
-              <div className="tabular font-medium" data-testid="dims">{dims ? `${f1(dims[0])} × ${f1(dims[1])} × ${f1(dims[2])} mm` : '—'}</div>
-              <label className="flex items-center gap-2 text-xs mt-1"><input type="checkbox" checked={showDims} onChange={(e) => setShowDims(e.target.checked)} /> Mostrar cotas en el visor</label>
+              <label className="label" htmlFor="scale">{t('viewer.testScale', { scale })}</label>
+              <input id="scale" type="range" min={10} max={300} value={scale} disabled={multi} onChange={(e) => setScale(+e.target.value)} className="w-full" data-testid="scale-slider" />
+              <div className="flex flex-wrap gap-1 mt-1.5">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className="btn-ghost btn-sm" disabled={multi} onClick={() => rotate(a, 90)} data-testid={`rot-${a}`}>{t('viewer.rotateAxis', { axis: a.toUpperCase() })}</button>)}<button className="btn-ghost btn-sm" onClick={resetOrientation}>{t('viewer.reset')}</button></div>
+              <p className="text-xs muted mt-1.5" data-testid="orientation-test-only">{t('viewer.orientationTestOnly')}</p>
             </div>
             <div>
-              <label className="label" htmlFor="scale">Escala de prueba: {scale}%</label>
-              <input id="scale" type="range" min={10} max={300} value={scale} onChange={(e) => setScale(+e.target.value)} className="w-full" data-testid="scale-slider" />
-              <div className="flex flex-wrap gap-1 mt-1.5">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className="btn-ghost btn-sm" onClick={() => rotate(a, 90)} data-testid={`rot-${a}`}>Girar {a.toUpperCase()} 90°</button>)}<button className="btn-ghost btn-sm" onClick={resetOrientation}>Restablecer</button></div>
+              <div className="label">{t('viewer.cuttingPlaneSection')}</div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.on} onChange={(e) => setSection((s) => ({ ...s, on: e.target.checked }))} data-testid="section-toggle" /> {t('viewer.enable')}</label>
+              {section.on && <div className="mt-1.5 space-y-1.5"><div className="flex gap-1">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className={btn(section.axis === a)} onClick={() => setSection((s) => ({ ...s, axis: a }))}>{a.toUpperCase()}</button>)}</div><input type="range" min={0} max={100} value={section.pos} onChange={(e) => setSection((s) => ({ ...s, pos: +e.target.value }))} className="w-full" aria-label={t('viewer.cuttingPlanePosition')} data-testid="section-slider" /></div>}
             </div>
             <div>
-              <div className="label">Plano de corte (sección)</div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={section.on} onChange={(e) => setSection((s) => ({ ...s, on: e.target.checked }))} data-testid="section-toggle" /> Activar</label>
-              {section.on && <div className="mt-1.5 space-y-1.5"><div className="flex gap-1">{(['x', 'y', 'z'] as const).map((a) => <button key={a} className={btn(section.axis === a)} onClick={() => setSection((s) => ({ ...s, axis: a }))}>{a.toUpperCase()}</button>)}</div><input type="range" min={0} max={100} value={section.pos} onChange={(e) => setSection((s) => ({ ...s, pos: +e.target.value }))} className="w-full" aria-label="Posición del plano de corte" data-testid="section-slider" /></div>}
-            </div>
-            <div>
-              <div className="label">Análisis de voladizos</div>
-              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> Resaltar caras en magenta</label>
-              {overhang.on && <div className="mt-1.5"><label className="text-xs muted" htmlFor="oh">Ángulo: {overhang.deg}°</label><input id="oh" type="range" min={20} max={80} value={overhang.deg} onChange={(e) => setOverhang((o) => ({ ...o, deg: +e.target.value }))} className="w-full" data-testid="overhang-angle" /></div>}
+              <div className="label">{t('viewer.overhangAnalysis')}</div>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={overhang.on} onChange={(e) => setOverhang((o) => ({ ...o, on: e.target.checked }))} data-testid="overhang-toggle" /> {t('viewer.highlightFacesInMagenta')}</label>
+              {overhang.on && <div className="mt-1.5"><label className="text-xs muted" htmlFor="oh">{t('viewer.angle', { deg: overhang.deg })}</label><input id="oh" type="range" min={20} max={80} value={overhang.deg} onChange={(e) => setOverhang((o) => ({ ...o, deg: +e.target.value }))} className="w-full" data-testid="overhang-angle" /></div>}
             </div>
             <div className="flex flex-col gap-1.5">
-              <div className="label">Captura</div>
-              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture">📷 Capturar imagen del visor</button>
-              <span className="text-xs muted">Se descarga como PNG para adjuntar al presupuesto.</span>
+              <div className="label">{t('viewer.capture')}</div>
+              <button className="btn-ghost btn-sm" onClick={capture} data-testid="capture"><Icon name="camera" className="h-4 w-4" />{t('viewer.captureViewerImage')}</button>
+              <span className="text-xs muted">{t('viewer.itIsDownloadedAsA')}</span>
             </div>
           </div>
         </div>
@@ -255,7 +312,7 @@ export function ModelViewer({ versionId, machines, defaultMachineId, color = '#f
 
 /* ───────── utilidades de escena ───────── */
 function placeOnBed(st: any) {
-  if (!st.mesh) return;
+  if (!st.mesh || st.multi) return;
   st.group.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(st.mesh);
   const m: ViewerMachine | undefined = st.machine;
@@ -265,18 +322,32 @@ function placeOnBed(st: any) {
   st.group.updateMatrixWorld(true);
 }
 function refreshDims(st: any, set: (d: [number, number, number]) => void) {
-  if (!st.mesh) return; st.group.updateMatrixWorld(true);
+  if (!st.mesh || st.multi) return; st.group.updateMatrixWorld(true);
   const s = new THREE.Box3().setFromObject(st.mesh).getSize(new THREE.Vector3()); set([s.x, s.y, s.z]);
 }
 function frameCamera(st: any) {
-  const box = new THREE.Box3().setFromObject(st.group); const c = box.getCenter(new THREE.Vector3()); const r = box.getSize(new THREE.Vector3()).length();
+  const box = new THREE.Box3().setFromObject(st.group); if (st.multi) box.union(new THREE.Box3().setFromObject(st.bedGroup));
+  const c = box.getCenter(new THREE.Vector3()); const r = box.getSize(new THREE.Vector3()).length();
   const R = Math.max(r, 20) * 1.15;
   st.camera.position.set(c.x + R * 0.75, c.y - R * 0.95, c.z + R * 0.7); st.camera.near = Math.max(0.1, R / 200); st.camera.far = R * 40; st.camera.updateProjectionMatrix(); st.controls.target.copy(c); st.controls.update();
 }
 function drawBed(st: any, m: ViewerMachine | null) {
-  const g: THREE.Group = st.bedGroup; while (g.children.length) { const o = g.children.pop()!; (o as any).geometry?.dispose(); }
+  const g: THREE.Group = st.bedGroup; while (g.children.length) { const o = g.children.pop()! as any; o.geometry?.dispose(); o.material?.map?.dispose?.(); o.material?.dispose?.(); }
+  const dark = isDarkNow();
+  if (st.multi && st.offs) {
+    // una cama por placa, con su número debajo
+    const bw: number = st.bedW, bh: number = st.bedH;
+    for (const o of st.offs as Array<{ index: number; cx: number; cy: number }>) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshBasicMaterial({ color: dark ? 0x23221f : 0xdcd7cc, side: THREE.DoubleSide, transparent: true, opacity: 0.85, depthWrite: false })); plane.position.set(o.cx, o.cy, -0.05); g.add(plane);
+      const rim = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints([[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([x, y]) => new THREE.Vector3(o.cx + (x * bw) / 2, o.cy + (y * bh) / 2, 0.02))), new THREE.LineBasicMaterial({ color: dark ? 0x77736b : 0x9a9284 })); g.add(rim);
+      const grid = new THREE.GridHelper(Math.max(bw, bh), Math.round(Math.max(bw, bh) / 20), dark ? 0x45433e : 0xbab4a7, dark ? 0x2c2b28 : 0xd2cdc2); grid.rotation.x = Math.PI / 2; grid.position.set(o.cx, o.cy, 0.02); g.add(grid);
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 64; const cx = cv.getContext('2d')!;
+      cx.font = '600 34px system-ui, sans-serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = dark ? '#e8e5de' : '#17161a'; cx.fillText(st.plateLabel(o.index), 128, 34);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false })); sp.scale.set(bw * 0.5, bw * 0.125, 1); sp.position.set(o.cx, o.cy - bh / 2 - st.gap * 0.32, 0.1); sp.renderOrder = 6; g.add(sp);
+    }
+    return;
+  }
   if (!m) return;
-  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const box = new THREE.Box3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(m.volX, m.volY, m.volZ));
   const e = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(m.volX, m.volY, m.volZ)), new THREE.LineBasicMaterial({ color: dark ? 0x77736b : 0x9a9284 })); e.position.set(m.volX / 2, m.volY / 2, m.volZ / 2); g.add(e);
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(m.volX, m.volY), new THREE.MeshBasicMaterial({ color: dark ? 0x23221f : 0xdcd7cc, side: THREE.DoubleSide, transparent: true, opacity: 0.8, depthWrite: false })); plane.position.set(m.volX / 2, m.volY / 2, -0.05); g.add(plane);
@@ -301,4 +372,37 @@ function drawDimLabels(st: any, host: HTMLElement, dims: [number, number, number
     const el = document.createElement('span'); el.textContent = `${txt} mm`; el.className = 'absolute left-0 top-0 num text-[11px] font-medium px-1.5 py-0.5 rounded-md bg-[#151514] text-[#ece8df] ring-1 ring-white/10 whitespace-nowrap'; el.setAttribute('data-testid', 'dim-label'); holder.appendChild(el);
     st.dimLabels.push({ el, p: a.clone().add(c).multiplyScalar(0.5) });
   }
+}
+
+/** «Todas las placas»: junta las vistas previas de cada placa en una grilla de camas (la primera arriba a la izquierda) y dibuja las camas. */
+function assembleMulti(st: any, m: ViewerMachine | null, fallbackColor: string, info: Array<{ index: number; centerX?: number; centerY?: number }>) {
+  const data = st.plateData as Array<{ index: number; verts: Float32Array; idx: Uint32Array; colors?: Uint8Array }>;
+  const bw = m?.volX ?? 256, bh = m?.volY ?? 256, gap = Math.max(bw, bh) * 0.2; // como Bambu Studio: 20 % de separación entre camas
+  const cols = Math.max(1, Math.ceil(Math.sqrt(data.length)));
+  st.bedW = bw; st.bedH = bh; st.gap = gap;
+  st.offs = data.map((d, k) => {
+    const x0 = (k % cols) * (bw + gap), y0 = -Math.floor(k / cols) * (bh + gap), p = info.find((i) => i.index === d.index);
+    // las piezas conservan el lugar que tienen dentro de su cama; sin ese dato se centran
+    return { index: d.index, cx: x0 + bw / 2, cy: y0 + bh / 2, px: x0 + (p?.centerX ?? bw / 2), py: y0 + (p?.centerY ?? bh / 2) };
+  });
+  let nv = 0, ni = 0; for (const d of data) { nv += d.verts.length / 3; ni += d.idx.length; }
+  const verts = new Float32Array(nv * 3), idx = new Uint32Array(ni), hasColors = data.some((d) => d.colors);
+  const colors = hasColors ? new Float32Array(nv * 3) : null; const fc = new THREE.Color(fallbackColor);
+  let vo = 0, io = 0;
+  data.forEach((d, k) => {
+    const { px, py } = st.offs[k]; const c = d.verts.length / 3;
+    let minZ = Infinity; for (let i = 0; i < c; i++) minZ = Math.min(minZ, d.verts[i * 3 + 2]); // cada placa apoyada en su cama
+    for (let i = 0; i < c; i++) {
+      const o = (vo + i) * 3; verts[o] = d.verts[i * 3] + px; verts[o + 1] = d.verts[i * 3 + 1] + py; verts[o + 2] = d.verts[i * 3 + 2] - minZ;
+      if (colors) { if (d.colors) { colors[o] = d.colors[i * 3] / 255; colors[o + 1] = d.colors[i * 3 + 1] / 255; colors[o + 2] = d.colors[i * 3 + 2] / 255; } else { colors[o] = fc.r; colors[o + 1] = fc.g; colors[o + 2] = fc.b; } }
+    }
+    for (let i = 0; i < d.idx.length; i++) idx[io + i] = d.idx[i] + vo;
+    vo += c; io += d.idx.length;
+  });
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(verts, 3)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  if (colors) geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  geo.computeBoundingBox(); geo.computeBoundingSphere();
+  st.mesh.geometry.dispose(); st.mesh.geometry = geo; st.mat.vertexColors = !!colors; if (colors) st.mat.color.set(0xffffff); st.mat.needsUpdate = true;
+  st.group.position.set(0, 0, 0); st.mesh.position.set(0, 0, 0); st.group.updateMatrixWorld(true);
+  drawBed(st, m);
 }

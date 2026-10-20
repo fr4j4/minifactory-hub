@@ -4,3 +4,14 @@ data
 .orca
 test-results
 docs/reporte/media
+# secretos y metadatos de git fuera de la imagen (SESSION_SECRET llega por environment en compose)
+.env*
+!.env.example
+.git
+dist
+
+backups
+.aws
+.claude
+.agents
+.codex

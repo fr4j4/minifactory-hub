@@ -61,3 +61,20 @@ export async function touchPinch(page: Page, center: [number, number], startDist
   for (let i = 1; i <= steps; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(startDist + ((endDist - startDist) * i) / steps) });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
+
+/** Sube a la biblioteca aceptando el aviso de duplicado («Subir igual») si aparece, y espera el «Listo ✓». */
+export async function uploadAcceptingDuplicates(page: Page, files: string | string[], timeout = 60_000) {
+  const input = page.getByTestId('model-uploader').locator('input[type=file]');
+  const started = () => page.locator('ul[aria-live="polite"] li').or(page.getByTestId('duplicate-upload')).first().isVisible();
+  const end = Date.now() + timeout; let tries = 0; let lastTry = 0;
+  while (Date.now() < end) {
+    // si la página aún no se había hidratado, el primer intento se pierde: se repite hasta que aparezca la lista de progreso
+    if (!(await started()) && Date.now() - lastTry > 6_000 && tries < 4) { await input.setInputFiles(files); tries++; lastTry = Date.now(); await page.waitForTimeout(300); }
+    const dlg = page.getByTestId('duplicate-upload');
+    // el diálogo se desvanece unos 160 ms tras cerrarse: se espera a que salga para no hacer clic dos veces
+    if (await dlg.isVisible()) { await dlg.click(); await dlg.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => {}); continue; }
+    if ((await page.getByText('Listo ✓').count()) >= (Array.isArray(files) ? files.length : 1)) return;
+    await page.waitForTimeout(150);
+  }
+  throw new Error('La subida no terminó');
+}

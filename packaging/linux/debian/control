@@ -1,0 +1,11 @@
+Package: minifactory-hub
+Version: @VERSION@
+Architecture: @ARCH@
+Maintainer: MiniFactory Hub <https://github.com/fr4j4/minifactory-hub>
+Section: misc
+Priority: optional
+Depends: libc6 (>= 2.28)
+Homepage: https://github.com/fr4j4/minifactory-hub
+Description: Gestión para talleres de impresión 3D
+ Servidor web de MiniFactory Hub con Node y base de datos embebida incluidos.
+ Se instala como servicio systemd en el puerto 3000; datos en /var/lib/minifactory-hub.

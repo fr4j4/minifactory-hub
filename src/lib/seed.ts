@@ -4,7 +4,8 @@ import { eq, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { hashPassword } from './auth';
 import { getSettings, saveSettings } from './settings';
-import { createSpool } from './services/inventory';
+import { ensureSetupToken } from './setup';
+import { createSpool, seedSuppliers } from './services/inventory';
 import { ingestModel } from './files';
 import { orcaAvailable, findVendorOf, getIndex } from './slicer/catalog';
 import { calcLine } from './pricing';
@@ -16,13 +17,16 @@ import { machineCostOf } from './services/quotes';
 type Db = Awaited<ReturnType<typeof getDb>>;
 
 /** Primer arranque: taller, administrador, canales de venta y listas de precios. Idempotente. */
-export async function bootstrap(opts: { adminEmail?: string; adminPassword?: string; shopName?: string } = {}) {
+export async function bootstrap(opts: { adminEmail?: string; adminPassword?: string; shopName?: string; quietToken?: boolean } = {}) {
   const db = await getDb();
   const [ws] = await db.select().from(s.workspaces).where(eq(s.workspaces.id, WORKSPACE_ID));
   if (!ws) await db.insert(s.workspaces).values({ id: WORKSPACE_ID, name: opts.shopName ?? 'MiniFactory' });
   const [u] = await db.select({ id: s.users.id }).from(s.users).limit(1);
   if (!u) {
-    await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? 'admin@minifactory.cl').toLowerCase(), name: 'Administrador', role: 'admin', passwordHash: await hashPassword(opts.adminPassword ?? process.env.ADMIN_PASSWORD ?? 'admin1234') });
+    // Sin contraseña definida no se crea ninguna cuenta: el asistente inicial (/bienvenida) la pide con un token de un solo uso.
+    const pw = opts.adminPassword ?? process.env.ADMIN_PASSWORD;
+    if (pw) await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? 'admin@minifactory.cl').toLowerCase(), name: 'Administrador', role: 'admin', passwordHash: await hashPassword(pw) });
+    else await ensureSetupToken(!opts.quietToken);
   }
   const [ch] = await db.select({ id: s.salesChannels.id }).from(s.salesChannels).limit(1);
   if (!ch) {
@@ -38,6 +42,7 @@ export async function bootstrap(opts: { adminEmail?: string; adminPassword?: str
   if (!pl) await db.insert(s.priceLists).values([
     { workspaceId: WORKSPACE_ID, name: 'Público', adjustPct: 0 }, { workspaceId: WORKSPACE_ID, name: 'Revendedor', adjustPct: -15 }, { workspaceId: WORKSPACE_ID, name: 'Empresa', adjustPct: -8 },
   ]);
+  await seedSuppliers(db);
   const st = await getSettings();
   await saveSettings({ shop: { ...st.shop, name: opts.shopName ?? st.shop.name } });
 }
@@ -47,16 +52,17 @@ function rng(seed: number) { let x = seed >>> 0; return () => { x = (Math.imul(x
 const daysAgo = (n: number, h = 12) => { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(h, 0, 0, 0); return d; };
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function seedDemo() {
-  await bootstrap();
+export async function seedDemo(opts: { users?: boolean } = {}) {
+  const withUsers = opts.users !== false;
+  await bootstrap({ adminPassword: process.env.ADMIN_PASSWORD ?? 'admin1234' });
   const db = await getDb();
   const [existing] = await db.select({ id: s.machines.id }).from(s.machines).limit(1);
   if (existing) return { skipped: true };
   const pw = await hashPassword('taller1234');
   const [admin] = await db.select().from(s.users).limit(1);
-  await db.update(s.users).set({ name: 'Francisco (Admin)' }).where(eq(s.users.id, admin.id));
-  const [op] = await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'operador@minifactory.cl', name: 'Camila (Operadora)', role: 'operador', passwordHash: pw }).returning();
-  const [ve] = await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'ventas@minifactory.cl', name: 'Diego (Ventas)', role: 'ventas', passwordHash: pw }).returning();
+  if (withUsers) await db.update(s.users).set({ name: 'Francisco (Admin)' }).where(eq(s.users.id, admin.id));
+  const [op] = withUsers ? await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'operador@minifactory.cl', name: 'Camila (Operadora)', role: 'operador', passwordHash: pw }).returning() : [];
+  const [ve] = withUsers ? await db.insert(s.users).values({ workspaceId: WORKSPACE_ID, email: 'ventas@minifactory.cl', name: 'Diego (Ventas)', role: 'ventas', passwordHash: pw }).returning() : [];
   const adminUser = { id: admin.id, role: 'admin' as const };
 
   /* ── perfiles del laminador (base = perfiles de fábrica de OrcaSlicer) ── */
@@ -103,16 +109,18 @@ export async function seedDemo() {
 
   /* ── materiales y bobinas ── */
   const M = await db.insert(s.materials).values([
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Negro', hex: '#1c1c1c', density: 1.24, costPerKg: 17000, stockMinG: 1500, tempNozzle: '190–230', tempBed: '35–45', supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Blanco', hex: '#f1f1ee', density: 1.24, costPerKg: 17000, stockMinG: 1000, supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Rojo', hex: '#d62f2f', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Azul', hex: '#2d6cdf', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local', filamentProfileId: prof.fPLA ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PETG Basic', type: 'PETG', colorName: 'Negro', hex: '#222222', density: 1.27, costPerKg: 19000, stockMinG: 1000, tempNozzle: '230–260', tempBed: '70–80', supplierText: 'Bambu Lab Store', filamentProfileId: prof.fPETG ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'eSun', line: 'PETG', type: 'PETG', colorName: 'Transparente', hex: '#cfe6ee', density: 1.27, costPerKg: 19000, stockMinG: 1000, supplierText: 'eSun', filamentProfileId: prof.fPETG ?? null },
-    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu', filamentProfileId: prof.fTPU ?? null },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Negro', hex: '#1c1c1c', density: 1.24, costPerKg: 17000, stockMinG: 1500, tempNozzle: '190–230', tempBed: '35–45', supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PLA Basic', type: 'PLA', colorName: 'Blanco', hex: '#f1f1ee', density: 1.24, costPerKg: 17000, stockMinG: 1000, supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Rojo', hex: '#d62f2f', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Grilon3', line: 'PLA', type: 'PLA', colorName: 'Azul', hex: '#2d6cdf', density: 1.24, costPerKg: 15000, stockMinG: 1000, supplierText: 'Distribuidor local' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Bambu Lab', line: 'PETG Basic', type: 'PETG', colorName: 'Negro', hex: '#222222', density: 1.27, costPerKg: 19000, stockMinG: 1000, tempNozzle: '230–260', tempBed: '70–80', supplierText: 'Bambu Lab Store' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'eSun', line: 'PETG', type: 'PETG', colorName: 'Transparente', hex: '#cfe6ee', density: 1.27, costPerKg: 19000, stockMinG: 1000, supplierText: 'eSun' },
+    { workspaceId: WORKSPACE_ID, manufacturer: 'Sunlu', line: 'TPU 95A', type: 'TPU', colorName: 'Negro', hex: '#2b2b2b', density: 1.21, costPerKg: 26000, stockMinG: 500, supplierText: 'Sunlu' },
     { workspaceId: WORKSPACE_ID, tech: 'resina', manufacturer: 'Elegoo', line: 'Standard', type: 'Resina estándar', colorName: 'Gris', hex: '#9aa0a6', density: 1.1, diameter: null, costPerKg: 28000, stockMinG: 500, supplierText: 'Elegoo' },
   ]).returning();
   const [plaNeg, plaBla, plaRoj, plaAzu, petgNeg, petgTra, tpu, resina] = M;
+  { const { syncMaterialLine } = await import('./services/lines'); for (const m of M) await syncMaterialLine(m.id, db); }
+  { const { setMaterialProfile } = await import('./slicer/links'); for (const [m, k] of [[plaNeg, 'fPLA'], [plaBla, 'fPLA'], [plaRoj, 'fPLA'], [plaAzu, 'fPLA'], [petgNeg, 'fPETG'], [petgTra, 'fPETG'], [tpu, 'fTPU']] as const) if (prof[k]) await setMaterialProfile(m.id, prof[k], null, db); }
   const sp = async (m: typeof plaNeg, g: number, extra: Record<string, any> = {}) => { const x = await createSpool({ materialId: m.id, initialG: 1000, unitCost: m.costPerKg, userId: admin.id }); await db.update(s.spools).set({ remainingG: g, ...extra }).where(eq(s.spools.id, x.id)); return x; };
   const spA = await sp(plaNeg, 640, { status: 'en_uso', machineId: a1.id, slot: 'Carrete directo', location: 'Cargada en Bambu A1 #1' });
   await sp(plaNeg, 1000, { location: 'Estante A1' }); await sp(plaNeg, 880, { status: 'abierta', location: 'Caja seca', lastDriedAt: ymd(daysAgo(10)) });
@@ -150,7 +158,7 @@ export async function seedDemo() {
   const [plPub, plRev, plEmp] = await db.select().from(s.priceLists).orderBy(s.priceLists.createdAt);
   const C = await db.insert(s.customers).values([
     { workspaceId: WORKSPACE_ID, name: 'Constanza Rojas', type: 'particular', phone: '+56 9 8123 4567', email: 'constanza@example.cl', photoConsent: 'yes', tags: ['maker'], priceListId: plPub?.id },
-    { workspaceId: WORKSPACE_ID, name: 'Taller Mecánico Los Aromos SpA', type: 'empresa', phone: '+56 2 2345 6789', taxId: '76.123.456-7', email: 'compras@losaromos.cl', photoConsent: 'no_brand', tags: ['empresa', 'repuestos'], priceListId: plEmp?.id, depositPct: 50 },
+    { workspaceId: WORKSPACE_ID, name: 'Taller Mecánico Los Aromos SpA', type: 'empresa', phone: '+56 2 2345 6789', taxId: '76.123.456-0', email: 'compras@losaromos.cl', photoConsent: 'no_brand', tags: ['empresa', 'repuestos'], priceListId: plEmp?.id, depositPct: 50 },
     { workspaceId: WORKSPACE_ID, name: 'FabLab Universidad Austral', type: 'empresa', phone: '+56 63 222 0000', email: 'fablab@uach.example', photoConsent: 'yes', tags: ['universidad'], priceListId: plEmp?.id },
     { workspaceId: WORKSPACE_ID, name: 'Tienda Geek Chile', type: 'revendedor', phone: '+56 9 7000 1111', email: 'ventas@tiendageek.example', photoConsent: 'yes', tags: ['revendedor'], priceListId: plRev?.id },
     { workspaceId: WORKSPACE_ID, name: 'Andrea Valdés', type: 'particular', phone: '+56 9 6555 2222', photoConsent: 'no', priceListId: plPub?.id },
@@ -227,6 +235,6 @@ export async function seedDemo() {
   };
   await mkQ('Carcasas para sensor', cAro, 'enviado', 5, 180, 7, petgNeg); await mkQ('Piezas FabLab', cFab, 'enviado', 3, 240, 9, plaBla); await mkQ('Figuras para vitrina', cGeek, 'rechazado', 22, 300, 12, plaRoj);
   await mkQ('Soporte monitor', cAnd, 'vencido', 40, 150, 6, plaNeg); await mkQ('Prototipo carcasa', cAro, 'aprobado', 30, 200, 8, petgNeg); await mkQ('Llaveros evento', cCon, 'borrador', 1, 50, 2, plaAzu);
-  return { skipped: false, users: [admin.email, op.email, ve.email] };
+  return { skipped: false, users: [admin.email, op?.email, ve?.email].filter(Boolean) as string[] };
 }
 

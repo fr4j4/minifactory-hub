@@ -25,13 +25,14 @@ export interface SimOpts {
   printing?: { file: string; totalLayers: number; minutes: number; progress?: number } | null;
   hms?: Array<{ attr: number; code: number }>; ssdpTargets?: string[]; speedFactor?: number; loop?: boolean;
 }
-export interface SimHandle { opts: SimOpts; files: Map<string, Buffer>; commands: any[]; state: Record<string, any>; stop: () => Promise<void>; onReport: (cb: (payload: Record<string, any>) => void) => void; request: (m: any) => void }
+export interface SimHandle { opts: SimOpts; files: Map<string, Buffer>; commands: any[]; /** credenciales recibidas (MQTT, FTPS, cámara): las pruebas verifican que un cliente con huella distinta no las envía */ auths: { n: number }; state: Record<string, any>; stop: () => Promise<void>; onReport: (cb: (payload: Record<string, any>) => void) => void; request: (m: any) => void }
 
 const pad = (s: string) => s.padEnd(8, 'F');
 
 export async function startSim(o: SimOpts): Promise<SimHandle> {
   const pems = await Promise.resolve(selfsigned.generate([{ name: 'commonName', value: o.serial }], { keySize: 2048 } as any) as any);
   const tlsOpts = { key: pems.private as string, cert: pems.cert as string };
+  const auths = { n: 0 };
   const files = new Map<string, Buffer>(); const commands: any[] = [];
   const speedF = o.speedFactor ?? 1;
 
@@ -53,7 +54,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
   // ── MQTT (broker aedes sobre TLS) ─────────────────────────────────────
   const { Aedes } = await import('aedes');
   const broker = await Aedes.createBroker();
-  broker.authenticate = (_c, user, pass, done) => { const ok = user === 'bblp' && pass?.toString() === o.accessCode; done(ok ? null : Object.assign(new Error('Not authorized'), { returnCode: 5 }) as any, ok); };
+  broker.authenticate = (_c, user, pass, done) => { auths.n++; const ok = user === 'bblp' && pass?.toString() === o.accessCode; done(ok ? null : Object.assign(new Error('Not authorized'), { returnCode: 5 }) as any, ok); };
   broker.authorizeSubscribe = (_c, sub, done) => done(sub.topic === `device/${o.serial}/report` ? null : new Error('denegado'), sub);
   const reportHooks: Array<(p: Record<string, any>) => void> = [];
   const report = (payload: Record<string, any>) => { for (const h of reportHooks) h(payload); publishLan(payload); };
@@ -113,7 +114,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
     camSrv = tls.createServer(tlsOpts, (s) => {
       let auth = Buffer.alloc(0); let timer: NodeJS.Timeout | null = null;
       s.on('data', (d) => {
-        if (timer) return; auth = Buffer.concat([auth, d as Buffer]); if (auth.length < 80) return;
+        if (timer) return; auth = Buffer.concat([auth, d as Buffer]); if (auth.length < 80) return; auths.n++;
         const user = auth.subarray(16, 48).toString('ascii').replace(/\0+$/, ''); const code = auth.subarray(48, 80).toString('ascii').replace(/\0+$/, '');
         if (auth.readUInt32LE(0) !== 0x40 || user !== 'bblp' || code !== o.accessCode) { s.destroy(); return; }
         const send = async () => { try { const jpg = await frame(o, p); const h = Buffer.alloc(16); h.writeUInt32LE(jpg.length, 0); s.write(Buffer.concat([h, jpg])); } catch { /* cliente se fue */ } };
@@ -142,7 +143,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
         while ((i = buf.indexOf('\r\n')) >= 0) {
           const line = buf.slice(0, i); buf = buf.slice(i + 2); const [cmd, ...rest] = line.split(' '); const arg = rest.join(' '); const C = cmd.toUpperCase();
           if (C === 'USER') { user = arg; say('331 Password required'); }
-          else if (C === 'PASS') { authed = user === 'bblp' && arg === o.accessCode; say(authed ? '230 Logged in' : '530 Login incorrect'); }
+          else if (C === 'PASS') { auths.n++; authed = user === 'bblp' && arg === o.accessCode; say(authed ? '230 Logged in' : '530 Login incorrect'); }
           else if (!authed) say('530 Not logged in');
           else if (C === 'FEAT') { ctl.write('211-Features:\r\n PBSZ\r\n PROT\r\n EPSV\r\n UTF8\r\n211 End\r\n'); }
           else if (['TYPE', 'STRU', 'OPTS', 'PBSZ', 'PROT', 'MODE'].includes(C)) say('200 OK');
@@ -180,7 +181,7 @@ export async function startSim(o: SimOpts): Promise<SimHandle> {
   announce(); const ann = setInterval(announce, 1500);
 
   return {
-    opts: o, files, commands, state: p, onReport: (cb) => { reportHooks.push(cb); }, request: (m) => handle(m),
+    opts: o, files, commands, auths, state: p, onReport: (cb) => { reportHooks.push(cb); }, request: (m) => handle(m),
     stop: async () => {
       clearInterval(tick); clearInterval(ann); udp.close();
       await Promise.all([mqttSrv, camSrv, ftpSrv].filter(Boolean).map((s) => new Promise<void>((r) => { (s as tls.Server).close(() => r()); setTimeout(r, 300); })));

@@ -2,17 +2,18 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import { and, desc, eq, isNull } from 'drizzle-orm';
-import { getDb, s } from '@/db';
+import { getDb, s, WORKSPACE_ID } from '@/db';
 import { seedDemo } from '@/lib/seed';
 import { getSettings, saveSettings } from '@/lib/settings';
 import { approveQuote, cancelOrder, createOrder, planProduction, setOrderStatus, addPayment } from '@/lib/services/orders';
 import { loadQuote, newQuoteVersion, saveQuote, sendQuote } from '@/lib/services/quotes';
-import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance } from '@/lib/services/production';
+import { createProductionOrder, finishJob, startJob, maintenanceDue, checkMaintenance, completeMaintenance } from '@/lib/services/production';
 import { createSale, saveProduct, setSaleStatus, adjustStock } from '@/lib/services/catalog';
-import { materialStock, weighSpool, shoppingList } from '@/lib/services/inventory';
+import { materialStock, weighSpool, shoppingList, createSpool, consumeFromSpool } from '@/lib/services/inventory';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
 import { orcaAvailable } from '@/lib/slicer/catalog';
-import { reportData, REPORTS } from '@/lib/reports';
+import { reportAllowed, reportData, reportRange, REPORTS } from '@/lib/reports';
+import { dayStart } from '@/lib/format';
 import { dashboardData } from '@/lib/stats';
 
 let admin: any, ventas: any, op: any; let db: Awaited<ReturnType<typeof getDb>>;
@@ -73,6 +74,8 @@ describe('aprobación manual → pedido → producción → inventario', () => {
     const q = await saveQuote({ customerName: 'Ana', customerPhone: '+56911111111', source: 'whatsapp', items: [line({ description: 'Carcasa', qty: 3, gramsTotal: 90, hoursTotal: 4.5, finalUnit: 12000 })] }, admin);
     const oid = await approveQuote(q, { by: 'Ana', channel: 'whatsapp', deposit: { amount: 10000, method: 'transferencia' } }, admin);
     const [o] = await db.select().from(s.orders).where(eq(s.orders.id, oid)); const [qq] = await db.select().from(s.quotes).where(eq(s.quotes.id, q));
+    // aprobado directo desde borrador: también congela plantilla, datos del taller e idioma
+    expect((qq.docTemplate as any)?.snapshot?.lang).toBe('es');
     expect(qq.status).toBe('aprobado'); expect(o.total).toBe(qq.total); expect(o.paid).toBe(10000); expect(o.status).toBe('recibido'); expect(o.approvedBy).toBe('Ana');
     const items = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid)); expect(items[0].finalUnit).toBe(12000);
     const jobIds = await planProduction(oid, admin); expect(jobIds.length).toBe(1);
@@ -113,6 +116,15 @@ describe('aprobación manual → pedido → producción → inventario', () => {
     const due = await maintenanceDue(); expect(due.some((d) => d.machineId === ender.id)).toBe(true); await checkMaintenance(ender.id);
     expect((await db.select().from(s.notifications).where(eq(s.notifications.kind, 'mantenimiento'))).length).toBeGreaterThan(0);
   });
+  it('mantenimiento hecho: su aviso queda leído y el ciclo siguiente vuelve a avisar', async () => {
+    const unread = () => db.select().from(s.notifications).where(and(eq(s.notifications.kind, 'mantenimiento'), eq(s.notifications.read, false)));
+    const before = (await unread()).length; expect(before).toBeGreaterThan(0);
+    const plans = (await maintenanceDue()).filter((d) => d.machineId === ender.id);
+    for (const p of plans) await completeMaintenance({ planId: p.planId, userId: admin.id });
+    expect((await unread()).length).toBeLessThan(before);
+    await db.update(s.machines).set({ hoursTotal: 2000 }).where(eq(s.machines.id, ender.id)); await checkMaintenance(ender.id);
+    expect((await unread()).length).toBeGreaterThanOrEqual(before);
+  });
 });
 
 describe('catálogo: productos con variantes, stock y ventas', () => {
@@ -140,6 +152,14 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await expect(setSaleStatus(r.id, 'anulada', ventas)).rejects.toThrow(/motivo/); await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Devolución', returnToStock: true });
     expect((await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])))[0].stock).toBe(v0.stock);
   });
+  it('venta rápida: precio a mano bajo el costo solo para el Administrador; nunca negativo', async () => {
+    const items = (unitPrice: number) => ({ items: [{ variantId: variantIds[0], qty: 1, unitPrice }] });
+    await expect(createSale(items(1), ventas)).rejects.toThrow(/bajo el costo/);
+    await expect(createSale(items(-10), admin)).rejects.toThrow(/negativo/);
+  });
+  it('pedido manual: la cantidad se normaliza y un precio final negativo se rechaza', async () => {
+    await expect(createOrder({ items: [line({ finalUnit: -1 })] }, admin)).rejects.toThrow(/inválido/);
+  });
   it('pedido mixto: reserva stock, produce solo lo que falta y descuenta al entregar', async () => {
     const [v] = await db.select().from(s.productVariants).where(eq(s.productVariants.id, variantIds[0])); expect(v.stock).toBeGreaterThanOrEqual(5);
     const oid = await createOrder({ customerName: 'Mixto', items: [line({ description: 'Pieza a medida' }), { description: 'Posavasos', qty: v.stock + 2, variantId: variantIds[0], kind: 'producto' as const }] }, admin);
@@ -155,12 +175,86 @@ describe('catálogo: productos con variantes, stock y ventas', () => {
     await expect(adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4 }, admin)).rejects.toThrow(/motivo/); await adjustStock({ variantId: variantIds[1], kind: 'ajuste', qty: 4, reason: 'Conteo' }, admin);
     await expect(adjustStock({ variantId: variantIds[1], kind: 'merma', qty: 10, reason: 'x' }, admin)).rejects.toThrow(/negativo/);
   });
+  it('vender de más deja el stock negativo (igual a sus movimientos) y anular devuelve lo exacto y da de baja el pago', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: before + 3 }] }, ventas);
+    expect(await stockOf()).toBe(-3); expect(r.shortages.length).toBe(1);
+    const ledger = async () => (await db.select().from(s.stockMovements).where(eq(s.stockMovements.variantId, vid))).reduce((a, m) => a + m.qty, 0);
+    expect(await ledger()).toBe(await stockOf());
+    await setSaleStatus(r.id, 'anulada', ventas, { reason: 'Error' });
+    expect(await stockOf()).toBe(before); expect(await ledger()).toBe(before);
+    const [sale] = await db.select().from(s.sales).where(eq(s.sales.id, r.id)); expect(sale.paid).toBe(0);
+    expect((await db.select().from(s.payments).where(and(eq(s.payments.saleId, r.id), isNull(s.payments.deletedAt)))).length).toBe(0);
+  });
+  it('dos anulaciones simultáneas devuelven el stock una sola vez', async () => {
+    const vid = variantIds[2]; const stockOf = async () => (await db.select().from(s.productVariants).where(eq(s.productVariants.id, vid)))[0].stock;
+    const before = await stockOf(); const r = await createSale({ items: [{ variantId: vid, qty: 1 }] }, ventas);
+    const res = await Promise.allSettled([setSaleStatus(r.id, 'anulada', ventas, { reason: 'a' }), setSaleStatus(r.id, 'anulada', ventas, { reason: 'b' })]);
+    expect(res.filter((x) => x.status === 'fulfilled').length).toBe(1);
+    expect(await stockOf()).toBe(before);
+    expect((await db.select().from(s.stockMovements).where(and(eq(s.stockMovements.saleId, r.id), eq(s.stockMovements.kind, 'devolucion')))).length).toBe(1);
+  });
+  it('una venta de $0 en marketplace no cobra la comisión fija (igual que el carrito)', async () => {
+    const ml = (await db.select().from(s.salesChannels).where(eq(s.salesChannels.name, 'Mercado Libre')))[0];
+    const r = await createSale({ channelId: ml.id, items: [{ variantId: variantIds[1], qty: 1, unitPrice: 0 }] }, ventas); expect(r.commission).toBe(0);
+  });
+  it('la venta rechaza cantidades no enteras o repetidas sin dejar una venta a medias', async () => {
+    const n = (await db.select().from(s.sales)).length;
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1.5 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 0 }] }, ventas)).rejects.toThrow(/entero/);
+    await expect(createSale({ items: [{ variantId: variantIds[2], qty: 1 }, { variantId: variantIds[2], qty: 1 }] }, ventas)).rejects.toThrow(/dos veces/);
+    expect((await db.select().from(s.sales)).length).toBe(n);
+  });
+  it('SKU repetido: busca el siguiente libre; un valor que vuelve reactiva su variante', async () => {
+    const skus: string[] = [];
+    for (let k = 0; k < 3; k++) { const id = await saveProduct({ name: 'Llavero', mode: 'simple', price: 1000 }, admin); skus.push((await db.select().from(s.productVariants).where(eq(s.productVariants.productId, id)))[0].sku); }
+    expect(new Set(skus).size).toBe(3);
+    const attrs = (values: string[]) => [{ name: 'Color', values }];
+    const pid = await saveProduct({ name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Azul']) }, admin);
+    await saveProduct({ id: pid, name: 'Imán', mode: 'variantes', attributes: attrs(['Rojo', 'Azul']) }, admin);
+    const vs = await db.select().from(s.productVariants).where(eq(s.productVariants.productId, pid)); expect(vs.length).toBe(2); expect(vs.every((v) => v.active)).toBe(true);
+  });
+});
+
+describe('inventario: consumo de filamento', () => {
+  it('un consumo mayor a lo que queda agota la bobina y los movimientos suman todo lo gastado', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 100, tareG: 0, unitCost: 15000, userId: admin.id });
+    const r = await consumeFromSpool({ spoolId: sp.id, grams: 300, kind: 'consumo', userId: admin.id });
+    expect(r).toMatchObject({ before: 100, after: 0, depleted: true });
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.status).toBe('agotada');
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.reduce((a, m) => a + m.qty, 0)).toBe(-300);
+  });
+  it('dos consumos simultáneos registran cada uno sus gramos', async () => {
+    const sp = await createSpool({ materialId: pla.id, initialG: 1000, tareG: 0, unitCost: 15000, userId: admin.id });
+    await Promise.all([consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' }), consumeFromSpool({ spoolId: sp.id, grams: 100, kind: 'consumo' })]);
+    const [after] = await db.select().from(s.spools).where(eq(s.spools.id, sp.id)); expect(after.remainingG).toBe(800);
+    const mv = await db.select().from(s.inventoryMovements).where(and(eq(s.inventoryMovements.spoolId, sp.id), eq(s.inventoryMovements.kind, 'consumo')));
+    expect(mv.map((m) => m.qty)).toEqual([-100, -100]);
+  });
 });
 
 describe('reportes y dashboard', () => {
-  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, { from: new Date(Date.now() - 120 * 86400_000), to: new Date() }, true); expect(d.columns.length).toBeGreaterThan(2); } });
+  it('todos los reportes se generan', async () => { for (const k of Object.keys(REPORTS)) { const d = await reportData(k, reportRange(null, null, 120), admin); expect(d.columns.length).toBeGreaterThan(2); } });
   it('el dashboard calcula indicadores y alertas', async () => { const d = await dashboardData(); expect(d.ind.revenue).toBeGreaterThan(0); expect(d.val.total).toBeGreaterThan(0); expect(d.lowMaterials.length + d.lowItems.length + d.maint.length).toBeGreaterThan(0); });
-  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true); const mine = await reportData('ventas', { from: new Date(Date.now() - 365 * 86400_000), to: new Date() }, true, ventas.id); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+  it('el rango ignora fechas imposibles e invierte desde/hasta al revés', () => {
+    expect(reportRange('2026-13-01', '2026-10-16', 30)).toEqual({ from: '2026-09-16', to: '2026-10-16' });
+    expect(reportRange('2026-02-30', '2026-10-16', 30).from).toBe('2026-09-16');
+    expect(reportRange('2026-10-20', '2026-10-01', 30)).toEqual({ from: '2026-10-01', to: '2026-10-20' });
+  });
+  it('Ventas solo ve sus propias ventas', async () => { const all = await reportData('ventas', reportRange(null, null, 365), admin); const mine = await reportData('ventas', reportRange(null, null, 365), ventas); expect(mine.rows.reduce((a, r) => a + r.revenue, 0)).toBeLessThan(all.rows.reduce((a, r) => a + r.revenue, 0)); });
+  it('Ventas ve solo sus presupuestos; sin costos no hay reportes de costos', async () => {
+    const r = reportRange(null, null, 365); const n = (d: any) => d.rows[1].n; // fila «enviados»
+    const [mine, all] = [await reportData('embudo', r, ventas), await reportData('embudo', r, admin)];
+    const qs = await db.select().from(s.quotes).where(eq(s.quotes.createdBy, ventas.id));
+    expect(n(mine)).toBe(qs.filter((q) => ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status) && q.createdAt >= dayStart(r.from)).length); expect(n(mine)).toBeLessThanOrEqual(n(all));
+    const opR = { ...op, permOverrides: { reportes: 'V' } };
+    expect(reportAllowed(opR, 'estimado_real')).toBe(false); expect(reportAllowed(opR, 'embudo')).toBe(true);
+    await expect(reportData('estimado_real', r, opR)).rejects.toThrow();
+    const cat = await reportData('catalogo', r, opR);
+    expect(cat.columns.map((c) => c.key)).not.toContain('value'); expect(cat.rows[0]).not.toHaveProperty('margin'); expect(cat.summary).toBeUndefined();
+  });
 });
 
 describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
@@ -179,5 +273,209 @@ describe.skipIf(!orcaAvailable())('laminador (OrcaSlicer real)', () => {
     expect(await sha(forced.gcodeKey!)).toBe(await sha(a.gcodeKey!));
     const big1 = (await waitForRuns([await enqueueSlice({ fileVersionId: big.currentVersionId!, machineProfileId: P('Ender-3 V3 SE 0.4'), processProfileId: P('Ender · 0,20 Standard'), filamentProfileId: P('PLA genérico Ender'), label: 'grande' })]))[0];
     expect(big1.status).toBe('error'); expect(big1.error).toMatch(/no cabe/);
+  });
+});
+
+describe.skipIf(!orcaAvailable())('orientación automática (P5)', () => {
+  it('--orient lamina de verdad y se separa en la caché del laminado sin orientar', async () => {
+    const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((p) => p.name === n)!.id;
+    const [bar] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.name, 'Barquito decorativo'));
+    const base = { fileVersionId: bar.currentVersionId!, machineProfileId: P('Bambu Lab A1 0.4'), processProfileId: P('A1 · 0,20 Standard'), filamentProfileId: P('PLA Basic') };
+    const [plain, oriented] = await waitForRuns([await enqueueSlice({ ...base, label: 'sin orientar' }), await enqueueSlice({ ...base, orient: true, label: 'orientado' })], 180000);
+    expect(plain.status).toBe('done'); expect(oriented.status).toBe('done');
+    expect((oriented.result as any).cached).not.toBe(true); expect((oriented.inputs as any).orient).toBe(true);
+  });
+});
+
+describe.skipIf(!orcaAvailable())('multicolor al laminar (P5)', () => {
+  it('un proyecto con dos extrusores lamina con dos filamentos y reparte el consumo', async () => {
+    const { ingestModel } = await import('@/lib/files');
+    const tmp = 'data/test-storage/mc.3mf'; fs.mkdirSync('data/test-storage', { recursive: true }); fs.copyFileSync('samples/multicolor-2-extrusores.3mf', tmp);
+    const r = await ingestModel({ tmpPath: tmp, filename: 'multicolor.3mf', sync: true, userId: admin.id });
+    const [fv] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, r.versionId)); expect((fv.meta as any).ams?.multicolor).toBe(true);
+    const profs = await db.select().from(s.slicerProfiles); const P = (n: string) => profs.find((p) => p.name === n)!.id;
+    const [run] = await waitForRuns([await enqueueSlice({ fileVersionId: fv.id, machineProfileId: P('Bambu Lab A1 0.4'), processProfileId: P('A1 · 0,20 Standard'), filamentProfileId: P('PLA Basic'), extra: [{ filamentProfileId: P('PLA Basic') }], label: 'mc' })], 180000);
+    expect(run.status, run.error ?? '').toBe('done'); expect((run.inputs as any).extraFilaments).toHaveLength(1);
+    expect(run.filament!.length).toBe(2); expect(run.filament!.every((f) => f.g > 0)).toBe(true);
+  });
+});
+
+describe('alta masiva de filamentos (N4)', async () => {
+  const { planBulkMaterials, applyBulkMaterials } = await import('@/lib/services/inventory');
+  const common = { manufacturer: 'Cicla 3D', line: 'PLA reciclado', type: 'PLA', diameter: 1.75, density: 1.24, costPerKg: 14000, netG: 1000, tareG: 200 };
+  it('vista previa detecta repetidos y existentes; aplicar crea materiales y bobinas', async () => {
+    const rows = [{ colorName: 'Verde', hex: '#2f9d4b', spools: 2 }, { colorName: 'verde ', hex: '#2f9d4b', spools: 1 }, { colorName: 'Beige', hex: '#e3d3b0', spools: 0 }];
+    const p = await planBulkMaterials(common, rows);
+    expect(p.items.map((i) => i.status)).toEqual(['new', 'repeat', 'new']); expect(p.newMaterials).toBe(2); expect(p.spools).toBe(2);
+    const r = await applyBulkMaterials(common, rows);
+    expect(r).toMatchObject({ created: 2, spools: 2 });
+    const again = await planBulkMaterials(common, rows);
+    expect(again.items.map((i) => i.status)).toEqual(['exists', 'repeat', 'exists']);
+    const r2 = await applyBulkMaterials(common, [{ colorName: 'Verde', hex: '#000', spools: 1 }]); // ya existe: solo ingresa bobina
+    expect(r2).toMatchObject({ created: 0, existing: 1, spools: 1 });
+  });
+});
+
+describe('directorio de proveedores (N4b)', () => {
+  it('se siembra una vez, con el origen sin verificar, y la bobina recuerda dónde se compró', async () => {
+    const { seedSuppliers, listSuppliers, createSpool } = await import('@/lib/services/inventory');
+    const list = await listSuppliers();
+    expect(list.length).toBeGreaterThan(20); expect(list.every((x) => !x.verified)).toBe(true);
+    expect(await seedSuppliers()).toBe(0); // idempotente
+    expect(list[0].country).toBe('CL'); // primero los de Chile
+    const todo = list.find((x) => x.name === 'TodoToner')!;
+    const dbx = await getDb(); const [mat] = await dbx.select().from(s.materials).limit(1);
+    const sp = await createSpool({ materialId: mat.id, supplierId: todo.id });
+    expect(sp.supplierId).toBe(todo.id);
+    const [mv] = await dbx.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.spoolId, sp.id));
+    expect(String(mv.note)).toContain('TodoToner');
+  });
+});
+
+describe('documento de cliente congelado al enviar (N7)', () => {
+  it('al enviar un presupuesto se guarda la plantilla vigente y no cambia si el taller la edita después', async () => {
+    const { saveSettings } = await import('@/lib/settings');
+    const { sendQuote } = await import('@/lib/services/quotes');
+    const dbx = await getDb(); const [qq] = await dbx.select().from(s.quotes).where(eq(s.quotes.status, 'borrador')).limit(1);
+    if (!qq) return; // la semilla trae al menos uno; si no, no hay nada que probar
+    await saveSettings({ documents: { quote: { footer: 'Gracias por confiar en nosotros' } } });
+    const [u] = await dbx.select().from(s.users).limit(1);
+    await sendQuote(qq.id, u.id);
+    await saveSettings({ documents: { quote: { footer: 'OTRO PIE' } } });
+    const [after] = await dbx.select().from(s.quotes).where(eq(s.quotes.id, qq.id));
+    expect((after.docTemplate as any).footer).toBe('Gracias por confiar en nosotros');
+    // también los datos del taller: el documento enviado no cambia si el taller edita su nombre después
+    expect((after.docTemplate as any).snapshot.shop.name).toBe((await (await import('@/lib/settings')).getSettings()).shop.name);
+  });
+});
+
+describe('origen y etiquetas del modelo (N2/N3)', () => {
+  it('registrar el origen guarda metadatos, licencia normalizada y etiquetas del sitio con procedencia', async () => {
+    const { attachSource } = await import('@/lib/library/import');
+    const dbx = await getDb(); const [mf] = await dbx.select().from(s.modelFiles).limit(1);
+    const html = '<meta property="og:title" content="Soporte de celular"><meta property="og:description" content="Un soporte"><meta property="og:image" content="https://cdn.ejemplo/x.jpg"><meta name="keywords" content="soporte, celular"><script type="application/ld+json">{"license":"CC BY-NC 4.0","author":{"name":"Ana"}}</script>';
+    const getter = (async (u: string) => ({ status: 200, body: html, finalUrl: u, contentType: 'text/html' })) as any;
+    const r = await attachSource(mf.id, 'https://ejemplo.cl/pieza/1', null, getter);
+    expect(r).toMatchObject({ status: 'parcial', license: 'cc-by-nc', commercial: 'no', title: 'Soporte de celular' });
+    const [after] = await dbx.select().from(s.modelFiles).where(eq(s.modelFiles.id, mf.id));
+    expect(after.license).toBe('cc-by-nc'); expect(after.author).toBeTruthy(); expect(after.sourceId).toBe(r.sourceId);
+    expect(after.tags).toEqual(expect.arrayContaining(['soporte', 'celular'])); expect(after.tagMeta!['soporte']).toMatchObject({ source: 'import' });
+    const again = await attachSource(mf.id, 'https://ejemplo.cl/pieza/1', null, getter); // actualizar no duplica
+    expect(again.sourceId).toBe(r.sourceId);
+    await expect(attachSource(mf.id, 'javascript:alert(1)', null, getter)).rejects.toThrow();
+  });
+});
+
+describe('biblioteca: ZIP y acciones masivas (R4)', () => {
+  it('un ZIP crea un modelo por archivo compatible y usa las carpetas internas', async () => {
+    const fsx = await import('node:fs'); const { zipSync } = await import('fflate'); const { ingestZip } = await import('@/lib/files');
+    const stl = new Uint8Array(fsx.readFileSync('samples/engranaje.stl')); const dbx = await getDb(); const [u] = await dbx.select().from(s.users).limit(1);
+    const z = zipSync({ 'pack/llaveros/a.stl': stl, 'pack/b.stl': stl, '__MACOSX/pack/._a.stl': stl, 'leeme.txt': new Uint8Array([1, 2]), '../../etc/x.stl': stl });
+    fsx.writeFileSync('data/test-data-pack.zip', z);
+    const r = await ingestZip({ tmpPath: 'data/test-data-pack.zip', filename: 'pack.zip', userId: u.id, folder: 'Importados' });
+    expect(r.created).toBe(2);
+    const rows = await dbx.select().from(s.modelFiles).where(eq(s.modelFiles.format, 'stl'));
+    const folders = rows.filter((m) => ['a', 'b'].includes(m.name)).map((m) => m.folder).sort();
+    expect(folders).toEqual(['Importados/pack', 'Importados/pack/llaveros']);
+  });
+});
+
+describe('recuperación de análisis interrumpidos (P0)', () => {
+  it('una versión que quedó en «processing» se vuelve a analizar al arrancar', async () => {
+    const { recoverPendingVersions } = await import('@/lib/files');
+    const dbx = await getDb(); const [v] = await dbx.select().from(s.fileVersions).where(eq(s.fileVersions.format, 'stl')).limit(1);
+    await dbx.update(s.fileVersions).set({ meta: { status: 'processing' } }).where(eq(s.fileVersions.id, v.id));
+    expect(await recoverPendingVersions()).toBeGreaterThanOrEqual(1);
+    const [after] = await dbx.select().from(s.fileVersions).where(eq(s.fileVersions.id, v.id));
+    expect((after.meta as any).status).toBe('ready');
+  });
+});
+
+describe('eliminar un material en uso (F0.2)', () => {
+  it('se bloquea mientras un presupuesto abierto lo usa y se puede reemplazar por otro', async () => {
+    const { removalInfo, replaceAndRemoveMaterial } = await import('@/lib/services/removal');
+    const [cand] = await db.select().from(s.materials).where(and(eq(s.materials.type, 'PETG'), isNull(s.materials.deletedAt))).limit(1);
+    const spare = (await db.select().from(s.materials).where(isNull(s.materials.deletedAt))).find((m) => m.id !== cand.id && m.id !== pla.id)!;
+    // sin bobinas con material: la única razón para bloquear es el presupuesto
+    await db.update(s.spools).set({ remainingG: 0 }).where(eq(s.spools.materialId, cand.id));
+    const q = await saveQuote({ customerName: 'Cliente Y', items: [line({ materialId: cand.id })] }, admin);
+    const info = await removalInfo('material', cand.id);
+    expect(info.canDelete).toBe(false); expect(info.block?.key).toBe('remove.block.materialUsed');
+    await replaceAndRemoveMaterial(cand.id, spare.id, admin.id);
+    const d = (await loadQuote(q))!; expect(d.items[0].materialId).toBe(spare.id);
+    const [gone] = await db.select().from(s.materials).where(eq(s.materials.id, cand.id)); expect(gone.deletedAt).not.toBeNull();
+  });
+});
+
+describe('recalcular con tarifas actuales (P2)', () => {
+  it('la vista previa compara el precio guardado con el de las tarifas vigentes', async () => {
+    const { previewRecalc } = await import('@/lib/services/quotes');
+    const q = await saveQuote({ customerName: 'Cliente Z', items: [line({ gramsTotal: 100, hoursTotal: 3 })] }, admin);
+    await sendQuote(q, admin.id);
+    const st = await getSettings(); const before = await previewRecalc(q); expect(before!.delta).toBe(0);
+    await saveSettings({ rates: { ...st.rates, marginPct: st.rates.marginPct + 20 } });
+    const after = await previewRecalc(q); expect(after!.delta).toBeGreaterThan(0); expect(after!.lines[0].newUnit).toBeGreaterThan(after!.lines[0].oldUnit);
+    await saveSettings({ rates: st.rates });
+  });
+});
+
+describe('avisos de seguimiento de presupuestos (P3)', () => {
+  it('avisa una vez por plazo cuando un presupuesto enviado sigue sin respuesta', async () => {
+    const { followUpQuotes } = await import('@/lib/services/quotes');
+    const q = await saveQuote({ customerName: 'Cliente Seguimiento', items: [line()] }, admin); await sendQuote(q, admin.id);
+    expect(await followUpQuotes(new Date())).toBe(0);
+    const in4 = new Date(Date.now() + 4 * 86400_000);
+    expect(await followUpQuotes(in4)).toBeGreaterThanOrEqual(1);
+    expect(await followUpQuotes(in4)).toBe(0); // no repite el mismo plazo
+    const ns = await db.select().from(s.notifications).where(eq(s.notifications.kind, 'seguimiento')); expect(ns.some((n) => n.href === `/presupuestos/${q}`)).toBe(true);
+  });
+});
+
+describe('papelera de archivos 3D (P4)', () => {
+  it('un archivo eliminado aparece en archivados y se restaura', async () => {
+    const { removeRecord } = await import('@/lib/services/removal'); const { listArchived, restoreRecord } = await import('@/lib/services/archive');
+    const [f] = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)).limit(1);
+    await removeRecord('file', f.id, admin.id);
+    expect((await listArchived('file')).some((r) => r.id === f.id)).toBe(true);
+    await restoreRecord('file', f.id, admin.id);
+    const [back] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id)); expect(back.deletedAt).toBeNull();
+  });
+  it('una foto y una máquina eliminadas aparecen en archivados y se restauran', async () => {
+    const { removeRecord } = await import('@/lib/services/removal'); const { listArchived, restoreRecord } = await import('@/lib/services/archive');
+    const [m] = await db.insert(s.machines).values({ workspaceId: WORKSPACE_ID, name: 'Máquina papelera' }).returning();
+    const [ph] = await db.insert(s.photos).values({ workspaceId: WORKSPACE_ID, storageKey: 'x.jpg', caption: 'Foto papelera' }).returning();
+    for (const [k, id, tbl] of [['photo', ph.id, s.photos], ['machine', m.id, s.machines]] as const) {
+      await removeRecord(k, id, admin.id);
+      expect((await listArchived(k)).some((r) => r.id === id)).toBe(true);
+      await restoreRecord(k, id, admin.id);
+      const [back] = await db.select().from(tbl as typeof s.photos).where(eq((tbl as typeof s.photos).id, id)); expect(back.deletedAt).toBeNull();
+    }
+  });
+});
+
+describe('edición masiva por línea de filamento (P2)', () => {
+  it('cambia costo y stock mínimo de todos los colores de una marca + línea', async () => {
+    const { bulkUpdateLine } = await import('@/lib/services/inventory');
+    const [m] = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.manufacturer, 'Cicla 3D'))).limit(1);
+    const target = m ?? (await db.select().from(s.materials).where(isNull(s.materials.deletedAt)))[0];
+    const n = await bulkUpdateLine({ manufacturer: target.manufacturer, line: target.line }, { costPerKg: 12345, stockMinG: 777 }, admin.id);
+    expect(n).toBeGreaterThanOrEqual(1);
+    const rows = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), target.manufacturer ? eq(s.materials.manufacturer, target.manufacturer) : isNull(s.materials.manufacturer), target.line ? eq(s.materials.line, target.line) : isNull(s.materials.line)));
+    expect(rows.every((r) => r.costPerKg === 12345 && r.stockMinG === 777)).toBe(true);
+    expect(await bulkUpdateLine({ manufacturer: target.manufacturer, line: target.line }, {}, admin.id)).toBe(0);
+  });
+});
+
+describe('etiquetado automático (P4)', () => {
+  it('solo aplica reglas con confianza alta y solo si el taller lo activó', async () => {
+    const { autoTagFile } = await import('@/lib/library/auto');
+    const [f] = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)).limit(1);
+    await db.update(s.modelFiles).set({ tags: [], tagMeta: {} }).where(eq(s.modelFiles.id, f.id));
+    const st = await getSettings();
+    await saveSettings({ library: { autoTag: false } }); expect(await autoTagFile(f.id)).toEqual([]);
+    await saveSettings({ library: { autoTag: true } }); const added = await autoTagFile(f.id);
+    const [after] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, f.id));
+    expect(after.tags).toEqual(added); for (const t of added) expect(after.tagMeta![t].source).toBe('regla');
+    await saveSettings({ library: st.library });
   });
 });

@@ -1,8 +1,11 @@
 import tls from 'node:tls';
 import { spawn } from 'node:child_process';
 import type { CameraKind } from './models';
+import { getT } from '@/i18n/server';
+import { LocalizedError } from '@/i18n/errors';
+import { certChangedError, checkPin } from './pin';
 
-export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number }
+export interface CamOpts { host: string; accessCode: string; kind: CameraKind; port?: number; fingerprint?: string | null }
 
 /** Paquete de autenticación de la cámara P1/A1: 4 enteros LE (0x40, 0x3000, 0, 0) + usuario y código en 32 bytes cada uno. */
 export function cameraAuthPacket(accessCode: string) {
@@ -17,20 +20,22 @@ export function cameraAuthPacket(accessCode: string) {
  * cuyo tamaño de carga está en los 3 primeros bytes (little endian), seguida del JPEG completo.
  */
 export async function* jpegTlsFrames(o: CamOpts, signal?: AbortSignal): AsyncGenerator<Buffer> {
+  const t = await getT();
   const sock = tls.connect({ host: o.host, port: o.port ?? 6000, rejectUnauthorized: false, timeout: 10_000 });
   const queue: Buffer[] = []; let wake: (() => void) | null = null; let done: Error | null | true = null;
   let buf = Buffer.alloc(0);
   const finish = (e: Error | true) => { done = e; wake?.(); };
   signal?.addEventListener('abort', () => { sock.destroy(); finish(true); });
-  sock.on('secureConnect', () => sock.write(cameraAuthPacket(o.accessCode)));
-  sock.on('timeout', () => { sock.destroy(); finish(Object.assign(new Error('La cámara no respondió. ¿Está activa la «Vista en vivo LAN» o hay otro visor conectado?'), { code: 'cam_timeout' })); });
+  // el código de acceso sale solo si el certificado es el de la impresora (huella fijada en la primera conexión MQTT)
+  sock.on('secureConnect', () => { if (!checkPin(sock, o.fingerprint).ok) { sock.destroy(); finish(certChangedError()); return; } sock.write(cameraAuthPacket(o.accessCode)); });
+  sock.on('timeout', () => { sock.destroy(); finish(Object.assign(new Error(t('machines.theCameraDidNotRespond')), { code: 'cam_timeout' })); });
   sock.on('error', (e) => finish(e));
   sock.on('close', () => finish(true));
   sock.on('data', (d: Buffer) => {
     buf = Buffer.concat([buf, d]);
     while (buf.length >= 16) {
       const size = buf[0] | (buf[1] << 8) | (buf[2] << 16);
-      if (size <= 0 || size > 8_000_000) { sock.destroy(); finish(Object.assign(new Error('Respuesta de cámara inválida (¿código de acceso incorrecto?)'), { code: 'cam_bad' })); return; }
+      if (size <= 0 || size > 8_000_000) { sock.destroy(); finish(Object.assign(new Error(t('machines.invalidCameraResponseWrongAccess')), { code: 'cam_bad' })); return; }
       if (buf.length < 16 + size) break;
       const jpg = buf.subarray(16, 16 + size); buf = buf.subarray(16 + size);
       if (jpg[0] === 0xff && jpg[1] === 0xd8 && jpg[jpg.length - 2] === 0xff && jpg[jpg.length - 1] === 0xd9) { queue.push(Buffer.from(jpg)); wake?.(); }
@@ -58,8 +63,23 @@ export async function* splitMjpeg(src: AsyncIterable<Buffer>): AsyncGenerator<Bu
   }
 }
 
+/**
+ * ffmpeg no revisa la huella: antes de darle el código se abre un TLS de prueba al mismo puerto y se compara.
+ * ponytail: son dos conexiones; un intermediario que reenvíe la prueba a la impresora real y capture la de ffmpeg no se detecta. Cerrarlo pide un proxy TLS local fijado.
+ */
+function probePin(o: CamOpts, timeoutMsg: string) {
+  return new Promise<void>((res, rej) => {
+    const sock = tls.connect({ host: o.host, port: o.port ?? 322, rejectUnauthorized: false, timeout: 10_000 });
+    sock.once('secureConnect', () => { const ok = checkPin(sock, o.fingerprint).ok; sock.destroy(); if (ok) res(); else rej(certChangedError()); });
+    sock.once('timeout', () => { sock.destroy(); rej(Object.assign(new Error(timeoutMsg), { code: 'cam_timeout' })); });
+    sock.once('error', rej);
+  });
+}
+
 /** Cuadros de la cámara X1/H2 (RTSPS, puerto 322) convertidos a MJPEG con ffmpeg. */
 export async function* rtspsFrames(o: CamOpts, signal?: AbortSignal, fps = 2): AsyncGenerator<Buffer> {
+  const t = await getT();
+  await probePin(o, t('machines.theCameraDidNotRespond'));
   const url = `rtsps://bblp:${encodeURIComponent(o.accessCode)}@${o.host}:${o.port ?? 322}/streaming/live/1`;
   const ff = spawn(process.env.FFMPEG_BIN || 'ffmpeg', ['-hide_banner', '-loglevel', 'error', '-rtsp_transport', 'tcp', '-timeout', '10000000', '-i', url, '-an', '-vf', `fps=${fps}`, '-q:v', '6', '-f', 'mjpeg', 'pipe:1'], { stdio: ['ignore', 'pipe', 'pipe'] });
   let err = ''; ff.stderr.on('data', (d) => { err = (err + d).slice(-400); });
@@ -67,20 +87,21 @@ export async function* rtspsFrames(o: CamOpts, signal?: AbortSignal, fps = 2): A
   let any = false;
   try { for await (const f of splitMjpeg(ff.stdout)) { any = true; yield f; } }
   finally { ff.kill('SIGKILL'); }
-  if (!any && !signal?.aborted) throw Object.assign(new Error(`No se pudo abrir la cámara RTSPS. Activa «Vista en vivo LAN» en la impresora. ${err.trim()}`), { code: 'cam_rtsp' });
+  if (!any && !signal?.aborted) throw Object.assign(new Error(t('machines.couldNotOpenTheRtsps', { detail: err.trim() })), { code: 'cam_rtsp' });
 }
 
 export function cameraFrames(o: CamOpts, signal?: AbortSignal) {
   if (o.kind === 'rtsps') return rtspsFrames(o, signal);
   if (o.kind === 'jpeg-tls') return jpegTlsFrames(o, signal);
-  throw Object.assign(new Error('Este modelo no tiene cámara'), { code: 'no_camera' });
+  throw Object.assign(new LocalizedError('connector.noCamera'), { code: 'no_camera' });
 }
 
 /** Una sola foto de la cámara. */
 export async function snapshot(o: CamOpts, timeoutMs = 15_000): Promise<Buffer> {
-  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), timeoutMs);
+  const t = await getT();
+  const ac = new AbortController(); const tt = setTimeout(() => ac.abort(), timeoutMs);
   try {
     for await (const f of cameraFrames(o, ac.signal)) return f;
-    throw Object.assign(new Error('La cámara no entregó imagen a tiempo'), { code: 'cam_timeout' });
-  } finally { clearTimeout(t); ac.abort(); }
+    throw Object.assign(new Error(t('machines.theCameraDidNotDeliver')), { code: 'cam_timeout' });
+  } finally { clearTimeout(tt); ac.abort(); }
 }

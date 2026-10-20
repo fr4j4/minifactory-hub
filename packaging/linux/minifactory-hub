@@ -1,0 +1,4 @@
+#!/bin/sh
+# Arranca MiniFactory Hub con el Node incluido. Uso: minifactory-hub [start|worker] [--open]
+d="$(dirname "$(readlink -f "$0")")/.."
+exec "$d/node/bin/node" "$d/launcher.mjs" "$@"

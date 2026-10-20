@@ -9,3 +9,6 @@ export function parseCsv(text: string): string[][] {
   if (cur || row.length) { row.push(cur.replace(/\r$/, '')); rows.push(row); }
   return rows.filter((r) => r.some((x) => x.trim()));
 }
+
+// texto que empieza con = + - @ tab o CR se antepone con ' para que Excel no lo ejecute como fórmula (los números y teléfonos como «+56 9 …» quedan igual)
+export const csvCell = (v: unknown) => { let tt = v == null ? '' : v instanceof Date ? v.toISOString() : String(v); if (typeof v === 'string' && /^[=+\-@\t\r]/.test(tt) && !/^[+-]?[\d\s().]+$/.test(tt)) tt = `'${tt}`; return /[",;\n\r]/.test(tt) ? `"${tt.replace(/"/g, '""')}"` : tt; };

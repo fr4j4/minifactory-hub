@@ -1,13 +1,15 @@
 import fsp from 'node:fs/promises';
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import sharp from 'sharp';
 import { unzipSync } from 'fflate';
 import { getDb, s, WORKSPACE_ID } from '@/db';
-import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer } from './storage';
-import { analyze, decimate, renderThumbnail, toPreviewBin, weld } from './mesh/ops';
+import { absPath, newKey, putBuffer, putFile, sha256File, getBuffer, remove } from './storage';
+import { analyze, decimate, renderThumbnail, renderTurntable, toPreviewBin, weld } from './mesh/ops';
 import { extOf, parseMesh, SUPPORTED_MESH, GCODE_EXT, IMAGE_EXT } from './mesh/parse';
+import { parseAms } from './mesh/threemf-ams';
 import { buildGcodePreview, gcodePreviewToBin, hasSlicedData, parse3mfSliceMeta, parseGcodeMeta } from './gcode';
 import { audit } from './audit';
+import { getT } from '@/i18n/server';
 
 export const MODEL_EXT = [...SUPPORTED_MESH, ...GCODE_EXT, ...IMAGE_EXT] as string[];
 export const formatLabel = (ext: string) => ({ stp: 'STEP', step: 'STEP', gcode: 'G-code', gco: 'G-code', bgcode: 'BGCODE', jpg: 'JPG', jpeg: 'JPG' } as Record<string, string>)[ext] ?? ext.toUpperCase();
@@ -22,9 +24,10 @@ export interface IngestInput {
 
 /** Guarda el archivo, crea el modelo (o una versión nueva) y lanza el análisis en segundo plano. */
 export async function ingestModel(i: IngestInput) {
+  const t = await getT();
   const db = await getDb();
   const ext = extOf(i.filename);
-  if (!MODEL_EXT.includes(ext)) throw new Error(`Formato no soportado: .${ext}`);
+  if (!MODEL_EXT.includes(ext)) throw new Error(t('files.unsupportedFormat', { ext }));
   const sha = await sha256File(i.tmpPath);
   const size = (await fsp.stat(i.tmpPath)).size;
   const key = newKey('models', ext);
@@ -35,7 +38,7 @@ export async function ingestModel(i: IngestInput) {
   if (!modelId) {
     const base = i.filename.replace(/\.[^.]+$/, '');
     const [m] = await db.insert(s.modelFiles).values({
-      workspaceId: WORKSPACE_ID, name: base, folder: i.folder ?? null, tags: i.tags ?? [], format: ext, hash: sha, customerId: i.customerId ?? null,
+      workspaceId: WORKSPACE_ID, name: base, folder: (await (await import('./library/folders')).ensureFolder(i.folder, db)), tags: i.tags ?? [], format: ext, hash: sha, customerId: i.customerId ?? null,
       origin: i.origin ?? null, license: i.license ?? 'propia', author: i.author ?? null, createdBy: i.userId ?? null,
     }).returning({ id: s.modelFiles.id });
     modelId = m.id;
@@ -48,51 +51,36 @@ export async function ingestModel(i: IngestInput) {
     meta: { status: 'processing' }, createdBy: i.userId ?? null,
   }).returning({ id: s.fileVersions.id });
   await db.update(s.modelFiles).set({ currentVersionId: v.id, hash: sha, format: ext, updatedAt: new Date() }).where(eq(s.modelFiles.id, modelId));
+  await (await import('./library/connectors/managed')).registerManagedVersion(v.id);
   await audit('model_file', modelId, number === 1 ? 'crear' : 'nueva_version', { filename: i.filename, version: number }, i.userId);
-  const job = processVersion(v.id).catch(async (e) => {
-    await db.update(s.fileVersions).set({ meta: { status: 'error', error: (e as Error).message } }).where(eq(s.fileVersions.id, v.id));
-  });
-  if (i.sync) await job;
+  // el análisis va a la cola persistente (reintenta y sobrevive a reinicios); en modo sync se espera su resultado
+  const { enqueueJob, runJobNow } = await import('./jobs');
+  const jobId = await enqueueJob('file.process', { versionId: v.id }, { userId: i.userId, claimed: i.sync });
+  if (i.sync) await runJobNow(jobId, { claimed: true });
   return { modelFileId: modelId, versionId: v.id, version: number, duplicateOf: dup && dup.id !== modelId ? dup : null };
 }
 
 /** Análisis: dimensiones, volumen, malla cerrada, miniatura, vista previa y metadatos del laminador. */
 export async function processVersion(versionId: string) {
+  const t = await getT();
   const db = await getDb();
   const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId));
   if (!v) return;
-  const ext = v.format; const buf = new Uint8Array(await getBuffer(v.storageKey));
-  const meta: Record<string, any> = { status: 'ready', kind: kindOfExt(ext) };
+  const localKey = await (await import('./library/content')).ensureVersionLocal(versionId, false);
+  const ext = v.format; const buf = kindOfExt(ext)==='malla'&&!['obj','gltf'].includes(ext)?new Uint8Array():new Uint8Array(await getBuffer(localKey));
+  const dependencies=await (await import('./library/dependencies')).recordDependencies(versionId,buf,v.format);
+  const meta: Record<string, any> = { ...(v.meta ?? {}), ...(dependencies?{dependencies}:{}), status: 'ready', kind: kindOfExt(ext) }; delete meta.error;
   const t0 = Date.now();
   let thumbKey: string | null = null;
   const mfUpdate: Partial<typeof s.modelFiles.$inferInsert> = {};
   if (meta.kind === 'malla') {
-    const mesh = await parseMesh(buf, ext);
-    const a = analyze(mesh);
-    meta.analysis = { ...a, min: a.min.map((n) => +n.toFixed(3)), max: a.max.map((n) => +n.toFixed(3)) };
-    const ix = weld(mesh);
-    const origTri = ix.indices.length / 3;
-    const dec = decimate(ix, 1_500_000);
-    meta.previewKey = await putBuffer(newKey('preview', 'mfm'), toPreviewBin(dec, { origTriangles: origTri, decimated: dec !== ix }));
-    meta.decimated = dec !== ix;
-    thumbKey = await putBuffer(newKey('thumbs', 'webp'), await renderThumbnail(mesh, { format: 'webp' }));
-    if (ext === '3mf') {
-      const sm = parse3mfSliceMeta(buf);
-      if (sm) { meta.sliced = sm; if (hasSlicedData(sm)) meta.hasSlicedData = true; }
-      // 3MF laminado con G-code embebido: vista previa de capas
-      try {
-        const files = unzipSync(buf, { filter: (f) => /plate_1\.gcode$/i.test(f.name) });
-        const g1 = Object.values(files)[0];
-        if (g1) {
-          const txt = new TextDecoder().decode(g1);
-          meta.gcodePreviewKey = await putBuffer(newKey('preview', 'mfg'), gcodePreviewToBin(buildGcodePreview(txt)));
-        }
-      } catch { /* sin G-code embebido */ }
-    }
+    const rendered=await (await import('./library/render-worker')).isolatedMesh(absPath(localKey),ext);
+    const a=rendered.analysis;meta.analysis=a;meta.previewKey=rendered.previewKey;meta.decimated=rendered.decimated;meta.render={...rendered.render,hash:v.sha256};thumbKey=rendered.thumbKey;if(rendered.turnKey)meta.turnKey=rendered.turnKey;
+    Object.assign(meta,rendered.extra||{});if(rendered.plates)meta.plates=rendered.plates;if(ext==='3mf')meta.platesChecked=true;if(rendered.gcodePreviewKey)meta.gcodePreviewKey=rendered.gcodePreviewKey;
     Object.assign(mfUpdate, { dimX: a.dimX, dimY: a.dimY, dimZ: a.dimZ, volumeCm3: a.volumeCm3, areaCm2: a.areaCm2, triangles: a.triangles, closed: a.closed });
   } else if (meta.kind === 'gcode') {
     if (ext === 'bgcode') {
-      meta.sliced = { slicer: 'PrusaSlicer (binario)', timeS: null, filaments: [], totalG: null, layers: null, layerHeight: null, maxZ: null, machine: null, notes: ['G-code binario (.bgcode): requiere la librería libbgcode; usa modo manual o exporta G-code ASCII.'] };
+      meta.sliced = { slicer: t('files.prusaslicerBinary'), timeS: null, filaments: [], totalG: null, layers: null, layerHeight: null, maxZ: null, machine: null, notes: [t('files.binaryGCodeBgcodeRequires')] };
     } else {
       const txt = new TextDecoder().decode(buf);
       const sm = parseGcodeMeta(txt);
@@ -107,10 +95,17 @@ export async function processVersion(versionId: string) {
   } else if (meta.kind === 'imagen' && ext !== 'pdf' && ext !== 'svg') {
     thumbKey = await putBuffer(newKey('thumbs', 'webp'), await sharp(Buffer.from(buf)).rotate().resize(480, 360, { fit: 'inside' }).webp({ quality: 80 }).toBuffer());
   }
+  if(dependencies?.incomplete)meta.status='partial';
   meta.processMs = Date.now() - t0;
   await db.update(s.fileVersions).set({ meta, thumbKey, updatedAt: new Date() }).where(eq(s.fileVersions.id, versionId));
+  // un reanálisis deja archivos nuevos: los de la pasada anterior se borran (nadie más los usa)
+  const prevMeta = (v.meta ?? {}) as Record<string, any>;
+  for (const k of [prevMeta.previewKey, prevMeta.turnKey, prevMeta.gcodePreviewKey, v.thumbKey]) if (typeof k === 'string' && k && ![meta.previewKey, meta.turnKey, meta.gcodePreviewKey, thumbKey].includes(k)) await remove(k).catch(() => {});
   const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
-  if (mf?.currentVersionId === versionId) await db.update(s.modelFiles).set({ ...mfUpdate, updatedAt: new Date() }).where(eq(s.modelFiles.id, v.modelFileId));
+  if (mf?.currentVersionId === versionId) {
+    await db.update(s.modelFiles).set({ ...mfUpdate, updatedAt: new Date() }).where(eq(s.modelFiles.id, v.modelFileId));
+    await (await import('./library/auto')).autoTagFile(v.modelFileId).catch(() => []);
+  }
 }
 
 async function gcodeTopSvgToWebp(p: ReturnType<typeof buildGcodePreview>) {
@@ -143,3 +138,62 @@ export async function currentVersion(modelFileId: string) {
 
 /** Ruta absoluta del archivo de una versión (para el laminador). */
 export const versionPath = (storageKey: string) => absPath(storageKey);
+
+
+/** Límites de un ZIP de modelos: cantidad de archivos y tamaño total descomprimido. */
+export const ZIP_LIMITS = { files: 200, totalBytes: 1.5 * 1024 * 1024 * 1024 };
+/**
+ * Descomprime un .zip de modelos y crea un modelo por cada archivo compatible; la estructura de carpetas pasa a `folder`.
+ * Ignora carpetas del sistema (`__MACOSX`, archivos ocultos) y entradas con rutas peligrosas.
+ */
+export async function ingestZip(i: { tmpPath: string; filename: string; userId?: string | null; folder?: string | null; tags?: string[]; customerId?: string | null; importId?:string }) {
+  const { unzipSync } = await import('fflate'); const os = await import('node:os'); const path = await import('node:path'); const crypto = await import('node:crypto');
+  const t = await getT();
+  const zip = new Uint8Array(await fsp.readFile(i.tmpPath));
+  let total = 0; let count = 0;
+  const entries = unzipSync(zip, { filter: (f) => {
+    const n = f.name.replace(/\\/g, '/');
+    if (n.endsWith('/') || n.split('/').some((p) => p === '..' || p.startsWith('.') || p === '__MACOSX') || n.startsWith('/') || ![...MODEL_EXT,'mtl','bin','txt','md','json'].includes(extOf(n))) return false;
+    if (++count > ZIP_LIMITS.files) throw new Error(t('files.zipTooMany', { n: ZIP_LIMITS.files }));
+    total += f.originalSize; if (total > ZIP_LIMITS.totalBytes) throw new Error(t('files.zipTooBig'));
+    return true;
+  } });
+  const names = Object.keys(entries).filter(n=>MODEL_EXT.includes(extOf(n)));  if (!names.length) throw new Error(t('files.zipEmpty'));
+  const created: Array<{ modelFileId: string; name: string }> = []; const failed: string[] = [];
+  for (const name of names) {
+    const clean = name.replace(/\\/g, '/'); const parts = clean.split('/'); const file = parts.pop()!; const sub = parts.join('/');
+    const tmp = path.join(os.tmpdir(), `${crypto.randomUUID()}-${file.replace(/[^\w.-]/g, '_')}`);
+    try {
+      await fsp.writeFile(tmp, entries[name]);
+      const folder = [i.folder, sub].filter(Boolean).join('/') || null;
+      const db=await getDb();let deterministic:string|undefined;
+      if(i.importId){const hash=crypto.createHash('sha256').update(i.importId+'|'+clean).digest('hex');deterministic=hash.slice(0,8)+'-'+hash.slice(8,12)+'-4'+hash.slice(13,16)+'-8'+hash.slice(17,20)+'-'+hash.slice(20,32);const [existing]=await db.select().from(s.fileVersions).where(eq(s.fileVersions.modelFileId,deterministic));if(existing){created.push({modelFileId:deterministic,name:file});await fsp.rm(tmp,{force:true});continue;}await db.insert(s.modelFiles).values({id:deterministic,workspaceId:WORKSPACE_ID,name:file.replace(/\.[^.]+$/,''),folder,license:'desconocida',createdBy:i.userId}).onConflictDoNothing();}
+      const r = await ingestModel({ tmpPath: tmp, filename: file, modelFileId:deterministic,userId: i.userId, folder, tags: i.tags, customerId: i.customerId,license:'desconocida' });
+      const {dependencyNames}=await import('./library/dependencies');
+      const refs=dependencyNames(entries[name],extOf(name));
+      for(const ref of refs){const key=path.posix.join(sub,ref);const data=entries[key];await db.insert(s.libraryAssets).values({workspaceId:WORKSPACE_ID,modelId:r.modelFileId,versionId:r.versionId,role:'dependency',name:ref,storageKey:data?await putBuffer(newKey('attachments',extOf(ref)),data):null,data:{missing:!data,archive:i.filename}});}
+      for(const [resource,bytes]of Object.entries(entries)){if(MODEL_EXT.includes(extOf(resource))||refs.includes(resource))continue;if(resource.startsWith(sub?sub+'/':''))await db.insert(s.libraryAssets).values({workspaceId:WORKSPACE_ID,modelId:r.modelFileId,versionId:r.versionId,role:extOf(resource)==='mtl'||extOf(resource)==='bin'?'dependency':'instructions',name:resource,storageKey:await putBuffer(newKey('attachments',extOf(resource)),bytes),data:{archive:i.filename}});}
+
+      created.push({ modelFileId: r.modelFileId, name: file });
+    } catch { failed.push(file); await fsp.rm(tmp, { force: true }); }
+  }
+  await fsp.rm(i.tmpPath, { force: true });
+  return { zip: true as const, created: created.length, failed, modelFileId: created[0]?.modelFileId ?? null, models: created };
+}
+
+
+/**
+ * Vuelve a analizar las versiones que quedaron en «processing» (el servidor se reinició a mitad del análisis).
+ * Se llama una vez al arrancar el proceso; las que fallan quedan marcadas con su error en vez de «procesando» para siempre.
+ */
+export async function recoverPendingVersions(): Promise<number> {
+  const db = await getDb();
+  const rows = await db.select({ id: s.fileVersions.id }).from(s.fileVersions).where(and(isNull(s.fileVersions.deletedAt), sql`${s.fileVersions.meta}->>'status' = 'processing'`));
+  // los que ya tienen un trabajo vivo en la cola los atiende el worker
+  const live = new Set((await db.select({ p: s.jobs.payload }).from(s.jobs).where(and(eq(s.jobs.kind, 'file.process'), inArray(s.jobs.status, ['queued', 'running'])))).map((j) => String((j.p as any)?.versionId)));
+  for (const r of rows.filter((x) => !live.has(x.id))) {
+    try { await processVersion(r.id); }
+    catch (e) { await db.update(s.fileVersions).set({ meta: { status: 'error', error: (e as Error).message } }).where(eq(s.fileVersions.id, r.id)); }
+  }
+  return rows.filter((x) => !live.has(x.id)).length;
+}

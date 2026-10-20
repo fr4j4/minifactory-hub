@@ -1,5 +1,8 @@
 import { strFromU8, unzipSync } from 'fflate';
 import { findVendorOf, getIndex, type ProfileType } from './catalog';
+import { tDefault } from '@/i18n/errors';
+import type { TFn } from '@/i18n/translate';
+import { LocalizedError } from '@/i18n/errors';
 
 /**
  * Importación de perfiles desde Bambu Studio / OrcaSlicer sin pedir JSON a mano. Acepta:
@@ -30,17 +33,17 @@ const isFactory = (type: ProfileType, name?: string | null) => !!name && !!findV
 function commonBase(type: ProfileType) { return getIndex().all.find((e) => e.type === type && /^fdm_.*common$/.test(e.name))?.name ?? null; }
 
 /** Une perfiles de usuario que heredan de otros del mismo paquete hasta llegar a uno de fábrica. */
-function resolveChains(list: Array<{ type: ProfileType; name: string; inherits: string | null; changes: Record<string, any>; source: string }>): Candidate[] {
+function resolveChains(list: Array<{ type: ProfileType; name: string; inherits: string | null; changes: Record<string, any>; source: string }>, t: TFn): Candidate[] {
   return list.map((p, i) => {
     let base = p.inherits; let changes = { ...p.changes }; let guard = 0; const via: string[] = [];
     while (base && !isFactory(p.type, base) && guard++ < 8) {
       const parent = list.find((x) => x.type === p.type && x.name === base); if (!parent) break;
       via.push(parent.name); changes = { ...parent.changes, ...changes }; base = parent.inherits;
     }
-    let note: string | null = via.length ? `Hereda de ${via.join(' → ')}` : null; let ok = true;
+    let note: string | null = via.length ? t('slicer.inheritsFrom', { chain: via.join(' → ') }) : null; let ok = true;
     if (!base || !isFactory(p.type, base)) {
       const fb = commonBase(p.type);
-      note = base ? `El perfil base «${base}» no está en OrcaSlicer: se usará la base genérica y tus valores.` : 'Sin perfil base: se usará la base genérica y tus valores.';
+      note = base ? t('slicer.baseMissing', { base }) : t('slicer.noBase');
       if (!fb) ok = false; base = fb;
     }
     return { key: `${p.type}:${p.name}:${i}`, type: p.type, name: p.name, baseName: base, changes, source: p.source, note, ok };
@@ -55,7 +58,7 @@ function fromJson(d: any, source: string, hint?: string) {
 
 function from3mf(buf: Uint8Array, source: string) {
   const files = unzipSync(buf, { filter: (f) => f.name === 'Metadata/project_settings.config' });
-  const raw = files['Metadata/project_settings.config']; if (!raw) throw new Error(`${source}: el 3MF no trae configuración de laminado (guárdalo como proyecto desde Bambu Studio/OrcaSlicer).`);
+  const raw = files['Metadata/project_settings.config']; if (!raw) throw new LocalizedError('slicer.import3mfNoConfig', { source });
   const c = JSON.parse(strFromU8(raw)) as Record<string, any>;
   const filIds: string[] = Array.isArray(c.filament_settings_id) ? c.filament_settings_id : c.filament_settings_id ? [c.filament_settings_id] : [];
   const groups: string[] = Array.isArray(c.inherits_group) ? c.inherits_group : [];
@@ -83,16 +86,16 @@ function walkZip(buf: Uint8Array, source: string, depth = 0): Array<ReturnType<t
   return out;
 }
 
-export function parsePresetFiles(files: Array<{ name: string; data: Uint8Array }>): Candidate[] {
+export function parsePresetFiles(files: Array<{ name: string; data: Uint8Array }>, t: TFn = tDefault): Candidate[] {
   const list: Array<{ type: ProfileType; name: string; inherits: string | null; changes: Record<string, any>; source: string }> = [];
   for (const f of files) {
     const ext = f.name.toLowerCase().split('.').pop();
     if (ext === '3mf') list.push(...from3mf(f.data, f.name));
-    else if (ext === 'json') { let d: any; try { d = JSON.parse(strFromU8(f.data)); } catch { throw new Error(`${f.name}: no es un JSON válido`); } const p = fromJson(d, f.name); if (p) list.push(p); else throw new Error(`${f.name}: no parece un perfil de impresora, proceso ni filamento`); }
-    else if (['zip', 'bbscfg', 'bbsflmt'].includes(ext ?? '')) { const ps = walkZip(f.data, f.name).filter(Boolean) as NonNullable<ReturnType<typeof fromJson>>[]; if (!ps.length) throw new Error(`${f.name}: el paquete no trae perfiles`); list.push(...ps); }
-    else throw new Error(`${f.name}: formato no soportado (usa .3mf, .bbscfg, .bbsflmt, .zip o .json)`);
+    else if (ext === 'json') { let d: any; try { d = JSON.parse(strFromU8(f.data)); } catch { throw new LocalizedError('slicer.importBadJson', { file: f.name }); } const p = fromJson(d, f.name); if (p) list.push(p); else throw new LocalizedError('slicer.importNotProfile', { file: f.name }); }
+    else if (['zip', 'bbscfg', 'bbsflmt'].includes(ext ?? '')) { const ps = walkZip(f.data, f.name).filter(Boolean) as NonNullable<ReturnType<typeof fromJson>>[]; if (!ps.length) throw new LocalizedError('slicer.importEmptyBundle', { file: f.name }); list.push(...ps); }
+    else throw new LocalizedError('slicer.importUnsupported', { file: f.name });
   }
   // sin duplicados (mismo tipo y nombre): gana el último
   const seen = new Map<string, number>(); list.forEach((p, i) => seen.set(`${p.type}|${p.name}`, i));
-  return resolveChains(list.filter((p, i) => seen.get(`${p.type}|${p.name}`) === i));
+  return resolveChains(list.filter((p, i) => seen.get(`${p.type}|${p.name}`) === i), t);
 }

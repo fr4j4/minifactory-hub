@@ -1,0 +1,15 @@
+{
+  "uuid": "cb85ddc7-bd12-40ad-8451-2af0eae1ca1f",
+  "id": "lostboyslab",
+  "name": "lostboyslab",
+  "storefront_url": "https://www.lostboyslab.shop/",
+  "logo": "logo.png",
+  "ships_from": [
+    "EU",
+    "SE",
+    "US"
+  ],
+  "ships_to": [
+    "EU"
+  ]
+}

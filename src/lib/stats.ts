@@ -1,3 +1,5 @@
+import { netOfGross } from './pricing';
+import { addDays, dayStart, ymd } from './format';
 import { and, eq, gte, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSettings } from './settings';
@@ -5,18 +7,19 @@ import { materialStock, shoppingList } from './services/inventory';
 import { maintenanceDue } from './services/production';
 
 export interface Range { from: Date; to: Date }
-export const monthRange = (d = new Date()): Range => ({ from: new Date(d.getFullYear(), d.getMonth(), 1), to: new Date(d.getFullYear(), d.getMonth() + 1, 1) });
+/** Mes calendario de `d` en la zona del taller: [día 1 a las 00:00, día 1 del mes siguiente). */
+export const monthRange = (d = new Date()): Range => { const first = ymd(d).slice(0, 8) + '01'; return { from: dayStart(first), to: dayStart(addDays(first, 32).slice(0, 8) + '01') }; };
 
 /** Neto sin IVA según la configuración de impuestos. */
-function net(gross: number, st: Awaited<ReturnType<typeof getSettings>>) { return st.rates.taxMode === 'incluido' ? gross / (1 + st.rates.taxPct / 100) : gross; }
+function net(gross: number, st: Awaited<ReturnType<typeof getSettings>>, tax = 0) { return netOfGross(gross, st.rates, tax); }
 
 export async function monthIndicators(r: Range = monthRange()) {
   const db = await getDb(); const st = await getSettings();
   const orders = await db.select().from(s.orders).where(and(gte(s.orders.createdAt, r.from), lt(s.orders.createdAt, r.to), ne(s.orders.status, 'cancelado'), isNull(s.orders.deletedAt)));
-  const sales = await db.select().from(s.sales).where(and(gte(s.sales.createdAt, r.from), lt(s.sales.createdAt, r.to), ne(s.sales.status, 'anulada'), isNull(s.sales.deletedAt)));
+  const sales = await db.select().from(s.sales).where(and(gte(s.sales.date, ymd(r.from)), lt(s.sales.date, ymd(r.to)), ne(s.sales.status, 'anulada'), isNull(s.sales.deletedAt)));
   const revenue = orders.reduce((a, o) => a + o.total, 0) + sales.reduce((a, x) => a + x.total, 0);
   const cost = orders.reduce((a, o) => a + (o.costReal ?? o.costEstimated), 0) + sales.reduce((a, x) => a + x.costTotal + x.commission + x.shipping, 0);
-  const netRev = orders.reduce((a, o) => a + net(o.total, st), 0) + sales.reduce((a, x) => a + net(x.total, st), 0);
+  const netRev = orders.reduce((a, o) => a + net(o.total, st, o.taxAmount), 0) + sales.reduce((a, x) => a + net(x.total, st), 0);
   const delivered = orders.filter((o) => o.status === 'entregado').length;
   const quotes = await db.select().from(s.quotes).where(and(gte(s.quotes.createdAt, r.from), lt(s.quotes.createdAt, r.to), isNull(s.quotes.deletedAt), inArray(s.quotes.status, ['enviado', 'aprobado', 'rechazado', 'vencido'])));
   const approved = quotes.filter((q) => q.status === 'aprobado').length;
@@ -39,7 +42,7 @@ export async function stockValue() {
 
 export async function dashboardData() {
   const db = await getDb(); const st = await getSettings();
-  const today = new Date().toISOString().slice(0, 10); const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+  const today = ymd(); const tomorrow = addDays(today, 1);
   const printing = await db.select({ j: s.printJobs, m: s.machines.name }).from(s.printJobs).leftJoin(s.machines, eq(s.machines.id, s.printJobs.machineId)).where(eq(s.printJobs.status, 'imprimiendo'));
   const due = await db.select().from(s.orders).where(and(inArray(s.orders.status, ['recibido', 'en_produccion', 'post_proceso', 'listo']), sql`${s.orders.dueDate} <= ${tomorrow}`, isNull(s.orders.deletedAt)));
   const waiting = await db.select().from(s.quotes).where(and(eq(s.quotes.status, 'enviado'), lt(s.quotes.createdAt, new Date(Date.now() - 3 * 86400_000)), isNull(s.quotes.deletedAt)));

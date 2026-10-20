@@ -63,7 +63,7 @@ test.describe('Conector Bambu Lab', () => {
   test('envía un laminado a la A1 y protege contra el modelo equivocado', async ({ page, saveAs }) => {
     await login(page);
     // laminar el barquito para la A1 (perfil de la máquina «Bambu A1 #1»)
-    await page.goto('/archivos'); await page.getByRole('link', { name: 'Barquito decorativo' }).first().click(); await page.getByRole('link', { name: 'Laminar y cotizar' }).click();
+    await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
     await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1' }); await page.getByTestId('slice-material').selectOption({ index: 0 });
     await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 90_000 });
     // conectar la A1 simulada a la máquina que ya existe en el taller
@@ -95,7 +95,7 @@ test.describe('Conector Bambu Lab', () => {
     await page.waitForURL(/\/maquinas\/[0-9a-f-]{36}$/, { timeout: 30_000 });
         // la P1S de demostración imprime en bucle: se espera a que esté imprimiendo para detenerla
     await expect(panel.getByTestId('printer-state')).toHaveText('Imprimiendo', { timeout: 30_000 });
-    await panel.getByRole('button', { name: '■ Detener' }).click(); await page.getByRole('button', { name: 'Confirmar' }).click();
+    await panel.getByRole('button', { name: 'Detener' }).click(); await page.getByRole('button', { name: 'Confirmar' }).click();
     await expect(panel.getByTestId('printer-state')).toHaveText('Falló', { timeout: 10_000 });
     await panel.getByTestId('send-open').click(); await page.getByTestId('send-confirm').click();
     await expect(page.getByText(/se laminó para «Bambu Lab A1» y la impresora es «Bambu Lab P1S»/)).toBeVisible({ timeout: 20_000 });
