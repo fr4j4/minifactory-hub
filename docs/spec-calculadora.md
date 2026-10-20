@@ -485,6 +485,13 @@ Hallazgos, de mayor a menor impacto:
 
 ## Anexo B — Estado de implementación (rama `feature/calculator-v2`)
 
+> **Portado sobre `development` (rama `feature/calculadora-v2-port`).** La v2 original (`feature/calculator-v2`) partía de una base anterior; esta versión conserva lo que `development` ya había resuelto y suma lo propio de la v2:
+> - **Sin motor heredado:** no hay `rates.engine`, ni modo «incluido» del IVA, ni migración de cuentas. El IVA es la casilla del presupuesto (`quotes.apply_tax`, `taxAmount`).
+> - **Todo lo nuevo es opcional y parte neutro:** sin configurar costos fijos, pisos, comisiones, supervisión, montaje por placa ni riesgo, el precio es exactamente el del cálculo anterior (prueba de equivalencia en `tests/unit/pricing-v2.test.ts`). Los valores sugeridos (`RECOMMENDED_V2`, presets del taller) los aplica el asistente cuando el taller lo decide.
+> - **Nivel por usuario:** se guarda en `users.calc_level` (`basico | detallado | experto`; el antiguo `avanzado` se lee como `detallado`) y se recuerda en el dispositivo.
+> - **Migración `0031`:** solo columnas opcionales (`calc_profile_id` en clientes, presupuestos, líneas y canales; `risk_factor` y `waste_pct` en materiales; `calc_opts` en líneas; `channel_id` en presupuestos).
+> - La urgencia y la lista de precios del cliente se siguen aplicando sobre el precio ya calculado, con su redondeo, como en `development`.
+
 Implementado: motor v2 y modo legacy (§3), perfiles en cascada y congelado (§4), configuración Estándar/Avanzado con asistente (§5), calculadora rápida con tres niveles, banda, explicación y herramientas expertas (§6), editor de líneas, presupuesto y pedido con IVA opcional (§7), tarifa de equilibrio, referencias, calibración, completitud y coherencia (§8), textos es/en y pruebas (§11–12).
 
 Diferencias respecto del diseño original, para tenerlas presentes:
