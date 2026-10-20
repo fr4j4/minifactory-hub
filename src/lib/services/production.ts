@@ -6,7 +6,7 @@ import { audit, notify } from '../audit';
 import { getSettings, nextNumber } from '../settings';
 import { fitsIn } from '../mesh/ops';
 import { calcLine } from '../pricing';
-import { consumeFromSpool, materialCostPerKg } from './inventory';
+import { checkAvailability, consumeFromSpool, materialCostPerKg } from './inventory';
 import { machineCostOf } from './quotes';
 import { recomputeOrderStatus } from './orders';
 import { getT } from '@/i18n/server';
@@ -179,7 +179,11 @@ export async function assignJob(jobId: string, machineId: string | null, userId?
 export async function pickSpool(materialId: string | null | undefined, grams: number, machineId?: string | null, db?: Db) {
   db = db ?? (await getDb());
   if (!materialId) return null;
-  const sp = await db.select().from(s.spools).where(and(eq(s.spools.materialId, materialId), isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));
+  const [mat] = await db.select({ generic: s.materials.generic, type: s.materials.type, tech: s.materials.tech }).from(s.materials).where(eq(s.materials.id, materialId));
+  // un material genérico («PLA genérico») usa el carrete de cualquier color real del mismo tipo
+  const ids = mat?.generic ? (await db.select({ id: s.materials.id }).from(s.materials).where(and(eq(s.materials.type, mat.type), eq(s.materials.tech, mat.tech), eq(s.materials.generic, false), isNull(s.materials.deletedAt)))).map((x) => x.id) : [materialId];
+  if (!ids.length) return null;
+  const sp = await db.select().from(s.spools).where(and(inArray(s.spools.materialId, ids), isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));
   const rank = (x: typeof sp[number]) => (x.machineId && x.machineId === machineId ? 0 : x.status === 'en_uso' ? 1 : x.status === 'abierta' ? 2 : 3);
   return [...sp].sort((a, b) => rank(a) - rank(b) || a.remainingG - b.remainingG).find((x) => x.remainingG >= grams) ?? [...sp].sort((a, b) => b.remainingG - a.remainingG)[0] ?? null;
 }
@@ -226,6 +230,14 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   if (j.orderId) await recomputeOrderStatus(j.orderId);
   await scheduleQueue();
   await audit('print_job', jobId, 'iniciar', { machineId, spoolId: spool?.id }, o.userId);
+  // solo avisa: el taller puede estar imprimiendo con material que todavía no registró
+  const av = await checkAvailability(j.materialId, j.estG, db);
+  if (j.materialId && (av.state === 'none' || av.state === 'short' || !spool)) {
+    const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, j.materialId));
+    await notify('stock_bajo', t('queue.noStockForJobTitle', { material: `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim() }), t('queue.noStockForJobBody', { job: j.number, needed: Math.round(j.estG), available: Math.round(Math.max(0, av.availableG)) }), '/inventario');
+    return { warning: { state: av.state === 'ok' ? ('none' as const) : av.state, availableG: Math.max(0, av.availableG), neededG: j.estG } };
+  }
+  return { warning: null };
 }
 
 export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCode?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string }
@@ -254,6 +266,13 @@ export async function finishJob(jobId: string, o: FinishInput) {
   if (!claimed) throw new Error(t('queue.theJobIsAlreadyClosed'));
   // consumo de material
   if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
+  else if (j.materialId && realG > 0) {
+    // sin carrete no hay de dónde descontar, pero el gasto no se pierde: queda como movimiento sin carrete y un aviso para corregir el stock
+    const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, j.materialId));
+    const label = `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim();
+    await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: failed ? 'falla' : 'consumo', spoolId: null, qty: -realG, jobId, note: t('queue.consumedWithoutSpool', { job: j.number, material: label }), createdBy: o.userId ?? null });
+    await notify('stock_bajo', t('queue.noSpoolTitle', { job: j.number }), t('queue.noSpoolBody', { grams: Math.round(realG), material: label }), '/inventario');
+  }
   const costPerKg = j.materialId ? await materialCostPerKg(j.materialId, db) : 0;
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
   const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);

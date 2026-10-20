@@ -10,7 +10,7 @@ const mini = (m: typeof s.materials.$inferSelect): MatMini => ({ id: m.id, manuf
 /** Materiales de filamento sin vínculo con el catálogo y lo que se les completaría. No escribe. */
 export async function previewCatalogFill(db?: Db): Promise<Array<CatalogMatch & { label: string }>> {
   db ??= await getDb();
-  const mats = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), isNull(s.materials.variantId), eq(s.materials.tech, 'fdm'))).limit(600);
+  const mats = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), isNull(s.materials.variantId), eq(s.materials.generic, false), eq(s.materials.tech, 'fdm'))).limit(600);
   const cache = new Map<string, CatalogVariant[]>(); const out: Array<CatalogMatch & { label: string }> = [];
   for (const m of mats) { const r = await matchMaterial(mini(m), undefined, cache); if (r) out.push({ ...r, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.line ? m.line + ' ' : ''}${m.type} ${m.colorName}`.trim() }); }
   return out;

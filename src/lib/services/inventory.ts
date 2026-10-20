@@ -15,6 +15,14 @@ export async function materialCostPerKg(materialId: string, db?: Db): Promise<nu
   db = db ?? (await getDb());
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId));
   if (!m) return 0;
+  if (m.generic) {
+    // «PLA genérico» no tiene carretes propios: su costo es el promedio de los colores reales del mismo tipo
+    const peers = await db.select().from(s.materials).where(and(eq(s.materials.type, m.type), eq(s.materials.tech, m.tech), eq(s.materials.generic, false), isNull(s.materials.deletedAt)));
+    const sp = peers.length ? await db.select().from(s.spools).where(and(inArray(s.spools.materialId, peers.map((x) => x.id)), isNull(s.spools.deletedAt))) : [];
+    let w = 0, acc = 0;
+    for (const x of peers) { const c = weightedCostPerKg(x, sp.filter((y) => y.materialId === x.id)); const g = Math.max(1, sp.filter((y) => y.materialId === x.id && ['nueva', 'abierta', 'en_uso'].includes(y.status)).reduce((a, y) => a + y.remainingG, 0)); w += g; acc += c * g; }
+    return w > 0 && acc > 0 ? Math.round(acc / w) : m.costPerKg;
+  }
   const sp = await db.select().from(s.spools).where(and(eq(s.spools.materialId, materialId), isNull(s.spools.deletedAt)));
   return weightedCostPerKg(m, sp);
 }
@@ -31,21 +39,36 @@ export function weightedCostPerKg(m: { id: string; costPerKg: number }, spools: 
 
 export interface MaterialStock { materialId: string; physicalG: number; reservedG: number; availableG: number; minG: number; low: boolean; spools: number }
 
-/** Stock por material: físico (suma de bobinas vivas), reservado (trabajos en cola/imprimiendo) y disponible. */
+/** Stock por material: físico (suma de bobinas vivas), reservado (trabajos en cola/imprimiendo) y disponible. Un material genérico («PLA genérico») suma todos los colores de su tipo y nunca da alerta de stock bajo. */
 export async function materialStock(db?: Db): Promise<MaterialStock[]> {
   db = db ?? (await getDb());
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
   const sp = await db.select().from(s.spools).where(and(isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));
   const jobs = await db.select({ materialId: s.printJobs.materialId, estG: s.printJobs.estG }).from(s.printJobs)
     .where(and(inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado']), isNull(s.printJobs.deletedAt)));
+  const typeKey = (m: { type: string; tech: string }) => `${m.tech}|${m.type}`;
+  const byId = new Map(mats.map((m) => [m.id, m]));
   return mats.map((m) => {
-    const physical = sp.filter((x) => x.materialId === m.id).reduce((a, x) => a + x.remainingG, 0);
-    const reserved = jobs.filter((j) => j.materialId === m.id).reduce((a, j) => a + j.estG, 0);
-    return { materialId: m.id, physicalG: physical, reservedG: reserved, availableG: physical - reserved, minG: m.stockMinG, low: physical - reserved < m.stockMinG, spools: sp.filter((x) => x.materialId === m.id).length };
+    // ids cuyos carretes y reservas cuentan para este material
+    const ids = m.generic ? new Set(mats.filter((x) => typeKey(x) === typeKey(m)).map((x) => x.id)) : new Set([m.id]);
+    const mine = sp.filter((x) => ids.has(x.materialId) && !byId.get(x.materialId)!.generic);
+    const physical = mine.reduce((a, x) => a + x.remainingG, 0);
+    const reserved = jobs.filter((j) => j.materialId && ids.has(j.materialId)).reduce((a, j) => a + j.estG, 0);
+    return { materialId: m.id, physicalG: physical, reservedG: reserved, availableG: physical - reserved, minG: m.stockMinG, low: !m.generic && physical - reserved < m.stockMinG, spools: mine.length };
   });
 }
 
-export async function createSpool(o: { materialId: string; initialG?: number; tareG?: number; lot?: string; unitCost?: number; location?: string; boughtAt?: string; supplierText?: string; supplierId?: string | null; userId?: string | null }, db?: Db) {
+/** Qué hay de un material para un trabajo de `grams`: sin stock, insuficiente o suficiente. Solo informa; quien llama decide si avisa. */
+export async function checkAvailability(materialId: string | null | undefined, grams: number, db?: Db): Promise<{ state: 'ok' | 'short' | 'none' | 'unknown'; availableG: number; neededG: number }> {
+  if (!materialId) return { state: 'unknown', availableG: 0, neededG: grams };
+  const st = (await materialStock(db)).find((x) => x.materialId === materialId);
+  if (!st) return { state: 'unknown', availableG: 0, neededG: grams };
+  // el trabajo que se consulta ya puede estar reservado: se mira contra lo físico menos lo de otros trabajos
+  const state = st.physicalG <= 0 ? 'none' : st.physicalG < grams ? 'short' : 'ok';
+  return { state, availableG: st.availableG, neededG: grams };
+}
+
+export async function createSpool(o: { materialId: string; initialG?: number; tareG?: number; lot?: string; unitCost?: number; location?: string; boughtAt?: string; supplierText?: string; supplierId?: string | null; userId?: string | null; /** carga de lo que ya había en el taller: queda como ajuste, no como compra */ initial?: boolean }, db?: Db) {
   const t = await getT();
   db = db ?? (await getDb());
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, o.materialId));
@@ -62,13 +85,14 @@ export async function createSpool(o: { materialId: string; initialG?: number; ta
     workspaceId: WORKSPACE_ID, materialId: o.materialId, code, lot: o.lot ?? null, initialG: initial, tareG: o.tareG ?? TARE_DEFAULT_G, remainingG: initial,
     unitCost: o.unitCost ?? m.costPerKg, location: o.location ?? null, boughtAt: o.boughtAt ?? ymd(), status: 'nueva', supplierId: o.supplierId ?? null, createdBy: o.userId ?? null,
   }).returning();
-  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
+  await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: o.initial ? 'ajuste' : 'entrada', spoolId: sp.id, qty: initial, unitCost: o.unitCost ?? m.costPerKg, note: o.initial ? t('inventory.initialStock') : o.supplierText ? t('inventory.purchase', { supplier: o.supplierText }) : t('inventory.purchase2'), createdBy: o.userId ?? null });
   await audit('spool', sp.id, 'entrada', { initialG: initial, unitCost: o.unitCost ?? m.costPerKg }, o.userId);
   return sp;
 }
 
-async function nextSpoolCode(db: Db) {
-  const res = await db.execute(sql`select count(*)::int as n from spools where workspace_id = ${WORKSPACE_ID}`);
+/** Siguiente código de carrete (B-0001…): el mayor existente más uno, así no se repite aunque se hayan eliminado carretes. Acepta una transacción. */
+export async function nextSpoolCode(db: Db | any) {
+  const res = await db.execute(sql`select coalesce(max(substring(code from 3)::int), 0)::int as n from spools where workspace_id = ${WORKSPACE_ID} and code ~ '^B-[0-9]+$'`);
   const rows = (res as any).rows ?? res;
   return `B-${String(Number(rows[0].n) + 1).padStart(4, '0')}`;
 }
@@ -116,24 +140,27 @@ export async function checkLowStock(materialId: string) {
   if (!st || !st.low) return;
   const db = await getDb();
   const [m] = await db.select().from(s.materials).where(eq(s.materials.id, materialId));
+  if (m.generic) return;
   const title = t('inventory.lowStock', { type: m.type, color: m.colorName });
   const [exists] = await db.select({ id: s.notifications.id }).from(s.notifications).where(and(eq(s.notifications.kind, 'stock_bajo'), eq(s.notifications.title, title), eq(s.notifications.read, false))).limit(1);
   if (!exists) await notify('stock_bajo', title, t('inventory.gAvailableMinimumG', { grams: Math.round(st.availableG), min: st.minG }), '/inventario');
 }
 
-/** Lista de compras sugerida: lo que falta para llegar al doble del mínimo. */
-export async function shoppingList() {
+export interface ShoppingRow { kind: string; name: string; missing: string; supplier: string | null; materialId: string | null; itemId: string | null; /** carretes/unidades sugeridas */ qty: number; /** gramos netos por carrete */ packG: number | null }
+/** Lista de compras sugerida: lo que falta para llegar al doble del mínimo, en carretes del tamaño habitual de cada filamento. */
+export async function shoppingList(): Promise<ShoppingRow[]> {
   const t = await getT(); const db = await getDb();
   const st = await materialStock(db);
-  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
+  const mats = await db.select().from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.generic, false)));
   const items = await db.select().from(s.inventoryItems).where(isNull(s.inventoryItems.deletedAt));
-  const out: Array<{ kind: string; name: string; missing: string; supplier: string | null }> = [];
+  const out: ShoppingRow[] = [];
   for (const x of st.filter((y) => y.low)) {
-    const m = mats.find((q) => q.id === x.materialId)!;
-    const target = x.minG * 2; const miss = Math.max(0, target - x.availableG);
-    out.push({ kind: t('inventory.kindMaterial'), name: `${m.manufacturer ?? ''} ${m.type} ${m.colorName}`.trim(), missing: t('inventory.missingSpools', { count: Math.ceil(miss / 1000), grams: Math.round(miss) }), supplier: m.supplierText });
+    const m = mats.find((q) => q.id === x.materialId); if (!m) continue;
+    const pack = m.packG && m.packG > 0 ? m.packG : 1000;
+    const target = x.minG * 2; const miss = Math.max(0, target - x.availableG); const packs = Math.max(1, Math.ceil(miss / pack));
+    out.push({ kind: t('inventory.kindMaterial'), name: `${m.manufacturer ?? ''} ${m.type} ${m.colorName}`.trim(), missing: t('inventory.missingSpools', { count: packs, grams: Math.round(miss) }), supplier: m.supplierText, materialId: m.id, itemId: null, qty: packs, packG: pack });
   }
-  for (const it of items.filter((i) => i.stock <= i.minStock)) out.push({ kind: it.category, name: it.name, missing: `${Math.max(1, Math.ceil(it.minStock * 2 - it.stock))} ${it.unit}`, supplier: it.supplierText });
+  for (const it of items.filter((i) => i.stock <= i.minStock)) { const qty = Math.max(1, Math.ceil(it.minStock * 2 - it.stock)); out.push({ kind: it.category, name: it.name, missing: `${qty} ${it.unit}`, supplier: it.supplierText, materialId: null, itemId: it.id, qty, packG: null }); }
   return out;
 }
 
@@ -187,7 +214,7 @@ export async function planBulkMaterials(common: BulkCommon, rows: BulkRow[], db?
 }
 
 /** Crea los materiales nuevos y registra la entrada de compra (bobinas con código) también para los que ya existían. */
-export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], userId?: string | null) {
+export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], userId?: string | null, opts: { initial?: boolean } = {}) {
   const t = await getT(); const db = await getDb();
   if (!common.type.trim()) throw new Error(t('inventory.enterTheTypeAndColor'));
   const plan = await planBulkMaterials(common, rows, db); const created: string[] = []; const spoolIds: string[] = [];
@@ -196,10 +223,10 @@ export async function applyBulkMaterials(common: BulkCommon, rows: BulkRow[], us
     let id = it.existingId;
     if (!id) {
       const cat = await catalogFor(common, it.variantId, t);
-      const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null, tempNozzle: cat.tempNozzle || common.tempNozzle || null, tempBed: cat.tempBed || common.tempBed || null, variantId: cat.variantKey, gtin: cat.gtin, traits: cat.traits }).returning({ id: s.materials.id });
+      const [m] = await db.insert(s.materials).values({ workspaceId: WORKSPACE_ID, createdBy: userId ?? null, tech: 'fdm', manufacturer: common.manufacturer || null, line: common.line || null, type: common.type, colorName: it.colorName.trim(), hex: it.hex || '#888888', diameter: common.diameter, density: common.density, costPerKg: Math.round(common.costPerKg), stockMinG: common.stockMinG ?? 1000, supplierText: common.supplierText || null, tempNozzle: cat.tempNozzle || common.tempNozzle || null, tempBed: cat.tempBed || common.tempBed || null, variantId: cat.variantKey, gtin: cat.gtin, traits: cat.traits, packG: Math.round(common.netG) }).returning({ id: s.materials.id });
       id = m.id; created.push(id); await (await import('./lines')).syncMaterialLine(id, db, common.catalogId); await audit('material', id, 'crear', { bulk: true }, userId);
     }
-    for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, supplierId: common.supplierId, userId }, db)).id);
+    for (let k = 0; k < Math.max(0, Math.min(50, it.spools)); k++) spoolIds.push((await createSpool({ materialId: id, initialG: common.netG, tareG: common.tareG, lot: it.lot, location: it.location, unitCost: Math.round(common.costPerKg), supplierText: common.supplierText, supplierId: common.supplierId, userId, initial: opts.initial }, db)).id);
   }
   return { created: created.length, existing: plan.items.filter((i) => i.status === 'exists').length, spools: spoolIds.length, spoolIds };
 }
@@ -232,4 +259,26 @@ export async function bulkUpdateLine(line: { manufacturer: string | null; line: 
   const db = await getDb();
   await db.update(s.materials).set({ lineId: id }).where(and(isNull(s.materials.deletedAt), line.manufacturer ? eq(s.materials.manufacturer, line.manufacturer) : isNull(s.materials.manufacturer), eq(s.materials.line, line.line!)));
   return updateLine(id, patch, userId);
+}
+
+/* ── Materiales genéricos y alta desde el catálogo ──────────────────────── */
+const GENERIC_TYPES: Array<{ type: string; density: number; cost: number }> = [
+  { type: 'PLA', density: 1.24, cost: 15000 }, { type: 'PETG', density: 1.27, cost: 16000 }, { type: 'ABS', density: 1.04, cost: 16000 },
+  { type: 'ASA', density: 1.07, cost: 20000 }, { type: 'TPU', density: 1.21, cost: 25000 }, { type: 'PA', density: 1.14, cost: 35000 }, { type: 'PC', density: 1.2, cost: 30000 },
+];
+/** Costo de referencia por tipo para los filamentos que se agregan desde el catálogo sin haber comprado todavía (se corrige con la primera compra). */
+export function defaultCostPerKg(type: string, tech = 'fdm'): number {
+  if (tech === 'resina') return 28000;
+  return GENERIC_TYPES.find((g) => g.type.toLowerCase() === type.trim().toLowerCase())?.cost ?? 20000;
+}
+/** «PLA genérico», «PETG genérico»…: permiten laminar y cotizar cuando el color pedido no está en el inventario. Se crean una vez; no cuentan como stock. */
+export async function ensureGenericMaterials(db?: Db, force = false) {
+  const g = globalThis as unknown as { __mfGenerics?: boolean };
+  if (g.__mfGenerics && !force) return 0;
+  db ??= await getDb();
+  const have = await db.select({ type: s.materials.type }).from(s.materials).where(and(eq(s.materials.generic, true), isNull(s.materials.deletedAt)));
+  const missing = GENERIC_TYPES.filter((x) => !have.some((h) => h.type === x.type));
+  if (missing.length) await db.insert(s.materials).values(missing.map((x) => ({ workspaceId: WORKSPACE_ID, tech: 'fdm', type: x.type, colorName: 'Genérico', hex: '#9ca3af', density: x.density, diameter: 1.75, costPerKg: x.cost, stockMinG: 0, generic: true })));
+  g.__mfGenerics = true;
+  return missing.length;
 }

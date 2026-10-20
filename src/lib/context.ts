@@ -1,15 +1,16 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSettings } from './settings';
-import { materialCostPerKg } from './services/inventory';
+import { ensureGenericMaterials, materialCostPerKg, materialStock } from './services/inventory';
 import { machineCostOf } from './services/quotes';
 import type { MachineCost, Rates } from './pricing';
 import { rowNozzle } from './slicer/catalog';
 import { nozzleVariants, processFitsMachineBase } from './slicer/setup';
 import { num } from '@/lib/format';
+import { getT } from '@/i18n/server';
 
 export interface CalcMachine { id: string; name: string; tech: string; nozzle: string | null; volX: number; volY: number; volZ: number; simulated: boolean; machineProfileId: string | null; defaultProcessProfileId: string | null; feedGph: number; cost: MachineCost; status: string }
-export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; density: number; filamentProfileId: string | null; tech: string }
+export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; density: number; filamentProfileId: string | null; tech: string; /** «PLA genérico»: sirve cuando el color pedido no está en el inventario */ generic: boolean; /** gramos físicos en carretes (el genérico suma los colores de su tipo) */ stockG: number }
 /** Una máquina con una boquilla puesta: lo que se elige al laminar (una máquina con 0,2 y 0,4 da dos opciones). */
 export interface CalcSetup { key: string; machineId: string; label: string; nozzle: string | null; machineProfileId: string; processProfileId: string | null; active: boolean; /** calidades (perfiles de proceso) que sirven para esta impresora */ compatibleProcessIds: string[] }
 export interface CalcProfile { id: string; name: string; type: string; vendor: string | null; baseName: string; simulated: boolean; version: number; nozzle: string | null }
@@ -19,12 +20,13 @@ export interface CalcContext { presets: CalcPreset[]; rates: Rates; machines: Ca
 /** Datos necesarios para calcular precios y elegir perfiles de laminado en el navegador (serializables). */
 export async function getCalcContext(): Promise<CalcContext> {
   const db = await getDb(); const st = await getSettings();
+  await ensureGenericMaterials(db);
   const machines = await db.select().from(s.machines).where(isNull(s.machines.deletedAt)).orderBy(asc(s.machines.name));
-  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)).orderBy(asc(s.materials.type), asc(s.materials.colorName));
+  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)).orderBy(asc(s.materials.generic), asc(s.materials.type), asc(s.materials.colorName));
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)).orderBy(asc(s.slicerProfiles.name));
   const linkMap = await (await import('./slicer/links')).defaultLinkMap(db);
-  const materials: CalcMaterial[] = [];
-  for (const m of mats) materials.push({ id: m.id, label: `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: linkMap.get(m.id) ?? null, tech: m.tech });
+  const tt = await getT(); const materials: CalcMaterial[] = []; const stockOf = new Map((await materialStock(db)).map((x) => [x.materialId, x.physicalG]));
+  for (const m of mats) materials.push({ generic: m.generic, stockG: Math.round(stockOf.get(m.id) ?? 0), id: m.id, label: m.generic ? `${m.type} ${tt('buy.genericName')}` : `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: linkMap.get(m.id) ?? null, tech: m.tech });
   const nozzleOf = (id: string | null) => { const p = id ? profs.find((x) => x.id === id) : null; return p ? rowNozzle(p) : null; };
   const alive = new Set(profs.map((p) => p.id)); const setups: CalcSetup[] = [];
   const procProfs = profs.filter((p) => p.type === 'process');

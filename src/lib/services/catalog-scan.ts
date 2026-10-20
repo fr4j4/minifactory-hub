@@ -11,9 +11,10 @@ export async function resolveScan(raw: string): Promise<ScanResult> {
   if (sp) return { kind: 'spool', href: `/inventario/bobinas/${sp.id}` };
   const digits = c.replace(/\D/g, ''); if (digits.length < 8 || digits.length !== c.length) return null;
   const variants = [digits, digits.replace(/^0+/, '')];
-  const mats = await db.select({ id: s.materials.id, gtin: s.materials.gtin, name: s.materials.colorName }).from(s.materials).where(and(isNull(s.materials.deletedAt)));
+  const mats = await db.select({ id: s.materials.id, gtin: s.materials.gtin, name: s.materials.colorName }).from(s.materials).where(and(isNull(s.materials.deletedAt), eq(s.materials.generic, false)));
   const mat = mats.find((m) => m.gtin && variants.includes(m.gtin.replace(/\D/g, '').replace(/^0+/, '')) || m.gtin === digits);
-  if (mat) return { kind: 'material', href: `/inventario?q=${encodeURIComponent(mat.name)}` };
+  // un filamento que ya tengo: lo habitual al recibir un pedido es registrar la compra
+  if (mat) return { kind: 'material', href: `/inventario/compras/nueva?material=${mat.id}` };
   const hit = await lookupGtin(digits);
-  return hit ? { kind: 'catalog', href: `/inventario/alta-rapida?catalog=${encodeURIComponent(hit.filament)}&variant=${encodeURIComponent(hit.variant)}` } : null;
+  return hit ? { kind: 'catalog', href: `/inventario/biblioteca/${hit.filament.split('/').map(encodeURIComponent).join('/')}?variant=${encodeURIComponent(hit.variant)}` } : null;
 }
