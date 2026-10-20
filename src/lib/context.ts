@@ -3,19 +3,20 @@ import { getDb, s } from '@/db';
 import { getSettings } from './settings';
 import { ensureGenericMaterials, materialCostPerKg, materialStock } from './services/inventory';
 import { machineCostOf } from './services/quotes';
-import type { MachineCost, Rates } from './pricing';
+import type { CalcProfile as EngineProfile, MachineCost, Rates } from './pricing';
 import { rowNozzle } from './slicer/catalog';
 import { nozzleVariants, processFitsMachineBase } from './slicer/setup';
 import { num } from '@/lib/format';
 import { getT } from '@/i18n/server';
 
 export interface CalcMachine { id: string; name: string; tech: string; nozzle: string | null; volX: number; volY: number; volZ: number; simulated: boolean; machineProfileId: string | null; defaultProcessProfileId: string | null; feedGph: number; cost: MachineCost; status: string }
-export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; density: number; filamentProfileId: string | null; tech: string; /** «PLA genérico»: sirve cuando el color pedido no está en el inventario */ generic: boolean; /** gramos físicos en carretes (el genérico suma los colores de su tipo) */ stockG: number }
+export interface CalcMaterial { id: string; label: string; type: string; colorName: string; hex: string; costPerKg: number; replaceCostPerKg: number; riskFactor: number | null; wastePct: number | null; density: number; filamentProfileId: string | null; tech: string; /** «PLA genérico»: sirve cuando el color pedido no está en el inventario */ generic: boolean; /** gramos físicos en carretes (el genérico suma los colores de su tipo) */ stockG: number }
 /** Una máquina con una boquilla puesta: lo que se elige al laminar (una máquina con 0,2 y 0,4 da dos opciones). */
 export interface CalcSetup { key: string; machineId: string; label: string; nozzle: string | null; machineProfileId: string; processProfileId: string | null; active: boolean; /** calidades (perfiles de proceso) que sirven para esta impresora */ compatibleProcessIds: string[] }
 export interface CalcProfile { id: string; name: string; type: string; vendor: string | null; baseName: string; simulated: boolean; version: number; nozzle: string | null }
 export interface CalcPreset { key: string; label: string | null }
-export interface CalcContext { presets: CalcPreset[]; rates: Rates; machines: CalcMachine[]; setups: CalcSetup[]; materials: CalcMaterial[]; profiles: CalcProfile[]; urgency: Rates['urgency']; defaults: { infillPct: number }; currency: string }
+export interface CalcChannel { id: string; name: string; commissionPct: number; calcProfileId: string | null }
+export interface CalcContext { presets: CalcPreset[]; rates: Rates; calcProfiles: EngineProfile[]; channels: CalcChannel[]; setupDone: boolean; machines: CalcMachine[]; setups: CalcSetup[]; materials: CalcMaterial[]; profiles: CalcProfile[]; urgency: Rates['urgency']; defaults: { infillPct: number }; currency: string }
 
 /** Datos necesarios para calcular precios y elegir perfiles de laminado en el navegador (serializables). */
 export async function getCalcContext(): Promise<CalcContext> {
@@ -26,7 +27,7 @@ export async function getCalcContext(): Promise<CalcContext> {
   const profs = await db.select().from(s.slicerProfiles).where(isNull(s.slicerProfiles.deletedAt)).orderBy(asc(s.slicerProfiles.name));
   const linkMap = await (await import('./slicer/links')).defaultLinkMap(db);
   const tt = await getT(); const materials: CalcMaterial[] = []; const stockOf = new Map((await materialStock(db)).map((x) => [x.materialId, x.physicalG]));
-  for (const m of mats) materials.push({ generic: m.generic, stockG: Math.round(stockOf.get(m.id) ?? 0), id: m.id, label: m.generic ? `${m.type} ${tt('buy.genericName')}` : `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: linkMap.get(m.id) ?? null, tech: m.tech });
+  for (const m of mats) materials.push({ replaceCostPerKg: m.costPerKg, riskFactor: m.riskFactor, wastePct: m.wastePct, generic: m.generic, stockG: Math.round(stockOf.get(m.id) ?? 0), id: m.id, label: m.generic ? `${m.type} ${tt('buy.genericName')}` : `${m.manufacturer ? m.manufacturer + ' ' : ''}${m.type} ${m.colorName}`, type: m.type, colorName: m.colorName, hex: m.hex, costPerKg: await materialCostPerKg(m.id, db), density: m.density, filamentProfileId: linkMap.get(m.id) ?? null, tech: m.tech });
   const nozzleOf = (id: string | null) => { const p = id ? profs.find((x) => x.id === id) : null; return p ? rowNozzle(p) : null; };
   const alive = new Set(profs.map((p) => p.id)); const setups: CalcSetup[] = [];
   const procProfs = profs.filter((p) => p.type === 'process');
@@ -44,10 +45,13 @@ export async function getCalcContext(): Promise<CalcContext> {
     list.sort((a, b) => Number(a.nozzle ?? 0) - Number(b.nozzle ?? 0));
     for (const x of list) setups.push({ key: `${m.id}|${x.nozzle ?? ''}`, machineId: m.id, label: list.length > 1 ? `${m.name} · ${x.nozzle ? num(+x.nozzle, 2) + ' mm' : '—'}` : m.name, nozzle: x.nozzle, machineProfileId: x.mp, processProfileId: x.pp, active: x.mp === m.machineProfileId, compatibleProcessIds: compatFor(x.mp) });
   }
+  const chs = await db.select().from(s.salesChannels).where(and(isNull(s.salesChannels.deletedAt), eq(s.salesChannels.active, true)));
+  const rates: Rates = { ...st.rates, machineCount: Math.max(1, machines.filter((m) => !m.simulated).length) };
   const { loadPresets } = await import('./slicer/presets');
   return {
     presets: (await loadPresets(db)).map((p) => ({ key: p.key, label: p.label ?? null })),
-    rates: st.rates, urgency: st.rates.urgency, defaults: { infillPct: st.defaults.infillPct }, currency: st.shop.currency,
+    rates, calcProfiles: st.calcProfiles, setupDone: st.calcSetup.done,
+    channels: chs.map((c) => ({ id: c.id, name: c.name, commissionPct: c.commissionPct, calcProfileId: c.calcProfileId })), urgency: st.rates.urgency, defaults: { infillPct: st.defaults.infillPct }, currency: st.shop.currency,
     machines: machines.map((m) => ({ id: m.id, name: m.name, tech: m.tech, nozzle: nozzleOf(m.machineProfileId), volX: m.volX, volY: m.volY, volZ: m.volZ, simulated: m.simulated, machineProfileId: m.machineProfileId, defaultProcessProfileId: m.defaultProcessProfileId, feedGph: m.feedGph, cost: machineCostOf(m)!, status: m.status })),
     setups, materials, profiles: profs.map((p) => ({ id: p.id, name: p.name, type: p.type, vendor: p.vendor, baseName: p.baseName, simulated: p.simulated, version: p.version, nozzle: rowNozzle(p) })),
   };

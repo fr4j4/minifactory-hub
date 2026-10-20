@@ -11,6 +11,7 @@ import { QuoteEditor, type QuoteState } from '@/components/quote-editor';
 import { QuoteActions } from '@/components/quote-actions';
 import { LinksEditor } from '@/components/links-editor';
 import { type ItemState } from '@/components/line-editor';
+import { fromCalcOpts } from '@/lib/item-price';
 import { loadQuote } from '@/lib/services/quotes';
 import { loadEditorData } from '@/lib/editor-data';
 import { getSettings } from '@/lib/settings';
@@ -36,12 +37,12 @@ export default async function QuotePage({ params, searchParams }: { params: Prom
   if (editable) {
     const { ctx, customers, models: lib, variants } = await loadEditorData(user);
     const initial: QuoteState = {
-      id: q.id, customerId: q.customerId, customerName: q.customerName ?? '', customerPhone: q.customerPhone ?? '', source: q.source ?? '', title: q.title ?? '', urgency: q.urgency, discount: q.discount, applyTax: q.applyTax, finalTotal: q.finalTotal, priceReason: q.priceReason ?? '', notes: q.notes ?? '', validUntil: q.validUntil ?? '',
+      id: q.id, customerId: q.customerId, customerName: q.customerName ?? '', customerPhone: q.customerPhone ?? '', source: q.source ?? '', title: q.title ?? '', urgency: q.urgency, discount: q.discount, applyTax: q.applyTax, calcProfileId: q.calcProfileId, channelId: q.channelId, finalTotal: q.finalTotal, priceReason: q.priceReason ?? '', notes: q.notes ?? '', validUntil: q.validUntil ?? '',
       links: links.filter((l) => l.ownerType === 'quote').map((l) => ({ id: l.id, url: l.url, title: l.title, kind: l.kind, note: l.note, imageUrl: l.imageUrl, showInPdf: l.showInPdf })),
       items: items.map((it): ItemState => ({
         uid: it.id, id: it.id, kind: it.kind as any, description: it.description, qty: it.qty, optional: it.optional, groupName: it.groupName ?? '', materialId: it.materialId, color: it.color ?? '', machineId: it.machineId, processProfileId: it.processProfileId, mode: it.mode as any,
         gramsTotal: it.gramsTotal, hoursTotal: it.hoursTotal, unitGrams: it.gramsTotal / Math.max(1, it.qty), unitHours: it.hoursTotal / Math.max(1, it.qty), origin: (it.origin ?? {}) as any, postMinutes: it.postMinutes, postSupplies: it.postSupplies, prepMinutes: it.prepMinutes, shipping: it.shipping,
-        finalUnit: it.finalUnit, sliceRunId: it.sliceRunId, variantId: it.variantId, open: false,
+        finalUnit: it.finalUnit, sliceRunId: it.sliceRunId, variantId: it.variantId, open: false, ...fromCalcOpts(it.calcOpts, it.calcProfileId),
         models: models.filter((m) => m.qm.quoteItemId === it.id).map((m) => ({ modelFileId: m.qm.modelFileId, fileVersionId: m.qm.fileVersionId, qty: m.qm.qty, name: m.name })),
         links: links.filter((l) => l.ownerType === 'quote_item' && l.ownerId === it.id).map((l) => ({ id: l.id, url: l.url, title: l.title, kind: l.kind, note: l.note, imageUrl: l.imageUrl, showInPdf: l.showInPdf })),
       })),

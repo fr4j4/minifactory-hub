@@ -3,7 +3,7 @@ import path from 'node:path';
 import { eq, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { hashPassword } from './auth';
-import { getSettings, saveSettings } from './settings';
+import { getRates, getSettings, saveSettings } from './settings';
 import { ensureSetupToken } from './setup';
 import { createSpool, seedSuppliers } from './services/inventory';
 import { ingestModel } from './files';
@@ -167,7 +167,7 @@ export async function seedDemo(opts: { users?: boolean } = {}) {
   const [cCon, cAro, cFab, cGeek, cAnd, cPed] = C;
 
   /* ── catálogo ── */
-  const rt = (await getSettings()).rates;
+  const rt = await getRates();
   const costOf = (g: number, h: number, m: typeof plaNeg) => calcLine({ qty: 1, gramsTotal: g, hoursTotal: h, costPerKg: m.costPerKg, machine: machineCostOf(a1), prepMinutes: 0 }, rt).cost;
   const prods: Array<{ name: string; p: Parameters<typeof saveProduct>[0] }> = [
     { name: 'llavero', p: { name: 'Llavero personalizado', category: 'Accesorios', mode: 'variantes', attributes: [{ name: 'Color', values: ['Negro', 'Rojo', 'Blanco'] }, { name: 'Tamaño', values: ['S', 'M'] }], price: 3990, materialId: plaNeg.id, weightG: 7, printH: 0.5, minStock: 5, modelFileId: fileIds.llavero?.modelFileId, tags: ['regalo'] } },

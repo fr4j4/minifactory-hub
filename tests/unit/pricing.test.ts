@@ -77,7 +77,7 @@ describe('modelo de precios «neto» (calculadora, fase 1)', () => {
   });
   it('avisa datos incompletos y aplica el factor de tiempo en todos los modos', () => {
     const rt = { ...base };
-    expect(calcLine({ ...line, costPerKg: 0 }, rt).warnings).toEqual(expect.arrayContaining(['materialCostZero', 'noMachine']));
+    expect(calcLine({ ...line, costPerKg: 0 }, rt).warnings).toEqual(expect.arrayContaining(['materialNoCost', 'noMachine']));
     const m = { purchaseValue: 600000, residualValue: 0, lifeHours: 6000, watts: 120, maintCostHour: 0, timeFactor: 1.5 };
     expect(calcLine({ ...line, machine: m, hoursTotal: 2 }, rt).hoursEffective).toBe(3);
   });

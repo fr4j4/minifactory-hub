@@ -86,9 +86,9 @@ export async function saveDocTemplateAction(raw: unknown) {
   }, ['/configuracion']);
 }
 
-export async function setCalcLevelAction(level: 'basico' | 'avanzado') {
+export async function setCalcLevelAction(level: 'basico' | 'detallado' | 'experto') {
   return safe(async () => {
     const u = await requireUser(); const db = await getDb();
-    await db.update(s.users).set({ calcLevel: level === 'avanzado' ? 'avanzado' : 'basico', updatedAt: new Date() }).where(eq(s.users.id, u.id));
+    await db.update(s.users).set({ calcLevel: level === 'experto' ? 'experto' : level === 'detallado' ? 'detallado' : 'basico', updatedAt: new Date() }).where(eq(s.users.id, u.id));
   }, ['/calculadora']);
 }

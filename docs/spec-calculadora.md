@@ -480,3 +480,32 @@ Hallazgos, de mayor a menor impacto:
 11. **Costos ausentes:** pasarela, comisión del canal, embalaje, despacho promedio, riesgo. → §3.6.
 12. **Redondeo distinto** entre cliente y servidor. → CAL-50.
 13. **La calculadora rápida no conoce cliente ni canal.** → §4.4, §6.
+
+---
+
+## Anexo B — Estado de implementación (rama `feature/calculator-v2`)
+
+> **Portado sobre `development` (rama `feature/calculadora-v2-port`).** La v2 original (`feature/calculator-v2`) partía de una base anterior; esta versión conserva lo que `development` ya había resuelto y suma lo propio de la v2:
+> - **Sin motor heredado:** no hay `rates.engine`, ni modo «incluido» del IVA, ni migración de cuentas. El IVA es la casilla del presupuesto (`quotes.apply_tax`, `taxAmount`).
+> - **Todo lo nuevo es opcional y parte neutro:** sin configurar costos fijos, pisos, comisiones, supervisión, montaje por placa ni riesgo, el precio es exactamente el del cálculo anterior (prueba de equivalencia en `tests/unit/pricing-v2.test.ts`). Los valores sugeridos (`RECOMMENDED_V2`, presets del taller) los aplica el asistente cuando el taller lo decide.
+> - **Nivel por usuario:** se guarda en `users.calc_level` (`basico | detallado | experto`; el antiguo `avanzado` se lee como `detallado`) y se recuerda en el dispositivo.
+> - **Migración `0031`:** solo columnas opcionales (`calc_profile_id` en clientes, presupuestos, líneas y canales; `risk_factor` y `waste_pct` en materiales; `calc_opts` en líneas; `channel_id` en presupuestos).
+> - La urgencia y la lista de precios del cliente se siguen aplicando sobre el precio ya calculado, con su redondeo, como en `development`.
+
+Implementado: motor v2 y modo legacy (§3), perfiles en cascada y congelado (§4), configuración Estándar/Avanzado con asistente (§5), calculadora rápida con tres niveles, banda, explicación y herramientas expertas (§6), editor de líneas, presupuesto y pedido con IVA opcional (§7), tarifa de equilibrio, referencias, calibración, completitud y coherencia (§8), textos es/en y pruebas (§11–12).
+
+Diferencias respecto del diseño original, para tenerlas presentes:
+
+| Spec | Implementación | Motivo |
+|---|---|---|
+| Tabla `calc_profiles` y `price_benchmarks` (§10.1) | Se guardan dentro de `settings` (`calcProfiles`, `rates.benchmarks`) | Un solo taller por instalación; se exportan e importan como JSON y entran en el historial de tarifas |
+| Nivel y preferencias por usuario (CAL-03) y historial de cálculos en tabla `quick_calcs` | Se guardan en este dispositivo (`localStorage`) | Evita una migración y endpoints para una preferencia de interfaz; el precio nunca depende del nivel |
+| Costos y márgenes no viajan al navegador sin permiso (CAL-76) | Diferido: la interfaz los oculta según permiso, como antes | Requiere calcular el precio en el servidor para esos roles |
+| Atajos de teclado (CAL-42) | No implementado | Baja prioridad |
+| Mantención desde los planes de mantención (§3.2) | La mantención por hora sigue siendo un valor manual de la máquina | Los planes no guardan el costo de los consumibles |
+| «Explícame este precio» con IA (§9) | No implementado | Depende del proveedor de IA opcional |
+| Mínimo por pedido (§3.6) | Es una advertencia con botón «Ajustar al mínimo», no un valor impuesto | El precio final siempre lo decide la persona |
+| Tabla por cantidades (§6.4) | Escala gramos y horas de forma lineal (no modela ahorro de placas) | Conservador: no promete ahorros que no se pueden saber |
+| `consumiblesPlan` y `capital` | `capital` sí (tasa anual); consumibles no | Ver mantención |
+
+Migración: las cuentas existentes se detectan por la ausencia de `rates.engine` y quedan en `legacy`; el administrador pasa a v2 desde Configuración → Tarifas (asistente o botón). Al migrar, los pedidos anteriores conservan cómo se trataba su IVA (`orders.tax_mode`), por lo que los reportes no cambian.

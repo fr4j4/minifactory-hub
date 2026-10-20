@@ -3,7 +3,7 @@ import { techFits } from '../production/tech';
 import { and, asc, desc, eq, gt, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
-import { getSettings, nextNumber } from '../settings';
+import { getRates, getSettings, nextNumber } from '../settings';
 import { fitsIn } from '../mesh/ops';
 import { calcLine } from '../pricing';
 import { checkAvailability, consumeFromSpool, materialCostPerKg } from './inventory';
