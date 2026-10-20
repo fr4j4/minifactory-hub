@@ -80,7 +80,7 @@ it('returns actionable login and expiry errors',async()=>{
   await expect(makerworldToken(owner)).rejects.toThrow('caducó');await disconnectMakerworld();
 });
 it('prepares privately, confirms once, downloads without forwarding tokens and preserves provenance',async()=>{
-  vi.mocked(json).mockResolvedValue(design);
+  vi.mocked(json).mockResolvedValue({...design,tags:['Halloween','calabaza',{name:'Decoración'}],categoryName:'Seasonal',likeCount:42,downloadCount:900,createTime:'2026-01-02T00:00:00Z'});
   const prepared=await prepareLibraryImport({url:'https://makerworld.com/models/3317662#profileId-3766961',instanceId:'3766961',download:JSON.stringify({url:signed,name:'pumpkin.3mf'})});
   expect(prepared.ok).toBe(true);if(!prepared.ok)throw new Error(prepared.error);
   expect(JSON.stringify(prepared.data)).not.toContain('do-not-expose');
@@ -100,6 +100,10 @@ it('prepares privately, confirms once, downloads without forwarding tokens and p
   expect(imageJobs.filter(j=>j.payload.modelId===id)).toHaveLength(1);
   const [source]=await db.select().from(s.modelSources).where(eq(s.modelSources.id,model.sourceId!));
   expect(source.images).toEqual([{url:'https://cdn.example.com/cover.jpg'}]);
+  // etiquetas, estadísticas, fechas y categoría del autor se conservan y las etiquetas sirven para filtrar
+  expect(source.tags).toEqual(['Halloween','calabaza','Decoración']);expect(source.stats).toMatchObject({likes:42,downloads:900});expect(source.remoteCreatedAt).toBe('2026-01-02T00:00:00Z');
+  expect(model.tags).toEqual(expect.arrayContaining(['halloween','calabaza','decoracion']));expect(model.tagMeta?.halloween).toMatchObject({source:'import'});
+  const [details]=await db.select().from(s.libraryDetails).where(eq(s.libraryDetails.modelId,id));expect(details.data).toMatchObject({category:'Seasonal'});
 });
 it('rejects HTML masquerading as a 3MF',async()=>{
   vi.mocked(json).mockResolvedValue(design);

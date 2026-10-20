@@ -4,11 +4,14 @@ import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { request } from './connectors/http';
 import { byteLimit } from './content';
 import { parseSourceUrl, fetchSourceMeta, normalizeLicense } from './source';
+import { MAX_TAGS, normalizeTag } from './tags';
+import { getSettingsRaw } from '../settings';
+import { enqueueJob } from '../jobs';
 import { MODEL_EXT, ingestModel, ingestZip } from '../files';
 import { extOf } from '../mesh/parse';
 export async function saveImportSource(modelId: string, op: typeof s.libraryOperations.$inferSelect) {
@@ -19,10 +22,18 @@ export async function saveImportSource(modelId: string, op: typeof s.libraryOper
         const [model] = await tx.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelId)).for('update');
         if (!model || model.sourceId) return;
         const images = (Array.isArray(preview.imageUrls) ? preview.imageUrls : preview.image ? [preview.image] : []).filter((url: unknown) => typeof url === 'string').slice(0, 12).map((url: string) => ({ url }));
-        const [source] = await tx.insert(s.modelSources).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,provider:'makerworld',url:op.input.url,title:preview.title,authorName:preview.author,description:preview.description,images,licenseText:preview.license,licenseCode:normalizeLicense(preview.license).code,commercialUse:normalizeLicense(preview.license).commercial,fetchStatus:'ok',fetchedAt:new Date()}).returning();
+        const d = preview.details ?? {}, sourceTags: string[] = (Array.isArray(d.tags) ? d.tags : []).filter((x: unknown): x is string => typeof x === 'string'), plates = (Array.isArray(d.plates) ? d.plates : []).slice(0, 20);
+        const [source] = await tx.insert(s.modelSources).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,provider:'makerworld',url:op.input.url,title:preview.title,authorName:preview.author,authorUid:d.authorUid??null,authorUrl:d.authorUrl??null,description:preview.description,images,tags:sourceTags,plates,stats:d.stats??{},remoteCreatedAt:d.remoteCreatedAt??null,remoteUpdatedAt:d.remoteUpdatedAt??null,licenseText:preview.license,licenseCode:normalizeLicense(preview.license).code,commercialUse:normalizeLicense(preview.license).commercial,fetchStatus:'ok',fetchedAt:new Date()}).returning();
+        // las etiquetas del autor pasan al modelo (con su procedencia) para poder filtrar y buscar; la categoría va a los detalles
+        const have = new Set((model.tags ?? []).map(normalizeTag)), tags = [...(model.tags ?? [])], tagMeta = { ...(model.tagMeta ?? {}) };
+        for (const raw of sourceTags) { const n = normalizeTag(raw); if (!n || have.has(n) || tags.length >= MAX_TAGS) continue; have.add(n); tags.push(n); tagMeta[n] = { source: 'import', confidence: 0.8 }; }
+        if (tags.length !== (model.tags ?? []).length) await tx.update(s.modelFiles).set({ tags, tagMeta }).where(eq(s.modelFiles.id, modelId));
+        if (typeof d.category === 'string' && d.category) await tx.insert(s.libraryDetails).values({ modelId, data: { category: d.category } }).onConflictDoUpdate({ target: s.libraryDetails.modelId, set: { data: sql`${s.libraryDetails.data} || ${JSON.stringify({ category: d.category })}::jsonb` } });
         await tx.update(s.modelFiles).set({sourceId:source.id}).where(eq(s.modelFiles.id,modelId));
         if (images.length) await tx.insert(s.jobs).values({workspaceId:WORKSPACE_ID,createdBy:op.createdBy,kind:'source.images',payload:{modelId,sourceId:source.id}});
     });
+    // con el etiquetado automático activo se pide una propuesta de IA (nunca se aplica sola; queda para revisar). El trabajo comprueba que la IA esté disponible.
+    if (op.createdBy && (await getSettingsRaw()).library?.autoTag) await enqueueJob('metadata.suggest', { modelId, userId: op.createdBy }, { userId: op.createdBy }).catch(() => undefined);
 }
 export async function executeImport(id: string) {
     const db = await getDb();

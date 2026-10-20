@@ -94,7 +94,8 @@ export async function inspectMakerworld(raw: string) {
   const d = data.design || data, meta = parseMakerworldDesign(d), profiles = makerworldProfiles(d);
   const selected = ref.instanceId || String(d.defaultInstanceId || profiles[0]?.id || '');
   if (ref.instanceId && !profiles.some((p:any)=>p.id===ref.instanceId)) throw new Error('El perfil solicitado no pertenece a este modelo o ya no está disponible');
-  return {title:meta.title,author:meta.authorName,license:meta.licenseText,description:meta.description,image:meta.imageUrls[0]||null,imageUrls:meta.imageUrls,profiles,selected,url:`https://makerworld.com/models/${ref.designId}#profileId-${selected}`};
+  const details = { tags: meta.tags, category: meta.category ?? null, stats: meta.stats, plates: meta.plates, authorUid: meta.authorUid, authorUrl: meta.authorUrl, remoteCreatedAt: meta.remoteCreatedAt, remoteUpdatedAt: meta.remoteUpdatedAt };
+  return {title:meta.title,author:meta.authorName,license:meta.licenseText,description:meta.description,image:meta.imageUrls[0]||null,imageUrls:meta.imageUrls,profiles,selected,url:`https://makerworld.com/models/${ref.designId}#profileId-${selected}`,details};
 }
 /** Accept explicit download fields only; never scrape arbitrary URLs from provider text. */
 export function parseDownloadResponse(input: string | Record<string, any>, fallback = 'modelo.3mf') {

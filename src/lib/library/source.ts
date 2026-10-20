@@ -73,7 +73,7 @@ export async function safeGet(url: string, opts: { fetcher?: Fetcher; resolve?: 
 /* ── Metadatos ── */
 export interface SourceMeta {
   title: string | null; description: string | null; authorName: string | null; authorUid: string | null; authorUrl: string | null; imageUrls: string[];
-  licenseText: string | null; tags: string[]; stats: { likes?: number; downloads?: number; comments?: number; rating?: number }; plates: Array<{ name?: string; printTimeS?: number; weightG?: number; filaments?: string[] }>;
+  licenseText: string | null; category?: string | null; tags: string[]; stats: { likes?: number; downloads?: number; comments?: number; rating?: number }; plates: Array<{ name?: string; printTimeS?: number; weightG?: number; filaments?: string[] }>;
   remoteCreatedAt: string | null; remoteUpdatedAt: string | null; status: 'ok' | 'parcial' | 'error'; raw?: unknown;
 }
 const empty = (): SourceMeta => ({ title: null, description: null, authorName: null, authorUid: null, authorUrl: null, imageUrls: [], licenseText: null, tags: [], stats: {}, plates: [], remoteCreatedAt: null, remoteUpdatedAt: null, status: 'error' });
@@ -117,6 +117,9 @@ export function parseMakerworldDesign(json: any): SourceMeta {
   m.imageUrls = [...new Set(imgs.filter((x: unknown): x is string => typeof x === 'string' && /^https?:\/\//.test(x)))].slice(0, 12);
   m.tags = (Array.isArray(d.tags) ? d.tags : []).map((t: any) => String(typeof t === 'string' ? t : t?.name ?? '')).filter(Boolean).slice(0, 20);
   m.licenseText = d.license ?? d.licenseCode ?? d.designExtension?.license ?? null;
+  // la categoría no tiene un campo fijo conocido: se prueban los nombres habituales y se ignora lo que no sea texto
+  const cat = d.categoryName ?? d.category?.name ?? d.category ?? d.categories?.[0]?.name ?? d.categories?.[0] ?? d.designExtension?.categoryName;
+  m.category = typeof cat === 'string' && cat.trim() ? cat.trim().slice(0, 60) : null;
   m.stats = { likes: num(d.likeCount), downloads: num(d.downloadCount), comments: num(d.commentCount), rating: num(d.rating ?? d.ratingAvg) };
   m.plates = (Array.isArray(d.instances) ? d.instances : []).flatMap((i: any) => (Array.isArray(i.plates) && i.plates.length ? i.plates : [i])).slice(0, 20).map((p: any) => ({ name: p.name ?? p.title, printTimeS: num(p.prediction ?? p.printTime), weightG: num(p.weight), filaments: Array.isArray(p.filaments) ? p.filaments.map((f: any) => String(f?.type ?? f)) : undefined }));
   m.remoteCreatedAt = d.createTime ?? d.createdAt ?? null; m.remoteUpdatedAt = d.updateTime ?? d.updatedAt ?? null;
