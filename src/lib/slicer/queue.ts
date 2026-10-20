@@ -115,7 +115,7 @@ async function execute(runId: string) {
     tmpDir = r.tmpDir;
     if (r.errorCode === 'cancelled') { await db.update(s.sliceRuns).set({ status: 'cancelado', error: null, result: { errorCode: 'cancelled' }, durationMs: r.durationMs, updatedAt: new Date() }).where(eq(s.sliceRuns.id, runId)); return; }
     if (!r.ok) {
-      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other' }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(stillRunning(runId));
+      await db.update(s.sliceRuns).set({ status: 'error', error: r.error, result: { errorCode: r.errorCode ?? 'other', ...(r.logTail ? { log: r.logTail } : {}) }, durationMs: r.durationMs, engineVersion: r.engine, updatedAt: new Date() }).where(stillRunning(runId));
       return;
     }
     // sumar todas las placas (si las copias no caben en una)

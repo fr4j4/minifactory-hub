@@ -14,6 +14,8 @@ import { listPlates } from '../mesh/threemf-plates';
 export interface CliResult {
   ok: boolean; error?: string; errorCode?: SliceErrorCode; engine: string; durationMs: number;
   plates: Array<{ index: number; gcodePath: string; meta: SliceMeta }>; threemfPath?: string; tmpDir: string;
+  /** últimas líneas del registro de Orca cuando falla (sin rutas temporales), para diagnosticar */
+  logTail?: string;
 }
 
 let engineVer: string | null = null;
@@ -147,7 +149,8 @@ async function sliceIn(tmpDir: string, o: OrcaInput): Promise<CliResult> {
   if (log.join('').includes('timeout')) return { ok: false, errorCode: 'timeout', error: t('slicer.slicingExceededTheLimitOf', { timeoutS: o.timeoutS ?? config.orcaTimeoutS }), engine, durationMs, plates: [], tmpDir };
   const files = (await fsp.readdir(outDir)).filter((f) => /^plate_\d+\.gcode$/.test(f)).sort((a, b) => parseInt(a.slice(6)) - parseInt(b.slice(6)));
   if (rc !== 0 || !files.length) {
-    return { ok: false, errorCode: rc === -50 ? 'no_fit' : rc === -17 ? 'incompatible' : 'other', error: (ERR_MAP[rc] ? t(ERR_MAP[rc]) : (errStr && errStr !== 'Success.' ? errStr : t('slicer.theSlicerFinishedWithAn', { code: rc}))), engine, durationMs, plates: [], tmpDir };
+    const logTail = log.join('').split('\n').map((l) => l.trimEnd()).filter(Boolean).slice(-40).join('\n').split(tmpDir).join('[tmp]').slice(-4000);
+    return { ok: false, errorCode: rc === -50 ? 'no_fit' : rc === -17 ? 'incompatible' : 'other', error: (ERR_MAP[rc] ? t(ERR_MAP[rc]) : (errStr && errStr !== 'Success.' ? errStr : t('slicer.theSlicerFinishedWithAn', { code: rc}))), engine, durationMs, plates: [], tmpDir, logTail };
   }
   const plates = [];
   for (const f of files) {

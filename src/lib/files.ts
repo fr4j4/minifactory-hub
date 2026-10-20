@@ -76,7 +76,7 @@ export async function processVersion(versionId: string) {
   if (meta.kind === 'malla') {
     const rendered=await (await import('./library/render-worker')).isolatedMesh(absPath(localKey),ext);
     const a=rendered.analysis;meta.analysis=a;meta.previewKey=rendered.previewKey;meta.decimated=rendered.decimated;meta.render={...rendered.render,hash:v.sha256};thumbKey=rendered.thumbKey;if(rendered.turnKey)meta.turnKey=rendered.turnKey;
-    Object.assign(meta,rendered.extra||{});if(rendered.plates)meta.plates=rendered.plates;if(rendered.gcodePreviewKey)meta.gcodePreviewKey=rendered.gcodePreviewKey;
+    Object.assign(meta,rendered.extra||{});if(rendered.plates)meta.plates=rendered.plates;if(ext==='3mf')meta.platesChecked=true;if(rendered.gcodePreviewKey)meta.gcodePreviewKey=rendered.gcodePreviewKey;
     Object.assign(mfUpdate, { dimX: a.dimX, dimY: a.dimY, dimZ: a.dimZ, volumeCm3: a.volumeCm3, areaCm2: a.areaCm2, triangles: a.triangles, closed: a.closed });
   } else if (meta.kind === 'gcode') {
     if (ext === 'bgcode') {

@@ -23,7 +23,7 @@ if(ext==='3mf'){const list=listPlates(buf);if(list.length>1){plates=[];for(const
   const pm=await parseMesh(buf,ext,{plate:p.index});if(!pm.positions.length)continue;
   const pa=analyze(pm),pix=weld(pm),pdec=decimate(pix,1_500_000);
   const file=`plate-${p.index}.mfm`;await fs.writeFile(path.join(out,file),toPreviewBin(pdec,{origTriangles:pix.indices.length/3,decimated:pdec!==pix}));
-  plates.push({index:p.index,name:p.name,file,triangles:pa.triangles,dimX:pa.dimX,dimY:pa.dimY,dimZ:pa.dimZ,volumeCm3:pa.volumeCm3});
+  plates.push({index:p.index,name:p.name,file,...(pm.bedCenter?{centerX:pm.bedCenter.x,centerY:pm.bedCenter.y}:{}),triangles:pa.triangles,dimX:pa.dimX,dimY:pa.dimY,dimZ:pa.dimZ,volumeCm3:pa.volumeCm3});
 }}}
 await fs.writeFile(path.join(out,'result.json'),JSON.stringify({extra,analysis,plates,decimated:dec!==ix,render:{version:2,triangles:light.indices.length/3,simplified:light!==ix,frames:12,width:240,height:180,format:'webp',turnBytes:turn?.length||0}}));
 

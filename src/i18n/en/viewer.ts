@@ -84,4 +84,5 @@ export const viewer: Shape<typeof es['viewer']> = {
   mode_tiempoCapa: 'Layer time',
   slowLayers: 'slow layers',
   fastLayers: 'fast layers',
+  platesCount: '{n} plates',
 };

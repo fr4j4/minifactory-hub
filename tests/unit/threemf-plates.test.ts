@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 import { listPlates } from '@/lib/mesh/threemf-plates';
-import { parse3MF } from '@/lib/mesh/parse';
+import { parse3MF, plateBedCenter, projectBed } from '@/lib/mesh/parse';
 
 /** Tetraedro de 4 caras con el origen en (x0, y0): una pieza pequeña. */
 const solid = (id: number, x0: number, y0: number) => `<object id="${id}" type="model"><mesh><vertices>` +
@@ -53,5 +53,36 @@ describe('3MF multiplaca', () => {
 
   it('una placa inexistente falla con un error claro', () => {
     expect(() => parse3MF(project(), { plate: 5 })).toThrow();
+  });
+
+  it('recupera dónde están las piezas dentro de su cama según la grilla de Bambu Studio', () => {
+    const bed = { w: 256, h: 256 };
+    // 11 placas → 4 columnas; la placa 6 (fila 1, columna 1) tiene su origen en (307.2, -307.2): cama de 256 con 20 % de separación
+    const pos = [307.2 + 100, -307.2 + 50, 0, 307.2 + 140, -307.2 + 90, 5];
+    const c = plateBedCenter(pos, 6, 11, bed)!;
+    expect(c.x).toBeCloseTo(120, 3); expect(c.y).toBeCloseTo(70, 3);
+    // la placa 1 está en el origen; con 2 placas son 2 columnas
+    expect(plateBedCenter([10, 20, 0, 30, 40, 0], 1, 2, bed)).toEqual({ x: 20, y: 30 });
+    expect(plateBedCenter([256 * 1.2 + 10, 0, 0, 256 * 1.2 + 30, 20, 0], 2, 2, bed)).toEqual({ x: expect.closeTo(20, 3), y: 10 });
+    // sin tamaño de cama no se inventa nada
+    expect(plateBedCenter(pos, 6, 11, null)).toBeUndefined();
+  });
+
+  it('lee el tamaño de la cama del proyecto', () => {
+    const cfg = (area: unknown) => ({ 'Metadata/project_settings.config': strToU8(JSON.stringify({ printable_area: area })) });
+    expect(projectBed(cfg(['0x0', '256x0', '256x256', '0x256']))).toEqual({ w: 256, h: 256 });
+    expect(projectBed(cfg(['-10x-10', '340x-10', '340x350', '-10x350']))).toEqual({ w: 350, h: 360 });
+    expect(projectBed(cfg('no es una lista'))).toBeNull(); expect(projectBed({})).toBeNull();
+  });
+
+  it('una placa de un proyecto con cama declarada informa dónde están sus piezas', () => {
+    const files: Record<string, Uint8Array> = { '3D/3dmodel.model': strToU8(`<?xml version="1.0"?><model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><resources>${solid(1, 0, 0)}${solid(2, 0, 0)}</resources><build>${item(1, 100, 100)}${item(2, 256 * 1.2 + 50, 80)}</build></model>`),
+      'Metadata/model_settings.config': strToU8(cfg(plate(1, 'A', [[1, 0]]) + plate(2, 'B', [[2, 0]]))),
+      'Metadata/project_settings.config': strToU8(JSON.stringify({ printable_area: ['0x0', '256x0', '256x256', '0x256'] })) };
+    const buf = zipSync(files);
+    const c1 = parse3MF(buf, { plate: 1 }).bedCenter!, c2 = parse3MF(buf, { plate: 2 }).bedCenter!;
+    expect(c1.x).toBeCloseTo(105, 3); expect(c1.y).toBeCloseTo(105, 3); // pieza de 10 mm en (100,100)
+    expect(c2.x).toBeCloseTo(55, 3); expect(c2.y).toBeCloseTo(85, 3);
+    expect(parse3MF(project(), { plate: 1 }).bedCenter).toBeUndefined(); // sin tamaño de cama
   });
 });

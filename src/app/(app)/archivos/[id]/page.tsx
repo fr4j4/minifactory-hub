@@ -9,6 +9,7 @@ import { getDb, s } from '@/db';
 import { pagePerm } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { PageHeader, Card, Badge, StatusBadge, Table, Empty } from '@/components/ui';
+import { AutoPlates } from '@/components/auto-plates';
 import { ModelViewer } from '@/components/model-viewer';
 import { GcodeViewer } from '@/components/gcode-viewer';
 import { ImportProjectButton } from '@/components/import-project-button';
@@ -64,6 +65,7 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       <PageHeader back={{ href: '/archivos', label: t('nav.files') }} title={f.name} subtitle={<span className="inline-flex flex-wrap items-center gap-2"><Badge>{formatLabel(f.format ?? '')}</Badge><span>v{cur?.number}</span>{f.origin && <span>· {f.origin}</span>}{f.license && <span>{t('files.license')} {f.license}</span>}</span>}
         actions={<>{cur && <a className="btn-ghost" href={`/api/files/v/${cur.id}/raw`} data-testid="download-file"><Icon name="download" className="h-4 w-4" />{t('files.download')}</a>}{can(user, 'archivos', 'X') && <DeleteFileButton id={f.id} />}</>} />
       <AutoRefresh active={processing} />
+      {!processing && f.format === '3mf' && cur?.storageKey && !(meta as any).platesChecked && meta.status !== 'error' && can(user, 'archivos', 'E') && <AutoPlates versionId={cur.id} />}
       {can(user,'archivos','E')&&<ModelDetails modelId={id} data={details?.data} versionId={cur?.id} assets={assets}/>}
       {(details?.data.description||meta.libraryDescription)&&<Card><p>{String(details?.data.description||meta.libraryDescription)}</p></Card>}
       {aiSimilarityOk && can(user,'archivos','E') && <RelatedModels modelId={id}/>}

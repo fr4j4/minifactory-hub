@@ -81,4 +81,5 @@ export const viewer = {
   mode_tiempoCapa: 'Tiempo de capa',
   slowLayers: 'capas lentas',
   fastLayers: 'capas rápidas',
+  platesCount: '{n} placas',
 };
