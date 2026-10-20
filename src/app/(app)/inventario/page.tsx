@@ -11,6 +11,7 @@ import { dmyHm, grams, money, num } from '@/lib/format';
 import { getT } from '@/i18n/server';
 import { tOr } from '@/i18n/translate';
 import { LineBulkEdit } from '@/components/line-bulk-edit';
+import { needsHardenedNozzle } from '@/lib/catalog/map';
 import { RemoveButton } from '@/components/remove-button';
 import { Icon } from '@/components/shell';
 
@@ -31,6 +32,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   const noMatch = <Card><Empty title={t('common.noMatches')} action={<Link className="btn-ghost" href={tab === 'bobinas' ? '/inventario?tab=bobinas' : '/inventario'}>{t('common.clearFilters')}</Link>} /></Card>;
   const profs = (await db.select().from(s.slicerProfiles).where(and(eq(s.slicerProfiles.type, 'filament'), isNull(s.slicerProfiles.deletedAt)))).map((p) => ({ id: p.id, name: p.name }));
   const machines = await db.select().from(s.machines);
+  const lineSpecs = new Map((await db.select({ id: s.filamentLines.id, specs: s.filamentLines.specs }).from(s.filamentLines).where(isNull(s.filamentLines.deletedAt))).map((l) => [l.id, l.specs]));
   const sup = await listSuppliers(db);
   const items = tab === 'otros' ? await db.select().from(s.inventoryItems).where(isNull(s.inventoryItems.deletedAt)).orderBy(asc(s.inventoryItems.category), asc(s.inventoryItems.name)) : [];
   const moves = tab === 'movimientos' ? await db.select({ m: s.inventoryMovements, code: s.spools.code, item: s.inventoryItems.name }).from(s.inventoryMovements).leftJoin(s.spools, eq(s.spools.id, s.inventoryMovements.spoolId)).leftJoin(s.inventoryItems, eq(s.inventoryItems.id, s.inventoryMovements.itemId)).orderBy(desc(s.inventoryMovements.createdAt)).limit(80) : [];
@@ -46,9 +48,9 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
       {tab === 'materiales' && (mats.length === 0 ? <Card><Empty title={t('inventory.noMaterials')} hint={t('inventory.createTheMaterialCatalogType')} /></Card> : shownMats.length === 0 ? noMatch : (
         <Card pad={false}><Table><thead><tr><th className="th">{t('common.material')}</th><th className="th">{t('inventory.physicalStock')}</th><th className="th text-right">{t('inventory.reserved')}</th><th className="th text-right">{t('inventory.available')}</th><th className="th text-right">{t('inventory.minimum')}</th><th className="th text-right">{t('inventory.spools')}</th>{costs && <th className="th text-right">{t('inventory.costKg')}</th>}<th className="th" /></tr></thead>
           <tbody>{shownMats.map((m) => { const st = stock.find((x) => x.materialId === m.id)!; return (
-            <tr key={m.id} data-testid="material-row"><td className="td"><div className="font-medium"><Swatch hex={m.hex} /> {m.type} {m.colorName}</div><div className="text-xs muted">{m.manufacturer} {m.line} {m.tech === 'resina' && `· ${t('inventory.resinLower')}`}</div></td>
+            <tr key={m.id} data-testid="material-row"><td className="td"><div className="font-medium"><Swatch hex={m.hex} /> {m.type} {m.colorName}</div><div className="text-xs muted">{m.manufacturer} {m.line} {m.tech === 'resina' && `· ${t('inventory.resinLower')}`}{needsHardenedNozzle(m.traits) && <> · <span className="text-danger">{t('inventory.catAbrasiveBadge')}</span></>}</div></td>
               <td className="td min-w-[140px]"><div className="num text-sm mb-1">{grams(st.physicalG)}</div><Meter value={st.physicalG} max={Math.max(m.stockMinG * 3, st.physicalG)} tone={st.low ? 'bad' : 'ok'} /></td><td className="td text-right tabular muted">{grams(st.reservedG)}</td><td className={`td text-right tabular font-medium ${st.low ? 'text-danger' : ''}`}>{grams(st.availableG)}{st.low && <Badge tone="red" className="ml-1">{t('inventory.low')}</Badge>}</td><td className="td text-right tabular muted">{grams(m.stockMinG)}</td><td className="td text-right tabular">{st.spools}</td>{costs && <td className="td text-right tabular">{money(costMap.get(m.id))}</td>}
-              <td className="td text-right">{edit && <span className="whitespace-nowrap"><MaterialForm m={{ ...m, filamentProfileId: linkMap.get(m.id) ?? null }} profiles={profs} trigger={<button className="btn-ghost btn-sm">{t('common.edit')}</button>} />{can(user, 'inventario', 'X') && <> <RemoveButton kind="material" id={m.id} name={`${m.type} ${m.colorName}`} replaceOptions={mats.map((x) => ({ id: x.id, label: `${x.type} ${x.colorName}` }))} /></>}</span>}</td></tr>); })}</tbody></Table></Card>))}
+              <td className="td text-right">{edit && <span className="whitespace-nowrap"><MaterialForm m={{ ...m, filamentProfileId: linkMap.get(m.id) ?? null, lineSpecs: m.lineId ? lineSpecs.get(m.lineId) ?? null : null }} profiles={profs} trigger={<button className="btn-ghost btn-sm">{t('common.edit')}</button>} />{can(user, 'inventario', 'X') && <> <RemoveButton kind="material" id={m.id} name={`${m.type} ${m.colorName}`} replaceOptions={mats.map((x) => ({ id: x.id, label: `${x.type} ${x.colorName}` }))} /></>}</span>}</td></tr>); })}</tbody></Table></Card>))}
       {tab === 'bobinas' && search(t('inventory.searchSpools'))}
       {tab === 'bobinas' && spools.length === SPOOL_LIMIT && <p className="text-xs muted mb-3" role="status">{t('common.listCapped', { n: SPOOL_LIMIT })}</p>}
       {tab === 'bobinas' && (needle && spools.length === 0 ? noMatch :
