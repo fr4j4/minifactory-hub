@@ -85,3 +85,11 @@ export async function bulkUpdateLineAction(line: { manufacturer: string | null; 
 export async function updateLineAction(id: string, patch: { costPerKg?: number | null; stockMinG?: number | null; filamentProfileId?: string | null }) {
   return safe(async () => { const u = await requirePerm('inventario', 'E'); const { updateLine } = await import('@/lib/services/lines'); return updateLine(id, patch, u.id); }, ['/inventario']);
 }
+
+/** Completar materiales existentes desde el catálogo de filamentos: vista previa (no escribe) y aplicación de lo elegido. */
+export async function previewCatalogFillAction() {
+  return safe(async () => { await requirePerm('inventario', 'E'); return (await import('@/lib/services/catalog-fill')).previewCatalogFill(); });
+}
+export async function applyCatalogFillAction(picks: Array<{ materialId: string; filamentKey: string; variantId: string | null }>) {
+  return safe(async () => { const u = await requirePerm('inventario', 'E'); return (await import('@/lib/services/catalog-fill')).applyCatalogFill(picks, u.id); }, ['/inventario']);
+}

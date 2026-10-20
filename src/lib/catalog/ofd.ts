@@ -162,3 +162,22 @@ export async function getVariant(key: string, variantId: string, roots?: Catalog
   const dir = join(f.local ? ix.roots.local! : ix.roots.ofd, 'data', f.brandId, f.material, f.id, variantId);
   const vj = await readJson(join(dir, 'variant.json')); return vj ? parseVariant(variantId, vj, await readJson(join(dir, 'sizes.json'))) : null;
 }
+
+/** GTIN/EAN → color del catálogo. Se arma una vez (lee los `sizes.json`) y se invalida junto con el índice. */
+let gtinCache: Promise<Map<string, { filament: string; variant: string }>> | null = null; let gtinKey = '';
+export async function lookupGtin(code: string, roots?: CatalogRoots): Promise<{ filament: string; variant: string } | null> {
+  const digits = code.replace(/\D/g, ''); if (digits.length < 8) return null;
+  const ix = await getIndex(roots);
+  if (!gtinCache || gtinKey !== ix.stamp) {
+    gtinKey = ix.stamp;
+    gtinCache = (async () => {
+      const map = new Map<string, { filament: string; variant: string }>();
+      await pool(ix.filaments, 16, async (f) => {
+        const dir = join(f.local ? ix.roots.local! : ix.roots.ofd, 'data', f.brandId, f.material, f.id);
+        for (const vd of await dirs(dir)) for (const sz of parseSizes(await readJson(join(dir, vd, 'sizes.json')))) if (sz.gtin) { const g = sz.gtin.replace(/\D/g, '').replace(/^0+/, ''); if (g) map.set(g, { filament: f.key, variant: vd }); }
+      });
+      return map;
+    })().catch((e) => { gtinCache = null; throw e; });
+  }
+  return (await gtinCache).get(digits.replace(/^0+/, '')) ?? null;
+}
