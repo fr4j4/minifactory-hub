@@ -3,7 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronUp, GripVertical, Moon, Pause, Play, X } from 'lucide-react';
 import { assignJobAction, cancelJobAction, createTestJobAction, finishJobAction, pauseJobAction, reorderJobAction, resumeJobAction, startJobAction } from '@/actions/production';
-import { Modal, useAction, useLinger } from './client';
+import { Modal, useAction, useLinger, useToast } from './client';
 import { Badge, Meter, StatusBadge, Swatch } from './ui';
 import { PrinterPill } from './printer-live';
 import { cn, dmyHm, dur, grams } from '@/lib/format';
@@ -15,13 +15,13 @@ import { tOr } from '@/i18n/translate';
 
 export interface QJob { id: string; number: string; title: string; kind: string; status: string; machineId: string | null; suggestedMachineId: string | null; materialId: string | null; spoolId: string | null; estG: number; estH: number; realG: number | null; plannedStart: string | null; plannedEnd: string | null; realStart: string | null; qty: number; orderId: string | null; orderNumber: string | null; reprint: boolean; position: number; customer: string | null }
 export interface QMachine { id: string; name: string; status: string; tech: string }
-export interface QMaterial { id: string; label: string; hex: string; tech: string }
+export interface QMaterial { id: string; label: string; hex: string; tech: string; type: string; generic: boolean }
 export interface QSpool { id: string; code: string; materialId: string; remainingG: number }
 
 const iconBtn = 'btn-quiet btn-sm !px-1.5';
 
 export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCreate, workStart, workEnd, nowIso }: { jobs: QJob[]; machines: QMachine[]; materials: QMaterial[]; spools: QSpool[]; canEdit: boolean; canCreate: boolean; workStart: number; workEnd: number; nowIso: string }) {
-  const t = useT();
+  const t = useT(); const toast = useToast();
   const { run, pending } = useAction(); const [view, setView] = useState<'tablero' | 'gantt'>('tablero'); const [finish, setFinish] = useState<QJob | null>(null); const finishShown = useLinger(finish); const [newJob, setNewJob] = useState(false);
   const [drag, setDrag] = useState<string | null>(null); const [over, setOver] = useState<string | null>(null);
   const live = jobs.filter((j) => ['en_cola', 'imprimiendo', 'pausado'].includes(j.status));
@@ -87,7 +87,7 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
         </div>
         {canEdit && (
           <div className="flex flex-nowrap sm:flex-wrap items-center gap-1.5 mt-2">
-            <button className="btn-ghost btn-sm shrink-0" disabled={pending || blocked} title={blocked ? t('queue.machineBusy') : undefined} onClick={() => run(() => startJobAction(j.id, j.machineId ? { machineId: j.machineId } : {}), { ok: t('queue.jobStarted2') })} data-testid="job-start"><Play className="h-3.5 w-3.5 text-[var(--accent-ink)]" aria-hidden /> {t('queue.start')}</button>
+            <button className="btn-ghost btn-sm shrink-0" disabled={pending || blocked} title={blocked ? t('queue.machineBusy') : undefined} onClick={() => run(() => startJobAction(j.id, j.machineId ? { machineId: j.machineId } : {}), { ok: t('queue.jobStarted2'), onOk: (d) => { if (d?.warning) toast.push(t(d.warning.state === 'short' ? 'queue.stockShortWarning' : 'queue.stockNoneWarning', { needed: Math.round(d.warning.neededG), available: Math.round(d.warning.availableG) }), 'err'); } })} data-testid="job-start"><Play className="h-3.5 w-3.5 text-[var(--accent-ink)]" aria-hidden /> {t('queue.start')}</button>
             <select className="input !min-h-[32px] !py-0.5 max-sm:flex-1 sm:!w-auto max-w-[min(11rem,100%)] min-w-0 text-xs" aria-label={t('queue.assignTo', { job: j.number })} value={j.machineId ?? ''} onChange={(e) => assign(j.id, e.target.value || null)}><option value="">{t('queue.unassigned')}</option>{machines.filter((mm) => mm.id === j.machineId || techFits(matOf(j.materialId)?.tech, mm.tech)).map((mm) => <option key={mm.id} value={mm.id}>{mm.name}</option>)}</select>
             <span className="ml-auto inline-flex shrink-0 gap-0.5">
               <button className={iconBtn} disabled={pending || i === 0} aria-label={t('queue.moveUp', { job: j.number })} onClick={() => reorder(j.id, queued[i - 1].id)}><ChevronUp className="h-4 w-4" aria-hidden /></button>
@@ -152,12 +152,15 @@ export function QueueBoard({ jobs, machines, materials, spools, canEdit, canCrea
 function FinishModal({ job, open, materials, spools, onClose }: { job: QJob; open: boolean; materials: QMaterial[]; spools: QSpool[]; onClose: () => void }) {
   const t = useT();
   const { run, pending } = useAction(); const [res, setRes] = useState<'exito' | 'falla_parcial' | 'falla_total'>('exito'); const [g, setG] = useState(String(Math.round(job.estG * 10) / 10)); const [h, setH] = useState(''); const [good, setGood] = useState(Math.floor(job.qty / 2)); const [cause, setCause] = useState(''); const [code, setCode] = useState(''); const [charge, setCharge] = useState<'taller' | 'pedido'>('taller'); const [reprint, setReprint] = useState(true); const [spool, setSpool] = useState(job.spoolId ?? '');
-  const sp = spools.filter((x) => x.materialId === job.materialId);
+  const jm = materials.find((m) => m.id === job.materialId);
+  // un trabajo con material genérico puede salir de un carrete de cualquier color del mismo tipo
+  const sp = spools.filter((x) => x.materialId === job.materialId || (jm?.generic && materials.find((m) => m.id === x.materialId)?.type === jm.type));
   return (
     <Modal open={open} onClose={onClose} title={t('queue.finish2', { job: job.number })}>
       <div className="space-y-3">
         <div role="radiogroup" aria-label={t('queue.result')} className="grid grid-cols-3 gap-2">{([['exito', t('queue.success')], ['falla_parcial', t('queue.partialFailure')], ['falla_total', t('queue.totalFailure')]] as const).map(([k, l]) => <button key={k} role="radio" aria-checked={res === k} className={cn('btn-ghost', res === k && (k === 'exito' ? '!bg-emerald-600 !text-white !border-emerald-600' : '!bg-red-600 !text-white !border-red-600'))} onClick={() => setRes(k)} data-testid={`res-${k}`}>{l}</button>)}</div>
         <div className="grid grid-cols-2 gap-3"><label className="block"><span className="label">{t('queue.actualGramsUsed')}</span><input type="number" step="0.1" className="input" value={g} onChange={(e) => setG(e.target.value)} data-testid="finish-grams" /></label><label className="block"><span className="label">{t('queue.actualHoursOptional')}</span><input type="number" step="0.01" className="input" value={h} onChange={(e) => setH(e.target.value)} placeholder={t('queue.calculatedSinceTheStart')} data-testid="finish-hours" /></label></div>
+        {job.materialId && sp.length === 0 && <p className="text-sm text-warn" role="status" data-testid="finish-no-spool">{t('queue.finishNoSpool')}</p>}
         {sp.length > 0 && <label className="block"><span className="label">{t('queue.spoolUsedItsWeightIs')}</span><select className="input" value={spool} onChange={(e) => setSpool(e.target.value)} data-testid="finish-spool"><option value="">{t('queue.chooseAutomatically')}</option>{sp.map((x) => <option key={x.id} value={x.id}>{x.code} · {Math.round(x.remainingG)} g</option>)}</select></label>}
         {res === 'falla_parcial' && <label className="block"><span className="label">{t('queue.goodUnits', { qty: job.qty })}</span><input type="number" min={0} max={job.qty} className="input" value={good} onChange={(e) => setGood(+e.target.value)} /></label>}
         {res !== 'exito' && <><label className="block"><span className="label">{t('queue.failCode')}</span><select className="input" value={code} onChange={(e) => setCode(e.target.value)} data-testid="finish-cause-code"><option value="">{t('queue.failCodeAuto')}</option>{FAIL_CAUSES.map((c) => <option key={c} value={c}>{t(`queue.failCodes.${c}` as MessageKey)}</option>)}</select></label><input className="input" placeholder={t('queue.causeOfTheFailureE')} value={cause} onChange={(e) => setCause(e.target.value)} aria-label={t('queue.cause')} data-testid="finish-cause" /><div className="flex gap-2 text-sm"><span className="muted self-center">{t('queue.whoAbsorbsTheCost')}</span>{(['taller', 'pedido'] as const).map((k) => <button key={k} className={cn('btn-ghost btn-sm', charge === k && '!bg-[var(--panel)] !text-[var(--panel-ink)] dark:!bg-slate-700')} onClick={() => setCharge(k)}>{k === 'taller' ? t('queue.theWorkshop') : t('queue.chargedToTheOrder')}</button>)}</div><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={reprint} onChange={(e) => setReprint(e.target.checked)} /> {t('queue.createALinkedReprintIn')}</label></>}

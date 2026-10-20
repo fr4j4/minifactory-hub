@@ -1,9 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { addSpoolAction, moveItemAction, resolveScanAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
+import { moveItemAction, resolveScanAction, saveItemAction, saveMaterialAction, updateSpoolAction, weighSpoolAction } from '@/actions/inventory';
 import { Modal, useAction, useToast } from './client';
 import { useT } from '@/i18n/client';
+import { money } from '@/lib/format';
 import { DateInput } from '@/components/date-input';
 import { Icon } from '@/components/shell';
 import { CatalogInfo } from '@/components/catalog-info';
@@ -24,7 +25,7 @@ export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Arra
           <label className="block"><span className="label">{t('inventory.manufacturer')}</span><input className="input" value={v.manufacturer} onChange={f('manufacturer')} /></label><label className="block"><span className="label">{t('inventory.productLine')}</span><input className="input" value={v.line} onChange={f('line')} /></label>
           <label className="block"><span className="label">{t('inventory.material2')}</span><input className="input" required value={v.type} onChange={f('type')} list="mat-types" data-testid="mat-type" /><datalist id="mat-types">{['PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'PA', 'PC', t('inventory.standardResin'), t('inventory.absLikeResin'), t('inventory.flexibleResin')].map((x) => <option key={x} value={x} />)}</datalist></label>
           <label className="block"><span className="label">{t('inventory.color')}</span><input className="input" required value={v.colorName} onChange={f('colorName')} data-testid="mat-color" /></label><label className="block"><span className="label">{t('inventory.swatch')}</span><input type="color" className="input !p-1" value={v.hex} onChange={f('hex')} /></label>
-          <label className="block"><span className="label">{t('inventory.densityGCm')}</span><input type="number" step="0.01" className="input" value={v.density} onChange={f('density')} /></label><label className="block"><span className="label">{v.tech === 'resina' ? t('inventory.costPerLiter') : t('inventory.costPerKg')}</span><input type="number" className="input" value={v.costPerKg} onChange={f('costPerKg')} data-testid="mat-cost" /></label><label className="block"><span className="label">{t('inventory.minimumStockG')}</span><input type="number" className="input" value={v.stockMinG} onChange={f('stockMinG')} /></label>
+          <label className="block"><span className="label">{t('inventory.densityGCm')}</span><input type="number" step="0.01" className="input" value={v.density} onChange={f('density')} /></label><label className="block"><span className="label">{t('inventory.costPerKg')}</span><input type="number" className="input" value={v.costPerKg} onChange={f('costPerKg')} data-testid="mat-cost" />{v.tech === 'resina' && v.density > 0 && <span className="text-xs muted mt-1 block">{t('buy.perLiterHint', { cost: money(Math.round(v.costPerKg * v.density)) })}</span>}</label><label className="block"><span className="label">{t('inventory.minimumStockG')}</span><input type="number" className="input" value={v.stockMinG} onChange={f('stockMinG')} /></label>
           <label className="block"><span className="label">{t('inventory.nozzleTemp')}</span><input className="input" value={v.tempNozzle} onChange={f('tempNozzle')} placeholder="190–230" /></label><label className="block"><span className="label">{t('inventory.bedTemp')}</span><input className="input" value={v.tempBed} onChange={f('tempBed')} /></label><label className="block"><span className="label">{t('inventory.supplierText')}</span><input className="input" value={v.supplierText} onChange={f('supplierText')} /></label>
           {m && (m.lineSpecs || m.traits?.length) && <div className="sm:col-span-3"><CatalogInfo specs={m.lineSpecs} traits={m.traits} /></div>}
           <div className="sm:col-span-3 flex justify-end"><button className="btn-primary" disabled={pending} data-testid="mat-save">{t('common.save')}</button></div>
@@ -32,20 +33,6 @@ export function MaterialForm({ m, profiles, trigger }: { m?: any; profiles: Arra
       </Modal>
     </>
   );
-}
-
-export function AddSpoolButton({ materials, suppliers = [] }: { materials: Array<{ id: string; label: string; costPerKg: number }>; suppliers?: Array<{ id: string; name: string }> }) {
-  const t = useT();
-  const [open, setOpen] = useState(false); const { run, pending } = useAction(); const [mid, setMid] = useState(materials[0]?.id ?? ''); const [g, setG] = useState(1000); const [tare, setTare] = useState(200); const [cost, setCost] = useState(materials[0]?.costPerKg ?? 0); const [lot, setLot] = useState(''); const [loc, setLoc] = useState(''); const [n, setN] = useState(1); const [sup, setSup] = useState('');
-  return (<>
-    <button className="btn-primary" onClick={() => setOpen(true)} data-testid="add-spool">{t('inventory.purchaseReceipt')}</button>
-    <Modal open={open} onClose={() => setOpen(false)} title={t('inventory.purchaseReceiptSpoolsOrBottles')}>
-      <div className="space-y-3"><p className="text-xs muted">{t('inventory.recordWhatYouBoughtEvery')}</p>
-        <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={mid} onChange={(e) => { setMid(e.target.value); setCost(materials.find((m) => m.id === e.target.value)?.costPerKg ?? 0); }} data-testid="spool-material">{materials.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
-        <div className="grid grid-cols-3 gap-3"><label className="block"><span className="label">{t('common.quantity')}</span><input type="number" min={1} max={20} className="input" value={n} onChange={(e) => setN(+e.target.value || 1)} /></label><label className="block"><span className="label">{t('inventory.netG')}</span><input type="number" className="input" value={g} onChange={(e) => setG(+e.target.value || 0)} data-testid="spool-g" /></label><label className="block"><span className="label">{t('inventory.spoolTareG')}</span><input type="number" className="input" value={tare} onChange={(e) => setTare(+e.target.value || 0)} /></label></div>
-        <div className="grid grid-cols-2 gap-3"><label className="block"><span className="label">{t('inventory.costPerKg')}</span><input type="number" className="input" value={cost} onChange={(e) => setCost(+e.target.value || 0)} data-testid="spool-cost" /></label><label className="block"><span className="label">{t('inventory.batch')}</span><input className="input" value={lot} onChange={(e) => setLot(e.target.value)} /></label><label className="block"><span className="label">{t('common.location')}</span><input className="input" value={loc} onChange={(e) => setLoc(e.target.value)} /></label><label className="block"><span className="label">{t('inventory.supplierText')}</span><input className="input" list="spool-suppliers" value={sup} onChange={(e) => setSup(e.target.value)} data-testid="spool-supplier" /><datalist id="spool-suppliers">{suppliers.map((x) => <option key={x.id} value={x.name} />)}</datalist></label></div>
-        <div className="flex justify-end gap-2"><button className="btn-ghost" onClick={() => setOpen(false)}>{t('common.cancel')}</button><button className="btn-primary" disabled={pending || !mid} data-testid="spool-save" onClick={() => run(() => addSpoolAction({ materialId: mid, initialG: g, tareG: tare, unitCost: cost, lot, location: loc, supplierText: sup, supplierId: suppliers.find((x) => x.name.toLowerCase() === sup.trim().toLowerCase())?.id ?? null, count: n }), { ok: t('inventory.receiptRecorded2'), onOk: () => setOpen(false) })}>{t('common.register')}</button></div></div>
-    </Modal></>);
 }
 
 export function WeighForm({ id, tare, remaining }: { id: string; tare: number; remaining: number }) {

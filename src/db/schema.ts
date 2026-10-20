@@ -114,6 +114,8 @@ export const materials = pgTable('materials', {
   variantId: text('variant_id'), // color del catálogo de filamentos (`marca/material/filamento/color`), para detectar duplicados y completar datos
   gtin: text('gtin'), // código de barras (GTIN/EAN) del fabricante
   traits: jsonb('traits').$type<string[]>(), // rasgos del catálogo: silk, matte, abrasive, contains_carbon_fiber…
+  packG: integer('pack_g'), // peso neto habitual de un carrete/botella de este filamento (compras y lista de compras)
+  generic: boolean('generic').notNull().default(false), // «PLA genérico»: sirve para laminar y cotizar sin color; no es stock
   notes: text('notes'),
 }, (t) => [index('materials_variant_ix').on(t.workspaceId, t.variantId), index('materials_gtin_ix').on(t.workspaceId, t.gtin)]);
 
@@ -135,6 +137,7 @@ export const spools = pgTable('spools', {
   slot: text('slot'),
   lastDriedAt: date('last_dried_at'),
   supplierId: uuid('supplier_id'), // «dónde compré» (directorio liviano, N4b)
+  purchaseLineId: uuid('purchase_line_id'), // línea de la compra que lo trajo (null: carga inicial o anterior a las compras)
 }, (t) => [uniqueIndex('spools_code_uq').on(t.workspaceId, t.code)]);
 
 /** Directorio liviano de proveedores y tiendas (N4b): solo para elegir «dónde compré». */
@@ -178,8 +181,50 @@ export const inventoryMovements = pgTable('inventory_movements', {
   unitCost: integer('unit_cost'),
   jobId: uuid('job_id'),
   saleId: uuid('sale_id'),
+  purchaseId: uuid('purchase_id'),
   note: text('note'),
 });
+
+/** Compra de insumos y filamento: al recibirla crea los carretes y suma los ítems. `total` es lo pagado (líneas + envío − descuento). */
+export const purchases = pgTable('purchases', {
+  ...base(),
+  number: text('number').notNull(),
+  supplierId: uuid('supplier_id'),
+  supplierText: text('supplier_text'),
+  boughtAt: date('bought_at').notNull(),
+  docNumber: text('doc_number'), // boleta / factura / pedido de la tienda
+  shipping: integer('shipping').notNull().default(0),
+  discount: integer('discount').notNull().default(0),
+  total: integer('total').notNull().default(0),
+  recoversVat: boolean('recovers_vat').notNull().default(false), // se guarda tal como estaba al comprar
+  vatPct: doublePrecision('vat_pct').notNull().default(0),
+  notes: text('notes'),
+  status: text('status').notNull().default('recibida'), // recibida | anulada
+}, (t) => [uniqueIndex('purchases_number_uq').on(t.workspaceId, t.number), index('purchases_date_ix').on(t.workspaceId, t.boughtAt)]);
+
+export const purchaseLines = pgTable('purchase_lines', {
+  ...base(),
+  purchaseId: uuid('purchase_id').notNull(),
+  kind: text('kind').notNull().default('filamento'), // filamento | item
+  materialId: uuid('material_id'),
+  itemId: uuid('item_id'),
+  qty: doublePrecision('qty').notNull().default(1), // carretes/botellas o unidades
+  netG: doublePrecision('net_g'), // gramos netos por carrete (solo filamento)
+  tareG: doublePrecision('tare_g'),
+  unitPrice: integer('unit_price').notNull().default(0), // pagado por carrete/unidad (con IVA)
+  unitCost: integer('unit_cost').notNull().default(0), // costo real por carrete/unidad: sin IVA si se recupera, más su parte del envío y menos la del descuento
+  costPerKg: integer('cost_per_kg'), // costo real por kg (solo filamento)
+  lot: text('lot'),
+  location: text('location'),
+}, (t) => [index('purchase_lines_purchase_ix').on(t.purchaseId)]);
+
+/** «Cada pedido entregado gasta N de este ítem» (embalaje, bolsas, etiquetas…): se descuenta al entregar y entra al costo real del pedido. */
+export const supplyRules = pgTable('supply_rules', {
+  ...base(),
+  itemId: uuid('item_id').notNull(),
+  qtyPerOrder: doublePrecision('qty_per_order').notNull().default(1),
+  active: boolean('active').notNull().default(true),
+}, (t) => [uniqueIndex('supply_rules_item_uq').on(t.workspaceId, t.itemId)]);
 
 /* ───────────── Máquinas y mantenimiento ───────────── */
 export const machines = pgTable('machines', {

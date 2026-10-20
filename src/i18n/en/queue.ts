@@ -2,6 +2,14 @@ import type { Shape } from '../translate';
 import type { es } from '../es';
 
 export const queue: Shape<typeof es['queue']> = {
+  stockShortWarning: 'Not enough material: the job needs {needed} g and {available} g are available.',
+  stockNoneWarning: 'There is no stock of this material (needs {needed} g). Record it in a purchase so the inventory adds up.',
+  finishNoSpool: 'There are no spools of this material in the inventory: the usage will be recorded without a spool and you will be notified to fix the stock.',
+  noStockForJobTitle: 'Job without stock: {material}',
+  noStockForJobBody: '{job} needs {needed} g and {available} g are available.',
+  consumedWithoutSpool: '{job}: {material} used without a spool',
+  noSpoolTitle: '{job} closed without a spool',
+  noSpoolBody: '{grams} g of {material} were used that were not in the inventory. Record the purchase or adjust the stock.',
   resin: 'Resin',
   productionQueue: 'Production queue',
   oneQueueIntro: 'One production queue: drag jobs to order them and drop them on a machine to assign them. If you leave one unassigned, the system suggests the machine that would finish it first.',

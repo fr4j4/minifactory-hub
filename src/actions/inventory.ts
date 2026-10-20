@@ -78,7 +78,7 @@ export async function previewBulkAction(c: BulkCommon, rows: BulkRow[]) {
 }
 export async function applyBulkAction(c: BulkCommon, rows: BulkRow[]) {
   const t = await getT();
-  return safe(async () => { const u = await requirePerm('inventario', 'C'); bulkCheck(c, rows, t); return applyBulkMaterials(c, rows, u.id); }, ['/inventario']);
+  return safe(async () => { const u = await requirePerm('inventario', 'C'); bulkCheck(c, rows, t); return applyBulkMaterials(c, rows, u.id, { initial: true }); }, ['/inventario']);
 }
 
 /** Cambia costo por kg y/o stock mínimo de todos los colores de una marca + línea. */
