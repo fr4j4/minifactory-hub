@@ -7,6 +7,7 @@ import { request } from '@/lib/library/connectors/http';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { getBuffer } from '@/lib/storage';
 import { importSourceImages } from '@/lib/library/source-images';
+import { linkModelImage } from '@/lib/library/model-images';
 let sample: Buffer;
 beforeAll(async () => { process.env.MF_EXTERNAL_WORKER = '1'; sample = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#f80' } }).jpeg().toBuffer(); });
 beforeEach(() => { vi.mocked(request).mockReset(); });
@@ -23,7 +24,7 @@ it('stores compressed local images, deduplicates identical content and sets an a
   await importSourceImages(model.id, source.id);
   const photos = await db.select().from(s.photos).where(eq(s.photos.modelFileId, model.id));
   expect(photos).toHaveLength(1);
-  expect(photos[0]).toMatchObject({ width: 1600, height: 800 });
+  expect(photos[0]).toMatchObject({ width: 1600, height: 800, scope: 'model' }); // no aparece en la Galería
   const meta = await sharp(await getBuffer(photos[0].storageKey)).metadata();
   expect(meta.format).toBe('webp'); expect(meta.exif).toBeUndefined();
   expect(Object.keys(photos[0].variants!)).toEqual(['320', '800', '1600']);
@@ -59,4 +60,15 @@ it('preserves a manually selected cover', async () => {
   vi.mocked(request).mockResolvedValueOnce(response()); await importSourceImages(model.id, source.id);
   const links = await db.select().from(s.libraryPhotoLinks).where(eq(s.libraryPhotoLinks.modelId, model.id));
   expect(links.filter(x => x.data.cover).map(x => x.photoId)).toEqual([photo.id]);
+});
+it('links uploaded model images: the first becomes the cover, later ones keep it, and re-linking is idempotent', async () => {
+  const { db, model } = await fixture([]);
+  const user = { id: '00000000-0000-4000-8000-0000000000aa', workspaceId: WORKSPACE_ID };
+  const mk = async (key: string) => (await db.insert(s.photos).values({ workspaceId: WORKSPACE_ID, storageKey: key, modelFileId: model.id, scope: 'model' }).returning())[0];
+  const a = await mk('a.webp'), b = await mk('b.webp');
+  await linkModelImage(user, model.id, a.id); await linkModelImage(user, model.id, b.id); await linkModelImage(user, model.id, b.id);
+  const links = await db.select().from(s.libraryPhotoLinks).where(eq(s.libraryPhotoLinks.modelId, model.id));
+  expect(links).toHaveLength(2);
+  expect(links.find(l => l.photoId === a.id)!.data).toMatchObject({ cover: true, origin: 'upload' });
+  expect(links.find(l => l.photoId === b.id)!.data.cover).toBe(false);
 });

@@ -7,6 +7,7 @@ import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { ingestModel, ingestZip } from '@/lib/files';
 import { ingestPhoto } from '@/lib/photos';
+import { linkModelImage } from '@/lib/library/model-images';
 import { newKey, putFile } from '@/lib/storage';
 import { getT } from '@/i18n/server';
 import { errorText } from '@/i18n/errors';
@@ -30,8 +31,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       result=await completeBrowserImport(body.operationId,user,u.tmpPath,u.filename);
       await fs.rm(u.tmpPath,{force:true});
     } else if (body.intent === 'photo') {
-      if (!can(user, 'galeria', 'C')) throw new Error(t('api.noPermission'));
-      const p = await ingestPhoto({ tmpPath: u.tmpPath, filename: u.filename, userId: user.id, photoId: body.photoId, stage: body.stage, orderId: body.orderId, jobId: body.jobId, modelFileId: body.modelFileId, customerId: body.customerId, productId: body.productId, materialId: body.materialId, machineId: body.machineId, caption: body.caption });
+      const forModel = body.scope === 'model';
+      if (forModel ? !can(user, 'archivos', 'E') || !body.modelFileId : !can(user, 'galeria', 'C')) throw new Error(t('api.noPermission'));
+      const p = await ingestPhoto({ scope: forModel ? 'model' : 'job', tmpPath: u.tmpPath, filename: u.filename, userId: user.id, photoId: body.photoId, stage: body.stage, orderId: body.orderId, jobId: body.jobId, modelFileId: body.modelFileId, customerId: body.customerId, productId: body.productId, materialId: body.materialId, machineId: body.machineId, caption: body.caption });
+      if (forModel) await linkModelImage(user, body.modelFileId, p.id);
       result = { photoId: p.id };
     } else if (body.intent === 'attachment') {
       const ext = u.filename.split('.').pop() ?? 'bin';

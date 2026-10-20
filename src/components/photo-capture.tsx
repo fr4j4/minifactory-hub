@@ -18,7 +18,7 @@ async function all(owner: string): Promise<Array<{ id: number; file: File; inten
 async function put(file: File, intent: any, owner: string) { const d = await open(); return new Promise<void>((res) => { const tx = d.transaction(STORE, 'readwrite'); tx.objectStore(STORE).add({ file, intent, owner }); tx.oncomplete = () => res(); }); }
 async function del(id: number) { const d = await open(); return new Promise<void>((res) => { const tx = d.transaction(STORE, 'readwrite'); tx.objectStore(STORE).delete(id); tx.oncomplete = () => res(); }); }
 
-export function PhotoCapture({ intent, label: labelProp, stages }: { intent: Record<string, any>; label?: string; stages?: Record<string, string> }) {
+export function PhotoCapture({ intent, label: labelProp, stages, hideStage }: { intent: Record<string, any>; label?: string; stages?: Record<string, string>; /** imagen de un modelo 3D: sin etapa, solo imágenes y sin forzar la cámara */ hideStage?: boolean }) {
   const t = useT(); const label = labelProp ?? t('gallery.takePhotos');
   const toast = useToast(); const router = useRouter(); const input = useRef<HTMLInputElement>(null);
   const owner = useRef('');
@@ -42,9 +42,9 @@ export function PhotoCapture({ intent, label: labelProp, stages }: { intent: Rec
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select className="input !w-auto" aria-label={t('gallery.photoStage')} value={stage} onChange={(e) => setStage(e.target.value)}>{Object.entries(stages ?? Object.fromEntries(STAGE_KEYS.map((k) => [k, t(`gallery.stage.${k}`)]))).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+      {!hideStage && <select className="input !w-auto" aria-label={t('gallery.photoStage')} value={stage} onChange={(e) => setStage(e.target.value)}>{Object.entries(stages ?? Object.fromEntries(STAGE_KEYS.map((k) => [k, t(`gallery.stage.${k}`)]))).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>}
       <button type="button" className="btn-primary" onClick={() => input.current?.click()}><Icon name="camera" className="h-4 w-4" />{label}</button>
-      <input ref={input} type="file" accept="image/*,video/*" capture="environment" multiple className="sr-only" aria-label={label} data-testid="photo-input" onChange={(e) => { onFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
+      <input ref={input} type="file" accept={hideStage ? 'image/*' : 'image/*,video/*'} capture={hideStage ? undefined : 'environment'} multiple className="sr-only" aria-label={label} data-testid="photo-input" onChange={(e) => { onFiles([...(e.target.files ?? [])]); e.target.value = ''; }} />
       {pending > 0 && <span className={cn('badge', TONES.amber)} data-testid="offline-pending">{pending} {t('gallery.queuedOffline')}</span>}
     </div>
   );

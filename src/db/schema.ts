@@ -657,6 +657,8 @@ export const payments = pgTable('payments', {
 export const photos = pgTable('photos', {
   ...base(),
   kind: text('kind').notNull().default('foto'), // foto | video
+  /** job: foto de un trabajo (aparece en Galería) · model: imagen de un modelo 3D (solo en la biblioteca) */
+  scope: text('scope').notNull().default('job'),
   storageKey: text('storage_key').notNull(),
   variants: jsonb('variants').$type<Record<string, string>>().default({}),
   width: integer('width'),

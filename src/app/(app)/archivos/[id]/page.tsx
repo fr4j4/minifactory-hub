@@ -1,7 +1,7 @@
 import { ModelDetails,RelatedModels,PhotoLinks } from '@/components/library-advanced';
 import { modelAccess,photoAccess,assetAccess } from '@/lib/library/access';
-import { PhotoCapture } from '@/components/photo-capture';
-import { LibraryProcess, LibraryPhotoAssociate, LibraryMetadata, LibraryDuplicates } from '@/components/library-manager';
+import { ModelImages } from '@/components/model-images';
+import { LibraryProcess, LibraryMetadata, LibraryDuplicates } from '@/components/library-manager';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, ne, sql, inArray, isNull } from 'drizzle-orm';
@@ -43,13 +43,14 @@ export default async function FilePage({ params, searchParams }: { params: Promi
   const customers = await db.select({ id: s.customers.id, name: s.customers.name }).from(s.customers).where(isNull(s.customers.deletedAt)).orderBy(asc(s.customers.name));
   const links = await db.select().from(s.referenceLinks).where(and(eq(s.referenceLinks.ownerType, 'model_file'), eq(s.referenceLinks.ownerId, id)));
   const used = await db.select({ q: s.quotes }).from(s.quoteItemModels).innerJoin(s.quoteItems, eq(s.quoteItems.id, s.quoteItemModels.quoteItemId)).innerJoin(s.quotes, eq(s.quotes.id, s.quoteItems.quoteId)).where(eq(s.quoteItemModels.modelFileId, id)).limit(20);
-  const photos = await db.select().from(s.photos).where(and(photoAccess(user),eq(s.photos.modelFileId, id),isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(12);
+  const photos = await db.select().from(s.photos).where(and(photoAccess(user),eq(s.photos.modelFileId, id),eq(s.photos.scope,'job'),isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(12);
   const slicedRuns = cur ? await db.select().from(s.sliceRuns).where(eq(s.sliceRuns.fileVersionId, cur.id)).orderBy(desc(s.sliceRuns.createdAt)).limit(8) : [];
   const processing = meta.status === 'processing';
-  const galleryPhotos = await db.select({id:s.photos.id,caption:s.photos.caption,variants:s.photos.variants}).from(s.photos).where(and(photoAccess(user),eq(s.photos.workspaceId,user.workspaceId),isNull(s.photos.deletedAt))).limit(100);
   const locations = await db.select({entry:s.libraryEntries,source:s.librarySources.name}).from(s.libraryEntries).innerJoin(s.librarySources,eq(s.librarySources.id,s.libraryEntries.sourceId)).where(eq(s.libraryEntries.modelId,id));
   const [details]=await db.select().from(s.libraryDetails).where(eq(s.libraryDetails.modelId,id));
   const photoLinks=await db.select().from(s.libraryPhotoLinks).where(and(eq(s.libraryPhotoLinks.modelId,id),sql`exists(select 1 from photos where photos.id=${s.libraryPhotoLinks.photoId} and ${photoAccess(user)})`));
+  const linkedPhotos = photoLinks.length ? await db.select({ id: s.photos.id, caption: s.photos.caption, variants: s.photos.variants, storageKey: s.photos.storageKey, scope: s.photos.scope }).from(s.photos).where(and(inArray(s.photos.id, photoLinks.map(l => l.photoId)), isNull(s.photos.deletedAt))) : [];
+  const modelImages = photoLinks.flatMap(l => { const p = linkedPhotos.find(x => x.id === l.photoId); if (!p) return []; const thumb = l.data.editedKey || p.variants?.['320'] || p.storageKey; return [{ linkId: l.id, photoId: p.id, thumb, large: l.data.editedKey || p.variants?.['1600'] || p.storageKey, cover: !!l.data.cover, fromJob: p.scope === 'job', caption: p.caption, order: Number(l.data.order ?? 0) }]; }).sort((a, b) => Number(b.cover) - Number(a.cover) || a.order - b.order);
   const assets=await db.select().from(s.libraryAssets).where(and(eq(s.libraryAssets.modelId,id),assetAccess(user)));
   const tabs = [['visor', t('files.n3dViewer')], ['laminar', t('files.sliceQuote')], ['versiones', t('files.versions', { versions: versions.length })], ['vinculos', t('files.linksReferences')]];
   const color = '#ff6a2b';
@@ -70,8 +71,8 @@ export default async function FilePage({ params, searchParams }: { params: Promi
       {duplicates.length>0 && can(user,'archivos','E') && <LibraryDuplicates modelId={id} duplicates={duplicates}/>}
       {cur && !cur.storageKey && !processing && can(user,'archivos','E') && <LibraryProcess id={cur.id}/>}
       {locations.length>0 && <Card title={t('library.source')}><ul className="text-sm space-y-1">{locations.map(l=><li key={l.entry.id}>{l.source} · {l.entry.path} · {l.entry.state}</li>)}</ul></Card>}
-      {can(user,'galeria','C')&&<Card title={t('library.photos')}><PhotoCapture intent={{intent:'photo',modelFileId:id}}/>{galleryPhotos.length>0&&can(user,'galeria','E')&&<LibraryPhotoAssociate modelId={id} photos={galleryPhotos}/>}</Card>}
-      {can(user,'galeria','E')&&<PhotoLinks modelId={id} photos={[...new Map([...photos,...galleryPhotos].map(p=>[p.id,p])).values()]} links={photoLinks} versions={versions}/>}
+      <Card title={t('library.modelImages')}><ModelImages modelId={id} images={modelImages} canEdit={can(user,'archivos','E')} canPickJobPhoto={can(user,'archivos','E')&&can(user,'galeria','V')}/></Card>
+      {can(user,'galeria','E')&&<PhotoLinks modelId={id} photos={[...new Map([...photos,...linkedPhotos].map(p=>[p.id,p])).values()]} links={photoLinks} versions={versions}/>}
       {cur?.thumbKey && <div className="flex gap-2 my-3"><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=gif`}>{t('library.gif')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=views`}>{t('library.views')}</a><a className="btn-ghost" href={`/api/library/preview/${cur.id}?kind=technical`}>{t('library.technicalViews')}</a></div>}
       {meta.status === 'error' && <div className="rounded-lg box-danger p-3 text-sm text-red-800 dark:text-red-200 mb-4" role="alert">{t('files.theFileCouldNotBe')} {meta.error}</div>}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 dark:border-slate-700 mb-4" aria-label={t('files.fileSections')}>

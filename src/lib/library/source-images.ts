@@ -42,7 +42,7 @@ export async function importSourceImages(modelId: string, sourceId: string) {
         // Serialize cover selection with other source image jobs for this model.
         await tx.select({ id: s.modelFiles.id }).from(s.modelFiles).where(eq(s.modelFiles.id, modelId)).for('update');
         const links = await tx.select().from(s.libraryPhotoLinks).where(eq(s.libraryPhotoLinks.modelId, modelId));
-        await tx.insert(s.photos).values({ id: photoId, workspaceId: WORKSPACE_ID, createdBy: model.createdBy, modelFileId: modelId, storageKey: variants['1600'], variants, width: dimensions.width, height: dimensions.height, caption: source.title, tags: ['imagen de origen'] }).onConflictDoNothing();
+        await tx.insert(s.photos).values({ id: photoId, workspaceId: WORKSPACE_ID, createdBy: model.createdBy, modelFileId: modelId, scope: 'model', storageKey: variants['1600'], variants, width: dimensions.width, height: dimensions.height, caption: source.title, tags: ['imagen de origen'] }).onConflictDoNothing();
         await tx.insert(s.libraryPhotoLinks).values({ workspaceId: WORKSPACE_ID, createdBy: model.createdBy, modelId, photoId, data: { type: 'author', cover: !links.some(x => x.data?.cover), order: index, sourceId, sourceUrl: source.url, author: source.authorName, license: source.licenseText } }).onConflictDoNothing();
       });
       entry.photoId = photoId; entry.storageKey = variants['320']; delete entry.error;

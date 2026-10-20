@@ -11,7 +11,7 @@ export { STAGE_KEYS } from './photo-stages';
 export const RATIOS: Record<string, [number, number]> = { '1:1': [1, 1], '4:5': [4, 5], '9:16': [9, 16], '16:9': [16, 9] };
 
 /** Conversión a WebP en 320/800/1600 + original; corrige rotación EXIF y elimina metadatos (GPS). */
-export async function ingestPhoto(o: { tmpPath: string; filename: string; photoId?: string; userId?: string | null; stage?: string; orderId?: string | null; jobId?: string | null; modelFileId?: string | null; customerId?: string | null; productId?: string | null; materialId?: string | null; machineId?: string | null; caption?: string | null; tags?: string[]; featured?: boolean }) {
+export async function ingestPhoto(o: { tmpPath: string; filename: string; photoId?: string; userId?: string | null; stage?: string; orderId?: string | null; jobId?: string | null; modelFileId?: string | null; customerId?: string | null; productId?: string | null; materialId?: string | null; machineId?: string | null; caption?: string | null; tags?: string[]; featured?: boolean; scope?: 'job' | 'model' }) {
   const db = await getDb();
   if(o.photoId){z.uuid().parse(o.photoId);const [existing]=await db.select().from(s.photos).where(and(eq(s.photos.id,o.photoId),eq(s.photos.workspaceId,WORKSPACE_ID),eq(s.photos.createdBy,o.userId||'')));if(existing){await fsp.rm(o.tmpPath,{force:true});return existing;}}
   const isVideo = /\.(mp4|mov|webm)$/i.test(o.filename);
@@ -38,7 +38,7 @@ export async function ingestPhoto(o: { tmpPath: string; filename: string; photoI
   if (o.modelFileId) { const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, o.modelFileId)); if (f) auto.push(...(f.tags ?? [])); }
   const tags = [...new Set([...(o.tags ?? []), ...auto])];
   const [p] = await db.insert(s.photos).values({
-    id:o.photoId, workspaceId: WORKSPACE_ID, kind: isVideo ? 'video' : 'foto', storageKey: origKey, variants, width, height, stage: o.stage ?? 'producto_final', featured: !!o.featured, tags,
+    id:o.photoId, workspaceId: WORKSPACE_ID, scope: o.scope ?? 'job', kind: isVideo ? 'video' : 'foto', storageKey: origKey, variants, width, height, stage: o.stage ?? 'producto_final', featured: !!o.featured, tags,
     caption: o.caption ?? null, orderId: o.orderId ?? null, jobId: o.jobId ?? null, modelFileId: o.modelFileId ?? null, customerId: o.customerId ?? null, productId: o.productId ?? null,
     materialId: o.materialId ?? null, machineId: o.machineId ?? null, internalOnly, createdBy: o.userId ?? null,
   }).onConflictDoNothing().returning();
