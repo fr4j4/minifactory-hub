@@ -129,9 +129,9 @@ function QuickView({ card: c, onClose, tagColors }: { card: FileCard | null; onC
 }
 
 /** Tabla de la biblioteca: miniatura, medidas, etiquetas y columnas ordenables. */
-export function FileTable({ cards, sortHref, sort }: { cards: FileCard[]; sortHref: (k: string) => string; sort: string }) {
+export function FileTable({ cards, sortHrefs, sort }: { cards: FileCard[]; sortHrefs: Record<string, string>; sort: string }) {
   const t = useT();
-  const H = ({ k, label, className = '' }: { k?: string; label: string; className?: string }) => <th className={`th ${className}`} aria-sort={k && sort === k ? (k === 'name' ? 'ascending' : 'descending') : undefined}>{k ? <Link href={sortHref(k)} className={`hover:underline ${sort === k ? 'text-[var(--accent-ink)]' : ''}`}>{label}{sort === k ? (k === 'name' ? ' ↑' : ' ↓') : ''}</Link> : label}</th>;
+  const H = ({ k, label, className = '' }: { k?: string; label: string; className?: string }) => <th className={`th ${className}`} aria-sort={k && sort === k ? (k === 'name' ? 'ascending' : 'descending') : undefined}>{k ? <Link href={sortHrefs[k]} className={`hover:underline ${sort === k ? 'text-[var(--accent-ink)]' : ''}`}>{label}{sort === k ? (k === 'name' ? ' ↑' : ' ↓') : ''}</Link> : label}</th>;
   return (
     <div className="card overflow-auto">
       <table className="w-full text-sm">
