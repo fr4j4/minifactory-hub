@@ -8,3 +8,5 @@ export function luma(hex: string) {
 export const inkFor = (hex: string) => (luma(hex) > 0.55 ? '#111827' : '#ffffff');
 /** Radio del rollo (entre el núcleo, 7, y el borde del plato, 19) según cuánto filamento queda (0 a 1); nunca desaparece del todo. */
 export const rollRadius = (fill: number) => 7 + 12 * Math.max(0.12, Math.min(1, fill));
+/** Radio con el que se dibuja el rollo: aunque casi no quede filamento se ve (mínimo 11 de 19), así el color sigue reconociéndose. */
+export const rollRadiusShown = (fill: number) => Math.max(rollRadius(fill), 11);

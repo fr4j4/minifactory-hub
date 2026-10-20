@@ -1,5 +1,5 @@
 import { cn } from '@/lib/format';
-import { inkFor, rollRadius } from '@/lib/spool-geometry';
+import { inkFor, rollRadiusShown } from '@/lib/spool-geometry';
 
 /**
  * Carrete dibujado con el color real del filamento y el tipo de material escrito encima (PLA, PETG…), para reconocer cada fila de un vistazo
@@ -20,11 +20,12 @@ export function SpoolIcon({ hex, label, fill = 1, resin = false, size = 44, clas
     );
   }
   // el rollo ocupa entre el núcleo (r=7) y el borde del plato (r=19)
-  const r = rollRadius(fill);
+  const r = rollRadiusShown(fill);
   return (
     <svg viewBox="0 0 48 48" width={size} height={size} className={cn('shrink-0', className)} role="img" aria-label={label}>
       <circle cx="24" cy="24" r="21" fill="#334155" />
-      <circle cx="24" cy="24" r="19.5" fill="none" stroke="rgba(255,255,255,.18)" strokeWidth="1" />
+      {/* aro del plato con el color del filamento: sobre fondos oscuros el color se lee aunque el rollo sea chico */}
+      <circle cx="24" cy="24" r="19.8" fill="none" stroke={hex} strokeWidth="2" data-testid="spool-rim" />
       <circle cx="24" cy="24" r={r} fill={hex} stroke="rgba(0,0,0,.28)" strokeWidth=".8" />
       <circle cx="24" cy="24" r={r - 2.2} fill="none" stroke="rgba(0,0,0,.14)" strokeWidth=".7" />
       <circle cx="24" cy="24" r={Math.max(8, r - 5)} fill="none" stroke="rgba(255,255,255,.18)" strokeWidth=".7" />
