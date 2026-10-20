@@ -2,7 +2,7 @@
 import { sources } from '@/lib/format';
 import { useT } from '@/i18n/client';
 
-export interface CustomerOpt { id: string; name: string; phone: string | null; type: string; priceAdj: number; occasional: boolean }
+export interface CustomerOpt { id: string; name: string; phone: string | null; type: string; priceAdj: number; occasional: boolean; calcProfileId?: string | null }
 export interface CustomerValue { customerId: string | null; name: string; phone: string }
 
 /** Cliente existente o cliente ocasional (solo nombre y teléfono, sin ficha). */

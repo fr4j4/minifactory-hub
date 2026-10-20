@@ -48,10 +48,10 @@ describe('sin configurar nada, el resultado es el del cálculo anterior', () => 
         .toEqual({ cost: b.cost, unit: b.suggestedUnit, total: b.suggestedTotal, failure: b.failure, prep: b.prep, post: b.post, h: b.hoursEffective, g: b.gramsEffective });
     }
   });
-  it('los costos nuevos valen cero y no aparecen como aviso', () => {
+  it('los costos nuevos valen cero y solo hay avisos informativos', () => {
     const b = calcLine({ qty: 1, gramsTotal: 100, hoursTotal: 4, costPerKg: 17000, machine: a1 }, rates);
     expect([b.overhead, b.supervision, b.design, b.packaging, b.feesAmount]).toEqual([0, 0, 0, 0, 0]);
-    expect(b.warnings).toEqual([]); expect(b.rule).toBe('margin'); expect(b.suggestedUnit).toBe(6600);
+    expect(b.warnings).toEqual(['timeUncalibrated', 'noFixedCosts']); // solo avisos informativos del nivel Experto; expect(b.rule).toBe('margin'); expect(b.suggestedUnit).toBe(6600);
   });
   it('los valores recomendados de la spec sí cambian el precio (los aplica el asistente, no se usan solos)', () => {
     const i: LineInput = { qty: 1, gramsTotal: 100, hoursTotal: 4, costPerKg: 17000, machine: a1 };
@@ -108,7 +108,7 @@ describe('manejo del descuento por volumen, comisiones y riesgo', () => {
   });
   it('la falla medida con pocos trabajos se acerca al valor por defecto y con muchos al medido', () => {
     const few = calcLine({ ...i, qty: 1, machine: { ...a1, jobsDone: 2, jobsFailed: 2 } }, rates).failure, many = calcLine({ ...i, qty: 1, machine: { ...a1, jobsDone: 200, jobsFailed: 100 } }, rates).failure;
-    expect(many).toBeGreaterThan(few); expect(calcLine({ ...i, qty: 1, machine: { ...a1, jobsDone: 2, jobsFailed: 2 } }, rates).hints).toContain('timeUncalibrated');
+    expect(many).toBeGreaterThan(few); expect(calcLine({ ...i, qty: 1, machine: { ...a1, jobsDone: 2, jobsFailed: 2 } }, rates).warnings).toContain('timeUncalibrated');
   });
   it('varias placas multiplican la preparación y suman el tiempo de montaje', () => {
     const one = calcLine({ ...i, qty: 1, plates: 1 }, { ...rates, setupHoursPerPlate: 0.2 }), three = calcLine({ ...i, qty: 1, plates: 3 }, { ...rates, setupHoursPerPlate: 0.2 });
@@ -131,8 +131,8 @@ describe('banda, confianza y avisos', () => {
     expect(e.confidence).toBe('baja'); expect(e.range!.min).toBeLessThan(e.range!.max); expect(calcLine(i, rates).confidence).toBe('alta');
   });
   it('sin máquina o sin costo de material el precio no es confiable y mantiene los avisos de siempre', () => {
-    const w = calcLine({ ...i, machine: null, costPerKg: 0 }, rates); expect(w.warnings).toEqual(expect.arrayContaining(['noMachine', 'materialCostZero'])); expect(w.reliable).toBe(false); expect(w.confidence).toBe('baja');
-    expect(calcLine({ ...i, machine: { ...a1, watts: 0 } }, rates).warnings).toContain('machineIncomplete');
+    const w = calcLine({ ...i, machine: null, costPerKg: 0 }, rates); expect(w.warnings).toEqual(expect.arrayContaining(['noMachine', 'materialNoCost'])); expect(w.reliable).toBe(false); expect(w.confidence).toBe('baja');
+    expect(calcLine({ ...i, machine: { ...a1, watts: 0 } }, rates).warnings).toContain('machineNoPower');
   });
   it('las referencias de mercado dan un rango y avisan si el precio queda muy por debajo', () => {
     const r: Rates = { ...rates, benchmarks: [{ id: 'x', name: 'Taller vecino', perGram: 200 }] };

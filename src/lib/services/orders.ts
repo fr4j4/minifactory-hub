@@ -6,7 +6,8 @@ import { calcQuote, type QuoteLine } from '../pricing';
 import { canSellBelowCost, type PermUser } from '../perm';
 import { normalizeUrl } from '../links';
 import { cancelJob, createJob } from './production';
-import { customerPriceAdj, loadQuote, pricingContext, priceItem, type ItemInput, type LinkInput } from './quotes';
+import { loadQuote, pricingContext, priceItem, quoteEnvOf, type ItemInput, type LinkInput } from './quotes';
+import { effectiveRates } from '../item-price';
 import { freezeDoc } from './quote-doc';
 import { getT } from '@/i18n/server';
 import { LocalizedError } from '@/i18n/errors';
@@ -18,7 +19,7 @@ type User = PermUser & { id: string };
 export interface OrderInput {
   customerId?: string | null; customerName?: string | null; customerPhone?: string | null; source?: string | null; title?: string | null; dueDate?: string | null;
   priority?: string; notes?: string | null; shipMethod?: string | null; shipAddress?: string | null; quoteId?: string | null;
-  discount?: number; items: ItemInput[]; links?: LinkInput[]; deposit?: { amount: number; method: string } | null; approvedBy?: string | null; approvedChannel?: string | null;
+  discount?: number; applyTax?: boolean; calcProfileId?: string | null; channelId?: string | null; items: ItemInput[]; links?: LinkInput[]; deposit?: { amount: number; method: string } | null; approvedBy?: string | null; approvedChannel?: string | null;
 }
 
 /** Costos y precio sugerido ya congelados de una línea de presupuesto aprobado: no se recalculan. Solo lo pasa approveQuote (nunca viene del navegador). */
@@ -39,16 +40,17 @@ export async function createOrder(input: OrderInput, user: User, internal: Creat
   for (const it of input.items) { it.qty = Math.max(1, Math.floor(it.qty || 1)); if (it.finalUnit != null && !(it.finalUnit >= 0)) throw new LocalizedError('edit.invalid'); }
   const discount = Math.max(0, Math.round(input.discount ?? 0));
   const ctx = await pricingContext();
-  const db = ctx.db; const rt = ctx.settings.rates;
-  const adj = await customerPriceAdj(db, input.customerId);
+  const db = ctx.db;
+  const env = await quoteEnvOf(ctx, { customerId: input.customerId, channelId: input.channelId, calcProfileId: input.calcProfileId });
+  const rt = effectiveRates({}, { rates: ctx.rates, profiles: ctx.profiles, ...env }).rt;
   const priced = [] as Array<{ it: ItemInput; p: Awaited<ReturnType<typeof priceItem>>; finalUnit: number }>;
   const lines: QuoteLine[] = [];
   for (const [i, it] of input.items.entries()) {
     const fz = internal.frozen?.[i];
-    const p = fz ? { ...fz, frozenCost: fz.costTotal - (it.shipping ?? 0) } : await priceItem(it, ctx, adj);
+    const p = fz ? { ...fz, cost: fz.costTotal - (it.shipping ?? 0), frozenCost: fz.costTotal - (it.shipping ?? 0), profileId: null } : await priceItem(it, ctx, env);
     const finalUnit = it.finalUnit != null ? Math.round(it.finalUnit) : p.suggestedUnit;
     priced.push({ it, p, finalUnit });
-    lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.costTotal - (it.shipping ?? 0), shipping: it.shipping });
+    lines.push({ id: String(priced.length), qty: Math.max(1, it.qty), suggestedUnit: p.suggestedUnit, finalUnit, cost: p.cost, shipping: it.shipping });
   }
   const tt = calcQuote(lines, rt, { discount });
   // las líneas congeladas ya pasaron este control al guardar el presupuesto

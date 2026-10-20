@@ -1,6 +1,8 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
-import type { Rates } from './pricing';
+import type { CalcProfile, Rates } from './pricing';
+import { DEFAULT_RATES } from './calc-defaults';
+import { DEFAULT_CALC_PROFILES } from './calc-presets';
 import { DEFAULT_AI, type AiSettings } from './ai/types';
 import type { DocTemplate } from './documents';
 import { setNumberFormat, setTimeZone, ymd } from './format';
@@ -24,16 +26,13 @@ export interface AppSettings {
   /** Biblioteca: aplicar solas las etiquetas por reglas con confianza alta al terminar el análisis. */
   library: { autoTag: boolean };
   setup: { pending: boolean; mode?: 'rapido' | 'completo'; completedAt: string | null; steps: Record<string, 'hecho' | 'omitido'>; tokenHash: string };
+  calcProfiles: CalcProfile[];
+  calcSetup: { done: boolean; preset?: string };
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
   shop: { name: 'MiniFactory', legalName: '', taxId: '', address: '', phone: '', email: '', currency: 'CLP', timezone: 'America/Santiago', lang: 'es-CL', brandColor: '#1d62f0' },
-  rates: {
-    kwh: 180, laborHour: 6000, wastePct: 8, failRatePct: 5, marginPct: 40, marginByCategory: {},
-    minPrice: 3000, minMarginPct: 25, rounding: { mode: 'step', step: 100 }, taxPct: 19, taxMode: 'exento', taxDefault: false,
-    urgency: [{ key: 'normal', label: 'Normal', pct: 0 }, { key: '48h', label: 'Urgente 48 h', pct: 25 }, { key: '24h', label: 'Urgente 24 h', pct: 50 }],
-    volumeTiers: [{ minQty: 10, pct: -10 }, { minQty: 50, pct: -20 }], prepMinutes: 10,
-  },
+  rates: DEFAULT_RATES,
   quoteValidDays: 15, quoteFollowUpDays: [3, 7], reservationDays: 15, minDepositPct: 50,
   numbering: { quote: 'P-{YYYY}-{NNNN}', order: 'OT-{YYYY}-{NNNN}', sale: 'V-{YYYY}-{NNNN}', job: 'T-{YYYY}-{NNNN}', production: 'OP-{YYYY}-{NNNN}' },
   templates: {
@@ -49,6 +48,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   documents: { quote: {} },
   library: { autoTag: false },
   setup: { pending: false, completedAt: null, steps: {}, tokenHash: '' },
+  calcProfiles: DEFAULT_CALC_PROFILES,
+  calcSetup: { done: false },
 };
 
 function merge<T>(base: T, over: any): T {
@@ -79,6 +80,8 @@ export async function saveSettings(patch: Partial<AppSettings>) {
   const db = await getDb();
   const cur = await getSettingsRaw();
   const next = merge(cur, patch);
+  // las tarifas se envían completas: se reemplazan (un merge profundo no podría quitar claves, p. ej. un riesgo por material)
+  if (patch.rates) next.rates = { ...cur.rates, ...patch.rates };
   await db.insert(s.settings).values({ workspaceId: WORKSPACE_ID, data: next as any })
     .onConflictDoUpdate({ target: s.settings.workspaceId, set: { data: next as any, updatedAt: new Date() } });
   return next;
@@ -96,4 +99,11 @@ export async function nextNumber(kind: keyof AppSettings['numbering'], tx?: any)
   const rows = (res as any).rows ?? res;
   const n = Number(rows[0].value);
   return st.numbering[kind].replace('{YYYY}', String(year)).replace(/\{N+\}/, (m: string) => String(n).padStart(m.length - 2, '0'));
+}
+
+/** Tarifas con el número de máquinas activas (los costos fijos se reparten entre todas). */
+export async function getRates(): Promise<Rates> {
+  const db = await getDb(); const st = await getSettings();
+  const ms = await db.select({ sim: s.machines.simulated }).from(s.machines).where(isNull(s.machines.deletedAt));
+  return { ...st.rates, machineCount: Math.max(1, ms.filter((m) => !m.sim).length) };
 }

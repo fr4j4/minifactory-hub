@@ -12,7 +12,7 @@ const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
 export interface SessionUser {
   id: string; email: string; name: string; role: Role;
-  permOverrides: Record<string, string>; notifPrefs: Record<string, boolean>; workspaceId: string; calcLevel: 'basico' | 'avanzado';
+  permOverrides: Record<string, string>; notifPrefs: Record<string, boolean>; workspaceId: string; calcLevel: 'basico' | 'detallado' | 'experto';
 }
 
 export async function hashPassword(pw: string) {
@@ -86,7 +86,7 @@ export async function getSession(): Promise<SessionUser | null> {
     .where(and(eq(s.sessions.id, id), gt(s.sessions.expiresAt, new Date())));
   const u = rows[0];
   if (!u || !u.active) return null;
-  return { ...u, role: u.role as Role, permOverrides: u.permOverrides ?? {}, notifPrefs: u.notifPrefs ?? {}, calcLevel: u.calcLevel === 'avanzado' ? 'avanzado' : 'basico' };
+  return { ...u, role: u.role as Role, permOverrides: u.permOverrides ?? {}, notifPrefs: u.notifPrefs ?? {}, calcLevel: u.calcLevel === 'experto' ? 'experto' : u.calcLevel === 'detallado' || u.calcLevel === 'avanzado' ? 'detallado' : 'basico' };
 }
 
 export async function requireUser(): Promise<SessionUser> {

@@ -1,13 +1,15 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { calcQuote, roundPrice } from '@/lib/pricing';
+import { calcQuote } from '@/lib/pricing';
+import { effectiveRates } from '@/lib/item-price';
 import type { CalcContext } from '@/lib/context';
 import type { ModelBrief } from '@/actions/quotes';
 import { saveQuoteAction } from '@/actions/quotes';
 import { draftFlush } from './quote-actions';
 import type { LinkRow } from '@/actions/links';
-import { computeItem, LineEditor, newItem, uid, type ItemState } from './line-editor';
+import { computeItem, LineEditor, newItem, toCalcOpts, uid, type CalcEnv, type ItemState } from './line-editor';
+import { LevelSwitch, atLeast, useCalcLevel } from './calc-bits';
 import { CustomerPicker, SourceSelect, type CustomerOpt } from './customer-picker';
 import { LinksEditor } from './links-editor';
 import { Badge, Card } from './ui';
@@ -17,7 +19,8 @@ import { useLocale, useT } from '@/i18n/client';
 import { LOCALE_TAG } from '@/i18n/config';
 import { DateInput } from '@/components/date-input';
 
-export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; applyTax: boolean; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
+export interface QuoteState { id?: string; customerId: string | null; customerName: string; customerPhone: string; source: string; title: string; urgency: string; discount: number; applyTax: boolean; calcProfileId: string | null; channelId: string | null; finalTotal: number | null; priceReason: string; notes: string; validUntil: string; items: ItemState[]; links: LinkRow[] }
+import { profileName } from '@/lib/calc-presets';
 export type VariantOpt = { id: string; label: string; price: number; avgCost: number; stock: number };
 
 /**
@@ -35,7 +38,10 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
   const qRef = useRef(q); qRef.current = q;
   const idRef = useRef(initial.id); const created = useRef(false);
   const vById = useMemo(() => Object.fromEntries(variants.map((v) => [v.id, v])), [variants]);
+  const [level, setLevel] = useCalcLevel('detallado');
   const cust = customers.find((c) => c.id === q.customerId); const adj = cust?.priceAdj ?? 0;
+  const env = useMemo<CalcEnv>(() => ({ priceAdj: adj, urgency: q.urgency, quoteProfileId: q.calcProfileId, customerProfileId: cust?.calcProfileId ?? null, channelId: q.channelId }), [adj, q.urgency, q.calcProfileId, cust?.calcProfileId, q.channelId]);
+  const qRates = useMemo(() => { const ch = q.channelId ? ctx.channels.find((c) => c.id === q.channelId) : undefined; return effectiveRates({}, { rates: ctx.rates, profiles: ctx.calcProfiles, quoteProfileId: q.calcProfileId, customerProfileId: cust?.calcProfileId ?? null, channelProfileId: ch?.calcProfileId, channelFeePct: ch?.commissionPct }).rt; }, [ctx, q.calcProfileId, q.channelId, cust?.calcProfileId]);
   // cada edición sube la revisión: un guardado solo marca «guardado» si nada cambió mientras viajaba
   const rev = useRef(0);
   const set = useCallback((p: Partial<QuoteState>) => { setQ((x) => ({ ...x, ...p })); setDirty(true); rev.current++; }, []);
@@ -43,16 +49,14 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
 
   // totales en vivo (el servidor recalcula con las mismas fórmulas y redondeo al guardar)
   const calc = useMemo(() => {
-    const lines = q.items.map((it) => { const c = computeItem(it, ctx, adj, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; });
-    const urg = ctx.urgency.find((u) => u.key === q.urgency)?.pct ?? 0;
-    if (urg) for (const l of lines) l.suggestedUnit = roundPrice(l.suggestedUnit * (1 + urg / 100), ctx.rates.rounding);
-    return calcQuote(lines, ctx.rates, { discount: q.discount, finalTotalOverride: q.finalTotal, applyTax: q.applyTax });
-  }, [q.items, q.discount, q.finalTotal, q.applyTax, q.urgency, ctx, adj, vById]);
+    const lines = q.items.map((it) => { const c = computeItem(it, ctx, env, it.variantId ? vById[it.variantId] : undefined); return { id: it.uid, qty: Math.max(1, it.qty), optional: it.optional, suggestedUnit: c.suggestedUnit, finalUnit: it.finalUnit, cost: c.cost, shipping: it.shipping }; });
+    return calcQuote(lines, qRates, { discount: q.discount, finalTotalOverride: q.finalTotal, applyTax: q.applyTax });
+  }, [q.items, q.discount, q.finalTotal, q.applyTax, ctx, env, qRates, vById]);
 
   const payload = (x: QuoteState) => ({
-    id: idRef.current, customerId: x.customerId, customerName: x.customerName || null, customerPhone: x.customerPhone || null, source: x.source || null, title: x.title || null, urgency: x.urgency, discount: x.discount, applyTax: x.applyTax, finalTotal: x.finalTotal,
+    id: idRef.current, customerId: x.customerId, customerName: x.customerName || null, customerPhone: x.customerPhone || null, source: x.source || null, title: x.title || null, urgency: x.urgency, discount: x.discount, applyTax: x.applyTax, calcProfileId: x.calcProfileId, channelId: x.channelId, finalTotal: x.finalTotal,
     priceReason: x.priceReason || null, notes: x.notes || null, validUntil: x.validUntil || null, links: x.links,
-    items: x.items.map((i) => ({ id: i.id, kind: i.kind, description: i.description, qty: i.qty, optional: i.optional, groupName: i.groupName || null, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
+    items: x.items.map((i) => ({ id: i.id, kind: i.kind, description: i.description, qty: i.qty, optional: i.optional, groupName: i.groupName || null, materialId: i.materialId, color: i.color, machineId: i.machineId, processProfileId: i.processProfileId, mode: i.mode, gramsTotal: i.gramsTotal, hoursTotal: i.hoursTotal, origin: i.origin as any, postMinutes: i.postMinutes, postSupplies: i.postSupplies, prepMinutes: i.prepMinutes, shipping: i.shipping, finalUnit: i.finalUnit, sliceRunId: i.sliceRunId, variantId: i.variantId, calcProfileId: i.calcProfileId, calcOpts: toCalcOpts(i), models: i.models.map((m) => ({ modelFileId: m.modelFileId, fileVersionId: m.fileVersionId, qty: m.qty })), links: i.links })),
   });
   // un guardado manual no se pierde si coincide con el autoguardado: espera a que termine por completo
   // (incluido el id del presupuesto recién creado) y vuelve a guardar con los datos actuales
@@ -108,14 +112,18 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
           </div>
           <div className="grid sm:grid-cols-4 gap-3">
             <label className="block"><span className="label">{t('quotes.urgency')}</span><select className="input" value={q.urgency} onChange={(e) => set({ urgency: e.target.value })}>{ctx.urgency.map((u) => <option key={u.key} value={u.key}>{u.label}{u.pct ? ` (+${u.pct}%)` : ''}</option>)}</select></label>
-            {adj !== 0 && <div className="sm:col-span-3 text-sm self-end pb-2"><Badge tone="blue">{t('quotes.customerPriceList')} {adj > 0 ? '+' : ''}{adj}%</Badge></div>}
+            {atLeast(level, 'detallado') && <label className="block"><span className="label">{t('calc.field.profile')}</span><select className="input" value={q.calcProfileId ?? ''} onChange={(e) => set({ calcProfileId: e.target.value || null })} data-testid="quote-profile"><option value="">{t('calc.field.profileDefault')}</option>{ctx.calcProfiles.filter((p) => !p.archived).map((p) => <option key={p.id} value={p.id}>{profileName(t, p)}</option>)}</select></label>}
+            {atLeast(level, 'detallado') && ctx.channels.length > 0 && <label className="block"><span className="label">{t('calc.field.channel')}</span><select className="input" value={q.channelId ?? ''} onChange={(e) => set({ channelId: e.target.value || null })} data-testid="quote-channel"><option value="">—</option>{ctx.channels.map((c) => <option key={c.id} value={c.id}>{c.name}{c.commissionPct ? ` (${c.commissionPct}%)` : ''}</option>)}</select></label>}
+            {<label className="flex items-center gap-2 text-sm sm:self-end pb-2"><input type="checkbox" checked={q.applyTax} onChange={(e) => set({ applyTax: e.target.checked })} data-testid="apply-tax" />{t('calc.applyTax', { pct: ctx.rates.taxPct })}</label>}
+            <div className="sm:ml-auto sm:self-end pb-1 sm:col-start-4"><LevelSwitch level={level} onChange={setLevel} /></div>
+            {adj !== 0 && <div className="sm:col-span-4 text-sm"><Badge tone="blue">{t('quotes.customerPriceList')} {adj > 0 ? '+' : ''}{adj}%</Badge></div>}
           </div>
         </div>
       </Card>
 
       <div className="space-y-3">
         {q.items.length === 0 && <Card><div className="text-center py-8"><p className="font-medium">{t('quotes.addTheFirstItem')}</p><p className="text-sm muted mt-1">{t('quotes.oneItemPerModelOr')}</p></div></Card>}
-        {q.items.map((it, i) => <LineEditor key={it.uid} it={it} index={i} ctx={ctx} models={models} showCosts={showCosts} canPrice={canPrice} priceAdj={adj} variantsById={vById} onChange={(p) => setItem(it.uid, p)} onRemove={() => set({ items: q.items.filter((x) => x.uid !== it.uid) })} onDuplicate={() => dup(it)} />)}
+        {q.items.map((it, i) => <LineEditor key={it.uid} it={it} index={i} ctx={ctx} models={models} showCosts={showCosts} canPrice={canPrice} env={env} level={level} variantsById={vById} onChange={(p) => setItem(it.uid, p)} onRemove={() => set({ items: q.items.filter((x) => x.uid !== it.uid) })} onDuplicate={() => dup(it)} />)}
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary" onClick={addItem} data-testid="add-line">{t('quotes.addItem')}</button>
           {variants.length > 0 && <button className="btn-ghost" onClick={() => setAddProd(true)}>{t('quotes.catalogProduct2')}</button>}
@@ -145,6 +153,7 @@ export function QuoteEditor({ initial, ctx, customers, models, variants, showCos
             <button className="btn-primary" onClick={async () => { const id = await save(false); if (id) router.push(`/presupuestos/${id}?guardado=1`); }} disabled={saving || q.items.length === 0} data-testid="quote-save">{t('common.save')}</button>
           </div>
         </div>
+        {tt.belowOrderMin && showCosts && <p className="text-xs mt-1 text-amber-700 dark:text-amber-300 max-w-[1500px] mx-auto" data-testid="order-min-warning">{t('calc.belowOrderMin', { min: money(tt.orderMin ?? 0) })} {canPrice && <button type="button" className="underline" onClick={() => set({ finalTotal: tt.orderMin ?? null })}>{t('calc.adjustToMin')}</button>}</p>}
         {(tt.belowCost || tt.belowMin) && showCosts && <p className="text-xs mt-1 text-warn max-w-[1500px] mx-auto">{tt.belowCost ? t('quotes.theFinalPriceIsBelow') : t('quotes.theMarginIsBelowThe', { pct: ctx.rates.minMarginPct })}</p>}
         {tt.belowCost && <div className="max-w-[1500px] mx-auto mt-1"><input className="input" placeholder={t('quotes.reasonForThePriceRequired')} value={q.priceReason} onChange={(e) => set({ priceReason: e.target.value })} aria-label={t('quotes.reasonForThePrice2')} /></div>}
       </div>

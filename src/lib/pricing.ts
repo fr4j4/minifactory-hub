@@ -109,10 +109,8 @@ export interface LineInput {
 
 export type PriceRule = 'margin' | 'floorHour' | 'floorGram' | 'floorLine' | 'volumeLimited';
 export type Confidence = 'alta' | 'media' | 'baja';
-/** Avisos de datos que faltan o no cuadran: tienen texto en la interfaz. */
-export type PriceWarning = 'materialCostZero' | 'machineIncomplete' | 'noMachine' | 'belowBenchmark';
-/** Datos de contexto (no son errores): se muestran en el nivel Experto. */
-export type PriceHint = 'noFixedCosts' | 'timeUncalibrated' | 'noLabor';
+/** Avisos de datos que faltan o no cuadran. Los críticos se muestran siempre; el resto, en el nivel Experto. */
+export type PriceWarning = 'noMachine' | 'machineNoPurchase' | 'machineNoPower' | 'materialNoCost' | 'noLabor' | 'noFixedCosts' | 'timeUncalibrated' | 'belowBenchmark';
 
 export interface CostBreakdown {
   material: number; machine: number; energy: number; prep: number; post: number; failure: number;
@@ -136,7 +134,6 @@ export interface CostBreakdown {
   band?: { floor: number; recommended: number; high: number }; // por unidad
   confidence?: Confidence; reliable?: boolean;
   range?: { min: number; max: number } | null; // precio unitario cuando la estimación es incierta
-  hints?: PriceHint[];
   pricePerHour?: number; pricePerGram?: number;
   benchmark?: { min: number; max: number } | null; // totales de referencia de mercado
 }
@@ -257,13 +254,13 @@ function calcLineCore(i: LineInput, rt0: Rates, inner: boolean): CostBreakdown {
   const rt = normRates(rt0);
   const qty = Math.max(1, Math.floor(i.qty || 1));
   const plates = Math.max(1, Math.floor(i.plates ?? 1));
-  const warnings: PriceWarning[] = []; const hints: PriceHint[] = [];
+  const warnings: PriceWarning[] = [];
 
   /* tiempo (CAL-10: el factor calibrado con el historial se aplica en los tres modos de entrada) */
   const H = Math.max(0, i.hoursTotal);
   const tf = rt.useTimeFactor && i.machine?.timeFactor ? i.machine.timeFactor : 1;
   const hoursEff = H * tf + (H > 0 ? plates * rt.setupHoursPerPlate : 0) + ((i.colorChanges ?? 0) * rt.colorChangeMin) / 60;
-  if (i.machine && (i.machine.jobsDone ?? 0) < 10 && !inner && i.machine.jobsDone != null) hints.push('timeUncalibrated');
+  if (i.machine && (i.machine.jobsDone ?? 0) < 10 && !inner) warnings.push('timeUncalibrated');
 
   /* material (multicolor: un costo por slot) */
   const waste = (i.wastePct ?? rt.wastePct) / 100;
@@ -272,7 +269,7 @@ function calcLineCore(i: LineInput, rt0: Rates, inner: boolean): CostBreakdown {
   const G = fils.reduce((a, f) => a + Math.max(0, f.g), 0);
   const gramsEff = G * (1 + waste);
   const material = fils.reduce((a, f) => a + (Math.max(0, f.g) * (1 + waste) / 1000) * pick(f.costPerKg, f.costPerKgReplace), 0);
-  if (G > 0 && fils.some((f) => !(f.costPerKg > 0))) warnings.push('materialCostZero');
+  if (G > 0 && fils.some((f) => !(f.costPerKg > 0))) warnings.push('materialNoCost');
 
   /* máquina y costos fijos */
   const mr = machineRate(i.machine, rt);
@@ -280,9 +277,9 @@ function calcLineCore(i: LineInput, rt0: Rates, inner: boolean): CostBreakdown {
   const energy = hoursEff * mr.energy;
   const overhead = hoursEff * mr.fixed;
   if (!i.machine) warnings.push('noMachine');
-  else if (!(i.machine.purchaseValue > 0) || !(i.machine.watts > 0)) warnings.push('machineIncomplete');
-  if (!(rt.laborHour > 0)) hints.push('noLabor');
-  if (fixedMonthly(rt) <= 0) hints.push('noFixedCosts');
+  else { if (!(i.machine.purchaseValue > 0)) warnings.push('machineNoPurchase'); if (!(i.machine.watts > 0)) warnings.push('machineNoPower'); }
+  if (!(rt.laborHour > 0)) warnings.push('noLabor');
+  if (fixedMonthly(rt) <= 0) warnings.push('noFixedCosts');
 
   /* mano de obra */
   const prep = plates * ((i.prepMinutes ?? rt.prepMinutes) / 60) * rt.laborHour;
@@ -333,7 +330,7 @@ function calcLineCore(i: LineInput, rt0: Rates, inner: boolean): CostBreakdown {
   if (bench && suggestedTotal < bench.min * 0.9) warnings.push('belowBenchmark');
 
   /* confianza y rango */
-  const critical = warnings.some((w) => w === 'noMachine' || w === 'machineIncomplete' || w === 'materialCostZero') || hints.includes('noLabor');
+  const critical = warnings.some((w) => ['noMachine', 'machineNoPurchase', 'machineNoPower', 'materialNoCost', 'noLabor'].includes(w));
   let confidence: Confidence = i.origin === 'slicer' || i.origin === 'file' ? 'alta' : i.origin === 'estimate' ? 'baja' : 'media';
   if (critical) confidence = 'baja';
   let range: CostBreakdown['range'] = null;
@@ -349,7 +346,7 @@ function calcLineCore(i: LineInput, rt0: Rates, inner: boolean): CostBreakdown {
     cost: r0(cost), marginPct: mPct, urgencyPct: urg, volumePct: vol, priceBeforeRound: r0(price),
     suggestedUnit, suggestedTotal, shipping: i.shipping ?? 0, hoursEffective: hoursEff, gramsEffective: gramsEff,
     feesAmount: r0(feesAmount), marginReal, rule, ruleValue, band: { floor: floorUnit, recommended: suggestedUnit, high: highUnit },
-    confidence, reliable: !critical, range, warnings, hints, pricePerHour: hoursEff > 0 ? suggestedTotal / hoursEff : 0, pricePerGram: G > 0 ? suggestedTotal / G : 0,
+    confidence, reliable: !critical, range, warnings, pricePerHour: hoursEff > 0 ? suggestedTotal / hoursEff : 0, pricePerGram: G > 0 ? suggestedTotal / G : 0,
     benchmark: bench,
   };
 }
