@@ -9,3 +9,9 @@ docs/reporte/media
 !.env.example
 .git
 dist
+
+backups
+.aws
+.claude
+.agents
+.codex

@@ -1,6 +1,7 @@
+import { assertVersionAccess } from '@/lib/library/access';
 import { NextResponse } from 'next/server';
-import { eq } from 'drizzle-orm';
-import { getDb, s } from '@/db';
+import { and, eq } from 'drizzle-orm';
+import { getDb, s, WORKSPACE_ID } from '@/db';
 import { getSession } from '@/lib/auth';
 import { can } from '@/lib/perm';
 import { exists, stat, webStream, getBuffer } from '@/lib/storage';
@@ -15,12 +16,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!user || !can(user, 'archivos', 'V')) return NextResponse.json({ error: t('common.unauthorized') }, { status: 401 });
   const { id, kind } = await params;
   const db = await getDb();
-  const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, id));
+  const [v] = await db.select().from(s.fileVersions).where(and(eq(s.fileVersions.id, id), eq(s.fileVersions.workspaceId, WORKSPACE_ID)));
   if (!v) return NextResponse.json({ error: t('common.notFound') }, { status: 404 });
+  try { await assertVersionAccess(user,id); } catch { return new Response('Not found',{status:404}); }
   const meta = (v.meta ?? {}) as Record<string, any>;
   let key: string | null | undefined; let type = 'application/octet-stream'; let name: string | null = null;
   if (kind === 'raw') {
-    key = v.storageKey; type = MIME[v.format] ?? type;
+    try { key = await (await import('@/lib/library/content')).ensureVersionLocal(id); } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 409 }); } type = MIME[v.format] ?? type;
     const [mf] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
     name = `${mf?.name ?? 'archivo'}-v${v.number}.${v.format}`;
   } else if (kind === 'mesh') { key = meta.previewKey; type = 'application/octet-stream'; }
@@ -29,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   else if (kind === 'turn') { key = meta.turnKey; type = 'image/webp'; }
   if (!key || !(await exists(key))) return NextResponse.json({ error: t('api.notAvailable') }, { status: kind === 'raw' ? 404 : 202 });
   const st = await stat(key);
-  const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, max-age=3600', 'content-length': String(st.size) };
+  const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'content-length': String(st.size) };
   if (name) headers['content-disposition'] = `attachment; filename="${encodeURIComponent(name)}"`;
   return new Response(webStream(key), { headers });
 }

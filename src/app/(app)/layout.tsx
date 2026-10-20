@@ -40,5 +40,5 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await followUpQuotes().catch(() => {});
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(s.notifications).where(and(eq(s.notifications.read, false), or(isNull(s.notifications.userId), eq(s.notifications.userId, user.id))));
   const nav: NavItem[] = NAV.filter((n) => can(user, n.mod, 'V')).map((n) => ({ href: n.href, label: t(n.label), icon: n.icon, group: n.group }));
-  return <AppShell nav={nav} user={{ name: user.name, role: t(`roles.${user.role}`) }} unread={Number(n)} shopPalette={(await getSettings()).shop.palette}>{children}</AppShell>;
+  return <AppShell nav={nav} user={{ name: user.name, role: t(`roles.${user.role}`) }} unread={Number(n)} shopPalette={(await getSettings()).shop.palette}>{process.env.MF_TEST_DEPLOYMENT === '1' && <div role="status" className="mb-4 rounded border border-amber-400 bg-amber-100 p-3 text-sm text-amber-950">PRUEBAS · Biblioteca multifuente · Datos independientes · Impresoras desactivadas</div>}{children}</AppShell>;
 }

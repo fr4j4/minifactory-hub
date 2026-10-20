@@ -1,3 +1,4 @@
+import {modelAccess,photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { and, asc, desc, eq, isNull, inArray } from 'drizzle-orm';
@@ -22,8 +23,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const vars = await db.select().from(s.productVariants).where(and(eq(s.productVariants.productId, id), isNull(s.productVariants.deletedAt))).orderBy(asc(s.productVariants.sku));
   const mv = vars.length ? await db.select({ m: s.stockMovements, sku: s.productVariants.sku }).from(s.stockMovements).innerJoin(s.productVariants, eq(s.productVariants.id, s.stockMovements.variantId)).where(inArray(s.stockMovements.variantId, vars.map((v) => v.id))).orderBy(desc(s.stockMovements.createdAt)).limit(40) : [];
   const links = await db.select().from(s.referenceLinks).where(and(eq(s.referenceLinks.ownerType, 'product'), eq(s.referenceLinks.ownerId, id)));
-  const photos = await db.select().from(s.photos).where(and(eq(s.photos.productId, id), isNull(s.photos.deletedAt))).limit(12);
-  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)); const models = await db.select({ id: s.modelFiles.id, name: s.modelFiles.name }).from(s.modelFiles).where(isNull(s.modelFiles.deletedAt));
+  const photos = await db.select().from(s.photos).where(and(photoAccess(user),eq(s.photos.productId, id), isNull(s.photos.deletedAt))).limit(12);
+  const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt)); const models = await db.select({ id: s.modelFiles.id, name: s.modelFiles.name }).from(s.modelFiles).where(and(modelAccess(user),isNull(s.modelFiles.deletedAt)));
   const costs = canSeeCosts(user);
   return (
     <>

@@ -1,0 +1,99 @@
+name: minifactory-library-test
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: library_test
+      POSTGRES_PASSWORD: ${LIBRARY_TEST_DB_PASSWORD:?Use scripts/library-test.sh}
+      POSTGRES_DB: library_test
+    volumes: [library_test_pg:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U library_test -d library_test"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+  app:
+    image: minifactory-library-test:feature
+    build:
+      context: .
+      dockerfile: Dockerfile.library-test
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ["3011:3000"]
+    networks: [default, browser_control]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/library/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      start_period: 30s
+      retries: 12
+    environment: &library_test_env
+      MF_EXTERNAL_WORKER: "1"
+      MAKERWORLD_BROWSER_URL: http://makerworld-browser:3002
+      BROWSER_SERVICE_KEY: ${LIBRARY_TEST_BROWSER_KEY:?Use scripts/library-test.sh}
+      DATABASE_URL: postgres://library_test:${LIBRARY_TEST_DB_PASSWORD}@db:5432/library_test
+      SESSION_SECRET: ${LIBRARY_TEST_SESSION_SECRET:?Use scripts/library-test.sh}
+      SESSION_COOKIE_NAME: mf_library_test_session
+      ADMIN_EMAIL: biblioteca-test@minifactory.local
+      ADMIN_PASSWORD: ${LIBRARY_TEST_ADMIN_PASSWORD:?Use scripts/library-test.sh}
+      MF_TEST_DEPLOYMENT: "1"
+      BAMBU_DISABLED: "1"
+      AI_FORCE_DISABLED: "1"
+      STORAGE_DIR: /data/storage
+      DATA_DIR: /data
+      LIBRARY_LOCAL_ROOTS: /sources
+      ORCA_CONCURRENCY: "1"
+    volumes:
+      - library_test_files:/data
+      - library_test_sources:/sources
+    restart: unless-stopped
+  makerworld-browser:
+    image: minifactory-makerworld-browser:test
+    build:
+      context: .
+      dockerfile: services/makerworld-browser/Dockerfile
+    environment:
+      BROWSER_SERVICE_KEY: ${LIBRARY_TEST_BROWSER_KEY:?Use scripts/library-test.sh}
+    networks: [browser_control, browser_egress]
+    depends_on: [browser-proxy]
+    read_only: true
+    tmpfs: ["/tmp:size=2g,mode=1777"]
+    shm_size: 256m
+    mem_limit: 2g
+    pids_limit: 512
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    restart: unless-stopped
+  browser-proxy:
+    image: minifactory-makerworld-browser:test
+    build:
+      context: .
+      dockerfile: services/makerworld-browser/Dockerfile
+    command: [node, proxy.mjs]
+    networks: [browser_egress, browser_internet]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 32
+    restart: unless-stopped
+  worker:
+    image: minifactory-library-test:feature
+    networks: [default, browser_control]
+    depends_on:
+      db: {condition: service_healthy}
+      app: {condition: service_healthy}
+    command: ["npx", "tsx", "scripts/worker.ts"]
+    environment: *library_test_env
+    volumes:
+      - library_test_files:/data
+      - library_test_sources:/sources
+    restart: unless-stopped
+volumes:
+  library_test_pg: {}
+  library_test_files: {}
+  library_test_sources: {}
+networks:
+  browser_control: {internal: true}
+  browser_egress: {internal: true}
+  browser_internet: {}

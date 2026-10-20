@@ -162,6 +162,48 @@
       "when": 1792220000000,
       "tag": "0022_trabajos_piezas_buenas",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792230000000,
+      "tag": "0023_library_sources",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792240000000,
+      "tag": "0024_upload_owner",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792287127069,
+      "tag": "0025_library_completion",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792288526535,
+      "tag": "0026_library_cache_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792290000000,
+      "tag": "0027_library_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792380000000,
+      "tag": "0028_photo_scope",
+      "breakpoints": true
     }
   ]
 }

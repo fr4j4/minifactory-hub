@@ -1,4 +1,5 @@
 'use server';
+import {assertVersionAccess} from '@/lib/library/access';
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { requirePerm } from '@/lib/auth';
@@ -15,7 +16,7 @@ import { LocalizedError } from '@/i18n/errors';
 
 export async function sliceAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null; copies?: number; label?: string; force?: boolean; orient?: boolean; extra?: Array<{ materialId?: string | null; filamentProfileId?: string | null }>; overrides?: { machine?: Record<string, any>; process?: Record<string, any>; filament?: Record<string, any> } }) {
   return safe(async () => {
-    const u = await requirePerm('laminador', 'V');
+    const u = await requirePerm('laminador', 'V');await assertVersionAccess(u,i.fileVersionId);
     return enqueueSlice({ ...i, userId: u.id });
   });
 }
@@ -23,7 +24,7 @@ export async function sliceAction(i: { fileVersionId: string; machineProfileId: 
 export async function compareAction(i: { fileVersionId: string; copies?: number; combos: Array<{ label: string; machineProfileId: string; processProfileId: string; filamentProfileId?: string | null; materialId?: string | null }> }) {
   const t = await getT();
   return safe(async () => {
-    const u = await requirePerm('laminador', 'V');
+    const u = await requirePerm('laminador', 'V');await assertVersionAccess(u,i.fileVersionId);
     if (i.combos.length < 1 || i.combos.length > 8) throw new Error(t('slicer.chooseBetween1And8'));
     const groupId = crypto.randomUUID(); const ids: string[] = [];
     for (const c of i.combos) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, copies: i.copies ?? 1, label: c.label, groupId, userId: u.id, machineProfileId: c.machineProfileId, processProfileId: c.processProfileId, filamentProfileId: c.filamentProfileId, materialId: c.materialId }));
@@ -346,7 +347,7 @@ export async function saveOverridesAsProfileAction(i: { type: ProfileType; baseP
 export async function exploreAction(i: { fileVersionId: string; machineProfileId: string; processProfileId: string; materialId: string; copies?: number; variants: Array<{ label: string; overrides: Record<string, string> }> }) {
   const t = await getT();
   return safe(async () => {
-    const u = await requirePerm('laminador', 'V');
+    const u = await requirePerm('laminador', 'V');await assertVersionAccess(u,i.fileVersionId);
     if (i.variants.length < 2 || i.variants.length > 12) throw new Error(t('studio.exploreLimit'));
     const groupId = crypto.randomUUID(); const ids: string[] = [];
     for (const v of i.variants) ids.push(await enqueueSlice({ fileVersionId: i.fileVersionId, machineProfileId: i.machineProfileId, processProfileId: i.processProfileId, materialId: i.materialId, copies: i.copies ?? 1, label: v.label, groupId, userId: u.id, overrides: { process: cleanChanges('process', v.overrides) } }));
@@ -358,9 +359,9 @@ export async function exploreAction(i: { fileVersionId: string; machineProfileId
 export async function importFromVersionAction(versionId: string) {
   return safe(async () => {
     const u = await requirePerm('laminador', 'C');
-    const db = await getDb(); const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId)); if (!v || v.format !== '3mf') throw new Error('3mf');
+    await assertVersionAccess(u,versionId);const db = await getDb(); const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId)); if (!v || v.format !== '3mf') throw new Error('3mf');
     const { getBuffer } = await import('@/lib/storage'); const { parsePresetFiles } = await import('@/lib/slicer/import'); const t = await getT();
-    const cands = parsePresetFiles([{ name: 'proyecto.3mf', data: new Uint8Array(await getBuffer(v.storageKey)) }], t).filter((c) => c.ok && c.baseName);
+    const cands = parsePresetFiles([{ name: 'proyecto.3mf', data: new Uint8Array(await getBuffer(await (await import('@/lib/library/content')).ensureVersionLocal(v.id))) }], t).filter((c) => c.ok && c.baseName);
     if (!cands.length) throw new Error(t('slicer.import3mfNoConfig', { source: 'proyecto.3mf' }));
     return saveCandidates(cands, u.id);
   }, ['/laminador', '/laminador/configurar']);

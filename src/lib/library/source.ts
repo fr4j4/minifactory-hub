@@ -12,7 +12,9 @@ export function parseSourceUrl(input: string): ParsedUrl | null {
   if (!/^https?:$/.test(u.protocol)) return null;
   const host = u.hostname.toLowerCase().replace(/^www\./, '');
   if (host === 'makerworld.com' || host.endsWith('.makerworld.com')) {
-    const m = u.pathname.match(/\/models\/(\d+)/); return { provider: 'makerworld', externalId: m?.[1] ?? null, url: m ? `https://makerworld.com/models/${m[1]}` : u.toString() };
+    const m = u.pathname.match(/\/models\/(\d+)/);
+    const profileId = u.hash.match(/^#profileId-(\d+)$/i)?.[1];
+    return { provider: 'makerworld', externalId: m?.[1] ?? null, url: m ? `https://makerworld.com/models/${m[1]}${profileId ? `#profileId-${profileId}` : ''}` : u.toString() };
   }
   if (host === 'printables.com') { const m = u.pathname.match(/\/model\/(\d+)/); return { provider: 'printables', externalId: m?.[1] ?? null, url: u.toString() }; }
   if (host === 'thingiverse.com') { const m = u.pathname.match(/thing:(\d+)/); return { provider: 'thingiverse', externalId: m?.[1] ?? null, url: m ? `https://www.thingiverse.com/thing:${m[1]}` : u.toString() }; }
@@ -29,7 +31,7 @@ export function normalizeLicense(text: string | null | undefined): { code: Licen
     return { code, commercial: nc ? 'no' : 'si' };
   }
   if (/commercial.*(licen|member)|membres/.test(t)) return { code: 'makerworld-comercial', commercial: 'requiere_membresia' };
-  if (/propia|own|standard-digital-file|personal/.test(t)) return { code: 'propia', commercial: 'desconocido' };
+  if (/^(propia|own)$/.test(t)) return { code: 'propia', commercial: 'desconocido' };
   return { code: 'desconocida', commercial: 'desconocido' };
 }
 
@@ -50,6 +52,7 @@ export function isPrivateIp(ip: string): boolean {
 export type Fetcher = (url: string, init?: { headers?: Record<string, string>; signal?: AbortSignal; redirect?: 'manual' }) => Promise<{ status: number; headers: { get(k: string): string | null }; text(): Promise<string> }>;
 /** GET a una URL pública: solo http(s), sin IP privadas (también tras redirecciones), con tope de tiempo y de tamaño. */
 export async function safeGet(url: string, opts: { fetcher?: Fetcher; resolve?: (host: string) => Promise<string[]>; maxBytes?: number; timeoutMs?: number; headers?: Record<string, string> } = {}): Promise<{ status: number; body: string; finalUrl: string; contentType: string }> {
+  if (!opts.fetcher && !opts.resolve) { const h = await import('./connectors/http'); const res = await h.request(url, {headers: opts.headers}); return {status: res.statusCode || 200, body: await h.body(res, opts.maxBytes ?? 2_000_000), finalUrl: url, contentType: String(res.headers['content-type'] || '')}; }
   const fetcher = opts.fetcher ?? (fetch as unknown as Fetcher);
   const resolve = opts.resolve ?? (async (h: string) => (net.isIP(h) ? [h] : (await dns.lookup(h, { all: true })).map((r) => r.address)));
   let cur = url;
@@ -70,7 +73,7 @@ export async function safeGet(url: string, opts: { fetcher?: Fetcher; resolve?: 
 /* ── Metadatos ── */
 export interface SourceMeta {
   title: string | null; description: string | null; authorName: string | null; authorUid: string | null; authorUrl: string | null; imageUrls: string[];
-  licenseText: string | null; tags: string[]; stats: { likes?: number; downloads?: number; comments?: number; rating?: number }; plates: Array<{ name?: string; printTimeS?: number; weightG?: number; filaments?: string[] }>;
+  licenseText: string | null; category?: string | null; tags: string[]; stats: { likes?: number; downloads?: number; comments?: number; rating?: number }; plates: Array<{ name?: string; printTimeS?: number; weightG?: number; filaments?: string[] }>;
   remoteCreatedAt: string | null; remoteUpdatedAt: string | null; status: 'ok' | 'parcial' | 'error'; raw?: unknown;
 }
 const empty = (): SourceMeta => ({ title: null, description: null, authorName: null, authorUid: null, authorUrl: null, imageUrls: [], licenseText: null, tags: [], stats: {}, plates: [], remoteCreatedAt: null, remoteUpdatedAt: null, status: 'error' });
@@ -82,7 +85,11 @@ export function parseOpenGraph(html: string): SourceMeta {
   const meta = (k: string) => { const r = new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${k}["']`, 'i').exec(html); return r ? decode(r[1] ?? r[2] ?? '').trim() || null : null; };
   m.title = meta('og:title') ?? (/<title[^>]*>([^<]*)<\/title>/i.exec(html)?.[1] ? decode(/<title[^>]*>([^<]*)<\/title>/i.exec(html)![1]).trim() : null);
   m.description = meta('og:description') ?? meta('description');
-  const img = meta('og:image'); if (img) m.imageUrls.push(img);
+  for (const tag of html.matchAll(/<meta\b[^>]*>/gi)) {
+    if (!/(?:property|name)=["'](?:og:image(?::url)?|twitter:image)["']/i.test(tag[0])) continue;
+    const image = /content=["']([^"']+)["']/i.exec(tag[0]);
+    if (image) m.imageUrls.push(decode(image[1]));
+  }
   m.authorName = meta('author') ?? meta('article:author');
   const kw = meta('keywords'); if (kw) m.tags = kw.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20);
   for (const blk of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -90,8 +97,13 @@ export function parseOpenGraph(html: string): SourceMeta {
       const j = JSON.parse(blk[1]); const node = Array.isArray(j) ? j[0] : j;
       if (node?.license) m.licenseText = String(typeof node.license === 'string' ? node.license : node.license?.url ?? '');
       if (!m.authorName && node?.author) m.authorName = String(node.author?.name ?? node.author);
+      for (const image of Array.isArray(node?.image) ? node.image : [node?.image]) {
+        const url = typeof image === 'string' ? image : image?.contentUrl ?? image?.url;
+        if (typeof url === 'string') m.imageUrls.push(url);
+      }
     } catch { /* JSON-LD inválido */ }
   }
+  m.imageUrls = [...new Set(m.imageUrls.filter(url => /^https:\/\//i.test(url)))].slice(0, 12);
   m.status = m.title ? (m.description || m.imageUrls.length ? 'ok' : 'parcial') : 'error';
   return m;
 }
@@ -99,12 +111,15 @@ export function parseOpenGraph(html: string): SourceMeta {
 /** Respuesta JSON de `design-service/design/{id}` (sin documentación oficial: se leen los campos conocidos y se ignora el resto). */
 export function parseMakerworldDesign(json: any): SourceMeta {
   const m = empty(); const d = json?.design ?? json; if (!d || typeof d !== 'object') return m;
-  m.title = d.title ?? d.name ?? null; m.description = typeof d.summary === 'string' ? d.summary : typeof d.description === 'string' ? d.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : null;
+  m.title = d.title ?? d.name ?? null; const description = d.summary ?? d.description; m.description = typeof description === 'string' ? description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 2000) : null;
   const c = d.designCreator ?? d.creator ?? {}; m.authorName = c.name ?? null; m.authorUid = c.uid != null ? String(c.uid) : null; m.authorUrl = c.uid != null ? `https://makerworld.com/en/@${c.name ?? c.uid}` : null;
-  const imgs = [d.cover, ...(Array.isArray(d.designExtension?.design_pictures) ? d.designExtension.design_pictures.map((p: any) => p?.url) : []), ...(Array.isArray(d.images) ? d.images.map((p: any) => (typeof p === 'string' ? p : p?.url)) : [])];
+  const imgs = [d.coverUrl ?? d.cover, ...(Array.isArray(d.designExtension?.design_pictures) ? d.designExtension.design_pictures.map((p: any) => p?.url) : []), ...(Array.isArray(d.images) ? d.images.map((p: any) => (typeof p === 'string' ? p : p?.url)) : [])];
   m.imageUrls = [...new Set(imgs.filter((x: unknown): x is string => typeof x === 'string' && /^https?:\/\//.test(x)))].slice(0, 12);
   m.tags = (Array.isArray(d.tags) ? d.tags : []).map((t: any) => String(typeof t === 'string' ? t : t?.name ?? '')).filter(Boolean).slice(0, 20);
   m.licenseText = d.license ?? d.licenseCode ?? d.designExtension?.license ?? null;
+  // la categoría no tiene un campo fijo conocido: se prueban los nombres habituales y se ignora lo que no sea texto
+  const cat = d.categoryName ?? d.category?.name ?? d.category ?? d.categories?.[0]?.name ?? d.categories?.[0] ?? d.designExtension?.categoryName;
+  m.category = typeof cat === 'string' && cat.trim() ? cat.trim().slice(0, 60) : null;
   m.stats = { likes: num(d.likeCount), downloads: num(d.downloadCount), comments: num(d.commentCount), rating: num(d.rating ?? d.ratingAvg) };
   m.plates = (Array.isArray(d.instances) ? d.instances : []).flatMap((i: any) => (Array.isArray(i.plates) && i.plates.length ? i.plates : [i])).slice(0, 20).map((p: any) => ({ name: p.name ?? p.title, printTimeS: num(p.prediction ?? p.printTime), weightG: num(p.weight), filaments: Array.isArray(p.filaments) ? p.filaments.map((f: any) => String(f?.type ?? f)) : undefined }));
   m.remoteCreatedAt = d.createTime ?? d.createdAt ?? null; m.remoteUpdatedAt = d.updateTime ?? d.updatedAt ?? null;

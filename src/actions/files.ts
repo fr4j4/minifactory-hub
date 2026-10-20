@@ -1,4 +1,5 @@
 'use server';
+import { assertModelAccess, assertVersionAccess, modelAccess } from '@/lib/library/access';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { requirePerm } from '@/lib/auth';
@@ -9,7 +10,7 @@ import { LocalizedError } from '@/i18n/errors';
 
 export async function updateFileAction(id: string, i: { name?: string; folder?: string | null; tags?: string[]; license?: string; origin?: string | null; author?: string | null; customerId?: string | null; favorite?: boolean }) {
   return safe(async () => {
-    const u = await requirePerm('archivos', 'E'); const db = await getDb();
+    const u = await requirePerm('archivos', 'E'); await assertModelAccess(u,id); const db = await getDb();
     const patch: Record<string, any> = { updatedAt: new Date() };
     for (const k of ['name', 'folder', 'tags', 'license', 'origin', 'author', 'customerId', 'favorite'] as const) if (i[k] !== undefined) patch[k] = i[k];
     const L = await import('@/lib/library/folders');
@@ -20,25 +21,28 @@ export async function updateFileAction(id: string, i: { name?: string; folder?: 
   }, ['/archivos', `/archivos/${id}`]);
 }
 export async function deleteFileAction(id: string) {
-  return safe(async () => { const u = await requirePerm('archivos', 'X'); const db = await getDb(); await db.update(s.modelFiles).set({ deletedAt: new Date() }).where(eq(s.modelFiles.id, id)); await audit('model_file', id, 'eliminar', {}, u.id); }, ['/archivos']);
+  return safe(async () => { const u = await requirePerm('archivos', 'X'); await assertModelAccess(u,id); const db = await getDb(); await db.update(s.modelFiles).set({ deletedAt: new Date() }).where(eq(s.modelFiles.id, id)); await audit('model_file', id, 'eliminar', {}, u.id); }, ['/archivos']);
 }
 export async function setCurrentVersionAction(modelFileId: string, versionId: string) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
-    const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId));
+    await assertModelAccess(u,modelFileId);
+    const [v] = await db.select().from(s.fileVersions).where(and(eq(s.fileVersions.id, versionId), eq(s.fileVersions.modelFileId, modelFileId)));
+    if (!v) throw new Error('Versión no pertenece al modelo');
     const meta: any = v?.meta ?? {};
     await db.update(s.modelFiles).set({ currentVersionId: versionId, dimX: meta.analysis?.dimX ?? null, dimY: meta.analysis?.dimY ?? null, dimZ: meta.analysis?.dimZ ?? null, volumeCm3: meta.analysis?.volumeCm3 ?? null, areaCm2: meta.analysis?.areaCm2 ?? null, triangles: meta.analysis?.triangles ?? null, closed: meta.analysis?.closed ?? null, hash: v?.sha256 ?? null }).where(eq(s.modelFiles.id, modelFileId));
     await audit('model_file', modelFileId, 'version_actual', { versionId }, u.id);
   }, [`/archivos/${modelFileId}`]);
 }
 export async function reprocessVersionAction(versionId: string) {
-  return safe(async () => { await requirePerm('archivos', 'E'); await processVersion(versionId); return true; });
+  return safe(async () => { const u=await requirePerm('archivos', 'E'); await assertVersionAccess(u,versionId); await (await import('@/lib/jobs')).enqueueJob('file.process', {versionId}); return true; });
 }
 
 /** Registra el origen del modelo a partir de un enlace (trae metadatos públicos, normaliza licencia). */
 export async function attachSourceAction(modelFileId: string, url: string) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E');
+    await assertModelAccess(u,modelFileId);
     const { attachSource } = await import('@/lib/library/import');
     return attachSource(modelFileId, url, u.id);
   }, [`/archivos/${modelFileId}`, '/archivos']);
@@ -48,13 +52,14 @@ export async function attachSourceAction(modelFileId: string, url: string) {
 export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'V'); const db = await getDb();
-    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new LocalizedError('files.errFileNotFound');
+    const f = await assertModelAccess(u,modelFileId); if (!f) throw new LocalizedError('files.errFileNotFound');
     const [src] = f.sourceId ? await db.select().from(s.modelSources).where(eq(s.modelSources.id, f.sourceId)) : [];
     const { ruleCandidates, mergeSuggestions } = await import('@/lib/library/tags');
     const vocab = [...new Set((await db.select({ tags: s.modelFiles.tags }).from(s.modelFiles)).flatMap((r) => r.tags ?? []))];
     const input = { name: f.name, folder: f.folder, origin: f.origin, sourceTags: src?.tags ?? [], geom: { dimX: f.dimX, dimY: f.dimY, dimZ: f.dimZ, volumeCm3: f.volumeCm3, closed: f.closed } };
     let cands = ruleCandidates(input);
     if (withAi) {
+      await (await import('@/lib/library/metadata')).assertSourceAi(modelFileId);
       const { aiAvailableFor } = await import('@/lib/ai'); const { getLocale } = await import('@/i18n/server');
       if (await aiAvailableFor(u, 'files.tag')) {
         const { suggestTagsAi } = await import('@/lib/ai/features/file-tags');
@@ -62,7 +67,7 @@ export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
         // con la miniatura, la IA reconoce mejor qué es la pieza; si el taller no permite imágenes o el modelo no ve, se reintenta solo con texto
         let image: { data: Buffer; mime: string } | undefined;
         const [fv] = f.currentVersionId ? await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, f.currentVersionId)) : [];
-        if (fv?.thumbKey && (await (await import('@/lib/ai/config')).getAiConfig()).privacy.sendImages) { try { image = { data: await (await import('@/lib/storage')).getBuffer(fv.thumbKey), mime: 'image/webp' }; } catch { /* sin miniatura */ } }
+        if (fv?.thumbKey && (await (await import('@/lib/ai/config')).getAiConfig()).privacy.sendImages) { try { await (await import('@/lib/library/metadata')).assertSourceAi(modelFileId,'images'); image = { data: await (await import('@/lib/storage')).getBuffer(fv.thumbKey), mime: 'image/webp' }; } catch { /* sin miniatura */ } }
         try { cands = [...cands, ...(await suggestTagsAi({ ...ai, image }, { user: u }))]; }
         catch (e) { if (!image) throw e; cands = [...cands, ...(await suggestTagsAi(ai, { user: u }))]; }
       }
@@ -75,7 +80,7 @@ export async function suggestTagsAction(modelFileId: string, withAi: boolean) {
 export async function addTagsAction(modelFileId: string, tags: Array<{ name: string; source: 'manual' | 'ia' | 'import' | 'regla'; confidence?: number }>) {
   return safe(async () => {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
-    const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId)); if (!f) throw new LocalizedError('files.errFileNotFound');
+    const f = await assertModelAccess(u,modelFileId); if (!f) throw new LocalizedError('files.errFileNotFound');
     const { normalizeTag } = await import('@/lib/library/tags');
     const cur = new Set((f.tags ?? []).map(normalizeTag)); const next = [...(f.tags ?? [])]; const meta = { ...(f.tagMeta ?? {}) };
     for (const t of tags.slice(0, 40)) { const n = normalizeTag(t.name); if (!n || cur.has(n)) continue; cur.add(n); next.push(n); meta[n] = { source: t.source, confidence: t.confidence }; }
@@ -94,7 +99,7 @@ export async function bulkFilesAction(ids: string[], op: BulkOp) {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
     const list = [...new Set(ids)].slice(0, 200); if (!list.length) return 0;
     const { normalizeTag } = await import('@/lib/library/tags');
-    const rows = await db.select().from(s.modelFiles).where(and(inArray(s.modelFiles.id, list), isNull(s.modelFiles.deletedAt)));
+    const rows = await db.select().from(s.modelFiles).where(and(modelAccess(u),inArray(s.modelFiles.id, list), isNull(s.modelFiles.deletedAt)));
     for (const f of rows) {
       const patch: Partial<typeof s.modelFiles.$inferInsert> = { updatedAt: new Date() };
       if (op.kind === 'addTags') {
@@ -119,7 +124,7 @@ export async function renameTagAction(from: string, to: string) {
     const u = await requirePerm('archivos', 'E'); const db = await getDb();
     const { normalizeTag } = await import('@/lib/library/tags'); const a = normalizeTag(from), b = normalizeTag(to);
     if (!a || !b) throw new LocalizedError('files.errTagName');
-    const rows = await db.select().from(s.modelFiles).where(isNull(s.modelFiles.deletedAt)); let n = 0;
+    const rows = await db.select().from(s.modelFiles).where(and(modelAccess(u),isNull(s.modelFiles.deletedAt))); let n = 0;
     for (const f of rows) {
       if (!(f.tags ?? []).some((t) => normalizeTag(t) === a)) continue;
       const next = [...new Set((f.tags ?? []).map((t) => (normalizeTag(t) === a ? b : t)))]; const meta = { ...(f.tagMeta ?? {}) }; if (meta[a]) { meta[b] = meta[b] ?? meta[a]; delete meta[a]; }
@@ -133,7 +138,7 @@ export async function renameTagAction(from: string, to: string) {
 
 /** Recuerda si este modelo se lamina con orientación automática. */
 export async function setAutoOrientAction(modelFileId: string, on: boolean) {
-  return safe(async () => { await requirePerm('laminador', 'V'); const db = await getDb(); await db.update(s.modelFiles).set({ autoOrient: on }).where(eq(s.modelFiles.id, modelFileId)); }, []);
+  return safe(async () => { const u=await requirePerm('laminador', 'V'); await assertModelAccess(u,modelFileId); const db = await getDb(); await db.update(s.modelFiles).set({ autoOrient: on }).where(eq(s.modelFiles.id, modelFileId)); }, []);
 }
 
 /** Carpetas de la biblioteca: crear, renombrar/mover y eliminar (los archivos suben a la carpeta madre). */
@@ -141,10 +146,10 @@ export async function createFolderAction(path: string) {
   return safe(async () => { await requirePerm('archivos', 'E'); const p = await (await import('@/lib/library/folders')).ensureFolder(path); if (!p) throw new LocalizedError('files.errFolderInvalid'); return p; }, ['/archivos']);
 }
 export async function renameFolderAction(from: string, to: string) {
-  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).renameFolder(from, to); await audit('model_file', 'folders', 'renombrar_carpeta', { from, to, n }, u.id); return n; }, ['/archivos']);
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).renameFolder(from, to, undefined, modelAccess(u)); await audit('model_file', 'folders', 'renombrar_carpeta', { from, to, n }, u.id); return n; }, ['/archivos']);
 }
 export async function deleteFolderAction(path: string) {
-  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).deleteFolder(path); await audit('model_file', 'folders', 'eliminar_carpeta', { path, n }, u.id); return n; }, ['/archivos']);
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); const n = await (await import('@/lib/library/folders')).deleteFolder(path, undefined, modelAccess(u)); await audit('model_file', 'folders', 'eliminar_carpeta', { path, n }, u.id); return n; }, ['/archivos']);
 }
 export async function setTagColorAction(name: string, color: string | null) {
   return safe(async () => { await requirePerm('archivos', 'E'); await (await import('@/lib/library/folders')).setTagColor(name, color); }, ['/archivos']);
@@ -152,5 +157,5 @@ export async function setTagColorAction(name: string, color: string | null) {
 
 /** Repara la malla de una versión (suelda, orienta, tapa huecos pequeños) y la guarda como versión nueva. */
 export async function repairFileAction(versionId: string) {
-  return safe(async () => { const u = await requirePerm('archivos', 'E'); const { repairFileVersion } = await import('@/lib/mesh/repair-file'); const r = await repairFileVersion(versionId, u.id); await audit('model_file', r.modelFileId, 'reparar', { ...r.report }, u.id); return r; }, ['/archivos']);
+  return safe(async () => { const u = await requirePerm('archivos', 'E'); await assertVersionAccess(u,versionId); const { repairFileVersion } = await import('@/lib/mesh/repair-file'); const r = await repairFileVersion(versionId, u.id); await audit('model_file', r.modelFileId, 'reparar', { ...r.report }, u.id); return r; }, ['/archivos']);
 }

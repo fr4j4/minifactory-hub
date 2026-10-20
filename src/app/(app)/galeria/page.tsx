@@ -1,3 +1,4 @@
+import {photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { and, desc, eq, gte, ilike, isNull, sql } from 'drizzle-orm';
 import { getDb, s } from '@/db';
@@ -21,7 +22,7 @@ const LIMIT = 300;
 export default async function GalleryPage({ searchParams }: { searchParams: Promise<{ stage?: string; fav?: string; tag?: string; months?: string; col?: string; subir?: string; cliente?: string }> }) {
   const t = await getT();
   const user = await pagePerm('galeria', 'V'); const sp = await searchParams; const db = await getDb();
-  const conds = [isNull(s.photos.deletedAt)];
+  const conds = [photoAccess(user),isNull(s.photos.deletedAt),eq(s.photos.scope,'job')];
   if (sp.stage) conds.push(eq(s.photos.stage, sp.stage)); if (sp.fav) conds.push(eq(s.photos.featured, true));
   if (sp.tag) conds.push(sql`${s.photos.tags}::text ilike ${'%' + sp.tag + '%'}`);
   if (sp.months) conds.push(gte(s.photos.takenAt, new Date(Date.now() - Number(sp.months) * 30 * 86400_000)));
@@ -29,7 +30,7 @@ export default async function GalleryPage({ searchParams }: { searchParams: Prom
   const rows = await db.select({ p: s.photos, o: s.orders.number, c: s.customers.name, consent: s.customers.photoConsent }).from(s.photos).leftJoin(s.orders, eq(s.orders.id, s.photos.orderId)).leftJoin(s.customers, eq(s.customers.id, s.photos.customerId)).where(and(...conds)).orderBy(desc(s.photos.featured), desc(s.photos.takenAt)).limit(LIMIT);
   const cols = await db.select().from(s.collections).where(isNull(s.collections.deletedAt)); const colPhotos = sp.col ? await db.select().from(s.collectionPhotos).where(eq(s.collectionPhotos.collectionId, sp.col)) : [];
   const list = sp.col ? rows.filter((r) => colPhotos.some((c) => c.photoId === r.p.id)) : rows;
-  const allTags = [...new Set((await db.select({ t: s.photos.tags }).from(s.photos).where(isNull(s.photos.deletedAt))).flatMap((x) => x.t ?? []))].sort().slice(0, 30);
+  const allTags = [...new Set((await db.select({ t: s.photos.tags }).from(s.photos).where(and(photoAccess(user),isNull(s.photos.deletedAt),eq(s.photos.scope,'job')))).flatMap((x) => x.t ?? []))].sort().slice(0, 30);
   const views: PhotoView[] = list.map(({ p, o, c, consent }) => ({ id: p.id, kind: p.kind, thumb: p.kind === 'video' ? '' : `/api/media/${p.variants?.['320'] ?? p.storageKey}`, large: `/api/media/${p.kind === 'video' ? p.storageKey : p.variants?.['1600'] ?? p.storageKey}`, stage: p.stage, stageLabel: tOr(t, `gallery.stage.${p.stage}`, p.stage), featured: p.featured, tags: p.tags ?? [], caption: p.caption, internalOnly: p.internalOnly || noPhotoConsent(consent), takenAt: p.takenAt.toISOString(), order: o, customer: c, publish: p.publish ?? {}, suggestedText: p.suggestedText }));
   return (
     <>

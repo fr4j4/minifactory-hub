@@ -49,7 +49,7 @@ export const files = {
   toolpathsFromTheGCode: 'Trayectorias del G-code incluido en el 3MF',
   noLayerPreview: 'Sin vista previa de capas',
   thisGCodeCannotBe: 'Este G-code no se puede previsualizar.',
-  photosOfWhatWasMade: 'Fotos de lo fabricado con este modelo',
+  photosOfWhatWasMade: 'Imágenes del modelo y sus impresiones',
   photo: 'Foto',
   automaticAnalysis: 'Análisis automático',
   dimensions: 'Dimensiones',

@@ -24,7 +24,7 @@ export async function sendToPrinterAction(i: Omit<SendInput, 'userId'>) { return
 export async function assignTraySpoolAction(linkId: string, slot: string, spoolId: string | null) { return safe(async () => { const u = await requirePerm('inventario', 'E'); await assignTraySpool(linkId, slot, spoolId, u.id); }, ['/maquinas', '/inventario']); }
 
 export async function cloudLoginAction(i: { region: 'global' | 'china'; account: string; password: string }) { return safe(async () => { const u = await requirePerm('maquinas', 'C'); return cloudStartLogin({ ...i, userId: u.id }); }, P); }
-export async function cloudVerifyAction(pendingId: string, code: string) { return safe(async () => { await requirePerm('maquinas', 'C'); return cloudFinishLogin({ pendingId, code }); }, P); }
+export async function cloudVerifyAction(pendingId: string, code: string) { return safe(async () => { const u=await requirePerm('maquinas', 'C'); return cloudFinishLogin({ pendingId, code, userId:u.id }); }, P); }
 export async function cloudDevicesAction(accountId: string) { return safe(async () => { await requirePerm('maquinas', 'C'); return cloudDeviceList(accountId); }); }
 export async function addCloudPrinterAction(i: { accountId: string; serial: string; name?: string | null; machineId?: string | null }) { return safe(async () => { const u = await requirePerm('maquinas', 'C'); return addCloudPrinter({ ...i, userId: u.id }); }, P); }
 export async function cloudLogoutAction(accountId: string) { return safe(async () => { const u = await requirePerm('maquinas', 'E'); await cloudLogout(accountId, u.id); }, P); }

@@ -7,7 +7,7 @@ import { can, type Action, type Module, type Role } from './perm';
 import { sessionSecret } from './config';
 import { getT } from '@/i18n/server';
 
-const COOKIE = 'mf_session';
+const COOKIE = process.env.SESSION_COOKIE_NAME || 'mf_session';
 const TTL_MS = 1000 * 60 * 60 * 24 * 14;
 
 export interface SessionUser {
@@ -44,7 +44,7 @@ export function loginOk(key: string) { attempts.delete(key); }
  * Navegador de confianza: donde ya se inició sesión con ese correo queda una cookie firmada y su contador de intentos es otro.
  * Así quien prueba claves desde otro equipo no bloquea al dueño de la cuenta (no hay IP de confianza: x-forwarded-for lo pone el cliente).
  */
-const DEV_COOKIE = 'mf_dev';
+const DEV_COOKIE = process.env.SESSION_COOKIE_NAME ? `${process.env.SESSION_COOKIE_NAME}_device` : 'mf_dev';
 const deviceTag = (email: string) => crypto.createHmac('sha256', sessionSecret()).update(`login-device:${email}`).digest('base64url');
 export function loginKeyFor(email: string, deviceCookie?: string) {
   const a = Buffer.from(deviceCookie ?? ''), b = Buffer.from(deviceTag(email));

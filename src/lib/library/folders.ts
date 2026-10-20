@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, like, or, sql, type SQL } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID } from '@/db';
 import { normalizeTag } from './tags';
 import { LocalizedError } from '@/i18n/errors';
@@ -23,10 +23,10 @@ export async function ensureFolder(raw: string | null | undefined, db?: Db): Pro
 
 export interface FolderRow { path: string; count: number }
 /** Todas las carpetas, con la cantidad de archivos que hay directamente en cada una. */
-export async function listFolders(db?: Db): Promise<FolderRow[]> {
+export async function listFolders(db?: Db, access?: SQL): Promise<FolderRow[]> {
   db ??= await getDb();
   const rows = await db.select({ path: s.folders.path }).from(s.folders).where(isNull(s.folders.deletedAt)).orderBy(asc(s.folders.path));
-  const counts = await db.select({ f: s.modelFiles.folder, n: sql<number>`count(*)::int` }).from(s.modelFiles).where(and(isNull(s.modelFiles.deletedAt), sql`${s.modelFiles.folder} is not null`)).groupBy(s.modelFiles.folder);
+  const counts = await db.select({ f: s.modelFiles.folder, n: sql<number>`count(*)::int` }).from(s.modelFiles).where(and(access,isNull(s.modelFiles.deletedAt), sql`${s.modelFiles.folder} is not null`)).groupBy(s.modelFiles.folder);
   const by = new Map(counts.map((c) => [c.f as string, Number(c.n)]));
   return rows.map((r) => ({ path: r.path, count: by.get(r.path) ?? 0 }));
 }
@@ -35,10 +35,11 @@ export async function listFolders(db?: Db): Promise<FolderRow[]> {
 export const inFolder = (path: string) => or(eq(s.modelFiles.folder, path), like(s.modelFiles.folder, `${path.replace(/[%_\\]/g, '\\$&')}/%`))!;
 
 /** Cambia el nombre o mueve una carpeta: arrastra sus subcarpetas y los archivos. Falla si el destino ya existe. */
-export async function renameFolder(fromRaw: string, toRaw: string, db?: Db): Promise<number> {
+export async function renameFolder(fromRaw: string, toRaw: string, db?: Db, access?: SQL): Promise<number> {
   db ??= await getDb();
   const from = normPath(fromRaw), to = normPath(toRaw); if (!from || !to) throw new LocalizedError('files.errFolderInvalid');
   if (from === to) return 0;
+  if(access){const [hidden]=await db.select({id:s.modelFiles.id}).from(s.modelFiles).where(and(inFolder(from),sql`not (${access})`)).limit(1);if(hidden)throw new Error('La carpeta contiene modelos restringidos');}
   if (to.startsWith(from + '/')) throw new LocalizedError('files.errFolderIntoItself');
   const [clash] = await db.select({ id: s.folders.id }).from(s.folders).where(and(eq(s.folders.path, to), isNull(s.folders.deletedAt)));
   if (clash) throw new LocalizedError('files.errFolderExists');
@@ -55,9 +56,10 @@ export async function renameFolder(fromRaw: string, toRaw: string, db?: Db): Pro
 }
 
 /** Elimina la carpeta (y sus subcarpetas); los archivos suben a la carpeta madre (o quedan sin carpeta). */
-export async function deleteFolder(pathRaw: string, db?: Db): Promise<number> {
+export async function deleteFolder(pathRaw: string, db?: Db, access?: SQL): Promise<number> {
   db ??= await getDb();
   const path = normPath(pathRaw); if (!path) return 0;
+  if(access){const [hidden]=await db.select({id:s.modelFiles.id}).from(s.modelFiles).where(and(inFolder(path),sql`not (${access})`)).limit(1);if(hidden)throw new Error('La carpeta contiene modelos restringidos');}
   const parent = path.includes('/') ? path.split('/').slice(0, -1).join('/') : null;
   const moved = (await db.update(s.modelFiles).set({ folder: parent, updatedAt: new Date() }).where(and(isNull(s.modelFiles.deletedAt), inFolder(path))).returning({ id: s.modelFiles.id })).length;
   await db.delete(s.folders).where(or(eq(s.folders.path, path), like(s.folders.path, `${path.replace(/[%_\\]/g, '\\$&')}/%`)));

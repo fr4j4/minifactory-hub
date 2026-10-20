@@ -1,4 +1,5 @@
 'use server';
+import {assertModelAccess} from '@/lib/library/access';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { requirePerm } from '@/lib/auth';
@@ -39,7 +40,7 @@ export interface ModelBrief { /** uso comercial según la licencia registrada (s
 export async function modelBriefAction(modelFileId: string) {
   const t = await getT();
   return safe(async (): Promise<ModelBrief> => {
-    await requirePerm('archivos', 'V'); const db = await getDb();
+    const user=await requirePerm('archivos', 'V');await assertModelAccess(user,modelFileId); const db = await getDb();
     const [m] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, modelFileId));
     if (!m?.currentVersionId) throw new Error(t('quotes.fileNotFound'));
     const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, m.currentVersionId));

@@ -13,7 +13,7 @@ export async function repairFileVersion(versionId: string, userId?: string | nul
   const db = await getDb();
   const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, versionId)); if (!v) throw new Error('version');
   const [f] = await db.select().from(s.modelFiles).where(eq(s.modelFiles.id, v.modelFileId));
-  const mesh = await parseMesh(new Uint8Array(await getBuffer(v.storageKey)), v.format);
+  const mesh = await parseMesh(new Uint8Array(await getBuffer(await (await import('../library/content')).ensureVersionLocal(v.id))), v.format);
   const { mesh: fixed, report } = repairMesh(mesh);
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'mf-repair-')); const tmp = path.join(dir, `${f.name.replace(/[^\w.-]+/g, '_')}-reparado.stl`);
   try {

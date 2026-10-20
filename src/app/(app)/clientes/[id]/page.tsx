@@ -1,3 +1,4 @@
+import {modelAccess,photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { cn } from '@/lib/format';
 import { TONES } from '@/components/badge';
@@ -21,8 +22,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const pl = await db.select().from(s.priceLists).where(isNull(s.priceLists.deletedAt));
   const quotes = await db.select().from(s.quotes).where(and(eq(s.quotes.customerId, id), isNull(s.quotes.deletedAt))).orderBy(desc(s.quotes.createdAt)).limit(30);
   const orders = await db.select().from(s.orders).where(and(eq(s.orders.customerId, id), isNull(s.orders.deletedAt))).orderBy(desc(s.orders.createdAt)).limit(30);
-  const files = await db.select().from(s.modelFiles).where(and(eq(s.modelFiles.customerId, id), isNull(s.modelFiles.deletedAt))).limit(12);
-  const photos = await db.select().from(s.photos).where(and(eq(s.photos.customerId, id), isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(12);
+  const files = await db.select().from(s.modelFiles).where(and(modelAccess(user),eq(s.modelFiles.customerId, id), isNull(s.modelFiles.deletedAt))).limit(12);
+  const photos = await db.select().from(s.photos).where(and(photoAccess(user),eq(s.photos.customerId, id), isNull(s.photos.deletedAt))).orderBy(desc(s.photos.takenAt)).limit(12);
   const sent = quotes.filter((q) => ['enviado', 'aprobado', 'rechazado', 'vencido'].includes(q.status)); const rate = sent.length ? (quotes.filter((q) => q.status === 'aprobado').length / sent.length) * 100 : null;
   const total = orders.filter((o) => o.status !== 'cancelado').reduce((a, o) => a + o.total, 0);
   return (

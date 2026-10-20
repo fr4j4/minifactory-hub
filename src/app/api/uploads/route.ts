@@ -19,6 +19,6 @@ export async function POST(req: Request) {
   const tmpPath = path.join(dir, `${crypto.randomUUID()}.part`);
   await fs.writeFile(tmpPath, '');
   const db = await getDb();
-  const [u] = await db.insert(s.uploadSessions).values({ workspaceId: WORKSPACE_ID, filename: String(filename).slice(0, 200), size, tmpPath }).returning();
+  const [u] = await db.insert(s.uploadSessions).values({ workspaceId: WORKSPACE_ID, createdBy: user.id, filename: String(filename).slice(0, 200), size, tmpPath }).returning();
   return NextResponse.json({ id: u.id, chunkSize: 4 * 1024 * 1024 });
 }

@@ -1,3 +1,4 @@
+import {assertMediaAccess} from '@/lib/library/access';
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { exists, stat, webStream } from '@/lib/storage';
@@ -13,10 +14,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ key: str
   const { key: parts } = await params;
   const key = parts.map(decodeURIComponent).join('/');
   if (key.includes('..') || !/^(photos|thumbs|attachments|gcode|preview)\//.test(key)) return NextResponse.json({ error: t('api.invalidPath') }, { status: 400 });
+  try{await assertMediaAccess(user,key);}catch{return new Response('Not found',{status:404});}
   if (!(await exists(key))) return NextResponse.json({ error: t('common.notFound') }, { status: 404 });
   const st = await stat(key); const ext = key.split('.').pop() ?? '';
   const range = req.headers.get('range');
-  const headers: Record<string, string> = { 'content-type': MIME[ext] ?? 'application/octet-stream', 'cache-control': 'private, max-age=86400', 'accept-ranges': 'bytes' };
+  const headers: Record<string, string> = { 'content-type': MIME[ext] ?? 'application/octet-stream', 'cache-control': 'private, no-store', 'accept-ranges': 'bytes' };
   if (new URL(req.url).searchParams.get('download')) headers['content-disposition'] = `attachment; filename="${key.split('/').pop()}"`;
   if (range) {
     const m = range.match(/bytes=(\d*)-(\d*)/); const start = m?.[1] ? +m[1] : 0; const end = m?.[2] ? +m[2] : st.size - 1;

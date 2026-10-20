@@ -1,3 +1,4 @@
+import {assertPhotoAccess} from '@/lib/library/access';
 import fs from 'node:fs';
 import { NextResponse } from 'next/server';
 import { eq } from 'drizzle-orm';
@@ -17,6 +18,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   let watermark = null as null | { logo: Buffer; opacity: number; position: string };
   if (url.searchParams.get('wm') === '1') { const key = st.shop.logoKey; if (key && (await exists(key))) watermark = { logo: await getBuffer(key), opacity: st.watermark.opacity, position: st.watermark.position }; else { try { watermark = { logo: fs.readFileSync(process.cwd() + '/public/icon.svg'), opacity: st.watermark.opacity, position: st.watermark.position }; } catch { /* sin logo */ } } }
   try {
+    await assertPhotoAccess(user,id);
     const buf = await exportPhoto(id, { ratio: url.searchParams.get('ratio') ?? undefined, watermark });
     return new Response(new Uint8Array(buf), { headers: { 'content-type': 'image/jpeg', 'content-disposition': `attachment; filename="foto-${id.slice(0, 8)}${url.searchParams.get('ratio') ? '-' + url.searchParams.get('ratio')!.replace(':', 'x') : ''}.jpg"` } });
   } catch (e) { return NextResponse.json({ error: (e as Error).message }, { status: 403 }); }

@@ -28,6 +28,7 @@ import { jobSummary } from '@/lib/jobs';
 import { AutoTagSetting } from '@/components/auto-tag-setting';
 import { REMOVAL_MODULE } from '@/lib/services/removal';
 import { Icon } from '@/components/shell';
+import { IntegrationSettings } from '@/components/bambu-account';
 
 /** Datos de ejemplo de la vista previa: muestran todas las secciones (opcional, enlace, nota, despacho, descuento, IVA) y los montos cuadran. */
 function docSample(st: Awaited<ReturnType<typeof getSettings>>, t: TFn): QuoteDocData {
@@ -51,9 +52,10 @@ export default async function ConfigPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title={t('settings.settings')} subtitle={t('settings.workshopDetailsRatesTemplatesUse')} />
-      <Tabs current={tab} tabs={([['taller', t('settings.tabShop'), 'shop'], ['documentos', t('settings.tabDocuments'), 'shop'], ['plantillas', t('settings.tabTemplates'), 'shop'], ['tarifas', t('settings.tabRates'), 'prices'], ['listas', t('settings.tabPriceLists'), 'prices'], ['calidades', t('settings.tabQualities'), 'shop'], ['canales', t('settings.tabChannels'), 'prices'], ['usuarios', t('settings.tabUsers'), 'team'], ['proveedores', t('settings.tabSuppliers'), 'data'], ['archivados', t('settings.tabArchived'), 'data'], ['auditoria', t('settings.tabAudit'), 'data'], ['respaldo', t('settings.tabBackup'), 'data'], ['ia', t('ai.tab'), 'system'], ['sistema', t('settings.tabSystem'), 'system']] as const).map(([k, l, g]) => ({ key: k, label: l, group: t(`settings.group_${g}` as 'settings.group_shop'), href: `/configuracion?tab=${k}` }))} />
+      <Tabs current={tab} tabs={([['taller', t('settings.tabShop'), 'shop'], ['documentos', t('settings.tabDocuments'), 'shop'], ['plantillas', t('settings.tabTemplates'), 'shop'], ['tarifas', t('settings.tabRates'), 'prices'], ['listas', t('settings.tabPriceLists'), 'prices'], ['calidades', t('settings.tabQualities'), 'shop'], ['canales', t('settings.tabChannels'), 'prices'], ['usuarios', t('settings.tabUsers'), 'team'], ['proveedores', t('settings.tabSuppliers'), 'data'], ['archivados', t('settings.tabArchived'), 'data'], ['auditoria', t('settings.tabAudit'), 'data'], ['respaldo', t('settings.tabBackup'), 'data'], ['integraciones', t('settings.tabIntegrations'), 'system'], ['ia', t('ai.tab'), 'system'], ['sistema', t('settings.tabSystem'), 'system']] as const).map(([k, l, g]) => ({ key: k, label: l, group: t(`settings.group_${g}` as 'settings.group_shop'), href: `/configuracion?tab=${k}` }))} />
       {tab === 'ia' && <><Card title={t('ai.title')}><AiSettingsForm st={publicAiSettings((await getSettingsRaw()).ai)} canClear={can(user, 'ia', 'X')} /></Card><Card title={t('ai.usageTitle')} className="mt-6"><AiUsagePanel usage={await aiUsage()} budget={st.ai.budget.monthlyUsd} /></Card></>}
       {tab === 'taller' && <Card><ShopForm st={st} /></Card>}
+      {tab === 'integraciones' && <IntegrationSettings canPrinters={can(user,'maquinas','C')} />}
       {tab === 'tarifas' && <Card><RatesForm st={st} /></Card>}
       {tab === 'documentos' && <DocTemplateEditor initial={st.documents.quote} hasLogo={!!st.shop.logoKey} sample={docSample(st, t)} />}
       {tab === 'plantillas' && <Card><TemplatesForm st={st} /></Card>}

@@ -9,13 +9,15 @@ import { useLocale, useT } from '@/i18n/client';
 import { Rich } from '@/i18n/rich';
 import { LOCALE_TAG } from '@/i18n/config';
 import { Icon } from '@/components/shell';
+import { BambuAccountForm } from './bambu-account';
+import Link from 'next/link';
 
 export interface CloudAccountRow { id: string; email: string; region: string; status: string; displayName: string | null; expiresAt: string | null; lastError: string | null; online: boolean }
 interface Dev { serial: string; name: string; online: boolean; printStatus: string | null; model: string | null; modelName: string | null; hasLanCode: boolean; linked: string | null }
 
 const PRINT_STATUS = new Set(['RUNNING', 'IDLE', 'FINISH', 'FAILED', 'PAUSE', 'PREPARE', 'ACTIVE', 'SUCCESS']);
 
-function LoginForm({ email0, region0, onDone }: { email0?: string; region0?: string; onDone: () => void }) {
+function ChinaLoginForm({ email0, region0, onDone }: { email0?: string; region0?: string; onDone: () => void }) {
   const t = useT();
   const toast = useToast(); const router = useRouter();
   const [region, setRegion] = useState<'global' | 'china'>((region0 as 'global') ?? 'global'); const [email, setEmail] = useState(email0 ?? ''); const [pass, setPass] = useState('');
@@ -48,6 +50,11 @@ function LoginForm({ email0, region0, onDone }: { email0?: string; region0?: str
       <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs muted max-w-lg">{t('machines.thePasswordIsUsedOnce')}</p><button className="btn-primary" disabled={busy || !email || !pass} data-testid="cloud-login">{busy ? t('machines.connecting') : t('machines.signIn')}</button></div>
     </form>
   );
+}
+
+function LoginForm({email0,region0,onDone}:{email0?:string;region0?:string;onDone:()=>void}) {
+  const locale=useLocale(); const [china,setChina]=useState(region0==='china');
+  return <div className="space-y-4">{china?<ChinaLoginForm email0={email0} region0="china" onDone={onDone}/>:<BambuAccountForm email0={email0} printers onDone={onDone}/>}<button className="text-xs underline muted" onClick={()=>setChina(!china)}>{china?'Global':locale==='es'?'Cuenta de China continental':'Mainland China account'}</button><Link className="block text-xs underline muted" href="/configuracion?tab=integraciones">{locale==='es'?'Configurar integraciones':'Configure integrations'}</Link></div>;
 }
 
 function AccountCard({ a, found, machines, canCreate, canEdit, openLan }: { a: CloudAccountRow; found: Array<{ serial: string; ip: string }> | null; machines: Array<{ id: string; name: string }>; canCreate: boolean; canEdit: boolean; openLan: (d: DlgInput) => void }) {

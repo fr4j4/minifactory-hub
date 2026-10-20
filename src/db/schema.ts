@@ -285,7 +285,7 @@ export const modelSources = pgTable('model_sources', {
   licenseText: text('license_text'),
   commercialUse: text('commercial_use').notNull().default('desconocido'), // si | no | requiere_membresia | desconocido
   tags: jsonb('tags').$type<string[]>().default([]),
-  images: jsonb('images').$type<Array<{ url: string }>>().default([]),
+  images: jsonb('images').$type<Array<{ url: string; photoId?: string; storageKey?: string; error?: string }>>().default([]),
   plates: jsonb('plates').$type<Array<Record<string, unknown>>>().default([]),
   stats: jsonb('stats').$type<Record<string, number>>().default({}),
   remoteCreatedAt: text('remote_created_at'),
@@ -657,6 +657,8 @@ export const payments = pgTable('payments', {
 export const photos = pgTable('photos', {
   ...base(),
   kind: text('kind').notNull().default('foto'), // foto | video
+  /** job: foto de un trabajo (aparece en Galería) · model: imagen de un modelo 3D (solo en la biblioteca) */
+  scope: text('scope').notNull().default('job'),
   storageKey: text('storage_key').notNull(),
   variants: jsonb('variants').$type<Record<string, string>>().default({}),
   width: integer('width'),
@@ -713,6 +715,7 @@ export const notifications = pgTable('notifications', {
 });
 
 export const uploadSessions = pgTable('upload_sessions', {
+  createdBy: uuid('created_by'),
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull(),
   filename: text('filename').notNull(),
@@ -814,6 +817,8 @@ export const jobs = pgTable('jobs', {
   runAfter: timestamp('run_after', { withTimezone: true }).notNull().defaultNow(),
   startedAt: timestamp('started_at', { withTimezone: true }),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
+  leaseUntil: timestamp('lease_until', { withTimezone: true }),
+  owner: text('owner'),
 }, (t) => [index('jobs_status_ix').on(t.status, t.runAfter)]);
 
 /** Calidades por intención (borrador, estándar, fino…): definiciones relativas a la boquilla que se materializan como perfiles de proceso. */
@@ -863,3 +868,75 @@ export const tagDefs = pgTable('tag_defs', {
   name: text('name').notNull(),
   color: text('color'),
 }, (t) => [uniqueIndex('tag_defs_name_uq').on(t.workspaceId, t.name)]);
+
+/** External storage is distinct from model_sources (design provenance). */
+export const librarySources = pgTable('library_sources', {
+  ...base(), name: text('name').notNull(), kind: text('kind').notNull(),
+  config: jsonb('config').$type<Record<string, any>>().notNull().default({}),
+  secret: text('secret'), enabled: boolean('enabled').notNull().default(true),
+  writable: boolean('writable').notNull().default(false),
+  status: text('status').notNull().default('new'), error: text('error'),
+  lastScanAt: timestamp('last_scan_at', { withTimezone: true }),
+});
+export const libraryEntries = pgTable('library_entries', {
+  ...base(), sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  remoteId: text('remote_id').notNull(), parentId: text('parent_id'), path: text('path').notNull(),
+  name: text('name').notNull(), directory: boolean('directory').notNull().default(false),
+  revision: text('revision').notNull(), size: text('size').notNull().default('0'),
+  downloadable: boolean('downloadable').notNull().default(true),
+  modelId: uuid('model_id').references(() => modelFiles.id), versionId: uuid('version_id').references(() => fileVersions.id),
+  state: text('state').notNull().default('available'), seenScanId: uuid('seen_scan_id'),
+}, t => [uniqueIndex('library_entry_identity').on(t.sourceId, t.remoteId), index('library_entry_model').on(t.modelId), index('library_entry_parent').on(t.sourceId, t.parentId)]);
+export const libraryScans = pgTable('library_scans', {
+  ...base(), sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  status: text('status').notNull().default('queued'),
+  checkpoint: jsonb('checkpoint').$type<{ queue: Array<{ id: string; path: string; cursor?: string }>; visited: string[]; incremental?:boolean; changeCursor?:string }>().notNull(),
+  count: integer('count').notNull().default(0), error: text('error'),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+});
+export const libraryOperations = pgTable('library_operations', {
+  ...base(), kind: text('kind').notNull(), status: text('status').notNull().default('planned'),
+  input: jsonb('input').$type<Record<string, any>>().notNull(), result: jsonb('result').$type<Record<string, any>>(), error: text('error'),
+});
+/** Personal provider sessions; never serialized as source configuration. */
+export const libraryAccounts = pgTable('library_accounts', {
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id').notNull().references(() => users.id),
+  provider: text('provider').notNull(),
+  secret: text('secret').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.workspaceId, t.userId, t.provider] })]);
+export const libraryCollections = pgTable('library_collections', {
+  ...base(), name: text('name').notNull(),
+}, t => [uniqueIndex('library_collection_name').on(t.workspaceId, t.name)]);
+export const libraryCollectionModels = pgTable('library_collection_models', {
+  collectionId: uuid('collection_id').notNull().references(() => libraryCollections.id),
+  modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+}, t => [primaryKey({ columns: [t.collectionId, t.modelId] })]);
+
+/** User metadata is independent of a changing remote revision. */
+export const libraryDetails = pgTable('library_details', {
+  modelId: uuid('model_id').primaryKey().references(() => modelFiles.id),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+export const libraryAssets = pgTable('library_assets', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  versionId: uuid('version_id'), role: text('role').notNull(), name: text('name').notNull(),
+  storageKey: text('storage_key'), entryId: uuid('entry_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [index('library_asset_model').on(t.modelId)]);
+export const libraryPhotoLinks = pgTable('library_photo_links', {
+  ...base(), modelId: uuid('model_id').notNull().references(() => modelFiles.id),
+  photoId: uuid('photo_id').notNull().references(() => photos.id), versionId: uuid('version_id'),
+  data: jsonb('data').$type<Record<string, any>>().notNull().default({}),
+}, t => [uniqueIndex('library_photo_link').on(t.modelId,t.photoId)]);
+export const libraryCache = pgTable('library_cache', {
+  versionId: uuid('version_id').primaryKey().references(() => fileVersions.id),
+  sourceId: uuid('source_id').notNull().references(() => librarySources.id),
+  storageKey: text('storage_key').notNull(), bytes: doublePrecision('bytes').notNull(),
+  pinned: boolean('pinned').notNull().default(false), durable: boolean('durable').notNull().default(false),
+  accessedAt: timestamp('accessed_at',{withTimezone:true}).notNull().defaultNow(),
+  leaseUntil: timestamp('lease_until',{withTimezone:true}),
+});

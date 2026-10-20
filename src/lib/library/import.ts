@@ -33,6 +33,7 @@ export async function attachSource(modelFileId: string, urlInput: string, userId
     sourceId: src.id, origin: p.url, author: mf.author ?? meta.authorName ?? null, license: lic.code === 'desconocida' ? mf.license : lic.code,
     tags: [...(mf.tags ?? []), ...imported.map((c) => c.name)], tagMeta, updatedAt: new Date(),
   }).where(eq(s.modelFiles.id, modelFileId));
+  if (meta.imageUrls.length) await (await import('../jobs')).enqueueJob('source.images', { modelId: modelFileId, sourceId: src.id }, { userId });
   await audit('model_file', modelFileId, 'origen', { provider: p.provider, status: meta.status, license: lic.code }, userId);
   return { sourceId: src.id, status: meta.status, license: lic.code, commercial: lic.commercial, title: meta.title };
 }
