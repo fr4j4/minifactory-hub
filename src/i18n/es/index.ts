@@ -47,6 +47,7 @@ import { documents } from './documents';
 import { studio } from './studio';
 import { theme } from './theme';
 import { buy } from './buy';
+import { picker } from './picker';
 import { calc } from './calc';
 
-export const es = { library, common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents, studio, theme, buy, calc };
+export const es = { library, common, nav, shell, roles, auth, status, sources, time, meta, catalog, customers, gallery, inventory, orders, machines, quotes, settings, slicer, files, calculator, queue, notifications, home, reports, sales, api, viewer, links, search, connector, gcodeNote, parse, slicerParam, payMethod, taxDoc, audit, remove, edit, restore, archive, ai, advisor, nozzle, setup, documents, studio, theme, buy, calc, picker };
