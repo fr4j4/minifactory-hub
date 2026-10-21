@@ -1,3 +1,4 @@
+import { colorsLabel } from '@/lib/color-slots';
 import {modelAccess,photoAccess} from '@/lib/library/access';
 import Link from 'next/link';
 import { cn, ymd } from '@/lib/format';
@@ -59,6 +60,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const phone = o.customerPhone ?? cust?.phone;
   const estCost = o.costEstimated; const real = o.costReal; const netTotal = netOfGross(o.total, st.rates, o.taxAmount); const margin = o.total > 0 && netTotal > 0 ? ((netTotal - (real ?? estCost)) / netTotal) * 100 : null;
   const today = ymd();
+  const colorMats = new Map((await db.select({ id: s.materials.id, type: s.materials.type, c: s.materials.colorName }).from(s.materials)).map((m) => [m.id, `${m.type} ${m.c}`.trim()]));
   return (
     <>
       <PageHeader back={{ href: '/pedidos', label: t('nav.orders') }} title={<span>{o.number} <StatusBadge status={o.status} /> <StatusBadge status={pst} /></span>}
@@ -73,7 +75,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           <Card title={`${t('orders.orderItems')}${quote ? ` · ${t('orders.fromQuote', { number: quote.number, version: quote.version })}` : ''}`} pad={false}>
             <Table><thead><tr><th className="th">{t('common.description')}</th><th className="th text-right">{t('common.qty')}</th><th className="th text-right">{t('common.unitPrice')}</th><th className="th text-right">{t('common.total')}</th><th className="th">{t('common.status')}</th></tr></thead>
               <tbody>{items.map((it) => { const ms = models.filter((m) => m.qm.orderItemId === it.id); const ls = links.filter((l) => l.ownerType === 'order_item' && l.ownerId === it.id);
-                return (<tr key={it.id}><td className="td"><div className="font-medium">{it.description}</div><div className="text-xs muted">{it.variantId ? `${t('orders.catalogProductStock', { n: it.fromStock })}${it.qty - it.fromStock > 0 ? ` + ${t('orders.toProduce', { n: it.qty - it.fromStock })}` : ''}` : it.gramsTotal > 0 ? `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)}` : t('orders.noPrintData')}</div>
+                return (<tr key={it.id}><td className="td"><div className="font-medium">{it.description}</div>{(it.colors ?? []).length > 0 && <div className="text-xs muted" data-testid="order-item-colors">{t('queue.jobColors', { list: colorsLabel(it.colors, (id) => colorMats.get(id)) ?? '' })}</div>}<div className="text-xs muted">{it.variantId ? `${t('orders.catalogProductStock', { n: it.fromStock })}${it.qty - it.fromStock > 0 ? ` + ${t('orders.toProduce', { n: it.qty - it.fromStock })}` : ''}` : it.gramsTotal > 0 ? `${grams(it.gramsTotal)} · ${dur(it.hoursTotal * 3600)}` : t('orders.noPrintData')}</div>
                   {ms.map((m) => <Link key={m.qm.id} href={`/archivos/${m.qm.modelFileId}`} className={cn('badge hover:underline mr-1 mt-1', TONES.gray)}>{m.name}</Link>)}{ls.map((l) => <a key={l.id} href={l.url} target="_blank" rel="noopener noreferrer" className="text-xs underline mr-2"><Icon name="link" className="inline h-3.5 w-3.5 mr-0.5 -mt-0.5" />{l.title ?? l.url}</a>)}</td>
                   <td className="td text-right tabular">{it.qty}</td><td className="td text-right tabular">{money(it.finalUnit)}{costs && it.finalUnit !== it.suggestedUnit && it.suggestedUnit > 0 && <div className="text-xs muted line-through">{money(it.suggestedUnit)}</div>}</td><td className="td text-right tabular font-medium">{money(it.finalUnit * it.qty)}</td><td className="td"><StatusBadge status={it.status === 'pendiente' ? 'pendiente' : it.status === 'en_cola' ? 'en_cola' : it.status === 'imprimiendo' ? 'imprimiendo' : it.status === 'listo' ? 'listo' : it.status === 'entregado' ? 'entregado' : 'post_proceso'} />{(() => { const need = it.qty - it.fromStock, good = ['post_proceso', 'listo', 'entregado'].includes(it.status) && need > 0 ? goodOf(it.id) : null; return good != null && good < need ? <Badge tone="amber" className="ml-1">{t('orders.goodOfTotal', { good, total: need })}</Badge> : null; })()}{pendingIds.has(it.id) && !['cancelado', 'entregado'].includes(o.status) && can(user, 'pedidos', 'E') && <div className="mt-1"><LaunchLineButton orderId={id} itemId={it.id} /></div>}</td></tr>); })}</tbody></Table>
           </Card>

@@ -1,6 +1,8 @@
 export const queue = {
   stockShortWarning: 'El material no alcanza: el trabajo necesita {needed} g y hay {available} g disponibles.',
   stockNoneWarning: 'No hay stock de este material (necesita {needed} g). Regístralo en una compra para que el inventario cuadre.',
+  jobColors: 'Colores: {list}',
+  spoolForColor: 'Carrete para {color} ({g} g)',
   finishNoSpool: 'No hay carretes de este material en el inventario: el consumo quedará registrado sin carrete y se te avisará para corregir el stock.',
   noStockForJobTitle: 'Trabajo sin stock: {material}',
   noStockForJobBody: '{job} necesita {needed} g y hay {available} g disponibles.',

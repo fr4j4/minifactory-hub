@@ -91,7 +91,7 @@ export async function priceItem(it: ItemInput, ctx: PricingContext, env: number 
   const avg = it.materialId ? await materialCostPerKg(it.materialId, ctx.db) : 0;
   const machine = it.machineId ? machineCostOf(ctx.machines.get(it.machineId)) : null;
   const matById = new Map<string, ItemMaterial>();
-  for (const f of it.calcOpts?.filaments ?? []) {
+  for (const f of [...(it.calcOpts?.filaments ?? []), ...(it.calcOpts?.colors ?? [])]) {
     const fm = ctx.materialRows.get(f.materialId);
     if (fm && !matById.has(f.materialId)) matById.set(f.materialId, itemMaterial(fm, await materialCostPerKg(f.materialId, ctx.db))!);
   }
@@ -232,7 +232,10 @@ export async function loadQuote(id: string) {
     .leftJoin(s.fileVersions, eq(s.fileVersions.id, s.modelFiles.currentVersionId)).where(inArray(s.quoteItemModels.quoteItemId, ids)) : [];
   const links = await db.select().from(s.referenceLinks).where(and(inArray(s.referenceLinks.ownerType, ['quote', 'quote_item']), inArray(s.referenceLinks.ownerId, [id, ...ids])));
   const customer = q.customerId ? (await db.select().from(s.customers).where(eq(s.customers.id, q.customerId)))[0] : null;
-  return { quote: q, items, models, links, customer };
+  // materiales de los colores adicionales (para nombrarlos en el documento del cliente)
+  const matIds = [...new Set(items.flatMap((i) => [i.materialId, ...(((i.calcOpts as any)?.colors ?? []) as Array<{ materialId: string }>).map((c) => c.materialId)]).filter((x): x is string => !!x))];
+  const materials = matIds.length ? await db.select({ id: s.materials.id, type: s.materials.type, colorName: s.materials.colorName, generic: s.materials.generic }).from(s.materials).where(inArray(s.materials.id, matIds)) : [];
+  return { quote: q, items, models, links, customer, materials };
 }
 
 /** Marca el presupuesto como enviado: congela precios y costos (cambiar tarifas ya no lo altera). */

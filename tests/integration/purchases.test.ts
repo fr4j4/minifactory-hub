@@ -5,7 +5,7 @@ import { seedDemo } from '@/lib/seed';
 import { getPurchase, listPurchases, planPurchase, receivePurchase, voidPurchase } from '@/lib/services/purchases';
 import { checkAvailability, consumeFromSpool, ensureGenericMaterials, materialCostPerKg, materialStock, shoppingList } from '@/lib/services/inventory';
 import { cancelJob, createJob, finishJob, pickSpool, startJob } from '@/lib/services/production';
-import { addCatalogColors } from '@/lib/services/catalog-add';
+import { addCatalogColorOwned, addCatalogColors } from '@/lib/services/catalog-add';
 import { applySupplyRules, saveSupplyRule } from '@/lib/services/supplies';
 import { setOrderStatus } from '@/lib/services/orders';
 
@@ -117,6 +117,24 @@ describe('catálogo → mis filamentos, lista de compras e insumos por pedido', 
     expect((await materialStock()).find((x) => x.materialId === m.id)).toMatchObject({ physicalG: 0, spools: 0 });
     const b = await addCatalogColors(key, ['lavender']); expect(b).toMatchObject({ created: 0 });
     await expect(addCatalogColors(key, [])).rejects.toThrow();
+  });
+  it('desde un selector: sin cantidades queda en 0 g y avisa que falta; con cantidades carga el stock inicial', async () => {
+    const key = 'bambu_lab/ABS/abs';
+    const none = await addCatalogColorOwned(key, 'red'); expect(none).toMatchObject({ created: true, spools: 0 });
+    const st0 = (await materialStock()).find((x) => x.materialId === none.materialId)!; expect(st0).toMatchObject({ physicalG: 0, spools: 0, low: true });
+    expect((await checkAvailability(none.materialId, 50)).state).toBe('none');
+    const some = await addCatalogColorOwned(key, 'white', { fullSpools: 2, openG: 300, costPerKg: 21000, stockMinG: 0 });
+    expect(some).toMatchObject({ created: true, spools: 3 });
+    const [m] = await db.select().from(s.materials).where(eq(s.materials.id, some.materialId)); expect(m).toMatchObject({ costPerKg: 21000, stockMinG: 0 });
+    const st = (await materialStock()).find((x) => x.materialId === some.materialId)!; expect(st).toMatchObject({ physicalG: 2 * (m.packG ?? 1000) + 300, spools: 3, low: false });
+    const open = (await db.select().from(s.spools).where(eq(s.spools.materialId, some.materialId))).filter((x) => x.status === 'abierta'); expect(open).toHaveLength(1); expect(open[0].remainingG).toBe(300);
+    const movs = await db.select().from(s.inventoryMovements).where(eq(s.inventoryMovements.spoolId, open[0].id)); expect(movs.every((x) => x.kind === 'ajuste')).toBe(true);
+  });
+  it('desde un selector: si el color ya estaba no duplica ni vuelve a cargar stock', async () => {
+    const key = 'bambu_lab/ABS/abs';
+    const again = await addCatalogColorOwned(key, 'white', { fullSpools: 5 }); expect(again).toMatchObject({ created: false, spools: 0 });
+    const spools = await db.select().from(s.spools).where(eq(s.spools.materialId, again.materialId)); expect(spools).toHaveLength(3);
+    await expect(addCatalogColorOwned(key, 'no_existe')).rejects.toThrow();
   });
   it('la lista de compras pide carretes del tamaño habitual del filamento', async () => {
     await db.update(s.materials).set({ packG: 250, stockMinG: 1000 }).where(eq(s.materials.id, petg.id));

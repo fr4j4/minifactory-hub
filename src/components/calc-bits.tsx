@@ -7,6 +7,8 @@ import { cn, money, num, pct } from '@/lib/format';
 import { useT } from '@/i18n/client';
 import { Badge } from './ui';
 import { CopyButton } from './client';
+import { FilamentPicker } from './filament-picker';
+import type { PickMaterial } from '@/lib/filament-pick';
 import { setCalcLevelAction } from '@/actions/settings';
 
 /* ───────── nivel de la interfaz (Básico / Detallado / Experto) ───────── */
@@ -162,7 +164,7 @@ export interface ExpertCtx {
   item: ItemPriceInput; env: Parameters<typeof buildLine>[1];
   /** Escenarios: devuelven el precio de la misma línea con cambios (perfil, máquina, material o cantidad). */
   scenario: (over: { profileId?: string | null; machineId?: string | null; materialId?: string | null; qty?: number }) => { unit: number; total: number; margin: number | null; perHour: number; cost: number };
-  profiles: Array<{ id: string; name: string }>; machines: Array<{ id: string; name: string }>; materials: Array<{ id: string; label: string }>;
+  profiles: Array<{ id: string; name: string }>; machines: Array<{ id: string; name: string }>; materials: PickMaterial[];
   current: { profileId: string | null; machineId: string | null; materialId: string | null; qty: number };
 }
 export function ExpertTools({ x, bd, unitFinal }: { x: ExpertCtx; bd: CostBreakdown; unitFinal: number }) {
@@ -207,7 +209,7 @@ export function ExpertTools({ x, bd, unitFinal }: { x: ExpertCtx; bd: CostBreakd
             <tbody>
               <tr><td className="pr-2">{t('calc.field.profile')}</td><td>{x.profiles.find((p) => p.id === x.current.profileId)?.name ?? '—'}</td>{cols.map((c, i) => <td key={i}><select className={sel} value={c.profileId ?? ''} aria-label={t('calc.field.profile')} onChange={(e) => setCols((s) => s.map((y, k) => (k === i ? { ...y, profileId: e.target.value || null } : y)))}>{x.profiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>)}</tr>
               <tr><td className="pr-2">{t('common.machine')}</td><td>{x.machines.find((p) => p.id === x.current.machineId)?.name ?? '—'}</td>{cols.map((c, i) => <td key={i}><select className={sel} value={c.machineId ?? ''} aria-label={t('common.machine')} onChange={(e) => setCols((s) => s.map((y, k) => (k === i ? { ...y, machineId: e.target.value || null } : y)))}>{x.machines.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></td>)}</tr>
-              <tr><td className="pr-2">{t('common.material')}</td><td>{x.materials.find((p) => p.id === x.current.materialId)?.label ?? '—'}</td>{cols.map((c, i) => <td key={i}><select className={sel} value={c.materialId ?? ''} aria-label={t('common.material')} onChange={(e) => setCols((s) => s.map((y, k) => (k === i ? { ...y, materialId: e.target.value || null } : y)))}>{x.materials.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></td>)}</tr>
+              <tr><td className="pr-2">{t('common.material')}</td><td>{x.materials.find((p) => p.id === x.current.materialId)?.label ?? '—'}</td>{cols.map((c, i) => <td key={i}><FilamentPicker materials={x.materials} value={c.materialId ?? ''} tech={null} showProfile={false} library={false} ariaLabel={t('common.material')} onChange={(id) => setCols((s) => s.map((y, k) => (k === i ? { ...y, materialId: id || null } : y)))} /></td>)}</tr>
               <tr><td className="pr-2">{t('common.quantity')}</td><td>{x.current.qty}</td>{cols.map((c, i) => <td key={i}><input type="number" min={1} className={cn(sel, '!w-20')} value={c.qty} aria-label={t('common.quantity')} onChange={(e) => setCols((s) => s.map((y, k) => (k === i ? { ...y, qty: Math.max(1, +e.target.value || 1) } : y)))} /></td>)}</tr>
               <tr className="font-semibold"><td className="pr-2">{t('calc.exp.col.unit')}</td><td>{money(base.unit)}</td>{sc.map((s, i) => <td key={i}>{money(s.unit)} <span className={cn('font-normal', s.unit > base.unit ? 'text-blue-700 dark:text-blue-300' : s.unit < base.unit ? 'text-amber-700 dark:text-amber-300' : 'muted')}>({s.unit >= base.unit ? '+' : ''}{base.unit ? num(((s.unit - base.unit) / base.unit) * 100, 0) : 0}%)</span></td>)}</tr>
               <tr><td className="pr-2">{t('calc.exp.col.margin')}</td><td>{base.margin != null ? pct(base.margin, 0) : '—'}</td>{sc.map((s, i) => <td key={i}>{s.margin != null ? pct(s.margin, 0) : '—'}</td>)}</tr>
