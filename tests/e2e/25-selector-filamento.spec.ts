@@ -30,6 +30,8 @@ test.describe('Selector de filamento', () => {
     await l1.getByTestId('line-material').click();
     const dlg = page.getByRole('dialog');
     await dlg.getByTestId('picker-search').fill('bambu abs');
+    await expect(dlg.getByTestId('picker-library-line').first()).toBeVisible();
+    await shot(page, '62-selector-biblioteca');
     await dlg.getByTestId('picker-library-line').first().click();
     await dlg.getByTestId('picker-library-color').filter({ hasText: 'Lavender' }).first().click();
     await expect(dlg.getByTestId('picker-add')).toBeVisible();
@@ -39,6 +41,7 @@ test.describe('Selector de filamento', () => {
     await dlg.getByTestId('picker-add-go').click();
     await expect(dlg).toBeHidden();
     await expect(l1.getByTestId('line-material')).toContainText('Lavender');
+    await shot(page, '63-selector-elegido');
     await page.goto('/inventario');
     await expect(page.getByText('Lavender').first()).toBeVisible();
   });
