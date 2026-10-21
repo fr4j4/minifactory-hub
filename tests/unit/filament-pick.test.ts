@@ -51,3 +51,15 @@ describe('filament-pick: grupos', () => {
     expect(g[0].items.map((x) => x.id)).toEqual(['a', 'b']);
   });
 });
+
+describe('filament-pick: opciones de color', () => {
+  it('ofrece los colores en stock del mismo tipo (más gramos primero) y el genérico para otro color', async () => {
+    const { colorChoices } = await import('@/lib/filament-pick');
+    const l = [...LIST, m({ id: 'e', manufacturer: 'Grilon3', line: 'PLA', colorName: 'Negro', availableG: 100 }), m({ id: 'f', manufacturer: 'Grilon3', line: 'PLA', colorName: 'Verde', hex: '#2f9d4b', availableG: 2000 })];
+    const c = colorChoices(l, 'a');
+    expect(c.stock.map((x) => x.id)).toEqual(['f', 'a']); // PLA con stock: Verde (2000), Negro de Bambu (640); el Negro de Grilon3 se omite por repetido
+    expect(c.generic?.id).toBe('g-pla');
+    expect(colorChoices(l, null)).toEqual({ stock: [], generic: null });
+    expect(colorChoices(l, 'c').generic).toBeNull(); // no hay PETG genérico en la lista
+  });
+});

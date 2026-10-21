@@ -50,7 +50,7 @@ export function FilamentPicker({ materials, value, onChange, tech = 'fdm', empty
   return (
     <>
       <button type="button" disabled={disabled} className={cn('input w-full text-left flex items-center gap-2 min-w-0', className)} onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={ariaLabel ? `${ariaLabel}: ${shown?.name ?? emptyLabel ?? t('picker.choose')}` : undefined} data-testid={testId}>
-        {shown ? <><span className="h-4 w-4 rounded-full border border-black/20 shrink-0" style={{ background: shown.hex }} aria-hidden /><span className="truncate flex-1">{shown.name}</span><span className="muted text-xs shrink-0">{shown.tag}</span></> : <span className="truncate flex-1 muted">{emptyLabel ?? t('picker.choose')}</span>}
+        {shown ? <><span className="h-4 w-4 rounded-full border border-black/20 shrink-0" style={{ background: shown.hex }} aria-hidden /><span className="flex-1 min-w-0 leading-tight py-0.5"><span className="block truncate">{shown.name}</span><span className="block truncate muted text-[11px]">{shown.tag}</span></span></> : <span className="truncate flex-1 muted">{emptyLabel ?? t('picker.choose')}</span>}
         <span aria-hidden className="muted shrink-0">▾</span>
       </button>
       {open && <PickerDialog pool={pool} value={value} emptyLabel={emptyLabel} gramsNeeded={gramsNeeded} hint={hint} showCost={showCost} showProfile={showProfile} library={library} testId={testId} onClose={() => setOpen(false)} onPick={choose} onAdded={(a) => { setAdded(a); choose(a.id); }} />}
@@ -76,7 +76,7 @@ function PickerDialog({ pool, value, emptyLabel, gramsNeeded, hint, showCost, sh
     const short = gramsNeeded && !m.generic && m.availableG < gramsNeeded ? gramsNeeded - Math.max(0, m.availableG) : 0;
     return (
       <button key={m.id} type="button" onClick={() => onPick(m.id, m)} aria-pressed={m.id === value} data-testid={testId ? `${testId}-opt` : undefined} data-material-id={m.id}
-        className={cn('w-full text-left flex items-center gap-2 rounded-lg border px-2.5 py-1.5 min-h-[40px] hover:bg-[var(--surface-2)]', m.id === value ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]')}>
+        className={cn('w-full text-left flex items-center gap-2 rounded-lg border px-2.5 py-1.5 min-h-[40px] hover:bg-slate-100 dark:hover:bg-slate-800', m.id === value ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]')}>
         <span className="h-5 w-5 rounded-full border border-black/20 shrink-0" style={{ background: m.hex }} aria-hidden />
         <span className="flex-1 min-w-0"><span className="block truncate text-sm">{m.generic ? `${m.type} ${m.colorName}`.replace('Genérico', '').trim() || m.type : m.colorName}{m.generic ? <span className="muted"> · {t('picker.genericTag')}</span> : null}</span>
           <span className="block muted text-xs truncate">{m.type}{showCost ? ` · ${t('picker.perKg', { price: money(m.costPerKg) })}` : ''}{showProfile && m.tech === 'fdm' && !m.filamentProfileId ? ` · ${t('picker.noProfile')}` : ''}</span></span>
@@ -92,14 +92,14 @@ function PickerDialog({ pool, value, emptyLabel, gramsNeeded, hint, showCost, sh
           <div className="space-y-3" data-testid={testId ? `${testId}-panel` : undefined}>
             <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('picker.searchPlaceholder')} aria-label={t('picker.searchLabel')} data-testid="picker-search" />
             <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('picker.typeFilter')}>
-              {[null, ...types].map((x) => <button key={x ?? 'all'} type="button" aria-pressed={type === x} className={cn('min-h-[32px] px-2.5 rounded-lg border text-xs', type === x ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent' : 'border-[var(--line)] hover:bg-[var(--surface-2)]')} onClick={() => setType(x)}>{x ?? t('picker.allTypes')}</button>)}
+              {[null, ...types].map((x) => <button key={x ?? 'all'} type="button" aria-pressed={type === x} className={cn('min-h-[32px] px-2.5 rounded-lg border text-xs', type === x ? 'bg-[var(--panel)] text-[var(--panel-ink)] border-transparent' : 'border-[var(--line)] hover:bg-slate-100 dark:hover:bg-slate-800')} onClick={() => setType(x)}>{x ?? t('picker.allTypes')}</button>)}
             </div>
             <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t('picker.colorFilter')}>
               {COLOR_FAMILIES.map((f) => <button key={f} type="button" aria-pressed={family === f} aria-label={f} title={f} onClick={() => setFamily(family === f ? null : f)} className={cn('h-7 w-7 rounded-full border-2', family === f ? 'border-[var(--accent)] ring-2 ring-[var(--accent-line)]' : 'border-black/20')} style={{ background: FAMILY_HEX[f] }} />)}
               <label className="ml-auto flex items-center gap-1.5 text-xs"><input type="checkbox" checked={onlyStock} onChange={(e) => setOnlyStock(e.target.checked)} />{t('picker.onlyStock')}</label>
             </div>
             <div className="max-h-[48vh] overflow-auto space-y-3 pr-1" tabIndex={0}>
-              {emptyLabel !== undefined && !filtering && <button type="button" className={cn('w-full text-left rounded-lg border px-3 py-2 text-sm hover:bg-[var(--surface-2)]', value === '' ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]')} onClick={() => onPick('')} data-testid="picker-empty">{emptyLabel}</button>}
+              {emptyLabel !== undefined && !filtering && <button type="button" className={cn('w-full text-left rounded-lg border px-3 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800', value === '' ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]')} onClick={() => onPick('')} data-testid="picker-empty">{emptyLabel}</button>}
               {!filtering && recentMats.length > 0 && <section><h3 className="eyebrow mb-1">{t('picker.recents')}</h3><div className="grid gap-1">{recentMats.map(row)}</div></section>}
               {groups.map((g) => <section key={g.key}><h3 className="eyebrow mb-1">{g.title}</h3><div className="grid gap-1">{g.items.map(row)}</div></section>)}
               {list.length === 0 && <p className="muted text-sm">{t('picker.noResults')} {library && !q ? t('picker.noResultsLibrary') : ''}</p>}
@@ -123,7 +123,7 @@ function LibrarySearch({ q, onLine }: { q: string; onLine: (l: CatalogFilament) 
       {term.length < 2 ? <p className="muted text-xs">{t('picker.libraryHint')}</p>
         : busy && !res ? <p className="muted text-xs">{t('picker.librarySearching')}</p>
         : res && res.length === 0 ? <p className="muted text-xs">{t('picker.libraryNone')}</p>
-        : <div className="grid gap-1">{(res ?? []).map((f) => <button key={f.key} type="button" className="w-full text-left rounded-lg border border-[var(--line)] px-3 py-1.5 hover:bg-[var(--surface-2)]" onClick={() => void onLine(f)} data-testid="picker-library-line"><span className="font-medium text-sm">{f.brandName}</span> · {f.name} <span className="muted text-xs">({f.material}) · {t('picker.libraryLine', { colors: f.colorCount })}</span></button>)}</div>}
+        : <div className="grid gap-1">{(res ?? []).map((f) => <button key={f.key} type="button" className="w-full text-left rounded-lg border border-[var(--line)] px-3 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => void onLine(f)} data-testid="picker-library-line"><span className="font-medium text-sm">{f.brandName}</span> · {f.name} <span className="muted text-xs">({f.material}) · {t('picker.libraryLine', { colors: f.colorCount })}</span></button>)}</div>}
     </section>
   );
 }
@@ -137,7 +137,7 @@ function LibraryColors({ state, setState, owned, onBack, onOwned, onAdd }: { sta
       <div className="flex gap-2"><button type="button" className="btn-ghost btn-sm" onClick={onBack}>← {t('picker.back')}</button><input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('picker.colorFilter')} aria-label={t('picker.colorFilter')} /></div>
       <ul className="grid sm:grid-cols-2 gap-1 max-h-[48vh] overflow-auto" tabIndex={0}>{colors.map((c) => {
         const own = mine.get(variantKey(state.line.key, c.id));
-        return <li key={c.id}><button type="button" className="w-full text-left flex items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 min-h-[40px] hover:bg-[var(--surface-2)]" onClick={() => (own ? onOwned(own) : onAdd(c))} data-testid="picker-library-color">
+        return <li key={c.id}><button type="button" className="w-full text-left flex items-center gap-2 rounded-lg border border-[var(--line)] px-2.5 py-1.5 min-h-[40px] hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => (own ? onOwned(own) : onAdd(c))} data-testid="picker-library-color">
           <span className="h-5 w-5 rounded-full border border-black/20 shrink-0" style={{ background: c.hexes.length > 1 ? `linear-gradient(90deg, ${c.hexes.join(', ')})` : c.hex }} aria-hidden /><span className="flex-1 truncate text-sm">{c.name}</span>{own && <span className="muted text-xs shrink-0">{t('picker.libraryOwned')}</span>}</button></li>;
       })}</ul>
       {state.next && <button type="button" className="btn-ghost btn-sm" disabled={busy} onClick={async () => { setBusy(true); try { const r = await getJson<Page<CatalogVariant>>(`/api/catalog/filaments/${enc(state.line.key)}/variants?page=${state.next}&pageSize=100`); setState({ ...state, colors: [...state.colors, ...r.items], next: r.nextPage }); } finally { setBusy(false); } }}>{t('picker.libraryMore')}</button>}

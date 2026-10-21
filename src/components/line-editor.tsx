@@ -18,6 +18,7 @@ import { ConfidenceBadge, ExpertTools, Hint, PriceBand, WarningList, WhyPrice, a
 import { profileDesc, profileName, tagName } from '@/lib/calc-presets';
 import { useT } from '@/i18n/client';
 import { FilamentPicker } from './filament-picker';
+import { ColorField } from './color-field';
 import { tOr } from '@/i18n/translate';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
@@ -198,7 +199,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                 )}
                 <div className="grid sm:grid-cols-4 gap-3">
                   <div className="block"><span className="label">{t('common.material')}</span><FilamentPicker materials={mats} value={it.materialId ?? ''} disabled={dis} tech={mach?.tech === 'FDM' ? 'fdm' : mach?.tech === 'SLA' ? 'resina' : null} gramsNeeded={it.gramsTotal || undefined} ariaLabel={t('common.material')} testId="line-material" onChange={(id, picked) => { const m = picked ?? mats.find((x) => x.id === id); onChange({ materialId: id || null, color: m && !m.generic ? m.colorName : it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} /></div>
-                  <label className="block"><span className="label">{t('buy.requestedColor')}</span><input className="input" value={it.color ?? ''} disabled={dis} placeholder={t('buy.requestedColorHint')} onChange={(e) => onChange({ color: e.target.value })} data-testid="line-color" /></label>
+                  <div className="block"><span className="label">{t('buy.requestedColor')}</span><ColorField materials={mats} materialId={it.materialId} color={it.color ?? ''} disabled={dis} testId="line-color" onPick={(p) => onChange({ color: p.color, ...(p.materialId !== undefined ? { materialId: p.materialId, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } } : {}) })} /></div>
                   {(det || it.mode === 'auto') && <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated && !/simula/i.test(m.name) ? ` (${t('slicer.simulatedLower')})` : ''}</option>)}</select></label>}
                   {(det || it.mode === 'auto') && <label className="block"><span className="label">{t('calculator.processProfile')}</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option><ProcessOptions profiles={ctx.profiles.filter((p) => p.type === 'process')} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle ?? null} compatibleIds={(ctx.setups.find((x) => x.machineId === it.machineId && x.active) ?? ctx.setups.find((x) => x.machineId === it.machineId))?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={ctx.profiles.find((p) => p.id === it.processProfileId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle} /></label>}
                   {det && (

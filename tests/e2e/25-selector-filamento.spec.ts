@@ -19,7 +19,17 @@ test.describe('Selector de filamento', () => {
     await dlg.locator('[data-material-id]').first().click();
     await expect(dlg).toBeHidden();
     await expect(l1.getByTestId('line-material')).toContainText('eSun');
-    await expect(l1.getByTestId('line-color')).toHaveValue('Transparente');
+    await expect(l1.getByTestId('line-color')).toContainText('Transparente');
+    // color: de tu stock (cambia el material) o uno arbitrario (pasa al genérico del tipo)
+    await l1.getByTestId('line-color').click();
+    await shot(page, '64-selector-color');
+    await l1.getByTestId('color-palette').nth(3).click(); // rojo, que no hay en PETG: pasa al genérico
+    await expect(l1.getByTestId('line-color')).toContainText('Rojo');
+    await expect(l1.getByTestId('line-material')).toContainText('PETG');
+    await expect(l1.getByTestId('line-material')).toContainText('sin color');
+    await l1.getByTestId('line-color').click();
+    await l1.getByTestId('color-custom').fill('Rojo mate'); await l1.getByTestId('color-custom').press('Enter');
+    await expect(l1.getByTestId('line-color')).toContainText('Rojo mate');
   });
 
   test('agrega un color de la Biblioteca sin stock y con stock, y queda elegido', async ({ page }) => {

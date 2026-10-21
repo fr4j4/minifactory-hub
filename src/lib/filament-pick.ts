@@ -74,3 +74,16 @@ export function groupMaterials<M extends PickMaterial>(list: M[], genericTitle: 
 
 /** Tipos presentes en la lista, en el orden en que aparecen (los genéricos ya traen todos los habituales). */
 export function typesOf(list: Array<Pick<PickMaterial, 'type'>>): string[] { return [...new Set(list.map((m) => m.type))]; }
+
+/** Nombre para mostrar de cada familia de color (también es el color pedido que se guarda al elegir de la paleta). */
+export const FAMILY_LABEL: Record<ColorFamily, string> = { negro: 'Negro', blanco: 'Blanco', gris: 'Gris', rojo: 'Rojo', naranja: 'Naranja', amarillo: 'Amarillo', verde: 'Verde', azul: 'Azul', morado: 'Morado', rosa: 'Rosa', marron: 'Marrón', transparente: 'Transparente' };
+
+export interface ColorChoices<M> { /** colores del mismo tipo que hay en stock, con más gramos primero y sin repetir nombre */ stock: M[]; /** genérico del mismo tipo: sirve para pedir un color que no se tiene */ generic: M | null }
+/** Opciones de color para un material elegido: lo que hay en stock de su tipo y el genérico al que pasar si se pide otro color. */
+export function colorChoices<M extends PickMaterial>(list: M[], currentId: string | null, max = 10): ColorChoices<M> {
+  const cur = list.find((m) => m.id === currentId); if (!cur) return { stock: [], generic: null };
+  const same = list.filter((m) => m.tech === cur.tech && norm(m.type) === norm(cur.type));
+  const seen = new Set<string>(); const stock: M[] = [];
+  for (const m of [...same].filter((x) => !x.generic && x.availableG > 0).sort((a, b) => b.availableG - a.availableG)) { const k = norm(m.colorName); if (!seen.has(k)) { seen.add(k); stock.push(m); } }
+  return { stock: stock.slice(0, max), generic: same.find((m) => m.generic) ?? null };
+}

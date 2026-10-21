@@ -44,4 +44,12 @@ export const picker = {
   boughtHint: '¿Lo acabas de comprar? Mejor registra la compra: el costo real sale de ella.',
   registerPurchase: 'Registrar compra',
   clear: 'Quitar',
+  colorAny: 'Elegir color',
+  colorFromStock: 'De tu stock',
+  colorOther: 'Otro color (no lo tienes)',
+  colorOtherHint: 'Se cotiza con el material genérico del mismo tipo.',
+  colorName: 'O escribe el nombre',
+  colorApply: 'Usar',
+  colorClear: 'Sin color definido',
+  colorNoStock: 'No tienes colores de este tipo en stock.',
 } as const;
