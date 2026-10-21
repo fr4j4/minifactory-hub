@@ -19,6 +19,8 @@ import { profileDesc, profileName, tagName } from '@/lib/calc-presets';
 import { useT } from '@/i18n/client';
 import { FilamentPicker } from './filament-picker';
 import { ColorField } from './color-field';
+import { LineColors } from './line-colors';
+import { colorsFromSlots } from '@/lib/filament-pick';
 import { tOr } from '@/i18n/translate';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
@@ -90,7 +92,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   useEffect(() => {
     if (run?.status === 'done' && run.id !== it.origin.runId) {
       const g = run.filament.reduce((a, f) => a + f.g, 0); const h = (run.timeS ?? 0) / 3600;
-      onChange({ gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), sliceRunId: run.id, unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'slicer', hours: 'slicer', runId: run.id, engine: `OrcaSlicer ${run.engineVersion}`, note: run.cached ? t('calculator.fromCache') : undefined } });
+      const fc = it.colors.length ? [] : colorsFromSlots(run.filament.map((f) => ({ g: f.g })), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
+      onChange({ ...(fc.length ? { colors: fc } : {}), gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), sliceRunId: run.id, unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'slicer', hours: 'slicer', runId: run.id, engine: `OrcaSlicer ${run.engineVersion}`, note: run.cached ? t('calculator.fromCache') : undefined } });
       toast.push(t('calculator.sliceAnd', { dur: dur(run.timeS), grams: grams(g) }));
     }
     if (run?.status === 'error') toast.push(run.error ?? t('calculator.slicingError'), 'err');
@@ -114,7 +117,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   };
   const useSliced = (b: ModelBrief) => {
     const s = b.sliced!; const g = s.totalG ?? 0; const h = (s.timeS ?? 0) / 3600;
-    onChange({ gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'file', hours: 'file', file: b.name, engine: s.slicer ?? undefined, note: s.filaments.length > 1 ? t('calc.colorsN', { n: s.filaments.length }) : undefined } });
+    const fc = it.colors.length ? [] : colorsFromSlots(s.filaments.map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null })), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
+    onChange({ ...(fc.length ? { colors: fc } : {}), gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'file', hours: 'file', file: b.name, engine: s.slicer ?? undefined, note: s.filaments.length > 1 ? t('calc.colorsN', { n: s.filaments.length }) : undefined } });
   };
   const applyEstimate = (e: { grams: number; hours: number }) => {
     onChange({ unitGrams: +e.grams.toFixed(1), unitHours: +e.hours.toFixed(2), gramsTotal: +(e.grams * qty).toFixed(1), hoursTotal: +(e.hours * qty).toFixed(2), origin: { grams: 'estimate', hours: 'estimate' }, mode: 'manual' });
@@ -134,7 +138,6 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   };
   const manualGrams = (v: number) => onChange({ unitGrams: v, gramsTotal: +(v * qty).toFixed(2), origin: { ...it.origin, grams: it.origin.grams === 'manual' ? 'manual' : it.origin.grams, corrected: it.origin.grams !== 'manual' ? true : undefined } });
   const manualHours = (hh: number, mm: number) => { const v = hh + mm / 60; onChange({ unitHours: v, hoursTotal: +(v * qty).toFixed(3), origin: { ...it.origin, corrected: it.origin.hours !== 'manual' ? true : it.origin.corrected } }); };
-  const setFilaments = (f: ItemState['filaments']) => { const sum = f.reduce((a, x) => a + (x.g || 0), 0); onChange(f.length ? { filaments: f, gramsTotal: +sum.toFixed(2), unitGrams: +(sum / qty).toFixed(2) } : { filaments: [] }); };
   const originBadge = (k?: string, corrected?: boolean) => k ? <Badge tone={k === 'manual' ? 'gray' : k === 'estimate' ? 'amber' : 'blue'}>{tOr(t, `calculator.origin.${k}`, k)}{corrected ? ` · ${t('calculator.manuallyCorrected')}` : ''}</Badge> : null;
   const num_ = 'input tabular';
   const unitH = hm(it.unitHours);
@@ -212,6 +215,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                     </label>
                   )}
                 </div>
+                <LineColors materials={mats} mainId={it.materialId} colors={it.colors} total={it.gramsTotal} level={level} tech={mach?.tech === 'SLA' ? 'resina' : 'fdm'} disabled={dis} onChange={(colors) => onChange({ colors })}
+                  fileSlots={firstModel?.sliced?.filaments.map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null }))} />
                 <div>
                   <div className="label">{t('calc.weight.title')}</div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" role="radiogroup" aria-label={t('calculator.quoteMode')}>
@@ -255,7 +260,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       )}
                       <p className="text-xs muted">{t('calculator.manualHelp1')} <b>{t('calculator.perUnit')}</b>. {t('calculator.manualHelp2')}</p>
                       <div className="grid grid-cols-3 gap-3">
-                        <label className="block"><span className="label">{t('calculator.gramsUnit')}</span><input type="number" min={0} step="0.1" inputMode="decimal" className={num_} value={it.unitGrams || ''} disabled={dis || it.filaments.length > 0} onChange={(e) => manualGrams(+e.target.value || 0)} data-testid="manual-grams" /></label>
+                        <label className="block"><span className="label">{t('calculator.gramsUnit')}</span><input type="number" min={0} step="0.1" inputMode="decimal" className={num_} value={it.unitGrams || ''} disabled={dis} onChange={(e) => manualGrams(+e.target.value || 0)} data-testid="manual-grams" /></label>
                         <label className="block"><span className="label">{t('common.hours')}</span><input type="number" min={0} inputMode="numeric" className={num_} value={unitH.h || ''} disabled={dis} onChange={(e) => manualHours(+e.target.value || 0, unitH.m)} data-testid="manual-hours" /></label>
                         <label className="block"><span className="label">{t('calculator.minutes')}</span><input type="number" min={0} max={59} inputMode="numeric" className={num_} value={unitH.m || ''} disabled={dis} onChange={(e) => manualHours(unitH.h, +e.target.value || 0)} data-testid="manual-minutes" /></label>
                       </div>
@@ -288,16 +293,6 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       <label className="block"><span className="label">{t('calc.field.plates')}<Hint text={t('calc.help.plates')} /></span><input type="number" min={1} className={num_} value={it.plates} disabled={dis} onChange={(e) => onChange({ plates: Math.max(1, Math.floor(+e.target.value || 1)) })} data-testid="line-plates" /></label>
                       <label className="block"><span className="label">{t('calc.field.design')}</span><input type="number" min={0} className={num_} value={it.designMinutes || ''} disabled={dis} onChange={(e) => onChange({ designMinutes: Math.max(0, +e.target.value || 0) })} data-testid="line-design" /></label>
                       <label className="block"><span className="label">{t('calc.field.colorChanges')}</span><input type="number" min={0} className={num_} value={it.colorChanges || ''} disabled={dis} onChange={(e) => onChange({ colorChanges: Math.max(0, +e.target.value || 0) })} /></label>
-                    </div>
-                    <div>
-                      <div className="label">{t('calc.field.multicolor')}<Hint text={t('calc.help.multicolor')} /></div>
-                      {it.filaments.map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 mb-1.5">
-                          <input type="number" min={0} step="0.1" className="input !w-24" aria-label={t('calc.field.gramsColor')} value={f.g || ''} disabled={dis} onChange={(e) => setFilaments(it.filaments.map((x, k) => (k === i ? { ...x, g: +e.target.value || 0 } : x)))} />
-                          <FilamentPicker materials={mats} value={f.materialId} disabled={dis} tech={mach?.tech === 'SLA' ? 'resina' : 'fdm'} gramsNeeded={f.g || undefined} ariaLabel={t('common.material')} onChange={(id) => setFilaments(it.filaments.map((x, k) => (k === i ? { ...x, materialId: id } : x)))} />
-                          {!dis && <button type="button" className="btn-ghost btn-sm" aria-label={t('calculator.removeItem')} onClick={() => setFilaments(it.filaments.filter((_, k) => k !== i))}>✕</button>}
-                        </div>))}
-                      {!dis && mats.length > 0 && <button type="button" className="btn-ghost btn-sm" onClick={() => setFilaments([...it.filaments, { g: 0, materialId: it.materialId ?? mats[0].id }])} data-testid="add-color">{t('calc.field.addColor')}</button>}
                     </div>
                     <div>
                       <div className="label">{t('calc.field.overrides')}<Hint text={t('calc.help.overrides')} /></div>

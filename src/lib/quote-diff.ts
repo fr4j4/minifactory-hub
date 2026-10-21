@@ -1,12 +1,12 @@
 /** Diferencias entre dos versiones de un presupuesto: líneas agregadas, quitadas y cambiadas, y el total. */
-export interface DiffItem { description: string; qty: number; unit: number; grams: number; hours: number; materialId: string | null }
-export type LineChange = { field: 'qty' | 'unit' | 'grams' | 'hours' | 'materialId'; before: number | string | null; after: number | string | null };
+export interface DiffItem { description: string; qty: number; unit: number; grams: number; hours: number; materialId: string | null; /** colores adicionales resumidos («Blanco 20 %, Rojo»); null si no hay */ colors?: string | null }
+export type LineChange = { field: 'qty' | 'unit' | 'grams' | 'hours' | 'materialId' | 'colors'; before: number | string | null; after: number | string | null };
 export interface QuoteDiff {
   added: DiffItem[]; removed: DiffItem[]; changed: Array<{ description: string; changes: LineChange[] }>;
   totalBefore: number; totalAfter: number; delta: number;
 }
 
-const FIELDS: Array<[LineChange['field'], (i: DiffItem) => number | string | null]> = [['qty', (i) => i.qty], ['unit', (i) => i.unit], ['grams', (i) => Math.round(i.grams)], ['hours', (i) => Math.round(i.hours * 100) / 100], ['materialId', (i) => i.materialId]];
+const FIELDS: Array<[LineChange['field'], (i: DiffItem) => number | string | null]> = [['qty', (i) => i.qty], ['unit', (i) => i.unit], ['grams', (i) => Math.round(i.grams)], ['hours', (i) => Math.round(i.hours * 100) / 100], ['materialId', (i) => i.materialId], ['colors', (i) => i.colors ?? null]];
 
 /** Las líneas se emparejan por descripción (varias con el mismo nombre se emparejan en orden). */
 export function diffQuotes(a: { items: DiffItem[]; total: number }, b: { items: DiffItem[]; total: number }): QuoteDiff {

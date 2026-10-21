@@ -22,6 +22,8 @@ export const quotes: Shape<typeof es['quotes']> = {
   diffField_grams: 'grams',
   diffField_hours: 'hours',
   diffField_materialId: 'material',
+  diffField_colors: 'extra colors',
+  docColors: 'Colors: {list}',
   activity: 'Activity',
   activityNone: 'No activity recorded.',
   act_estado_enviado: 'Sent to the customer',

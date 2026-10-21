@@ -33,9 +33,17 @@ export function quoteTaxPct(q: { total: number; taxAmount: number; calc?: unknow
   return net > 0 && Math.round((net * st.rates.taxPct) / 100) !== q.taxAmount ? Math.round((q.taxAmount / net) * 100) : st.rates.taxPct;
 }
 
+/** Colores de una línea para el documento del cliente: solo cuando tiene colores adicionales (el color principal y luego los demás, sin porcentajes ni costos). */
+function colorsOfItem(it: { color: string | null; materialId: string | null; calcOpts: unknown }, matOf: Map<string, { type: string; colorName: string; generic: boolean }>): string | null {
+  const extras = (((it.calcOpts as any)?.colors ?? []) as Array<{ materialId: string; color?: string }>); if (!extras.length) return null;
+  const name = (id: string | null, color?: string | null) => { const m = id ? matOf.get(id) : undefined; return (color || (m && !m.generic ? m.colorName : '') || (m ? m.type : '') || '').trim(); };
+  const list = [name(it.materialId, it.color), ...extras.map((c) => name(c.materialId, c.color))].filter(Boolean);
+  return [...new Set(list)].join(' · ') || null;
+}
+
 /** Datos del documento de cliente a partir de un presupuesto: solo lo que el cliente puede ver (sin costos ni precio sugerido). */
 export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote>>>, st: AppSettings, t: TFn): QuoteDocData {
-  const { quote: q, items, models, links } = d;
+  const { quote: q, items, models, links, materials } = d; const matOf = new Map(materials.map((m) => [m.id, m]));
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; finalTotal: number }>;
   // enviado: datos del taller congelados al enviar; borrador (o enviado antes de existir la copia): los vigentes
   const snap = ((q.docTemplate as any)?.snapshot ?? docSnapshot(st)) as DocSnapshot;
@@ -45,6 +53,7 @@ export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote
     return {
       id: it.id, description: it.description, groupName: it.groupName, qty: it.qty, unitPrice: lineTotal % qty === 0 ? lineTotal / qty : null, total: lineTotal, optional: it.optional,
       leadTime: !it.variantId && it.hoursTotal > 0 ? t('quotes.approxPrintLeadTime', { time: dur(it.hoursTotal * 3600) }) : null,
+      colors: colorsOfItem(it, matOf),
       models: models.filter((m) => m.qm.quoteItemId === it.id).map((m) => ({ name: m.name, thumbUrl: m.thumb ? `/api/files/v/${m.qm.fileVersionId ?? ''}/thumb` : null })),
     };
   });

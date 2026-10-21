@@ -19,6 +19,8 @@ export const quotes = {
   diffField_grams: 'gramos',
   diffField_hours: 'horas',
   diffField_materialId: 'material',
+  diffField_colors: 'colores adicionales',
+  docColors: 'Colores: {list}',
   activity: 'Actividad',
   activityNone: 'Sin actividad registrada.',
   act_estado_enviado: 'Enviado al cliente',

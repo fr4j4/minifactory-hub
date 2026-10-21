@@ -1,5 +1,6 @@
 /** Lógica pura del selector de filamento: familias de color, búsqueda, filtros y agrupación por línea. */
 import type { CalcMaterial } from './context';
+import type { ExtraColor } from './color-slots';
 
 export type PickMaterial = Pick<CalcMaterial, 'id' | 'label' | 'type' | 'colorName' | 'hex' | 'costPerKg' | 'generic' | 'stockG' | 'availableG' | 'manufacturer' | 'line' | 'variantId' | 'tech' | 'filamentProfileId'>;
 
@@ -86,4 +87,25 @@ export function colorChoices<M extends PickMaterial>(list: M[], currentId: strin
   const seen = new Set<string>(); const stock: M[] = [];
   for (const m of [...same].filter((x) => !x.generic && x.availableG > 0).sort((a, b) => b.availableG - a.availableG)) { const k = norm(m.colorName); if (!seen.has(k)) { seen.add(k); stock.push(m); } }
   return { stock: stock.slice(0, max), generic: same.find((m) => m.generic) ?? null };
+}
+
+export interface FileSlot { g: number | null; color?: string | null; type?: string | null }
+const hexOf = (c?: string | null) => { const v = (c ?? '').trim(); return /^#?[0-9a-f]{6}$/i.test(v) ? (v.startsWith('#') ? v : `#${v}`) : null; };
+
+/**
+ * Colores adicionales a partir de los slots de un archivo laminado o un 3MF multicolor. El slot más pesado es el material principal;
+ * cada uno de los demás toma el filamento propio más parecido (mismo tipo y tono, con stock primero) o, si no hay, el principal.
+ * Se guardan como porcentaje del peso, así siguen valiendo si cambian los gramos totales o la cantidad.
+ */
+export function colorsFromSlots<M extends PickMaterial>(slots: FileSlot[], list: M[], mainId: string | null, tech: string | null = 'fdm'): ExtraColor[] {
+  const total = slots.reduce((a, x) => a + (x.g ?? 0), 0); if (slots.length < 2 || !(total > 0)) return [];
+  const heavy = slots.reduce((bi, x, i) => ((x.g ?? 0) > (slots[bi].g ?? 0) ? i : bi), 0);
+  const pool = tech ? list.filter((m) => m.tech === tech) : list;
+  return slots.flatMap((s, i): ExtraColor[] => {
+    if (i === heavy || !((s.g ?? 0) > 0)) return [];
+    const hinted = !!hexOf(s.color) || !!s.type; // sin color ni tipo no hay con qué elegir: queda el principal
+    const best = !hinted ? undefined : filterMaterials(pool, { hintHex: hexOf(s.color), hintType: s.type ?? null }).sort((a, b) => Number(b.availableG > 0 && !b.generic) - Number(a.availableG > 0 && !a.generic))[0];
+    const m = best ?? list.find((x) => x.id === mainId);
+    return [{ materialId: m?.id ?? mainId ?? '', ...(m?.generic ? { color: '' } : {}), pct: Math.round(((s.g ?? 0) / total) * 1000) / 10 }];
+  }).filter((c) => c.materialId);
 }
