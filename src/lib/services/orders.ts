@@ -1,3 +1,4 @@
+import { extraGrams, type ExtraColor } from '../color-slots';
 import { and, asc, desc, eq, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { getDb, s, WORKSPACE_ID, type Tx } from '@/db';
 import { audit, notify } from '../audit';
@@ -93,6 +94,7 @@ export async function createOrder(input: OrderInput, user: User, internal: Creat
         gramsTotal: it.gramsTotal ?? 0, hoursTotal: it.hoursTotal ?? 0, costBreakdown: p.breakdown as any, suggestedUnit: p.suggestedUnit, finalUnit,
         costUnit: Math.round((p.costTotal - (it.shipping ?? 0)) / Math.max(1, it.qty)), variantId: it.variantId ?? null, fromStock,
         status: it.variantId && fromStock >= it.qty ? 'listo' : 'pendiente', sliceRunId: it.sliceRunId ?? null, createdBy: user.id,
+        colors: it.variantId ? [] : (((it.calcOpts as any)?.colors ?? []) as ExtraColor[]).filter((c) => c?.materialId),
       }).returning({ id: s.orderItems.id });
       for (const m of it.models ?? []) await tx.insert(s.quoteItemModels).values({ workspaceId: WORKSPACE_ID, orderItemId: oi.id, modelFileId: m.modelFileId, fileVersionId: m.fileVersionId ?? null, qty: m.qty ?? 1 });
       for (const l of it.links ?? []) if (l.url) await tx.insert(s.referenceLinks).values({ workspaceId: WORKSPACE_ID, url: normalizeUrl(l.url), title: l.title ?? null, kind: l.kind ?? 'otro', note: l.note ?? null, imageUrl: l.imageUrl ?? null, showInPdf: !!l.showInPdf, ownerType: 'order_item', ownerId: oi.id, createdBy: user.id });
@@ -199,7 +201,7 @@ export async function planProduction(orderId: string, user: User, itemIds?: stri
     const mm = await db.select({ f: s.modelFiles }).from(s.quoteItemModels).innerJoin(s.modelFiles, eq(s.modelFiles.id, s.quoteItemModels.modelFileId)).where(eq(s.quoteItemModels.orderItemId, it.id));
     const dims = mm.length ? ([Math.max(...mm.map((x) => x.f.dimX ?? 0)), Math.max(...mm.map((x) => x.f.dimY ?? 0)), Math.max(...mm.map((x) => x.f.dimZ ?? 0))] as [number, number, number]) : null;
     let id: string;
-    try { id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || t('orders.part')} ×${qty}`, materialId, qty, estG, estH, orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id }); }
+    try { id = await createJob({ kind: 'pedido', title: `${order.number} · ${it.description || t('orders.part')} ×${qty}`, materialId, qty, estG, estH, extras: it.variantId ? [] : (it.colors ?? []).map((c) => ({ materialId: c.materialId, color: c.color ?? null, estG: extraGrams(estG, c) })), orderId, orderItemIds: [it.id], machineId: it.machineId, dims: dims && dims[0] > 0 ? dims : null, sliceRunId: it.sliceRunId, userId: user.id }); }
     catch (e) { await db.update(s.orderItems).set({ status: it.status }).where(eq(s.orderItems.id, it.id)); throw e; }
     created.push(id);
   }

@@ -71,6 +71,15 @@ describe('estados del pedido', () => {
     expect((await order(oid)).status).toBe('post_proceso');
     expect((await job(j)).qtyGood).toBe(2);
   });
+  it('colores de la pieza: el pedido guarda los colores adicionales y el trabajo reserva el reparto (el % y los gramos del Experto)', async () => {
+    const other = (await db.select().from(s.materials)).find((m) => m.id !== pla.id && m.type === 'PLA')!;
+    const oid = await createOrder({ customerName: 'Colores', items: [line({ gramsTotal: 100, calcOpts: { colors: [{ materialId: other.id, pct: 30 }, { materialId: other.id, g: 5 }] } })] }, admin);
+    const [oi] = await db.select().from(s.orderItems).where(eq(s.orderItems.orderId, oid));
+    expect(oi.colors).toHaveLength(2);
+    const [j] = await planProduction(oid, admin);
+    const ex = await db.select().from(s.jobMaterials).where(eq(s.jobMaterials.jobId, j));
+    expect(ex.map((x) => x.estG).sort((x, y) => x - y)).toEqual([5, 30]);
+  });
   it('solo avances válidos de estado: no se marca listo con líneas sin imprimir ni se retrocede', async () => {
     const oid = await createOrder({ customerName: 'Transiciones', items: [line()] }, admin);
     await expect(setOrderStatus(oid, 'listo', admin)).rejects.toThrow();

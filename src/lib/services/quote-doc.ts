@@ -43,7 +43,7 @@ function colorsOfItem(it: { color: string | null; materialId: string | null; cal
 
 /** Datos del documento de cliente a partir de un presupuesto: solo lo que el cliente puede ver (sin costos ni precio sugerido). */
 export function buildQuoteDoc(d: NonNullable<Awaited<ReturnType<typeof loadQuote>>>, st: AppSettings, t: TFn): QuoteDocData {
-  const { quote: q, items, models, links, materials } = d; const matOf = new Map(materials.map((m) => [m.id, m]));
+  const { quote: q, items, models, links, materials } = d; const matOf = new Map((materials ?? []).map((m) => [m.id, m]));
   const lt = ((q.calc as any)?.lines ?? []) as Array<{ id: string; finalTotal: number }>;
   // enviado: datos del taller congelados al enviar; borrador (o enviado antes de existir la copia): los vigentes
   const snap = ((q.docTemplate as any)?.snapshot ?? docSnapshot(st)) as DocSnapshot;
