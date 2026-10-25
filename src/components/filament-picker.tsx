@@ -10,6 +10,7 @@ import { useT } from '@/i18n/client';
 import { Modal, useAction } from './client';
 
 type Mat = PickMaterial;
+type Added = { id: string; name: string; hex: string; material?: Mat };
 const RECENT_KEY = 'mf.recentFilaments';
 const readRecents = (): string[] => { try { const v = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]'); return Array.isArray(v) ? v.filter((x) => typeof x === 'string').slice(0, 5) : []; } catch { return []; } };
 const pushRecent = (id: string) => { try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...readRecents().filter((x) => x !== id)].slice(0, 5))); } catch { /* sin almacenamiento: no pasa nada */ } };
@@ -53,14 +54,14 @@ export function FilamentPicker({ materials, value, onChange, tech = 'fdm', empty
         {shown ? <><span className="h-4 w-4 rounded-full border border-black/20 shrink-0" style={{ background: shown.hex }} aria-hidden /><span className="flex-1 min-w-0 leading-tight py-0.5"><span className="block truncate">{shown.name}</span><span className="block truncate muted text-[11px]">{shown.tag}</span></span></> : <span className="truncate flex-1 muted">{emptyLabel ?? t('picker.choose')}</span>}
         <span aria-hidden className="muted shrink-0">▾</span>
       </button>
-      {open && <PickerDialog pool={pool} value={value} emptyLabel={emptyLabel} gramsNeeded={gramsNeeded} hint={hint} showCost={showCost} showProfile={showProfile} library={library} testId={testId} onClose={() => setOpen(false)} onPick={choose} onAdded={(a) => { setAdded(a); choose(a.id); }} />}
+      {open && <PickerDialog pool={pool} value={value} emptyLabel={emptyLabel} gramsNeeded={gramsNeeded} hint={hint} showCost={showCost} showProfile={showProfile} library={library} testId={testId} onClose={() => setOpen(false)} onPick={choose} onAdded={(a) => { setAdded(a); choose(a.id, a.material); }} />}
     </>
   );
 }
 
 function stockTagOf(m: Mat, t: ReturnType<typeof useT>) { return m.generic ? t('picker.genericTag') : m.availableG > 0 ? t('picker.inStock', { g: grams(m.availableG) }) : t('picker.noStock'); }
 
-function PickerDialog({ pool, value, emptyLabel, gramsNeeded, hint, showCost, showProfile, library, testId, onClose, onPick, onAdded }: { pool: Mat[]; value: string; emptyLabel?: string; gramsNeeded?: number; hint?: { type?: string | null; hex?: string | null }; showCost: boolean; showProfile: boolean; library: boolean; testId?: string; onClose: () => void; onPick: (id: string, m?: Mat) => void; onAdded: (a: { id: string; name: string; hex: string }) => void }) {
+function PickerDialog({ pool, value, emptyLabel, gramsNeeded, hint, showCost, showProfile, library, testId, onClose, onPick, onAdded }: { pool: Mat[]; value: string; emptyLabel?: string; gramsNeeded?: number; hint?: { type?: string | null; hex?: string | null }; showCost: boolean; showProfile: boolean; library: boolean; testId?: string; onClose: () => void; onPick: (id: string, m?: Mat) => void; onAdded: (a: Added) => void }) {
   const t = useT();
   const [q, setQ] = useState(''); const [type, setType] = useState<string | null>(null); const [family, setFamily] = useState<ColorFamily | null>(null); const [onlyStock, setOnlyStock] = useState(false);
   const [recents, setRecents] = useState<string[]>([]); useEffect(() => setRecents(readRecents()), []);
@@ -146,12 +147,17 @@ function LibraryColors({ state, setState, owned, onBack, onOwned, onAdd }: { sta
 }
 
 /** Paso de confirmación: cuánto se tiene de este color. Por defecto nada, para que el sistema avise que falta. */
-function AddForm({ line, color, onBack, onAdded }: { line: CatalogFilament; color: CatalogVariant; onBack: () => void; onAdded: (a: { id: string; name: string; hex: string }) => void }) {
+function AddForm({ line, color, onBack, onAdded }: { line: CatalogFilament; color: CatalogVariant; onBack: () => void; onAdded: (a: Added) => void }) {
   const t = useT(); const { run, pending } = useAction();
   const [have, setHave] = useState(false); const [closed, setClosed] = useState('1'); const [openG, setOpenG] = useState(''); const [cost, setCost] = useState(''); const [minOne, setMinOne] = useState(true);
   const n = (v: string) => { const x = Number(v.replace(',', '.')); return Number.isFinite(x) && x > 0 ? x : 0; };
   const submit = () => run(() => addCatalogColorOwnedAction(line.key, color.id, { fullSpools: have ? Math.floor(n(closed)) : 0, openG: have ? n(openG) || undefined : undefined, costPerKg: n(cost) || undefined, stockMinG: minOne ? undefined : 0 }), {
-    ok: t('picker.added'), onOk: (d) => onAdded({ id: d.materialId, name: `${line.brandName} ${line.name} · ${color.name}`, hex: color.hex }),
+    ok: t('picker.added'), onOk: (d) => {
+      const g = have ? Math.floor(n(closed)) * 1000 + n(openG) : 0;
+      // la página todavía no trae el material nuevo: se entrega lo que se sabe de él para que quien elige (p. ej. el color pedido de la línea) no se quede con el anterior
+      const material: Mat = { id: d.materialId, label: `${line.brandName} ${line.name} · ${color.name}`, type: line.material, colorName: color.name, hex: color.hex, costPerKg: n(cost), generic: false, stockG: g, availableG: g, manufacturer: line.brandName, line: line.name, variantId: variantKey(line.key, color.id), tech: 'fdm', filamentProfileId: null };
+      onAdded({ id: d.materialId, name: material.label, hex: color.hex, material });
+    },
   });
   return (
     <div className="space-y-4" data-testid="picker-add">

@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import net from 'node:net';
 import { EventEmitter } from 'node:events';
 import mqtt, { type MqttClient } from 'mqtt';
 import { deepMerge, normalize, type PrinterStatus } from './state';
@@ -30,9 +31,10 @@ export class CloudSession extends EventEmitter {
     if (this.mq) return;
     const E = cloudEndpoints(this.o.region);
     const ca = process.env.BAMBU_CLOUD_CA_FILE && fs.existsSync(process.env.BAMBU_CLOUD_CA_FILE) ? fs.readFileSync(process.env.BAMBU_CLOUD_CA_FILE) : undefined;
+    // SNI solo con nombre de host: Node rechaza una IP como servername (la nube simulada de las pruebas escucha en 127.0.0.1)
     const mq = mqtt.connect(`mqtts://${E.mqttHost}:${E.mqttPort}`, {
       username: this.o.username, password: this.o.token, clientId: `minifactory_${Math.random().toString(16).slice(2, 10)}`,
-      rejectUnauthorized: true, ...(ca ? { ca } : {}), servername: E.mqttHost, reconnectPeriod: 10_000, connectTimeout: 10_000, keepalive: 60, protocolVersion: 4,
+      rejectUnauthorized: true, ...(ca ? { ca } : {}), ...(net.isIP(E.mqttHost) ? {} : { servername: E.mqttHost }), reconnectPeriod: 10_000, connectTimeout: 10_000, keepalive: 60, protocolVersion: 4,
     });
     this.mq = mq;
     mq.on('connect', () => { this.connected = true; this.lastError = null; for (const s of this.devices.keys()) this.watch(s); this.emit('online'); for (const d of this.devices.values()) d.emit('online'); });

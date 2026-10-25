@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
-import { entryNozzle, getIndex, listFactory, profileNozzle, orcaAvailable } from '@/lib/slicer/catalog';
+import { entryNozzle, getIndex, listFactory, profileNozzle, orcaAvailable, orcaProfilesAvailable } from '@/lib/slicer/catalog';
 import { createQualityFromTemplates, nozzleVariants, processesFor, setupMachine, slicingReadiness, switchNozzle } from '@/lib/slicer/setup';
 import { profileUsage, uniqueProfileName } from '@/lib/slicer/usage';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
@@ -15,7 +15,7 @@ const newMachine = async (name: string, model: string, nozzles: string[]) => (aw
 const machineRow = async (id: string) => (await db.select().from(s.machines).where(eq(s.machines.id, id)))[0];
 const profile = async (id: string | null) => (await db.select().from(s.slicerProfiles).where(eq(s.slicerProfiles.id, id!)))[0];
 
-describe('catálogo por boquilla', () => {
+describe.skipIf(!orcaProfilesAvailable())('catálogo por boquilla', () => {
   it('cada perfil de fábrica sabe a qué boquilla apunta', () => {
     expect(profileNozzle('machine', 'Bambu Lab A1 0.2 nozzle')).toBe('0.2');
     expect(profileNozzle('process', '0.10mm Standard @BBL A1 0.2 nozzle')).toBe('0.2');
@@ -45,7 +45,7 @@ describe('catálogo por boquilla', () => {
   });
 });
 
-describe('máquina con varias boquillas', () => {
+describe.skipIf(!orcaProfilesAvailable())('máquina con varias boquillas', () => {
   it('configurar una boquilla suma a la ficha (no borra las otras) y recuerda cada configuración', async () => {
     const m = await newMachine('A1 de prueba', 'A1', ['0.2', '0.4']);
     const r4 = await setupMachine(m.id, 'Bambu Lab A1 0.4 nozzle', null);
@@ -84,7 +84,7 @@ describe('máquina con varias boquillas', () => {
   });
 });
 
-describe('máquina + boquilla como opción de laminado', () => {
+describe.skipIf(!orcaProfilesAvailable())('máquina + boquilla como opción de laminado', () => {
   it('cada boquilla configurada es una opción; con una sola boquilla se muestra solo el nombre', async () => {
     const m = await newMachine('Doble boquilla', 'A1', ['0.2', '0.4']); await setupMachine(m.id, 'Bambu Lab A1 0.4 nozzle', null);
     let ctx = await getCalcContext(); expect(ctx.setups.filter((x) => x.machineId === m.id).map((x) => x.label)).toEqual(['Doble boquilla']);
@@ -94,7 +94,7 @@ describe('máquina + boquilla como opción de laminado', () => {
   });
 });
 
-describe('plantillas de calidad como perfiles', () => {
+describe.skipIf(!orcaProfilesAvailable())('plantillas de calidad como perfiles', () => {
   it('crea Borrador/Estándar/Fino para boquilla 0,2 con la base y los límites de la 0,2, aunque se pida desde la 0,4', async () => {
     const ids = await createQualityFromTemplates({ machineBase: 'Bambu Lab A1 0.4 nozzle', nozzle: '0.2', keys: ['borrador', 'estandar', 'fino'], prefix: 'A1' });
     const rows = await Promise.all(ids.map((x) => profile(x.id)));

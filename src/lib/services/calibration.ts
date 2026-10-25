@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { getSettings } from '../settings';
+import { plausibleRatio } from '../real-hours';
 
 const median = (a: number[]) => { if (!a.length) return null; const s2 = [...a].sort((x, y) => x - y); const m = Math.floor(s2.length / 2); return s2.length % 2 ? s2[m] : (s2[m - 1] + s2[m]) / 2; };
 
@@ -24,7 +25,7 @@ export async function calibrationData(): Promise<CalibrationData> {
     waste: { current: st.rates.wastePct, measured: wasteS.length >= 3 ? Math.max(0, median(wasteS)!) : null, samples: wasteS.length },
     fail: { current: st.rates.failRatePct, measured: jobs.length >= 10 ? (failed / jobs.length) * 100 : null, samples: jobs.length },
     machines: machines.map((m) => {
-      const r = ok.filter((j) => j.machineId === m.id && j.estH > 0 && j.realH && j.realH > 0).map((j) => j.realH! / j.estH);
+      const r = ok.filter((j) => j.machineId === m.id && j.estH > 0 && j.realH && j.realH > 0).map((j) => j.realH! / j.estH).filter(plausibleRatio);
       return { id: m.id, name: m.name, samples: r.length, currentFactor: m.timeFactor, measuredFactor: r.length >= 3 ? median(r) : null };
     }),
   };

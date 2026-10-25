@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { affectsPrice, effectiveSlots, extraMaterialIds, fromLegacyFilaments, mainShare, overflows } from '@/lib/color-slots';
-import { colorsFromSlots, type PickMaterial } from '@/lib/filament-pick';
+import { amsSlotsOf, colorsFromSlots, fileSlotsOf, withAmsColors, type PickMaterial } from '@/lib/filament-pick';
 import { fromCalcOpts, priceLine, toCalcOpts, type ItemPriceEnv } from '@/lib/item-price';
 import { type Rates } from '@/lib/pricing';
 
@@ -76,5 +76,23 @@ describe('colores desde un archivo multicolor', () => {
   it('sin color ni tipo en el slot queda el principal y con un solo slot no hay colores', () => {
     expect(colorsFromSlots([{ g: 60 }, { g: 40 }], list, 'neg')).toEqual([{ materialId: 'neg', pct: 40 }]);
     expect(colorsFromSlots([{ g: 60, color: '#ff0000' }], list, 'neg')).toEqual([]);
+  });
+  it('un 3MF de proyecto sin gramos deja los colores como referencia: el primero es el principal', () => {
+    expect(colorsFromSlots([{ g: null, color: '#1c1c1c', type: 'PLA' }, { g: null, color: '#d02020', type: 'PLA' }], list, 'neg')).toEqual([{ materialId: 'roj', pct: null }]);
+    expect(colorsFromSlots([{ g: null }, { g: null }], list, 'neg')).toEqual([]); // sin color ni tipo no hay nada que sugerir
+  });
+  it('las ranuras salen del laminado si trae gramos; si no, del proyecto 3MF', () => {
+    const ams = [{ color: '#1c1c1c', type: 'PLA' }, { color: '#d02020', type: 'PLA' }];
+    expect(fileSlotsOf({ sliced: { filaments: [] }, ams })).toEqual([{ g: null, color: '#1c1c1c', type: 'PLA' }, { g: null, color: '#d02020', type: 'PLA' }]);
+    expect(fileSlotsOf({ sliced: { filaments: [{ g: 5 }, { g: 3 }] }, ams })![0].g).toBe(5);
+    expect(fileSlotsOf({ sliced: null, ams: null })).toBeUndefined();
+    expect(withAmsColors([{ g: 5 }, { g: 3 }], ams)).toEqual([{ g: 5, color: '#1c1c1c', type: 'PLA' }, { g: 3, color: '#d02020', type: 'PLA' }]);
+    expect(withAmsColors([{ g: 5 }], ams)).toEqual([{ g: 5 }]); // no coinciden: sin colores
+  });
+  it('del proyecto se toman las ranuras usadas, o todas si hay pintura por cara', () => {
+    const f = [{ color: '#111111', type: 'PLA', used: true }, { color: '#222222', type: 'PLA', used: false }, { color: '#333333', type: 'PLA', used: true }];
+    expect(amsSlotsOf({ filaments: f, painted: false, multicolor: true })).toEqual([{ color: '#111111', type: 'PLA' }, { color: '#333333', type: 'PLA' }]);
+    expect(amsSlotsOf({ filaments: f, painted: true, multicolor: true })).toHaveLength(3);
+    expect(amsSlotsOf({ filaments: f, multicolor: false })).toBeNull();
   });
 });

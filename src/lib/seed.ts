@@ -7,7 +7,7 @@ import { getRates, getSettings, saveSettings } from './settings';
 import { ensureSetupToken } from './setup';
 import { createSpool, seedSuppliers } from './services/inventory';
 import { ingestModel } from './files';
-import { orcaAvailable, findVendorOf, getIndex } from './slicer/catalog';
+import { orcaProfilesAvailable, findVendorOf, getIndex } from './slicer/catalog';
 import { calcLine } from './pricing';
 import { createOrder } from './services/orders';
 import { saveProduct } from './services/catalog';
@@ -67,7 +67,7 @@ export async function seedDemo(opts: { users?: boolean } = {}) {
 
   /* ── perfiles del laminador (base = perfiles de fábrica de OrcaSlicer) ── */
   const prof: Record<string, string> = {};
-  if (orcaAvailable()) {
+  if (orcaProfilesAvailable()) { // los perfiles de demostración solo necesitan el catálogo de fábrica, no el binario
     const mk = async (key: string, type: 'machine' | 'process' | 'filament', name: string, baseName: string, changes: Record<string, any> = {}, simulated = false) => {
       const vendor = findVendorOf(type, baseName);
       if (!vendor) return;

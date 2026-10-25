@@ -7,6 +7,7 @@ import { tOr, type MessageKey } from '@/i18n/translate';
 import { netOfGross } from './pricing';
 import { canSeeCosts, type PermUser } from './perm';
 import { addDays, dayStart, ymd } from './format';
+import { workingDaysBetween } from './work-calendar';
 
 export interface Col { key: string; label: string; fmt?: 'money' | 'num' | 'pct' | 'text' | 'date' | 'h' | 'kg' }
 export interface ReportData { title: string; question: string; columns: Col[]; rows: Array<Record<string, any>>; summary?: Array<{ label: string; value: string }> }
@@ -69,7 +70,8 @@ export async function reportData(kind: string, r: { from: string; to: string }, 
     const jobs = await db.select().from(s.printJobs).where(and(gte(s.printJobs.realEnd, a), lt(s.printJobs.realEnd, b)));
     const days = Math.max(1, (b.getTime() - a.getTime()) / 86400_000);
     const [hh] = st.workHours.start.split(':').map(Number); const [he] = st.workHours.end.split(':').map(Number); const dayH = Math.max(1, he - hh);
-    const avail = days * (st.workHours.days.length / 7) * dayH;
+    // horas en que el taller abre en el período: días hábiles sin feriados
+    const avail = Math.max(1, workingDaysBetween(a, b, st.workHours)) * dayH;
     const rows = machines.map((m) => { const j = jobs.filter((x) => x.machineId === m.id); const used = j.reduce((a, x) => a + (x.realH ?? 0), 0); const ok = j.filter((x) => x.result === 'exito').length; return { machine: m.name, jobs: j.length, hours: used, util: (used / avail) * 100, failed: j.length - ok, success: j.length ? (ok / j.length) * 100 : null, factor: m.timeFactor }; });
     return { ...base, columns: [{ key: 'machine', label: t('common.machine') }, { key: 'jobs', label: t('reports.jobs'), fmt: 'num' }, { key: 'hours', label: t('common.hours'), fmt: 'h' }, { key: 'util', label: t('reports.utilizationWorkshopHours'), fmt: 'pct' }, { key: 'failed', label: t('reports.failures'), fmt: 'num' }, { key: 'success', label: t('reports.success'), fmt: 'pct' }, { key: 'factor', label: t('reports.actualEstimatedTimeFactor'), fmt: 'num' }], rows };
   }

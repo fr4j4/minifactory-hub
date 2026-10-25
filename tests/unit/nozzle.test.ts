@@ -1,3 +1,4 @@
+import { orcaProfilesAvailable } from '@/lib/slicer/catalog';
 import { describe, expect, it } from 'vitest';
 import { COMMON_NOZZLES, layerChoices, layerRange, layersForThickness, lineWidth, loopsForThickness, normNozzle, nozzleFromName, parseNozzles, processWarnings, qualityTemplates, scaleSpeeds, speedFactor, splitByNozzle, standardLayer, thicknessForLoops, wallThicknessOptions } from '@/lib/slicer/nozzle';
 import { cleanChanges } from '@/lib/slicer/validate';
@@ -122,7 +123,7 @@ describe('tipos de material', () => {
   });
 });
 
-describe('calidades por impresora (F0.3)', () => {
+describe.skipIf(!orcaProfilesAvailable())('calidades por impresora (F0.3)', () => {
   it('una calidad de la A1 no sirve para una Ender ni una Prusa', async () => {
     const { processFitsMachineBase } = await import('@/lib/slicer/setup');
     const a1 = { baseName: '0.20mm Standard @BBL A1', vendor: 'BBL' };

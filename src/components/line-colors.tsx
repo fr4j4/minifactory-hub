@@ -31,7 +31,7 @@ export function LineColors({ materials, mainId, colors, total, level, tech, disa
           {colors.length === 0
             ? !disabled && <button type="button" className="btn-ghost btn-sm" onClick={add} data-testid="add-color">{t('picker.colorsAdd')}</button>
             : <button type="button" className="btn-ghost btn-sm text-left" onClick={() => setOpen(true)} aria-expanded={false} data-testid="colors-summary">{summary}</button>}
-          {fromFile.length > 0 && !disabled && <button type="button" className="btn-ghost btn-sm" onClick={() => { onChange(fromFile); setOpen(true); }} title={t('picker.colorsFromFileHint', { n: fileSlots!.length })} data-testid="colors-from-file">{t('picker.colorsFromFile')}</button>}
+          {fromFile.length > 0 && !disabled && <button type="button" className="btn-ghost btn-sm" onClick={() => { onChange(fromFile); setOpen(true); }} title={t(fileSlots!.some((x) => (x.g ?? 0) > 0) ? 'picker.colorsFromFileHint' : 'picker.colorsFromFileRefHint', { n: fileSlots!.length })} data-testid="colors-from-file">{t('picker.colorsFromFile')}</button>}
         </div>)}
       {open && (
         <div className="rounded-xl border border-[var(--line)] p-3 space-y-2" data-testid="colors-panel">

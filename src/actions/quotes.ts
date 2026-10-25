@@ -1,5 +1,6 @@
 'use server';
 import {assertModelAccess} from '@/lib/library/access';
+import { amsSlotsOf, type AmsSlot } from '@/lib/filament-pick';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { requirePerm } from '@/lib/auth';
@@ -36,7 +37,7 @@ export async function approveQuoteAction(id: string, i: { by: string; channel: s
   }, ['/presupuestos', '/pedidos', `/presupuestos/${id}`]);
 }
 
-export interface ModelBrief { /** uso comercial según la licencia registrada (solo se advierte si es «no» o «requiere_membresia») */ commercial?: string; licenseCode?: string; id: string; name: string; versionId: string; format: string; dimX: number | null; dimY: number | null; dimZ: number | null; volumeCm3: number | null; areaCm2: number | null; hasSliced: boolean; sliced: { timeS: number | null; totalG: number | null; filaments: Array<{ g: number | null; color?: string; type?: string }>; slicer: string | null; notes: string[]; layers: number | null } | null; thumb: boolean }
+export interface ModelBrief { /** uso comercial según la licencia registrada (solo se advierte si es «no» o «requiere_membresia») */ commercial?: string; licenseCode?: string; id: string; name: string; versionId: string; format: string; dimX: number | null; dimY: number | null; dimZ: number | null; volumeCm3: number | null; areaCm2: number | null; hasSliced: boolean; sliced: { timeS: number | null; totalG: number | null; filaments: Array<{ g: number | null; color?: string; type?: string }>; slicer: string | null; notes: string[]; layers: number | null } | null; /** colores por ranura de un 3MF de proyecto (sin laminar) */ ams?: AmsSlot[] | null; thumb: boolean }
 export async function modelBriefAction(modelFileId: string) {
   const t = await getT();
   return safe(async (): Promise<ModelBrief> => {
@@ -45,6 +46,6 @@ export async function modelBriefAction(modelFileId: string) {
     if (!m?.currentVersionId) throw new Error(t('quotes.fileNotFound'));
     const [v] = await db.select().from(s.fileVersions).where(eq(s.fileVersions.id, m.currentVersionId));
     const meta: any = v?.meta ?? {}; const sm = meta.sliced;
-    return { commercial: normalizeLicense(m.license).commercial, licenseCode: m.license ?? undefined, id: m.id, name: m.name, versionId: v.id, format: m.format ?? '', dimX: m.dimX, dimY: m.dimY, dimZ: m.dimZ, volumeCm3: m.volumeCm3, areaCm2: m.areaCm2, hasSliced: !!meta.hasSlicedData, sliced: sm ? { timeS: sm.timeS, totalG: sm.totalG, filaments: sm.filaments ?? [], slicer: sm.slicer, notes: sm.notes ?? [], layers: sm.layers } : null, thumb: !!v.thumbKey };
+    return { commercial: normalizeLicense(m.license).commercial, licenseCode: m.license ?? undefined, id: m.id, name: m.name, versionId: v.id, format: m.format ?? '', dimX: m.dimX, dimY: m.dimY, dimZ: m.dimZ, volumeCm3: m.volumeCm3, areaCm2: m.areaCm2, hasSliced: !!meta.hasSlicedData, sliced: sm ? { timeS: sm.timeS, totalG: sm.totalG, filaments: sm.filaments ?? [], slicer: sm.slicer, notes: sm.notes ?? [], layers: sm.layers } : null, ams: amsSlotsOf(meta.ams), thumb: !!v.thumbKey };
   });
 }

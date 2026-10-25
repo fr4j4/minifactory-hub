@@ -27,6 +27,11 @@ export function orcaAvailable() {
   return fs.existsSync(config.orcaBin) && fs.existsSync(config.orcaProfilesDir);
 }
 
+/** Perfiles de fábrica de OrcaSlicer presentes (sin ellos no hay catálogo de impresoras, calidades ni filamentos). */
+export function orcaProfilesAvailable() {
+  return fs.existsSync(config.orcaProfilesDir);
+}
+
 function readJson(p: string): any | null { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } }
 
 export function getIndex(): Index {

@@ -1,12 +1,13 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
+import { orcaProfilesAvailable } from '@/lib/slicer/catalog';
 import { clearMaterialProfile, defaultLinkMap, linkedProfileId, materialsLinkedTo, setMaterialProfile } from '@/lib/slicer/links';
 
 let db: Awaited<ReturnType<typeof getDb>>;
 beforeAll(async () => { await seedDemo(); db = await getDb(); });
 
-describe('perfil por defecto del material (material_filament_links)', () => {
+describe.skipIf(!orcaProfilesAvailable())('perfil por defecto del material (material_filament_links)', () => {
   it('el de la impresora gana sobre el general; limpiar los quita', async () => {
     const [mat] = await db.select().from(s.materials).limit(1);
     const profs = await db.select().from(s.slicerProfiles);
@@ -21,7 +22,7 @@ describe('perfil por defecto del material (material_filament_links)', () => {
   });
 });
 
-describe('líneas de filamento (filament_lines)', () => {
+describe.skipIf(!orcaProfilesAvailable())('líneas de filamento (filament_lines)', () => {
   it('el seed enlaza cada material con su línea y la edición masiva actualiza a todos sus colores', async () => {
     const { listLines, updateLine, lineProfileOf, syncMaterialLine } = await import('@/lib/services/lines');
     const lines = await listLines(db); const bambuPla = lines.find((l) => l.manufacturer === 'Bambu Lab' && l.name === 'PLA Basic')!;

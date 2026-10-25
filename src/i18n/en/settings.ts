@@ -72,7 +72,7 @@ export const settings: Shape<typeof es['settings']> = {
   address: 'Address',
   brandColor: 'Brand color',
   timeZone: 'Time zone',
-  workshopCalendarForTheGantt: 'Workshop calendar (for the Gantt and committed dates)',
+  workshopCalendarForTheGantt: 'Workshop calendar (queue warnings, Gantt and machine utilization)',
   opens: 'Opens',
   closes: 'Closes',
   workingDays: 'Working days',

@@ -66,4 +66,5 @@ export const picker = {
   colorsClose: 'Close',
   colorsFromFile: 'Use the colors from the file',
   colorsFromFileHint: 'The file has {n} colors: they are split by percentage and you can change the filament of each one.',
+  colorsFromFileRefHint: 'The file has {n} colors but no grams yet: they are added as reference colors (slice it to split the weight).',
 } as const;
