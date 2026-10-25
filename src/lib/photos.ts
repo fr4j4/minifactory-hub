@@ -1,4 +1,4 @@
-import { and,eq } from 'drizzle-orm';
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import fsp from 'node:fs/promises';
 import sharp from 'sharp';
@@ -9,6 +9,19 @@ import { getT } from '@/i18n/server';
 
 export { STAGE_KEYS } from './photo-stages';
 export const RATIOS: Record<string, [number, number]> = { '1:1': [1, 1], '4:5': [4, 5], '9:16': [9, 16], '16:9': [16, 9] };
+
+/** Trabajo de la foto (el indicado o el último del pedido que no se canceló) y lo que se sabe de él; lo que ya viene indicado no se pisa. */
+async function inheritFromJob(o: { orderId?: string | null; jobId?: string | null; materialId?: string | null; machineId?: string | null; modelFileId?: string | null }) {
+  if (!o.jobId && !o.orderId) return {};
+  const db = await getDb();
+  const [j] = o.jobId ? await db.select().from(s.printJobs).where(eq(s.printJobs.id, o.jobId))
+    : await db.select().from(s.printJobs).where(and(eq(s.printJobs.orderId, o.orderId!), isNull(s.printJobs.deletedAt), ne(s.printJobs.status, 'cancelado'))).orderBy(sql`${s.printJobs.realEnd} desc nulls last`, desc(s.printJobs.createdAt)).limit(1);
+  if (!j) return {};
+  const [v] = !o.modelFileId && j.fileVersionId ? await db.select({ m: s.fileVersions.modelFileId }).from(s.fileVersions).where(eq(s.fileVersions.id, j.fileVersionId)) : [];
+  // los trabajos que vienen de un presupuesto no guardan el archivo: el modelo sale de la línea del pedido
+  const [qm] = !o.modelFileId && !v ? await db.select({ m: s.quoteItemModels.modelFileId }).from(s.jobItems).innerJoin(s.quoteItemModels, eq(s.quoteItemModels.orderItemId, s.jobItems.orderItemId)).where(eq(s.jobItems.jobId, j.id)).limit(1) : [];
+  return { jobId: o.jobId ?? j.id, materialId: o.materialId ?? j.materialId, machineId: o.machineId ?? j.machineId, modelFileId: o.modelFileId ?? v?.m ?? qm?.m ?? null };
+}
 
 /** Conversión a WebP en 320/800/1600 + original; corrige rotación EXIF y elimina metadatos (GPS). */
 export async function ingestPhoto(o: { tmpPath: string; filename: string; photoId?: string; userId?: string | null; stage?: string; orderId?: string | null; jobId?: string | null; modelFileId?: string | null; customerId?: string | null; productId?: string | null; materialId?: string | null; machineId?: string | null; caption?: string | null; tags?: string[]; featured?: boolean; scope?: 'job' | 'model' }) {
@@ -29,6 +42,8 @@ export async function ingestPhoto(o: { tmpPath: string; filename: string; photoI
   // consentimiento del cliente: sin permiso → solo uso interno
   let internalOnly = false;
   if (o.customerId) { const [c] = await db.select().from(s.customers).where((await import('drizzle-orm')).eq(s.customers.id, o.customerId)); internalOnly = !!c && noPhotoConsent(c.photoConsent); }
+  // una foto de un pedido o de un trabajo hereda el material, la máquina y el modelo del trabajo: así la Galería filtra «PETG negro» sin que nadie lo escriba
+  o = { ...o, ...(await inheritFromJob(o)) };
   // etiquetas automáticas: material, color, máquina, cliente (si hay consentimiento), categoría del modelo
   const auto: string[] = [];
 
