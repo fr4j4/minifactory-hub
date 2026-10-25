@@ -21,6 +21,15 @@ export interface JobSpec {
   kind: 'pedido' | 'stock' | 'prueba'; title: string; materialId?: string | null; qty?: number; estG: number; estH: number;
   orderId?: string | null; orderItemIds?: string[]; productionOrderId?: string | null; machineId?: string | null; fileVersionId?: string | null;
   sliceRunId?: string | null; reprintOfId?: string | null; notes?: string | null; dims?: [number, number, number] | null; userId?: string | null;
+  /** colores adicionales con sus gramos ya resueltos (estG 0 = solo referencia); el material principal se queda con el resto de estG */
+  extras?: JobExtra[];
+}
+export interface JobExtra { materialId: string; color?: string | null; estG: number }
+
+/** Colores adicionales de un trabajo. */
+export async function jobExtras(jobId: string, db?: Db) {
+  db = db ?? (await getDb());
+  return db.select().from(s.jobMaterials).where(and(eq(s.jobMaterials.jobId, jobId), isNull(s.jobMaterials.deletedAt))).orderBy(asc(s.jobMaterials.position));
 }
 
 /** Máquina sugerida: tiene el material cargado, cabe la pieza y queda libre antes. */
@@ -69,6 +78,7 @@ export async function createJob(spec: JobSpec): Promise<string> {
     estG: spec.estG, estH: spec.estH, dims: spec.dims ?? null, orderId: spec.orderId ?? null, productionOrderId: spec.productionOrderId ?? null, fileVersionId: spec.fileVersionId ?? null,
     sliceRunId: spec.sliceRunId ?? null, reprintOfId: spec.reprintOfId ?? null, notes: spec.notes ?? null, createdBy: spec.userId ?? null,
   }).returning({ id: s.printJobs.id });
+  for (const [i, x] of (spec.extras ?? []).entries()) await db.insert(s.jobMaterials).values({ workspaceId: WORKSPACE_ID, jobId: job.id, materialId: x.materialId, color: x.color ?? null, position: i, estG: Math.max(0, x.estG) });
   for (const oi of spec.orderItemIds ?? []) await db.insert(s.jobItems).values({ workspaceId: WORKSPACE_ID, jobId: job.id, orderItemId: oi, qty: spec.qty ?? 1 });
   await scheduleQueue();
   await audit('print_job', job.id, 'crear', { number, machineId }, spec.userId);
@@ -230,17 +240,29 @@ export async function startJob(jobId: string, o: { machineId?: string; spoolId?:
   if (j.orderId) await recomputeOrderStatus(j.orderId);
   await scheduleQueue();
   await audit('print_job', jobId, 'iniciar', { machineId, spoolId: spool?.id }, o.userId);
+  // colores adicionales: cada uno toma su bobina; si no hay, solo se avisa (el taller puede tener el material sin registrar)
+  const extras = (await jobExtras(jobId, db)).filter((x) => x.estG > 0);
+  for (const x of extras) {
+    const sp = await pickSpool(x.materialId, x.estG, machineId, db);
+    if (sp) { await db.update(s.jobMaterials).set({ spoolId: sp.id, updatedAt: now }).where(eq(s.jobMaterials.id, x.id)); await db.update(s.spools).set({ status: 'en_uso', openedAt: sp.openedAt ?? ymd(now), updatedAt: now }).where(eq(s.spools.id, sp.id)); }
+    const xav = await checkAvailability(x.materialId, x.estG, db);
+    if (xav.state === 'none' || xav.state === 'short' || !sp) {
+      const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, x.materialId));
+      await notify('stock_bajo', t('queue.noStockForJobTitle', { material: `${mat?.type ?? ''} ${x.color || mat?.color || ''}`.trim() }), t('queue.noStockForJobBody', { job: j.number, needed: Math.round(x.estG), available: Math.round(Math.max(0, xav.availableG)) }), '/inventario');
+    }
+  }
+  const mainG = Math.max(0, j.estG - extras.reduce((a, x) => a + x.estG, 0));
   // solo avisa: el taller puede estar imprimiendo con material que todavía no registró
-  const av = await checkAvailability(j.materialId, j.estG, db);
+  const av = await checkAvailability(j.materialId, mainG, db);
   if (j.materialId && (av.state === 'none' || av.state === 'short' || !spool)) {
     const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, j.materialId));
-    await notify('stock_bajo', t('queue.noStockForJobTitle', { material: `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim() }), t('queue.noStockForJobBody', { job: j.number, needed: Math.round(j.estG), available: Math.round(Math.max(0, av.availableG)) }), '/inventario');
-    return { warning: { state: av.state === 'ok' ? ('none' as const) : av.state, availableG: Math.max(0, av.availableG), neededG: j.estG } };
+    await notify('stock_bajo', t('queue.noStockForJobTitle', { material: `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim() }), t('queue.noStockForJobBody', { job: j.number, needed: Math.round(mainG), available: Math.round(Math.max(0, av.availableG)) }), '/inventario');
+    return { warning: { state: av.state === 'ok' ? ('none' as const) : av.state, availableG: Math.max(0, av.availableG), neededG: mainG } };
   }
   return { warning: null };
 }
 
-export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCode?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string }
+export interface FinishInput { result: 'exito' | 'falla_parcial' | 'falla_total'; realG?: number; realH?: number; qtyGood?: number; failCause?: string; failCode?: string; failCharge?: 'taller' | 'pedido'; reprint?: boolean; userId?: string | null; spoolId?: string; /** bobina elegida por color adicional (id de job_materials → id de bobina) */ extraSpools?: Record<string, string> }
 
 export async function finishJob(jobId: string, o: FinishInput) {
   const t = await getT();
@@ -264,18 +286,31 @@ export async function finishJob(jobId: string, o: FinishInput) {
     failCharge: o.failCharge ?? null, spoolId, updatedAt: now,
   }).where(and(eq(s.printJobs.id, jobId), inArray(s.printJobs.status, ['imprimiendo', 'pausado']))).returning({ id: s.printJobs.id });
   if (!claimed) throw new Error(t('queue.theJobIsAlreadyClosed'));
-  // consumo de material
-  if (spoolId) await consumeFromSpool({ spoolId, grams: realG, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
-  else if (j.materialId && realG > 0) {
-    // sin carrete no hay de dónde descontar, pero el gasto no se pierde: queda como movimiento sin carrete y un aviso para corregir el stock
-    const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, j.materialId));
-    const label = `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim();
-    await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: failed ? 'falla' : 'consumo', spoolId: null, qty: -realG, jobId, note: t('queue.consumedWithoutSpool', { job: j.number, material: label }), createdBy: o.userId ?? null });
-    await notify('stock_bajo', t('queue.noSpoolTitle', { job: j.number }), t('queue.noSpoolBody', { grams: Math.round(realG), material: label }), '/inventario');
+  // consumo de material: los colores adicionales se reparten el peso real en proporción a lo estimado; el principal se queda con el resto
+  const extras = (await jobExtras(jobId, db)).filter((x) => x.estG > 0);
+  const ratio = j.estG > 0 ? realG / j.estG : 1;
+  const extraReal = extras.map((x) => ({ x, g: x.estG * ratio }));
+  const mainReal = Math.max(0, realG - extraReal.reduce((a, e) => a + e.g, 0));
+  const consume = async (materialId: string | null, spoolId: string | null, grams: number) => {
+    if (spoolId) await consumeFromSpool({ spoolId, grams, kind: failed ? 'falla' : 'consumo', jobId, note: t('queue.job', { job: j.number }), userId: o.userId }, db);
+    else if (materialId && grams > 0) {
+      // sin carrete no hay de dónde descontar, pero el gasto no se pierde: queda como movimiento sin carrete y un aviso para corregir el stock
+      const [mat] = await db.select({ type: s.materials.type, color: s.materials.colorName }).from(s.materials).where(eq(s.materials.id, materialId));
+      const label = `${mat?.type ?? ''} ${mat?.color ?? ''}`.trim();
+      await db.insert(s.inventoryMovements).values({ workspaceId: WORKSPACE_ID, kind: failed ? 'falla' : 'consumo', spoolId: null, qty: -grams, jobId, note: t('queue.consumedWithoutSpool', { job: j.number, material: label }), createdBy: o.userId ?? null });
+      await notify('stock_bajo', t('queue.noSpoolTitle', { job: j.number }), t('queue.noSpoolBody', { grams: Math.round(grams), material: label }), '/inventario');
+    }
+  };
+  await consume(j.materialId, spoolId, mainReal);
+  for (const { x, g } of extraReal) {
+    const sid = o.extraSpools?.[x.id] ?? x.spoolId ?? (await pickSpool(x.materialId, g, j.machineId, db))?.id ?? null;
+    await db.update(s.jobMaterials).set({ realG: g, spoolId: sid, updatedAt: now }).where(eq(s.jobMaterials.id, x.id));
+    await consume(x.materialId, sid, g);
   }
   const costPerKg = j.materialId ? await materialCostPerKg(j.materialId, db) : 0;
   const [m] = j.machineId ? await db.select().from(s.machines).where(eq(s.machines.id, j.machineId)) : [];
-  const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
+  const filaments = extraReal.length ? [{ g: mainReal, costPerKg }, ...(await Promise.all(extraReal.map(async ({ x, g }) => ({ g, costPerKg: await materialCostPerKg(x.materialId, db) }))))] : undefined;
+  const line = calcLine({ qty: Math.max(1, j.qty), gramsTotal: realG, hoursTotal: realH, costPerKg, filaments, machine: machineCostOf(m), prepMinutes: 5 }, st.rates);
   // máquina: contadores y factor de corrección de tiempo
   if (m) {
     const recent = await db.select({ e: s.printJobs.estH, r: s.printJobs.realH }).from(s.printJobs).where(and(eq(s.printJobs.machineId, m.id), eq(s.printJobs.result, 'exito'))).orderBy(desc(s.printJobs.realEnd)).limit(20);
@@ -317,6 +352,7 @@ export async function finishJob(jobId: string, o: FinishInput) {
   if (failed && o.reprint !== false) {
     reprintId = await createJob({
       kind: j.kind as any, title: t('queue.reprint2', { job: j.title }), materialId: j.materialId, qty: Math.max(1, j.qty - qtyGood), estG: j.estG * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)), estH: j.estH * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)),
+      extras: (await jobExtras(jobId, db)).map((x) => ({ materialId: x.materialId, color: x.color, estG: x.estG * (Math.max(1, j.qty - qtyGood) / Math.max(1, j.qty)) })),
       orderId: j.orderId, orderItemIds: oiIds, productionOrderId: j.productionOrderId, machineId: j.machineId, dims: j.dims, reprintOfId: jobId, notes: t('queue.reprintOf', { job: j.number }), userId: o.userId,
     });
     await notify('trabajo_fallido', t('queue.failedJob', { job: j.number }), o.failCause ?? t('queue.noCauseGiven'), '/cola');
@@ -386,6 +422,7 @@ export async function requeueJob(jobId: string, userId?: string | null): Promise
   try {
     id = await createJob({
       kind: j.kind as JobSpec['kind'], title: j.title ?? '', materialId: j.materialId, qty: j.qty, estG: j.estG, estH: j.estH, dims: j.dims, orderId: j.orderId, orderItemIds: lines,
+      extras: (await jobExtras(jobId, db)).map((x) => ({ materialId: x.materialId, color: x.color, estG: x.estG })),
       productionOrderId: j.productionOrderId, machineId: j.machineId, fileVersionId: j.fileVersionId, sliceRunId: j.sliceRunId, reprintOfId: j.reprintOfId, notes: t('queue.requeuedFrom', { job: j.number }), userId,
     });
   } catch (e) {

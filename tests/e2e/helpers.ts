@@ -78,3 +78,12 @@ export async function uploadAcceptingDuplicates(page: Page, files: string | stri
   }
   throw new Error('La subida no terminó');
 }
+
+/** Elige un filamento en el selector (botón con ese data-testid): por texto (se busca y se toma la primera coincidencia) o, sin texto, la primera opción. */
+export async function pickFilament(page: Page, testId: string, text?: string) {
+  await page.getByTestId(testId).click();
+  const dlg = page.getByRole('dialog');
+  if (text) await dlg.getByTestId('picker-search').fill(text);
+  await dlg.locator('[data-material-id]').filter(text ? { hasText: text.split(' ').pop()! } : {}).first().click();
+  await expect(dlg).toBeHidden();
+}

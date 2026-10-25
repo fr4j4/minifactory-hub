@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { strToU8, zipSync } from 'fflate';
-import { test, expect, login, shot, measure } from './helpers';
+import { test, expect, login, shot, measure, pickFilament } from './helpers';
 
 test.describe('Configurar el laminado sin JSON', () => {
   test('máquina nueva → asistente → filamento personalizado → importar de Bambu Studio → laminar', async ({ page, saveAs }) => {
@@ -42,7 +42,7 @@ test.describe('Configurar el laminado sin JSON', () => {
     const json = JSON.parse(fs.readFileSync((await file.path())!, 'utf8')); expect(json).toMatchObject({ name: 'Mi PLA rápido', inherits: 'Bambu PLA Basic @BBL A1', type: 'filament', nozzle_temperature: ['225'] });
     // laminar en la P1S nueva con el PETG personalizado
     await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
-    await page.getByTestId('slice-machine').selectOption({ label: 'P1S Nueva' }); await page.getByTestId('slice-material').selectOption({ label: 'Sunlu PETG Negro' });
+    await page.getByTestId('slice-machine').selectOption({ label: 'P1S Nueva' }); await pickFilament(page, 'slice-material', 'Sunlu PETG Negro');
     await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 120_000 });
     await shot(page, 'L06-laminado-con-filamento-personalizado');
     saveAs('laminado-configurar-sin-json');

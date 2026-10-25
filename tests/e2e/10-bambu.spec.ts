@@ -1,4 +1,4 @@
-import { test, expect, login, shot, measure } from './helpers';
+import { test, expect, login, shot, measure, pickFilament } from './helpers';
 import type { Page } from '@playwright/test';
 
 /** Conector Bambu Lab contra impresoras simuladas (scripts/bambu-sim.ts): P1S imprimiendo con AMS, A1 libre con bobina externa y aviso HMS, X1C sin cámara. */
@@ -64,7 +64,7 @@ test.describe('Conector Bambu Lab', () => {
     await login(page);
     // laminar el barquito para la A1 (perfil de la máquina «Bambu A1 #1»)
     await page.goto('/archivos'); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Barquito decorativo' }).first().getAttribute('href'))!); await page.waitForLoadState('networkidle'); await page.goto((await page.getByRole('link', { name: 'Laminar y cotizar' }).getAttribute('href'))!);
-    await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1' }); await page.getByTestId('slice-material').selectOption({ index: 0 });
+    await page.getByTestId('slice-machine').selectOption({ label: 'Bambu A1 #1' }); await pickFilament(page, 'slice-material');
     await page.getByTestId('slice-go').click(); await expect(page.getByTestId('slice-result')).toBeVisible({ timeout: 90_000 });
     // conectar la A1 simulada a la máquina que ya existe en el taller
     await page.goto('/maquinas/conectores'); await page.getByTestId('scan').click(); await expect(page.getByTestId('found').locator('li')).toHaveCount(3, { timeout: 20_000 });

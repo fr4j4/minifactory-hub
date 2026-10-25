@@ -561,6 +561,7 @@ export const orderItems = pgTable('order_items', {
   fromStock: integer('from_stock').notNull().default(0), // unidades que salen de stock
   status: text('status').notNull().default('pendiente'), // pendiente | en_cola | imprimiendo | post_proceso | listo | entregado
   sliceRunId: uuid('slice_run_id'),
+  colors: jsonb('colors').$type<Array<{ materialId: string; color?: string; pct?: number | null; g?: number | null }>>().default([]), // colores adicionales de la pieza (ver lib/color-slots.ts)
 });
 
 /* ───────────── Producción ───────────── */
@@ -608,6 +609,18 @@ export const printJobs = pgTable('print_jobs', {
   notes: text('notes'),
   qty: integer('qty').notNull().default(1),
 });
+
+/** Colores adicionales de un trabajo de impresión: cada uno reserva y descuenta stock de su propio material. El principal sigue en print_jobs.material_id con el resto de los gramos. est_g = 0: solo referencia. */
+export const jobMaterials = pgTable('job_materials', {
+  ...base(),
+  jobId: uuid('job_id').notNull(),
+  materialId: uuid('material_id').notNull(),
+  color: text('color'),
+  position: integer('position').notNull().default(0),
+  estG: doublePrecision('est_g').notNull().default(0),
+  realG: doublePrecision('real_g'),
+  spoolId: uuid('spool_id'),
+}, (t) => [index('job_materials_job_ix').on(t.jobId)]);
 
 export const jobItems = pgTable('job_items', {
   id: uuid('id').primaryKey().defaultRandom(),

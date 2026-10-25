@@ -36,7 +36,7 @@ export async function approveQuoteAction(id: string, i: { by: string; channel: s
   }, ['/presupuestos', '/pedidos', `/presupuestos/${id}`]);
 }
 
-export interface ModelBrief { /** uso comercial según la licencia registrada (solo se advierte si es «no» o «requiere_membresia») */ commercial?: string; licenseCode?: string; id: string; name: string; versionId: string; format: string; dimX: number | null; dimY: number | null; dimZ: number | null; volumeCm3: number | null; areaCm2: number | null; hasSliced: boolean; sliced: { timeS: number | null; totalG: number | null; filaments: Array<{ g: number | null; color?: string }>; slicer: string | null; notes: string[]; layers: number | null } | null; thumb: boolean }
+export interface ModelBrief { /** uso comercial según la licencia registrada (solo se advierte si es «no» o «requiere_membresia») */ commercial?: string; licenseCode?: string; id: string; name: string; versionId: string; format: string; dimX: number | null; dimY: number | null; dimZ: number | null; volumeCm3: number | null; areaCm2: number | null; hasSliced: boolean; sliced: { timeS: number | null; totalG: number | null; filaments: Array<{ g: number | null; color?: string; type?: string }>; slicer: string | null; notes: string[]; layers: number | null } | null; thumb: boolean }
 export async function modelBriefAction(modelFileId: string) {
   const t = await getT();
   return safe(async (): Promise<ModelBrief> => {

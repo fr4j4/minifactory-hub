@@ -17,7 +17,10 @@ import { useToast } from './client';
 import { ConfidenceBadge, ExpertTools, Hint, PriceBand, WarningList, WhyPrice, atLeast, type CalcLevel } from './calc-bits';
 import { profileDesc, profileName, tagName } from '@/lib/calc-presets';
 import { useT } from '@/i18n/client';
-import { matOptionLabel } from '@/lib/material-label';
+import { FilamentPicker } from './filament-picker';
+import { ColorField } from './color-field';
+import { LineColors } from './line-colors';
+import { colorsFromSlots } from '@/lib/filament-pick';
 import { tOr } from '@/i18n/translate';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
@@ -89,7 +92,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   useEffect(() => {
     if (run?.status === 'done' && run.id !== it.origin.runId) {
       const g = run.filament.reduce((a, f) => a + f.g, 0); const h = (run.timeS ?? 0) / 3600;
-      onChange({ gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), sliceRunId: run.id, unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'slicer', hours: 'slicer', runId: run.id, engine: `OrcaSlicer ${run.engineVersion}`, note: run.cached ? t('calculator.fromCache') : undefined } });
+      const fc = it.colors.length ? [] : colorsFromSlots(run.filament.map((f) => ({ g: f.g })), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
+      onChange({ ...(fc.length ? { colors: fc } : {}), gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), sliceRunId: run.id, unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'slicer', hours: 'slicer', runId: run.id, engine: `OrcaSlicer ${run.engineVersion}`, note: run.cached ? t('calculator.fromCache') : undefined } });
       toast.push(t('calculator.sliceAnd', { dur: dur(run.timeS), grams: grams(g) }));
     }
     if (run?.status === 'error') toast.push(run.error ?? t('calculator.slicingError'), 'err');
@@ -113,7 +117,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   };
   const useSliced = (b: ModelBrief) => {
     const s = b.sliced!; const g = s.totalG ?? 0; const h = (s.timeS ?? 0) / 3600;
-    onChange({ gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'file', hours: 'file', file: b.name, engine: s.slicer ?? undefined, note: s.filaments.length > 1 ? t('calc.colorsN', { n: s.filaments.length }) : undefined } });
+    const fc = it.colors.length ? [] : colorsFromSlots(s.filaments.map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null })), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
+    onChange({ ...(fc.length ? { colors: fc } : {}), gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'file', hours: 'file', file: b.name, engine: s.slicer ?? undefined, note: s.filaments.length > 1 ? t('calc.colorsN', { n: s.filaments.length }) : undefined } });
   };
   const applyEstimate = (e: { grams: number; hours: number }) => {
     onChange({ unitGrams: +e.grams.toFixed(1), unitHours: +e.hours.toFixed(2), gramsTotal: +(e.grams * qty).toFixed(1), hoursTotal: +(e.hours * qty).toFixed(2), origin: { grams: 'estimate', hours: 'estimate' }, mode: 'manual' });
@@ -133,7 +138,6 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   };
   const manualGrams = (v: number) => onChange({ unitGrams: v, gramsTotal: +(v * qty).toFixed(2), origin: { ...it.origin, grams: it.origin.grams === 'manual' ? 'manual' : it.origin.grams, corrected: it.origin.grams !== 'manual' ? true : undefined } });
   const manualHours = (hh: number, mm: number) => { const v = hh + mm / 60; onChange({ unitHours: v, hoursTotal: +(v * qty).toFixed(3), origin: { ...it.origin, corrected: it.origin.hours !== 'manual' ? true : it.origin.corrected } }); };
-  const setFilaments = (f: ItemState['filaments']) => { const sum = f.reduce((a, x) => a + (x.g || 0), 0); onChange(f.length ? { filaments: f, gramsTotal: +sum.toFixed(2), unitGrams: +(sum / qty).toFixed(2) } : { filaments: [] }); };
   const originBadge = (k?: string, corrected?: boolean) => k ? <Badge tone={k === 'manual' ? 'gray' : k === 'estimate' ? 'amber' : 'blue'}>{tOr(t, `calculator.origin.${k}`, k)}{corrected ? ` · ${t('calculator.manuallyCorrected')}` : ''}</Badge> : null;
   const num_ = 'input tabular';
   const unitH = hm(it.unitHours);
@@ -197,8 +201,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                 </div>
                 )}
                 <div className="grid sm:grid-cols-4 gap-3">
-                  <label className="block"><span className="label">{t('common.material')}</span><select className="input" value={it.materialId ?? ''} disabled={dis} onChange={(e) => { const m = mats.find((x) => x.id === e.target.value); onChange({ materialId: e.target.value || null, color: m && !m.generic ? m.colorName : it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} data-testid="line-material">{mats.map((m) => <option key={m.id} value={m.id}>{matOptionLabel(m, t)} · {money(m.costPerKg)}/kg{m.tech === 'fdm' && !m.filamentProfileId ? ` · ${t('calculator.noSlicerProfile')}` : ''}</option>)}</select></label>
-                  <label className="block"><span className="label">{t('buy.requestedColor')}</span><input className="input" value={it.color ?? ''} disabled={dis} placeholder={t('buy.requestedColorHint')} onChange={(e) => onChange({ color: e.target.value })} data-testid="line-color" /></label>
+                  <div className="block"><span className="label">{t('common.material')}</span><FilamentPicker materials={mats} value={it.materialId ?? ''} disabled={dis} tech={mach?.tech === 'FDM' ? 'fdm' : mach?.tech === 'SLA' ? 'resina' : null} gramsNeeded={it.gramsTotal || undefined} ariaLabel={t('common.material')} testId="line-material" onChange={(id, picked) => { const m = picked ?? mats.find((x) => x.id === id); onChange({ materialId: id || null, color: m && !m.generic ? m.colorName : it.color, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } }); }} /></div>
+                  <div className="block"><span className="label">{t('buy.requestedColor')}</span><ColorField materials={mats} materialId={it.materialId} color={it.color ?? ''} disabled={dis} testId="line-color" onPick={(p) => onChange({ color: p.color, ...(p.materialId !== undefined ? { materialId: p.materialId, origin: { ...it.origin, stale: it.mode === 'auto' && !!it.origin.runId } } : {}) })} /></div>
                   {(det || it.mode === 'auto') && <label className="block"><span className="label">{t('common.machine')}</span><select className="input" value={it.machineId ?? ''} disabled={dis} onChange={(e) => { const m = ctx.machines.find((x) => x.id === e.target.value); onChange({ machineId: e.target.value || null, processProfileId: m?.defaultProcessProfileId ?? it.processProfileId }); }} data-testid="line-machine">{ctx.machines.map((m) => <option key={m.id} value={m.id}>{m.name}{m.simulated && !/simula/i.test(m.name) ? ` (${t('slicer.simulatedLower')})` : ''}</option>)}</select></label>}
                   {(det || it.mode === 'auto') && <label className="block"><span className="label">{t('calculator.processProfile')}</span><select className="input" value={it.processProfileId ?? ''} disabled={dis} onChange={(e) => onChange({ processProfileId: e.target.value || null })} data-testid="line-process"><option value="">—</option><ProcessOptions profiles={ctx.profiles.filter((p) => p.type === 'process')} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle ?? null} compatibleIds={(ctx.setups.find((x) => x.machineId === it.machineId && x.active) ?? ctx.setups.find((x) => x.machineId === it.machineId))?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={ctx.profiles.find((p) => p.id === it.processProfileId)?.nozzle} machineNozzle={ctx.machines.find((x) => x.id === it.machineId)?.nozzle} /></label>}
                   {det && (
@@ -211,6 +215,8 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                     </label>
                   )}
                 </div>
+                <LineColors materials={mats} mainId={it.materialId} colors={it.colors} total={it.gramsTotal} level={level} tech={mach?.tech === 'SLA' ? 'resina' : 'fdm'} disabled={dis} onChange={(colors) => onChange({ colors })}
+                  fileSlots={firstModel?.sliced?.filaments.map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null }))} />
                 <div>
                   <div className="label">{t('calc.weight.title')}</div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" role="radiogroup" aria-label={t('calculator.quoteMode')}>
@@ -254,7 +260,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       )}
                       <p className="text-xs muted">{t('calculator.manualHelp1')} <b>{t('calculator.perUnit')}</b>. {t('calculator.manualHelp2')}</p>
                       <div className="grid grid-cols-3 gap-3">
-                        <label className="block"><span className="label">{t('calculator.gramsUnit')}</span><input type="number" min={0} step="0.1" inputMode="decimal" className={num_} value={it.unitGrams || ''} disabled={dis || it.filaments.length > 0} onChange={(e) => manualGrams(+e.target.value || 0)} data-testid="manual-grams" /></label>
+                        <label className="block"><span className="label">{t('calculator.gramsUnit')}</span><input type="number" min={0} step="0.1" inputMode="decimal" className={num_} value={it.unitGrams || ''} disabled={dis} onChange={(e) => manualGrams(+e.target.value || 0)} data-testid="manual-grams" /></label>
                         <label className="block"><span className="label">{t('common.hours')}</span><input type="number" min={0} inputMode="numeric" className={num_} value={unitH.h || ''} disabled={dis} onChange={(e) => manualHours(+e.target.value || 0, unitH.m)} data-testid="manual-hours" /></label>
                         <label className="block"><span className="label">{t('calculator.minutes')}</span><input type="number" min={0} max={59} inputMode="numeric" className={num_} value={unitH.m || ''} disabled={dis} onChange={(e) => manualHours(unitH.h, +e.target.value || 0)} data-testid="manual-minutes" /></label>
                       </div>
@@ -287,16 +293,6 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                       <label className="block"><span className="label">{t('calc.field.plates')}<Hint text={t('calc.help.plates')} /></span><input type="number" min={1} className={num_} value={it.plates} disabled={dis} onChange={(e) => onChange({ plates: Math.max(1, Math.floor(+e.target.value || 1)) })} data-testid="line-plates" /></label>
                       <label className="block"><span className="label">{t('calc.field.design')}</span><input type="number" min={0} className={num_} value={it.designMinutes || ''} disabled={dis} onChange={(e) => onChange({ designMinutes: Math.max(0, +e.target.value || 0) })} data-testid="line-design" /></label>
                       <label className="block"><span className="label">{t('calc.field.colorChanges')}</span><input type="number" min={0} className={num_} value={it.colorChanges || ''} disabled={dis} onChange={(e) => onChange({ colorChanges: Math.max(0, +e.target.value || 0) })} /></label>
-                    </div>
-                    <div>
-                      <div className="label">{t('calc.field.multicolor')}<Hint text={t('calc.help.multicolor')} /></div>
-                      {it.filaments.map((f, i) => (
-                        <div key={i} className="flex items-center gap-2 mb-1.5">
-                          <input type="number" min={0} step="0.1" className="input !w-24" aria-label={t('calc.field.gramsColor')} value={f.g || ''} disabled={dis} onChange={(e) => setFilaments(it.filaments.map((x, k) => (k === i ? { ...x, g: +e.target.value || 0 } : x)))} />
-                          <select className="input" aria-label={t('common.material')} value={f.materialId} disabled={dis} onChange={(e) => setFilaments(it.filaments.map((x, k) => (k === i ? { ...x, materialId: e.target.value } : x)))}>{mats.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select>
-                          {!dis && <button type="button" className="btn-ghost btn-sm" aria-label={t('calculator.removeItem')} onClick={() => setFilaments(it.filaments.filter((_, k) => k !== i))}>✕</button>}
-                        </div>))}
-                      {!dis && mats.length > 0 && <button type="button" className="btn-ghost btn-sm" onClick={() => setFilaments([...it.filaments, { g: 0, materialId: it.materialId ?? mats[0].id }])} data-testid="add-color">{t('calc.field.addColor')}</button>}
                     </div>
                     <div>
                       <div className="label">{t('calc.field.overrides')}<Hint text={t('calc.help.overrides')} /></div>
@@ -351,7 +347,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
               {!it.variantId && <WhyPrice bd={bd} rt={rt} level={level} showCosts={showCosts} input={{ gramsTotal: it.gramsTotal, hoursTotal: it.hoursTotal, machine: mach?.cost ?? null }} />}
               {showCosts && !it.variantId && det && bd.pricePerHour != null && bd.pricePerHour > 0 && <p className="text-xs muted tabular">{t('calc.perHour', { v: money(Math.round(bd.pricePerHour)) })}</p>}
             </div>
-            {showCosts && exp && !it.variantId && <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3"><ExpertTools bd={bd} unitFinal={finalUnit} x={{ item: itemInput, env: expertEnv, scenario, profiles: profiles.map((p) => ({ id: p.id, name: profileName(t, p) })), machines: ctx.machines.map((m) => ({ id: m.id, name: m.name })), materials: mats.map((m) => ({ id: m.id, label: m.label })), current: { profileId: profileId, machineId: it.machineId, materialId: it.materialId, qty } }} /></div>}
+            {showCosts && exp && !it.variantId && <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3"><ExpertTools bd={bd} unitFinal={finalUnit} x={{ item: itemInput, env: expertEnv, scenario, profiles: profiles.map((p) => ({ id: p.id, name: profileName(t, p) })), machines: ctx.machines.map((m) => ({ id: m.id, name: m.name })), materials: mats, current: { profileId: profileId, machineId: it.machineId, materialId: it.materialId, qty } }} /></div>}
           </div>
         </div>
       )}
