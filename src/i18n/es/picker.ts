@@ -66,4 +66,5 @@ export const picker = {
   colorsClose: 'Cerrar',
   colorsFromFile: 'Tomar los colores del archivo',
   colorsFromFileHint: 'El archivo trae {n} colores: se reparten por porcentaje y puedes cambiar el filamento de cada uno.',
+  colorsFromFileRefHint: 'El archivo trae {n} colores pero aún no sus gramos: se agregan como colores de referencia (lamínalo para repartir el peso).',
 } as const;

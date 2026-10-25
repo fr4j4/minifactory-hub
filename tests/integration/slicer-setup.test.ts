@@ -7,12 +7,12 @@ import { seedDemo } from '@/lib/seed';
 import { parsePresetFiles } from '@/lib/slicer/import';
 import { createCustomFilament, processesFor, setupFilament, setupMachine, slicingReadiness, suggestFilamentBase, suggestMachineBase } from '@/lib/slicer/setup';
 import { enqueueSlice, waitForRuns } from '@/lib/slicer/queue';
-import { orcaAvailable } from '@/lib/slicer/catalog';
+import { orcaAvailable, orcaProfilesAvailable } from '@/lib/slicer/catalog';
 
 let db: Awaited<ReturnType<typeof getDb>>;
 beforeAll(async () => { fs.rmSync('data/test-storage', { recursive: true, force: true }); await seedDemo(); db = await getDb(); });
 
-describe('importar perfiles de Bambu Studio / OrcaSlicer', () => {
+describe.skipIf(!orcaProfilesAvailable())('importar perfiles de Bambu Studio / OrcaSlicer', () => {
   it('un proyecto .3mf trae impresora, proceso y filamento', () => {
     const c = parsePresetFiles([{ name: 'llavero-a1.3mf', data: fs.readFileSync('samples/llavero-a1.3mf') }]);
     expect(c.map((x) => [x.type, x.baseName])).toEqual([['process', '0.20mm Standard @BBL A1'], ['filament', 'Bambu PLA Basic @BBL A1'], ['machine', 'Bambu Lab A1 0.4 nozzle']]);
@@ -37,7 +37,7 @@ describe('importar perfiles de Bambu Studio / OrcaSlicer', () => {
   });
 });
 
-describe('configuración guiada', () => {
+describe.skipIf(!orcaProfilesAvailable())('configuración guiada', () => {
   it('reconoce la impresora por marca y modelo', () => {
     expect(suggestMachineBase({ brand: 'Bambu Lab', model: 'A1 mini', name: 'Mini' })).toBe('Bambu Lab A1 mini 0.4 nozzle');
     expect(suggestMachineBase({ brand: 'Bambu Lab', model: 'A1', name: 'Taller' })).toBe('Bambu Lab A1 0.4 nozzle');
