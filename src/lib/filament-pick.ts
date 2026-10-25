@@ -90,6 +90,27 @@ export function colorChoices<M extends PickMaterial>(list: M[], currentId: strin
 }
 
 export interface FileSlot { g: number | null; color?: string | null; type?: string | null }
+export interface AmsSlot { color: string; type: string | null }
+
+/** Ranuras de color de un archivo: las del laminado si traen gramos de dos o más colores; si no, las del proyecto 3MF (solo color y tipo). */
+export function fileSlotsOf(b: { sliced?: { filaments: Array<{ g: number | null; color?: string | null; type?: string | null }> } | null; ams?: AmsSlot[] | null } | null | undefined): FileSlot[] | undefined {
+  if (!b) return undefined;
+  const sl = (b.sliced?.filaments ?? []).map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null }));
+  if (sl.filter((f) => (f.g ?? 0) > 0).length > 1) return sl;
+  if ((b.ams?.length ?? 0) > 1) return b.ams!.map((a) => ({ g: null, color: a.color, type: a.type }));
+  return sl.length ? sl : undefined;
+}
+
+/** Gramos por extrusor del laminado en el servidor con el color y el tipo de cada ranura del proyecto, cuando coinciden en cantidad. */
+export const withAmsColors = (grams: Array<{ g: number }>, ams?: AmsSlot[] | null): FileSlot[] =>
+  grams.map((f, i) => ({ g: f.g, ...(ams && ams.length === grams.length ? { color: ams[i].color, type: ams[i].type } : {}) }));
+
+/** Ranuras del proyecto que se usan: todas si hay pintura por cara (los colores pintados no figuran en los objetos), si no las asignadas. */
+export function amsSlotsOf(ams: { filaments?: Array<{ color: string; type: string | null; used?: boolean }>; painted?: boolean; multicolor?: boolean } | null | undefined): AmsSlot[] | null {
+  if (!ams?.multicolor || !ams.filaments?.length) return null;
+  const fs = ams.painted ? ams.filaments : ams.filaments.filter((f) => f.used !== false);
+  return fs.length > 1 ? fs.map((f) => ({ color: f.color, type: f.type ?? null })) : null;
+}
 const hexOf = (c?: string | null) => { const v = (c ?? '').trim(); return /^#?[0-9a-f]{6}$/i.test(v) ? (v.startsWith('#') ? v : `#${v}`) : null; };
 
 /**
@@ -98,14 +119,18 @@ const hexOf = (c?: string | null) => { const v = (c ?? '').trim(); return /^#?[0
  * Se guardan como porcentaje del peso, así siguen valiendo si cambian los gramos totales o la cantidad.
  */
 export function colorsFromSlots<M extends PickMaterial>(slots: FileSlot[], list: M[], mainId: string | null, tech: string | null = 'fdm'): ExtraColor[] {
-  const total = slots.reduce((a, x) => a + (x.g ?? 0), 0); if (slots.length < 2 || !(total > 0)) return [];
-  const heavy = slots.reduce((bi, x, i) => ((x.g ?? 0) > (slots[bi].g ?? 0) ? i : bi), 0);
+  if (slots.length < 2) return [];
+  const total = slots.reduce((a, x) => a + (x.g ?? 0), 0);
+  // un 3MF de proyecto sin laminar trae colores pero no gramos: los colores quedan como referencia y el primero es el principal
+  const refOnly = !(total > 0);
+  if (refOnly && !slots.some((x) => hexOf(x.color) || x.type)) return [];
+  const heavy = refOnly ? 0 : slots.reduce((bi, x, i) => ((x.g ?? 0) > (slots[bi].g ?? 0) ? i : bi), 0);
   const pool = tech ? list.filter((m) => m.tech === tech) : list;
   return slots.flatMap((s, i): ExtraColor[] => {
-    if (i === heavy || !((s.g ?? 0) > 0)) return [];
+    if (i === heavy || (!refOnly && !((s.g ?? 0) > 0))) return [];
     const hinted = !!hexOf(s.color) || !!s.type; // sin color ni tipo no hay con qué elegir: queda el principal
     const best = !hinted ? undefined : filterMaterials(pool, { hintHex: hexOf(s.color), hintType: s.type ?? null }).sort((a, b) => Number(b.availableG > 0 && !b.generic) - Number(a.availableG > 0 && !a.generic))[0];
     const m = best ?? list.find((x) => x.id === mainId);
-    return [{ materialId: m?.id ?? mainId ?? '', ...(m?.generic ? { color: '' } : {}), pct: Math.round(((s.g ?? 0) / total) * 1000) / 10 }];
+    return [{ materialId: m?.id ?? mainId ?? '', ...(m?.generic ? { color: '' } : {}), pct: refOnly ? null : Math.round(((s.g ?? 0) / total) * 1000) / 10 }];
   }).filter((c) => c.materialId);
 }

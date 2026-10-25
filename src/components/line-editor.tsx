@@ -20,7 +20,7 @@ import { useT } from '@/i18n/client';
 import { FilamentPicker } from './filament-picker';
 import { ColorField } from './color-field';
 import { LineColors } from './line-colors';
-import { colorsFromSlots } from '@/lib/filament-pick';
+import { colorsFromSlots, fileSlotsOf, withAmsColors } from '@/lib/filament-pick';
 import { tOr } from '@/i18n/translate';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 
@@ -92,7 +92,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
   useEffect(() => {
     if (run?.status === 'done' && run.id !== it.origin.runId) {
       const g = run.filament.reduce((a, f) => a + f.g, 0); const h = (run.timeS ?? 0) / 3600;
-      const fc = it.colors.length ? [] : colorsFromSlots(run.filament.map((f) => ({ g: f.g })), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
+      const fc = it.colors.length ? [] : colorsFromSlots(withAmsColors(run.filament, firstModel?.ams), mats, it.materialId, mach?.tech === 'SLA' ? 'resina' : 'fdm');
       onChange({ ...(fc.length ? { colors: fc } : {}), gramsTotal: +g.toFixed(2), hoursTotal: +h.toFixed(3), sliceRunId: run.id, unitGrams: +(g / qty).toFixed(2), unitHours: +(h / qty).toFixed(3), origin: { grams: 'slicer', hours: 'slicer', runId: run.id, engine: `OrcaSlicer ${run.engineVersion}`, note: run.cached ? t('calculator.fromCache') : undefined } });
       toast.push(t('calculator.sliceAnd', { dur: dur(run.timeS), grams: grams(g) }));
     }
@@ -216,7 +216,7 @@ export function LineEditor({ it, onChange, onRemove, onDuplicate, ctx, models, s
                   )}
                 </div>
                 <LineColors materials={mats} mainId={it.materialId} colors={it.colors} total={it.gramsTotal} level={level} tech={mach?.tech === 'SLA' ? 'resina' : 'fdm'} disabled={dis} onChange={(colors) => onChange({ colors })}
-                  fileSlots={firstModel?.sliced?.filaments.map((f) => ({ g: f.g ?? null, color: f.color ?? null, type: f.type ?? null }))} />
+                  fileSlots={fileSlotsOf(firstModel)} />
                 <div>
                   <div className="label">{t('calc.weight.title')}</div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3" role="radiogroup" aria-label={t('calculator.quoteMode')}>
