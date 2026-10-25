@@ -29,7 +29,7 @@ export const users = pgTable('users', {
   permOverrides: jsonb('perm_overrides').$type<Record<string, string>>().default({}),
   notifPrefs: jsonb('notif_prefs').$type<Record<string, boolean>>().default({}),
   /** Nivel de la calculadora que eligió la persona: se recuerda entre sesiones. */
-  calcLevel: text('calc_level').notNull().default('basico'), // basico | avanzado
+  calcLevel: text('calc_level').notNull().default('basico'), // basico | detallado | experto (antes: basico | avanzado)
 }, (t) => [uniqueIndex('users_email_uq').on(t.email)]);
 
 export const sessions = pgTable('sessions', {
@@ -72,6 +72,7 @@ export const customers = pgTable('customers', {
   tags: jsonb('tags').$type<string[]>().default([]),
   notes: text('notes'),
   depositPct: doublePrecision('deposit_pct'),
+  calcProfileId: text('calc_profile_id'), // perfil de cálculo por defecto de este cliente
 }, (t) => [index('customers_name_ix').on(t.name)]);
 
 export const contactLog = pgTable('contact_log', {
@@ -92,6 +93,7 @@ export const salesChannels = pgTable('sales_channels', {
   commissionFixed: integer('commission_fixed').notNull().default(0),
   avgShipping: integer('avg_shipping').notNull().default(0),
   active: boolean('active').notNull().default(true),
+  calcProfileId: text('calc_profile_id'),
 });
 
 /* ───────────── Inventario de materiales ───────────── */
@@ -117,6 +119,8 @@ export const materials = pgTable('materials', {
   packG: integer('pack_g'), // peso neto habitual de un carrete/botella de este filamento (compras y lista de compras)
   generic: boolean('generic').notNull().default(false), // «PLA genérico»: sirve para laminar y cotizar sin color; no es stock
   notes: text('notes'),
+  riskFactor: doublePrecision('risk_factor'), // factor sobre la falla (null = 1)
+  wastePct: doublePrecision('waste_pct'),     // merma propia (null = la de las tarifas)
 }, (t) => [index('materials_variant_ix').on(t.workspaceId, t.variantId), index('materials_gtin_ix').on(t.workspaceId, t.gtin)]);
 
 export const spools = pgTable('spools', {
@@ -422,6 +426,8 @@ export const quotes = pgTable('quotes', {
   title: text('title'),
   validUntil: date('valid_until'),
   urgency: text('urgency').notNull().default('normal'),
+  calcProfileId: text('calc_profile_id'),
+  channelId: uuid('channel_id'), // canal de venta (aporta su comisión al cálculo)
   suggestedTotal: integer('suggested_total').notNull().default(0),
   finalTotal: integer('final_total'), // si el usuario fija el total
   discount: integer('discount').notNull().default(0),
@@ -461,6 +467,8 @@ export const quoteItems = pgTable('quote_items', {
   postSupplies: integer('post_supplies').notNull().default(0),
   prepMinutes: integer('prep_minutes').notNull().default(10),
   shipping: integer('shipping').notNull().default(0),
+  calcProfileId: text('calc_profile_id'),
+  calcOpts: jsonb('calc_opts').$type<Record<string, any>>().default({}), // placas, etiquetas, diseño, ajustes del nivel Experto
   costBreakdown: jsonb('cost_breakdown').$type<Record<string, any>>().default({}),
   suggestedUnit: integer('suggested_unit').notNull().default(0),
   finalUnit: integer('final_unit'), // lo decide el usuario; null = usa el sugerido
@@ -553,6 +561,7 @@ export const orderItems = pgTable('order_items', {
   fromStock: integer('from_stock').notNull().default(0), // unidades que salen de stock
   status: text('status').notNull().default('pendiente'), // pendiente | en_cola | imprimiendo | post_proceso | listo | entregado
   sliceRunId: uuid('slice_run_id'),
+  colors: jsonb('colors').$type<Array<{ materialId: string; color?: string; pct?: number | null; g?: number | null }>>().default([]), // colores adicionales de la pieza (ver lib/color-slots.ts)
 });
 
 /* ───────────── Producción ───────────── */
@@ -600,6 +609,18 @@ export const printJobs = pgTable('print_jobs', {
   notes: text('notes'),
   qty: integer('qty').notNull().default(1),
 });
+
+/** Colores adicionales de un trabajo de impresión: cada uno reserva y descuenta stock de su propio material. El principal sigue en print_jobs.material_id con el resto de los gramos. est_g = 0: solo referencia. */
+export const jobMaterials = pgTable('job_materials', {
+  ...base(),
+  jobId: uuid('job_id').notNull(),
+  materialId: uuid('material_id').notNull(),
+  color: text('color'),
+  position: integer('position').notNull().default(0),
+  estG: doublePrecision('est_g').notNull().default(0),
+  realG: doublePrecision('real_g'),
+  spoolId: uuid('spool_id'),
+}, (t) => [index('job_materials_job_ix').on(t.jobId)]);
 
 export const jobItems = pgTable('job_items', {
   id: uuid('id').primaryKey().defaultRandom(),

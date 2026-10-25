@@ -218,6 +218,20 @@
       "when": 1792475623340,
       "tag": "0030_inventario_compras",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792518027107,
+      "tag": "0031_calculadora_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792547888453,
+      "tag": "0032_colores_pieza",
+      "breakpoints": true
     }
   ]
 }

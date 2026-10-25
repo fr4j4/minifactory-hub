@@ -10,6 +10,7 @@ import { useToast } from './client';
 import { GcodeViewer } from './gcode-viewer';
 import { useT } from '@/i18n/client';
 import { NozzleMismatch, ProcessOptions } from './process-options';
+import { FilamentPicker } from './filament-picker';
 
 interface Combo { key: number; setupKey: string; processId: string; materialId: string }
 
@@ -49,7 +50,7 @@ export function Comparator({ ctx, files, initialFile }: { ctx: CalcContext; file
             <tr key={c.key}><td className="td">{i + 1}</td>
               <td className="td min-w-[170px]">{sel(setups.map((x) => ({ id: x.key, name: x.label })), c.setupKey, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, setupKey: v, processId: setupOf(v)?.processProfileId ?? x.processId } : x))), t('slicer.machine', { i: i + 1 }), `cmp-machine-${i}`)}</td>
               <td className="td min-w-[200px]"><select className="input" value={c.processId} onChange={(e) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, processId: e.target.value } : x)))} aria-label={t('slicer.process2', { i: i + 1 })} data-testid={`cmp-process-${i}`}><ProcessOptions profiles={procs} machineNozzle={nozzleOf(c.setupKey)} compatibleIds={ctx.setups.find((x) => x.key === c.setupKey)?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === c.processId)?.nozzle} machineNozzle={nozzleOf(c.setupKey)} /></td>
-              <td className="td min-w-[170px]">{sel(mats, c.materialId, (v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, materialId: v } : x))), t('slicer.material', { i: i + 1 }), `cmp-material-${i}`)}</td>
+              <td className="td min-w-[170px]"><FilamentPicker materials={ctx.materials} value={c.materialId} showCost={false} ariaLabel={t('slicer.material', { i: i + 1 })} testId={`cmp-material-${i}`} onChange={(v) => setCombos(combos.map((x) => (x.key === c.key ? { ...x, materialId: v } : x)))} /></td>
               <td className="td"><button className="btn-ghost btn-sm" onClick={() => setCombos(combos.filter((x) => x.key !== c.key))} disabled={combos.length <= 1} aria-label={t('slicer.removeCombination', { i: i + 1 })}><Icon name="x" className="h-4 w-4" /></button></td></tr>
           ))}</tbody></table>
         <div className="p-3 flex flex-wrap gap-2 border-t border-slate-200 dark:border-slate-700">

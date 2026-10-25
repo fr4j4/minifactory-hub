@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { getDb, s } from '@/db';
 import { seedDemo } from '@/lib/seed';
+import { orcaProfilesAvailable } from '@/lib/slicer/catalog';
 import { ensurePresets, loadPresets, removePreset, resolveProfileRef, savePreset } from '@/lib/slicer/presets';
 import { qualityTemplates } from '@/lib/slicer/nozzle';
 import { createQualityFromTemplates } from '@/lib/slicer/setup';
@@ -9,7 +10,7 @@ import { createQualityFromTemplates } from '@/lib/slicer/setup';
 let db: Awaited<ReturnType<typeof getDb>>;
 beforeAll(async () => { await seedDemo(); db = await getDb(); });
 
-describe('calidades por intención (quality_presets)', () => {
+describe.skipIf(!orcaProfilesAvailable())('calidades por intención (quality_presets)', () => {
   it('el backfill es idempotente y reproduce las plantillas de fábrica', async () => {
     const first = await ensurePresets(db); expect(first).toBeGreaterThanOrEqual(0);
     expect(await ensurePresets(db)).toBe(0);

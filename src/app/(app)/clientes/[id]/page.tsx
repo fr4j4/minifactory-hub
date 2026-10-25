@@ -1,4 +1,5 @@
 import {modelAccess,photoAccess} from '@/lib/library/access';
+import { getSettings } from '@/lib/settings';
 import Link from 'next/link';
 import { cn } from '@/lib/format';
 import { TONES } from '@/components/badge';
@@ -36,7 +37,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           <Card title={t('common.quotes')} pad={false}><Table><tbody>{quotes.map((q) => <tr key={q.id}><td className="td font-medium"><Link className="hover:underline" href={`/presupuestos/${q.id}`}>{q.number} v{q.version}</Link></td><td className="td">{q.title}</td><td className="td tabular">{dmy(q.createdAt)}</td><td className="td text-right tabular">{money(q.total)}</td><td className="td"><StatusBadge status={q.status} /></td></tr>)}{quotes.length === 0 && <tr><td className="td muted">{t('customers.noQuotes')}</td></tr>}</tbody></Table></Card>
           {(files.length > 0 || photos.length > 0) && <Card title={t('customers.filesPhotos')}>{files.length > 0 && <div className="flex flex-wrap gap-2 mb-3">{files.map((f) => <Link key={f.id} className={cn('badge hover:underline', TONES.gray)} href={`/archivos/${f.id}`}>{f.name}</Link>)}</div>}<div className="grid grid-cols-4 sm:grid-cols-6 gap-2">{photos.map((p) => <img key={p.id} src={`/api/media/${p.variants?.['320'] ?? p.storageKey}`} alt="" className="rounded aspect-square object-cover" />)}</div></Card>}
         </div>
-        <Card title={t('customers.detailsConsent')}>{can(user, 'clientes', 'E') ? <CustomerForm priceLists={pl} c={{ id: c.id, type: c.type, name: c.name, phone: c.phone, email: c.email, taxId: c.taxId, priceListId: c.priceListId, photoConsent: c.photoConsent, tags: c.tags ?? [], notes: c.notes, depositPct: c.depositPct, addresses: c.addresses ?? [] }} /> : <p className="text-sm muted">{t('customers.youDoNotHavePermission')}</p>}</Card>
+        <Card title={t('customers.detailsConsent')}>{can(user, 'clientes', 'E') ? <CustomerForm priceLists={pl} calcProfiles={(await getSettings()).calcProfiles} c={{ calcProfileId: c.calcProfileId, id: c.id, type: c.type, name: c.name, phone: c.phone, email: c.email, taxId: c.taxId, priceListId: c.priceListId, photoConsent: c.photoConsent, tags: c.tags ?? [], notes: c.notes, depositPct: c.depositPct, addresses: c.addresses ?? [] }} /> : <p className="text-sm muted">{t('customers.youDoNotHavePermission')}</p>}</Card>
       </div>
     </>
   );

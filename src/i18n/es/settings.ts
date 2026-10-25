@@ -69,7 +69,7 @@ export const settings = {
   address: 'Dirección',
   brandColor: 'Color de marca',
   timeZone: 'Zona horaria',
-  workshopCalendarForTheGantt: 'Calendario del taller (para el Gantt y las fechas comprometidas)',
+  workshopCalendarForTheGantt: 'Calendario del taller (avisos de la cola, Gantt y utilización de máquinas)',
   opens: 'Abre',
   closes: 'Cierra',
   workingDays: 'Días de trabajo',

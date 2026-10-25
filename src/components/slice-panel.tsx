@@ -2,7 +2,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { calcLine } from '@/lib/pricing';
+import { priceLine, toItemMaterial } from '@/lib/item-price';
 import type { CalcContext } from '@/lib/context';
 import { dur, grams, money, num, cn } from '@/lib/format';
 import { enqueueFromRunAction } from '@/actions/production';
@@ -13,7 +13,7 @@ import { GcodeViewer } from './gcode-viewer';
 import { SliceErrorHelp } from './slice-error-help';
 import { AdvisorPanel } from './advisor-panel';
 import { useT } from '@/i18n/client';
-import { matOptionLabel } from '@/lib/material-label';
+import { FilamentPicker } from './filament-picker';
 import { NozzleMismatch, ProcessOptions } from './process-options';
 import { Icon } from '@/components/shell';
 
@@ -48,8 +48,7 @@ export function useRunPolling(ids: string[], onDone?: () => void) {
 export function priceFromRun(ctx: CalcContext, run: Pick<RunInfo, 'timeS' | 'filament'>, o: { machineId?: string | null; materialId?: string | null; qty?: number }) {
   const m = ctx.machines.find((x) => x.id === o.machineId); const mat = ctx.materials.find((x) => x.id === o.materialId);
   const g = run.filament.reduce((a, f) => a + f.g, 0); const h = (run.timeS ?? 0) / 3600;
-  const bd = calcLine({ qty: o.qty ?? 1, gramsTotal: g, hoursTotal: h, costPerKg: mat?.costPerKg ?? 0, machine: m?.cost ?? null, applyTimeFactor: true }, ctx.rates);
-  return bd;
+  return priceLine({ qty: o.qty ?? 1, gramsTotal: g, hoursTotal: h, mode: 'auto', originKind: 'slicer' }, { rates: ctx.rates, profiles: ctx.calcProfiles, material: toItemMaterial(mat), machine: m?.cost ?? null }).bd;
 }
 
 /** Panel de laminado en el servidor (OrcaSlicer): elige máquina, proceso y material; entrega tiempo, gramos y precio. */
@@ -107,12 +106,12 @@ export function SlicePanel({ fileVersionId, ctx, canSlice = true, defaultMachine
           {ctx.presets.map((pr) => <button key={pr.key} type="button" className="btn-ghost btn-sm" disabled={!machine?.machineProfileId || !!qBusy} onClick={() => pickQuality(pr.key)} data-testid={`quality-${pr.key}`}>{pr.label ?? t(`nozzle.tpl.${pr.key}` as 'nozzle.tpl.borrador')}</button>)}
         </div>
         <label className="block"><span className="label">{t('slicer.processProfile')}</span><select className="input" value={processId} onChange={(e) => setProcessId(e.target.value)} data-testid="slice-process"><ProcessOptions profiles={procs} machineNozzle={machine?.nozzle ?? null} compatibleIds={setup?.compatibleProcessIds} /></select><NozzleMismatch processNozzle={procs.find((p) => p.id === processId)?.nozzle} machineNozzle={machine?.nozzle} /></label>
-        <label className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><select className="input" value={materialId} onChange={(e) => setMaterialId(e.target.value)} data-testid="slice-material">{mats.map((m) => <option key={m.id} value={m.id}>{matOptionLabel(m, t)}</option>)}</select></label>
+        <div className="block"><span className="label">{t('slicer.materialFilamentProfile')}</span><FilamentPicker materials={ctx.materials} value={materialId} hint={{ hex: amsColors?.[0] }} showCost={false} ariaLabel={t('slicer.materialFilamentProfile')} testId="slice-material" onChange={(id) => setMaterialId(id)} /></div>
         <label className="block"><span className="label">{t('slicer.filamentLabel')}</span><select className="input" value={filamentId} onChange={(e) => setFilamentId(e.target.value)} data-testid="slice-filament"><option value="">{t('slicer.filamentAuto')}</option>{filProfiles.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>{fil && <span className="muted text-xs" data-testid="slice-filament-hint">{fil.name} · {t(`slicer.filamentSource_${fil.source}` as 'slicer.filamentSource_auto')}</span>}</label>
         <label className="block"><span className="label">{t('slicer.copiesOnThePlate')}</span><input type="number" min={1} max={200} className="input" value={copies} onChange={(e) => setCopies(Math.max(1, +e.target.value || 1))} data-testid="slice-copies" /></label>
       </div>
       {extraMats.length > 0 && <fieldset className="rounded-xl border border-[var(--line)] p-3 space-y-2" data-testid="slice-extra-extruders"><legend className="label px-1">{t('slicer.multicolorTitle', { n: extraMats.length + 1 })}</legend><p className="muted text-xs">{t('slicer.multicolorHint')}</p>
-        {extraMats.map((v, k) => <label key={k} className="block"><span className="label"><span className="inline-block h-3 w-3 rounded-full align-middle mr-1.5 border border-[var(--line)]" style={{ background: amsColors?.[k + 1] }} />{t('slicer.extruderN', { n: k + 2 })}</span><select className="input" value={v} onChange={(e) => setExtraMats(extraMats.map((x, i) => (i === k ? e.target.value : x)))} data-testid={`slice-extruder-${k + 2}`}><option value="">{t('slicer.sameAsFirst')}</option>{mats.map((m) => <option key={m.id} value={m.id}>{matOptionLabel(m, t)}</option>)}</select></label>)}</fieldset>}
+        {extraMats.map((v, k) => <div key={k} className="block"><span className="label"><span className="inline-block h-3 w-3 rounded-full align-middle mr-1.5 border border-[var(--line)]" style={{ background: amsColors?.[k + 1] }} />{t('slicer.extruderN', { n: k + 2 })}</span><FilamentPicker materials={ctx.materials} value={v} emptyLabel={t('slicer.sameAsFirst')} hint={{ hex: amsColors?.[k + 1] }} showCost={false} ariaLabel={t('slicer.extruderN', { n: k + 2 })} testId={`slice-extruder-${k + 2}`} onChange={(id) => setExtraMats(extraMats.map((x, i) => (i === k ? id : x)))} /></div>)}</fieldset>}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={orient} onChange={(e) => { setOrient(e.target.checked); void setAutoOrientAction(fileId, e.target.checked); }} data-testid="slice-orient" />{t('slicer.autoOrient')}<span className="muted text-xs">{t('slicer.autoOrientHint')}</span></label>
       <div className="flex flex-wrap items-center gap-2">
         <button className="btn-primary" onClick={() => go()} disabled={!canSlice || busy || !machine} data-testid="slice-go">{busy ? t('common.slicing') : t('slicer.sliceOnTheServer')}</button>

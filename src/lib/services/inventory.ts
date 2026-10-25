@@ -44,8 +44,11 @@ export async function materialStock(db?: Db): Promise<MaterialStock[]> {
   db = db ?? (await getDb());
   const mats = await db.select().from(s.materials).where(isNull(s.materials.deletedAt));
   const sp = await db.select().from(s.spools).where(and(isNull(s.spools.deletedAt), inArray(s.spools.status, ['nueva', 'abierta', 'en_uso'])));
-  const jobs = await db.select({ materialId: s.printJobs.materialId, estG: s.printJobs.estG }).from(s.printJobs)
+  const liveJobs = await db.select({ id: s.printJobs.id, materialId: s.printJobs.materialId, estG: s.printJobs.estG }).from(s.printJobs)
     .where(and(inArray(s.printJobs.status, ['en_cola', 'imprimiendo', 'pausado']), isNull(s.printJobs.deletedAt)));
+  const parts = liveJobs.length ? await db.select({ jobId: s.jobMaterials.jobId, materialId: s.jobMaterials.materialId, estG: s.jobMaterials.estG }).from(s.jobMaterials).where(and(inArray(s.jobMaterials.jobId, liveJobs.map((j) => j.id)), isNull(s.jobMaterials.deletedAt))) : [];
+  // un trabajo con colores reserva en cada material lo suyo: los colores adicionales, y el principal con el resto
+  const jobs = [...liveJobs.map((j) => ({ materialId: j.materialId, estG: Math.max(0, j.estG - parts.filter((p) => p.jobId === j.id).reduce((a, p) => a + p.estG, 0)) })), ...parts.filter((p) => p.estG > 0).map((p) => ({ materialId: p.materialId as string | null, estG: p.estG }))];
   const typeKey = (m: { type: string; tech: string }) => `${m.tech}|${m.type}`;
   const byId = new Map(mats.map((m) => [m.id, m]));
   return mats.map((m) => {
