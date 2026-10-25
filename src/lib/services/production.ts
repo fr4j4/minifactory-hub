@@ -14,6 +14,7 @@ import { LOCALES } from '@/i18n/config';
 import { createT } from '@/i18n/translate';
 import { LocalizedError } from '@/i18n/errors';
 import { ymd } from '../format';
+import { defaultRealHours, plausibleRatio } from '../real-hours';
 
 type Db = Awaited<ReturnType<typeof getDb>>;
 
@@ -275,7 +276,8 @@ export async function finishJob(jobId: string, o: FinishInput) {
   if (!['imprimiendo', 'pausado'].includes(j.status)) throw new Error(t('queue.jobStatusChanged'));
   const now = new Date();
   const failed = o.result !== 'exito';
-  const realH = o.realH ?? (j.realStart ? Math.max(0.01, (now.getTime() - j.realStart.getTime()) / 3600_000) : j.estH);
+  // sin horas escritas: el tiempo desde «Iniciar» solo si es creíble frente al estimado (sin impresora conectada ambos clics suelen ir juntos)
+  const realH = o.realH ?? defaultRealHours(j.estH, j.realStart, now).hours;
   const factorOnFail = o.result === 'falla_total' ? 0.5 : 0.75;
   const realG = o.realG ?? (failed ? j.estG * factorOnFail : j.estG * (1 + st.rates.wastePct / 100));
   const qtyGood = o.result === 'exito' ? j.qty : o.result === 'falla_total' ? 0 : Math.max(0, Math.min(j.qty, o.qtyGood ?? Math.floor(j.qty / 2)));
@@ -314,7 +316,8 @@ export async function finishJob(jobId: string, o: FinishInput) {
   // máquina: contadores y factor de corrección de tiempo
   if (m) {
     const recent = await db.select({ e: s.printJobs.estH, r: s.printJobs.realH }).from(s.printJobs).where(and(eq(s.printJobs.machineId, m.id), eq(s.printJobs.result, 'exito'))).orderBy(desc(s.printJobs.realEnd)).limit(20);
-    const ratios = recent.filter((x) => x.e > 0 && x.r && x.r > 0).map((x) => x.r! / x.e).sort((a, b) => a - b);
+    // los tiempos poco creíbles (trabajos marcados al final, olvidados toda la noche) no corrigen el factor
+    const ratios = recent.filter((x) => x.e > 0 && x.r && x.r > 0).map((x) => x.r! / x.e).filter(plausibleRatio).sort((a, b) => a - b);
     const factor = ratios.length >= 3 ? ratios[Math.floor(ratios.length / 2)] : m.timeFactor;
     await db.update(s.machines).set({
       status: 'disponible', hoursTotal: sql`${s.machines.hoursTotal} + ${realH}`, jobsOk: sql`${s.machines.jobsOk} + ${failed ? 0 : 1}`, jobsFailed: sql`${s.machines.jobsFailed} + ${failed ? 1 : 0}`, timeFactor: factor, updatedAt: now,
